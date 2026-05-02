@@ -1,0 +1,20 @@
+default_language_version:
+  python: python3.11
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.9
+    hooks:
+      - id: ruff
+      - id: ruff-format
+
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.409
+    hooks:
+      - id: pyright
+
+  - repo: https://github.com/rohaquinlop/complexipy-pre-commit
+    rev: v5.1.0
+    hooks:
+      - id: complexipy
+        types_or: [python, pyi]
