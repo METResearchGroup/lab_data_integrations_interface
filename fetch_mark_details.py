@@ -22,6 +22,7 @@ def show_handle(profile):
 def show_num_followers(profile):
     print(f"Followers: {profile.followers_count}\n")
 
+
 def show_num_following(profile):
     print(f"Following: {profile.follows_count}\n")
 
@@ -30,21 +31,21 @@ def show_last_10_posts(feed):
     print("Last 10 Posts/Reposts:")
     for i, item in enumerate(feed.feed):
         post = item.post
-        print(f"{i+1}: {post.record.text[:80]!r}")
+        print(f"{i + 1}: {post.record.text[:80]!r}")
     print()
 
 
 def show_last_10_followers(followers):
     print("Last 10 Followers:")
     for i, f in enumerate(followers.followers):
-        print(f"{i+1}: {f.handle} ({f.display_name})")
+        print(f"{i + 1}: {f.handle} ({f.display_name})")
     print()
 
 
 def show_last_10_following(follows):
     print("Last 10 Following:")
     for i, f in enumerate(follows.follows):
-        print(f"{i+1}: {f.handle} ({f.display_name})")
+        print(f"{i + 1}: {f.handle} ({f.display_name})")
     print()
 
 
