@@ -30,12 +30,7 @@ def build_cursor(hours_back: int) -> int:
 
 
 def build_jetstream_url(did: str, cursor: int) -> str:
-    return (
-        f"{JETSTREAM_URL}"
-        f"?wantedCollections={REPOST_COLLECTION}"
-        f"&wantedDids={did}"
-        f"&cursor={cursor}"
-    )
+    return f"{JETSTREAM_URL}?wantedCollections={REPOST_COLLECTION}&wantedDids={did}&cursor={cursor}"
 
 
 def is_repost_create_event(event: dict) -> bool:
@@ -59,8 +54,11 @@ async def fetch_reposts_from_jetstream(did: str) -> list[dict]:
                 event = json.loads(raw)
                 if is_repost_create_event(event):
                     reposts.append(event)
-            except asyncio.TimeoutError:
-                print(f"No new events for {TIMEOUT_PER_MESSAGE_SECONDS}s, stopping with {len(reposts)} reposts found.")
+            except TimeoutError:
+                print(
+                    f"No new events for {TIMEOUT_PER_MESSAGE_SECONDS}s, "
+                    f"stopping with {len(reposts)} reposts found."
+                )
                 break
 
     return reposts
