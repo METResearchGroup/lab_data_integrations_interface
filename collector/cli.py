@@ -25,6 +25,8 @@ CSV_COLUMNS = [
 def get_csv_rows(response):
     rows = []
     for post in response.posts:
+        # example post.uri: at://did:plc:abc123xyz/app.bsky.feed.post/3lc4k7abc2s2b
+        # use .split("/") to turn into list, grab only the last element (record key aka unique id)
         rkey = post.uri.split("/")[-1]
         rows.append(
             {
