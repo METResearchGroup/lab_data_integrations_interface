@@ -292,7 +292,10 @@ dev = [
 requires-dist = [
     { name = "atproto", specifier = ">=0.0.65" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
+<<<<<<< cli_app
     { name = "typer", specifier = ">=0.25.1" },
+=======
+>>>>>>> main
 ]
 
 [package.metadata.requires-dev]
