@@ -6,10 +6,7 @@ requires-python = ">=3.11,<3.12"
 dependencies = [
     "atproto>=0.0.65",
     "python-dotenv>=1.2.2",
-<<<<<<< cli_app
     "typer>=0.25.1",
-=======
->>>>>>> main
 ]
 
 [dependency-groups]
