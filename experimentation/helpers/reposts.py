@@ -1,5 +1,5 @@
 from atproto import Client
-from constants import REPOSTS_TO_FETCH
+from experimentation.constants import REPOSTS_TO_FETCH
 
 
 def fetch_reposts(client: Client, did: str) -> list[dict]:
