@@ -2,6 +2,7 @@ import os
 import time
 
 from atproto import Client
+from atproto_client.exceptions import BadRequestError
 from constants import MICROSECONDS_PER_SECOND, SECONDS_PER_HOUR
 from dotenv import load_dotenv
 
@@ -13,8 +14,12 @@ def create_client() -> Client:
     return client
 
 
-def resolve_did(client: Client, handle: str) -> str:
-    return client.app.bsky.actor.get_profile({"actor": handle}).did
+def resolve_did(client: Client, handle: str) -> str | None:
+    try:
+        return client.app.bsky.actor.get_profile({"actor": handle}).did
+    except BadRequestError:
+        print(f"Profile not found: @{handle}")
+        return None
 
 
 def build_cursor(hours_back: int) -> int:

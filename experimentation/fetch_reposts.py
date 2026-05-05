@@ -9,6 +9,8 @@ def main() -> None:
     for handle in TARGET_HANDLES:
         print(f"\n=== @{handle} ===\n")
         did = resolve_did(client, handle)
+        if did is None:
+            continue
 
         print(f"FETCHING LAST {REPOSTS_TO_FETCH} REPOSTS FOR @{handle}\n")
         repost_records = fetch_repost_records(client, did)

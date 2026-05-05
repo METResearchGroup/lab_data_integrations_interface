@@ -12,6 +12,8 @@ async def main() -> None:
     for handle in TARGET_HANDLES:
         print(f"\n=== @{handle} ===\n")
         did = resolve_did(client, handle)
+        if did is None:
+            continue
 
         print(f"FETCHING LAST {LIKES_TO_FETCH} LIKES FOR @{handle}\n")
         like_events = await fetch_likes_from_jetstream(did, cursor)
