@@ -1,20 +1,22 @@
-from constants import POSTS_TO_FETCH, TARGET_HANDLES
-from interactions import create_client, resolve_did, show_posts
+from constants import TARGET_HANDLES
+from interactions import create_client, resolve_did, write_csv
 from posts import fetch_posts
 
 
 def main() -> None:
     client = create_client()
+    rows = []
 
     for handle in TARGET_HANDLES:
-        print(f"\n=== @{handle} ===\n")
         did = resolve_did(client, handle)
         if did is None:
             continue
 
-        print(f"FETCHING LAST {POSTS_TO_FETCH} POSTS FOR @{handle}\n")
         posts = fetch_posts(client, did)
-        show_posts(posts, "posts")
+        for post in posts:
+            rows.append({"handle": handle, "post": post["text"]})
+
+    write_csv("posts.csv", rows, fieldnames=["handle", "post"])
 
 
 if __name__ == "__main__":

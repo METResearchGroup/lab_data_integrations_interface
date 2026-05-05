@@ -1,3 +1,4 @@
+import csv
 import os
 import time
 
@@ -38,8 +39,9 @@ def fetch_post(client: Client, post_uri: str) -> dict:
     }
 
 
-def show_posts(posts: list[dict], label: str) -> None:
-    print(f"Last {len(posts)} {label}:\n")
-    for i, post in enumerate(posts):
-        print(f"{i + 1}: @{post['author']}: {post['text'][:120]!r}")
-    print()
+def write_csv(filename: str, rows: list[dict], fieldnames: list[str]) -> None:
+    with open(filename, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+    print(f"Wrote {len(rows)} rows to {filename}")
