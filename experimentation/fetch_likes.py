@@ -21,13 +21,23 @@ async def main() -> None:
             like_events = await fetch_likes_from_jetstream(did, cursor)
             liked_posts = get_liked_posts(client, like_events)
             for post in liked_posts:
-                rows.append({"handle": handle, "post_handle": post["author"], "post": post["text"]})
+                rows.append(
+                    {
+                        "handle": handle,
+                        "post_handle": post["author"],
+                        "post": post["text"],
+                        "post_timestamp": post["created_at"],
+                        "post_id": post["uri"],
+                    }
+                )
         except BadRequestError as e:
             print(f"Skipping @{handle}: {e}")
         print(f"done with {i + 1} handles")
 
     write_csv(
-        Path(__file__).parent / "likes.csv", rows, fieldnames=["handle", "post_handle", "post"]
+        Path(__file__).parent / "likes.csv",
+        rows,
+        fieldnames=["handle", "post_handle", "post", "post_timestamp", "post_id"],
     )
 
 

@@ -18,11 +18,22 @@ def main() -> None:
         try:
             posts = fetch_posts(client, did)
             for post in posts:
-                rows.append({"handle": handle, "post": post["text"]})
+                rows.append(
+                    {
+                        "handle": handle,
+                        "post": post["text"],
+                        "post_timestamp": post["created_at"],
+                        "post_id": post["uri"],
+                    }
+                )
         except BadRequestError as e:
             print(f"Skipping @{handle}: {e}")
 
-    write_csv(Path(__file__).parent / "posts.csv", rows, fieldnames=["handle", "post"])
+    write_csv(
+        Path(__file__).parent / "posts.csv",
+        rows,
+        fieldnames=["handle", "post", "post_timestamp", "post_id"],
+    )
 
 
 if __name__ == "__main__":

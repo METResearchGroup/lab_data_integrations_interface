@@ -14,6 +14,8 @@ def fetch_liked_post(client: Client, post_uri: str) -> dict:
     return {
         "author": post.author.handle,
         "text": getattr(post.record, "text", ""),
+        "created_at": getattr(post.record, "created_at", ""),
+        "uri": post.uri,
     }
 
 
@@ -55,7 +57,7 @@ async def fetch_likes_from_jetstream(did: str, cursor: int) -> list[dict]:
                 event = json.loads(raw)
                 if is_like_create_event(event):
                     likes.append(event)
-            except TimeoutError:
+            except (TimeoutError, websockets.exceptions.ConnectionClosedError):
                 break
 
     # jetstream will return least recent first, so need to reverse

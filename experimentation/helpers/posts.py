@@ -14,6 +14,8 @@ def fetch_posts(client: Client, did: str) -> list[dict]:
         {
             "author": item.post.author.handle,
             "text": getattr(item.post.record, "text", ""),
+            "created_at": getattr(item.post.record, "created_at", ""),
+            "uri": item.post.uri,
         }
         for item in response.feed
     ]
