@@ -3,7 +3,13 @@ import json
 
 import websockets
 from atproto import Client
-from experimentation.constants import JETSTREAM_URL, LIKE_COLLECTION, LIKES_TO_FETCH, STREAM_IDLE_TIMEOUT
+
+from experimentation.constants import (
+    JETSTREAM_URL,
+    LIKE_COLLECTION,
+    LIKES_TO_FETCH,
+    STREAM_IDLE_TIMEOUT,
+)
 
 
 def fetch_liked_post(client: Client, post_uri: str) -> dict:

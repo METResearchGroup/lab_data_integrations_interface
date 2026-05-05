@@ -1,9 +1,10 @@
 from pathlib import Path
 
 from atproto_client.exceptions import BadRequestError
-from experimentation.constants import TARGET_HANDLES
 from helpers.interactions import create_client, resolve_did, write_csv
 from helpers.posts import fetch_posts
+
+from experimentation.constants import TARGET_HANDLES
 
 
 def main() -> None:
