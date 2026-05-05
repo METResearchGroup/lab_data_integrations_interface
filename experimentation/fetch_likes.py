@@ -2,7 +2,6 @@ import asyncio
 from pathlib import Path
 
 from atproto_client.exceptions import BadRequestError
-
 from constants import HOURS_TO_LOOK_BACK, TARGET_HANDLES
 from helpers.interactions import build_cursor, create_client, resolve_did, write_csv
 from helpers.likes import fetch_likes_from_jetstream, get_liked_posts
@@ -26,7 +25,9 @@ async def main() -> None:
         except BadRequestError as e:
             print(f"Skipping @{handle}: {e}")
 
-    write_csv(Path(__file__).parent / "likes.csv", rows, fieldnames=["handle", "post_handle", "post"])
+    write_csv(
+        Path(__file__).parent / "likes.csv", rows, fieldnames=["handle", "post_handle", "post"]
+    )
 
 
 if __name__ == "__main__":
