@@ -1,3 +1,4 @@
+from atproto_client.exceptions import BadRequestError
 from constants import TARGET_HANDLES
 from interactions import create_client, resolve_did, write_csv
 from posts import fetch_posts
@@ -12,9 +13,12 @@ def main() -> None:
         if did is None:
             continue
 
-        posts = fetch_posts(client, did)
-        for post in posts:
-            rows.append({"handle": handle, "post": post["text"]})
+        try:
+            posts = fetch_posts(client, did)
+            for post in posts:
+                rows.append({"handle": handle, "post": post["text"]})
+        except BadRequestError as e:
+            print(f"Skipping @{handle}: {e}")
 
     write_csv("posts.csv", rows, fieldnames=["handle", "post"])
 

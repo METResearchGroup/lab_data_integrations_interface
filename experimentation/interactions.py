@@ -28,17 +28,6 @@ def build_cursor(hours_back: int) -> int:
     return int((time.time() - seconds_back) * MICROSECONDS_PER_SECOND)
 
 
-def fetch_post(client: Client, post_uri: str) -> dict:
-    response = client.app.bsky.feed.get_posts({"uris": [post_uri]})
-    if not response.posts:
-        return {}
-    post = response.posts[0]
-    return {
-        "author": post.author.handle,
-        "text": getattr(post.record, "text", ""),
-    }
-
-
 def write_csv(filename: str, rows: list[dict], fieldnames: list[str]) -> None:
     with open(filename, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)

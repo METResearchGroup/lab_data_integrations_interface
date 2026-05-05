@@ -1,6 +1,7 @@
+from atproto_client.exceptions import BadRequestError
 from constants import TARGET_HANDLES
 from interactions import create_client, resolve_did, write_csv
-from reposts import fetch_repost_records, get_reposted_posts
+from reposts import fetch_reposts
 
 
 def main() -> None:
@@ -12,10 +13,12 @@ def main() -> None:
         if did is None:
             continue
 
-        repost_records = fetch_repost_records(client, did)
-        reposted_posts = get_reposted_posts(client, repost_records)
-        for post in reposted_posts:
-            rows.append({"handle": handle, "post_handle": post["author"], "post": post["text"]})
+        try:
+            reposts = fetch_reposts(client, did)
+            for post in reposts:
+                rows.append({"handle": handle, "post_handle": post["author"], "post": post["text"]})
+        except BadRequestError as e:
+            print(f"Skipping @{handle}: {e}")
 
     write_csv("reposts.csv", rows, fieldnames=["handle", "post_handle", "post"])
 

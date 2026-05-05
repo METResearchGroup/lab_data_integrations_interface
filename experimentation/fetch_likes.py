@@ -1,5 +1,6 @@
 import asyncio
 
+from atproto_client.exceptions import BadRequestError
 from constants import HOURS_TO_LOOK_BACK, TARGET_HANDLES
 from interactions import build_cursor, create_client, resolve_did, write_csv
 from likes import fetch_likes_from_jetstream, get_liked_posts
@@ -15,10 +16,13 @@ async def main() -> None:
         if did is None:
             continue
 
-        like_events = await fetch_likes_from_jetstream(did, cursor)
-        liked_posts = get_liked_posts(client, like_events)
-        for post in liked_posts:
-            rows.append({"handle": handle, "post_handle": post["author"], "post": post["text"]})
+        try:
+            like_events = await fetch_likes_from_jetstream(did, cursor)
+            liked_posts = get_liked_posts(client, like_events)
+            for post in liked_posts:
+                rows.append({"handle": handle, "post_handle": post["author"], "post": post["text"]})
+        except BadRequestError as e:
+            print(f"Skipping @{handle}: {e}")
 
     write_csv("likes.csv", rows, fieldnames=["handle", "post_handle", "post"])
 
