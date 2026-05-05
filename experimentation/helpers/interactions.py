@@ -1,6 +1,7 @@
 import csv
 import os
 import time
+from pathlib import Path
 
 from atproto import Client
 from atproto_client.exceptions import BadRequestError
@@ -28,7 +29,7 @@ def build_cursor(hours_back: int) -> int:
     return int((time.time() - seconds_back) * MICROSECONDS_PER_SECOND)
 
 
-def write_csv(filename: str, rows: list[dict], fieldnames: list[str]) -> None:
+def write_csv(filename: Path, rows: list[dict], fieldnames: list[str]) -> None:
     with open(filename, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()

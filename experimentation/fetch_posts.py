@@ -1,7 +1,10 @@
+from pathlib import Path
+
 from atproto_client.exceptions import BadRequestError
+
 from constants import TARGET_HANDLES
-from interactions import create_client, resolve_did, write_csv
-from posts import fetch_posts
+from helpers.interactions import create_client, resolve_did, write_csv
+from helpers.posts import fetch_posts
 
 
 def main() -> None:
@@ -20,7 +23,7 @@ def main() -> None:
         except BadRequestError as e:
             print(f"Skipping @{handle}: {e}")
 
-    write_csv("posts.csv", rows, fieldnames=["handle", "post"])
+    write_csv(Path(__file__).parent / "posts.csv", rows, fieldnames=["handle", "post"])
 
 
 if __name__ == "__main__":
