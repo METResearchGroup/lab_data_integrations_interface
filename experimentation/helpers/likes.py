@@ -3,7 +3,7 @@ import json
 
 import websockets
 from atproto import Client
-from constants import JETSTREAM_URL, LIKE_COLLECTION, LIKES_TO_FETCH, TIMEOUT_PER_MESSAGE_SECONDS
+from constants import JETSTREAM_URL, LIKE_COLLECTION, LIKES_TO_FETCH, STREAM_IDLE_TIMEOUT
 
 
 def fetch_liked_post(client: Client, post_uri: str) -> dict:
@@ -30,6 +30,10 @@ def is_like_create_event(event: dict) -> bool:
     )
 
 
+def reverse_likes(likes: list[dict]) -> list[dict]:
+    return list(reversed(likes))
+
+
 def get_liked_posts(client: Client, like_events: list[dict]) -> list[dict]:
     liked_posts = []
     for event in like_events:
@@ -45,17 +49,14 @@ async def fetch_likes_from_jetstream(did: str, cursor: int) -> list[dict]:
     likes = []
 
     async with websockets.connect(url) as ws:
-        while len(likes) < LIKES_TO_FETCH:
+        while True:
             try:
-                raw = await asyncio.wait_for(ws.recv(), timeout=TIMEOUT_PER_MESSAGE_SECONDS)
+                raw = await asyncio.wait_for(ws.recv(), timeout=STREAM_IDLE_TIMEOUT)
                 event = json.loads(raw)
                 if is_like_create_event(event):
                     likes.append(event)
             except TimeoutError:
-                print(
-                    f"No new events for {TIMEOUT_PER_MESSAGE_SECONDS}s, "
-                    f"stopping with {len(likes)} likes found."
-                )
                 break
 
-    return likes
+    # jetstream will return least recent first, so need to reverse
+    return reverse_likes(likes)[:LIKES_TO_FETCH]

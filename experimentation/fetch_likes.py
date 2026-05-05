@@ -12,7 +12,7 @@ async def main() -> None:
     cursor = build_cursor(HOURS_TO_LOOK_BACK)
     rows = []
 
-    for handle in TARGET_HANDLES:
+    for i, handle in enumerate(TARGET_HANDLES):
         did = resolve_did(client, handle)
         if did is None:
             continue
@@ -24,6 +24,7 @@ async def main() -> None:
                 rows.append({"handle": handle, "post_handle": post["author"], "post": post["text"]})
         except BadRequestError as e:
             print(f"Skipping @{handle}: {e}")
+        print(f"done with {i + 1} handles")
 
     write_csv(
         Path(__file__).parent / "likes.csv", rows, fieldnames=["handle", "post_handle", "post"]
