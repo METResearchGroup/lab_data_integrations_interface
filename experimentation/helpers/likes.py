@@ -39,7 +39,7 @@ def is_like_create_event(event: dict) -> bool:
     )
 
 
-def collect_like_event(event: dict, did_to_events: dict[str, list[dict]]) -> None:
+def append_liked_event(event: dict, did_to_events: dict[str, list[dict]]) -> None:
     if not is_like_create_event(event):
         return
     did = event.get("did") # did of the liker
@@ -47,8 +47,7 @@ def collect_like_event(event: dict, did_to_events: dict[str, list[dict]]) -> Non
         did_to_events[did].append(event)
 
 
-
-def get_liked_posts(client: Client, like_events: list[dict]) -> list[dict]:
+def resolve_events_to_posts(client: Client, like_events: list[dict]) -> list[dict]:
     liked_posts = []
     for event in like_events:
         post_uri = event["commit"]["record"]["subject"]["uri"]
@@ -58,21 +57,23 @@ def get_liked_posts(client: Client, like_events: list[dict]) -> list[dict]:
     return liked_posts
 
 
-async def fetch_liked_posts(client: Client, dids: list[str], cursor: int) -> dict[str, list[dict]]:
-    url = build_jetstream_url(dids, cursor)
+async def get_liked_events(url: str, dids: list[str]) -> dict[str, list[dict]]:
     did_to_events: dict[str, list[dict]] = {did: [] for did in dids}
-
     async with websockets.connect(url) as ws:
         while True:
             try:
                 raw = await asyncio.wait_for(ws.recv(), timeout=STREAM_IDLE_TIMEOUT)
                 event = json.loads(raw)
-                collect_like_event(event, did_to_events)
-                print("collected an event")
-            except (TimeoutError, websockets.exceptions.ConnectionClosedError):
+                append_liked_event(event, did_to_events)
+            except TimeoutError:
                 break
+    return did_to_events
 
+
+async def fetch_liked_posts(client: Client, dids: list[str], cursor: int) -> dict[str, list[dict]]:
+    url = build_jetstream_url(dids, cursor)
+    did_to_events = await get_liked_events(url, dids)
     return {
-        did: get_liked_posts(client, list(reversed(events))[:LIKES_TO_FETCH])
+        did: resolve_events_to_posts(client, list(reversed(events))[:LIKES_TO_FETCH])
         for did, events in did_to_events.items()
     }

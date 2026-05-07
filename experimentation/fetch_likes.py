@@ -46,7 +46,7 @@ async def main() -> None:
 
     rows = await collect_rows(client, TARGET_HANDLES, cursor)
     write_csv(
-        Path(__file__).parent / "likes.csv",
+        Path(__file__).parent / "likes2.csv",
         rows,
         fieldnames=["handle", "post_handle", "post", "post_timestamp", "post_id"],
     )
