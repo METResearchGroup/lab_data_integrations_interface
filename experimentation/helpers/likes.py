@@ -25,8 +25,9 @@ def fetch_liked_post(client: Client, post_uri: str) -> dict:
     }
 
 
-def build_jetstream_url(did: str, cursor: int) -> str:
-    return f"{JETSTREAM_URL}?wantedCollections={LIKE_COLLECTION}&wantedDids={did}&cursor={cursor}"
+def build_jetstream_url(dids: list[str], cursor: int) -> str:
+    wanted_dids = "&".join(f"wantedDids={did}" for did in dids)
+    return f"{JETSTREAM_URL}?wantedCollections={LIKE_COLLECTION}&{wanted_dids}&cursor={cursor}"
 
 
 def is_like_create_event(event: dict) -> bool:
@@ -38,8 +39,13 @@ def is_like_create_event(event: dict) -> bool:
     )
 
 
-def reverse_likes(likes: list[dict]) -> list[dict]:
-    return list(reversed(likes))
+def collect_like_event(event: dict, did_to_events: dict[str, list[dict]]) -> None:
+    if not is_like_create_event(event):
+        return
+    did = event.get("did") # did of the liker
+    if did in did_to_events:
+        did_to_events[did].append(event)
+
 
 
 def get_liked_posts(client: Client, like_events: list[dict]) -> list[dict]:
@@ -52,19 +58,21 @@ def get_liked_posts(client: Client, like_events: list[dict]) -> list[dict]:
     return liked_posts
 
 
-async def fetch_likes_from_jetstream(did: str, cursor: int) -> list[dict]:
-    url = build_jetstream_url(did, cursor)
-    likes = []
+async def fetch_liked_posts(client: Client, dids: list[str], cursor: int) -> dict[str, list[dict]]:
+    url = build_jetstream_url(dids, cursor)
+    did_to_events: dict[str, list[dict]] = {did: [] for did in dids}
 
     async with websockets.connect(url) as ws:
         while True:
             try:
                 raw = await asyncio.wait_for(ws.recv(), timeout=STREAM_IDLE_TIMEOUT)
                 event = json.loads(raw)
-                if is_like_create_event(event):
-                    likes.append(event)
+                collect_like_event(event, did_to_events)
+                print("collected an event")
             except (TimeoutError, websockets.exceptions.ConnectionClosedError):
                 break
 
-    # jetstream will return least recent first, so need to reverse
-    return reverse_likes(likes)[:LIKES_TO_FETCH]
+    return {
+        did: get_liked_posts(client, list(reversed(events))[:LIKES_TO_FETCH])
+        for did, events in did_to_events.items()
+    }

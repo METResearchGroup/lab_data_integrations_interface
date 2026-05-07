@@ -2,35 +2,41 @@ import asyncio
 from pathlib import Path
 
 from atproto import Client
-from atproto_client.exceptions import BadRequestError
 from helpers.interactions import build_cursor, create_client, resolve_did, write_csv
-from helpers.likes import fetch_likes_from_jetstream, get_liked_posts
+from helpers.likes import fetch_liked_posts
 
 from experimentation.constants import HOURS_TO_LOOK_BACK, TARGET_HANDLES
 
 
-async def collect_rows(client: Client, handles: list[str], cursor: int) -> list[dict]:
-    rows = []
-    for i, handle in enumerate(handles):
+def map_dids_to_handles(client: Client, handles: list[str]) -> dict[str, str]:
+    did_to_handle: dict[str, str] = {}
+    for handle in handles:
         did = resolve_did(client, handle)
         if did is None:
             continue
-        try:
-            like_events = await fetch_likes_from_jetstream(did, cursor)
-            liked_posts = get_liked_posts(client, like_events)
-            for post in liked_posts:
-                rows.append(
-                    {
-                        "handle": handle,
-                        "post_handle": post["author"],
-                        "post": post["text"],
-                        "post_timestamp": post["created_at"],
-                        "post_id": post["uri"],
-                    }
-                )
-        except BadRequestError as e:
-            print(f"Skipping @{handle}: {e}")
-        print(f"done with {i + 1} handles")
+        did_to_handle[did] = handle
+    return did_to_handle
+
+
+async def collect_rows(client: Client, handles: list[str], cursor: int) -> list[dict]:
+    rows: list[dict] = []
+
+    did_to_handle = map_dids_to_handles(client, handles)
+    liked_posts_by_did = await fetch_liked_posts(client, list(did_to_handle.keys()), cursor)
+
+    for did, posts in liked_posts_by_did.items():
+        handle = did_to_handle[did]
+        for post in posts:
+            rows.append(
+                {
+                    "handle": handle,
+                    "post_handle": post["author"],
+                    "post": post["text"],
+                    "post_timestamp": post["created_at"],
+                    "post_id": post["uri"],
+                }
+            )
+
     return rows
 
 
