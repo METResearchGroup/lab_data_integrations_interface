@@ -42,7 +42,7 @@ def is_like_create_event(event: dict) -> bool:
 def append_liked_event(event: dict, did_to_events: dict[str, list[dict]]) -> None:
     if not is_like_create_event(event):
         return
-    did = event.get("did") # did of the liker
+    did = event.get("did")  # did of the liker
     if did in did_to_events:
         did_to_events[did].append(event)
 
