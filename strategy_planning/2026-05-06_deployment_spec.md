@@ -73,4 +73,4 @@ Example user stories we'll want to support:
 
 Example eventual system design diagram
 
-![System Design Diagram](../static/system_design.png)
+![System Design Diagram](static/system_design.png)
