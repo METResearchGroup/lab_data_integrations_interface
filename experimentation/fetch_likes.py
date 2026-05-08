@@ -34,6 +34,7 @@ async def collect_rows(client: Client, handles: list[str], cursor: int) -> list[
                     "post": post["text"],
                     "post_timestamp": post["created_at"],
                     "post_id": post["uri"],
+                    "like_timestamp": post["like_timestamp"],
                 }
             )
 
@@ -48,7 +49,7 @@ async def main() -> None:
     write_csv(
         Path(__file__).parent / "likes2.csv",
         rows,
-        fieldnames=["handle", "post_handle", "post", "post_timestamp", "post_id"],
+        fieldnames=["handle", "post_handle", "post", "post_timestamp", "post_id", "like_timestamp"],
     )
 
 

@@ -51,9 +51,10 @@ def resolve_events_to_posts(client: Client, like_events: list[dict]) -> list[dic
     liked_posts = []
     for event in like_events:
         post_uri = event["commit"]["record"]["subject"]["uri"]
+        like_timestamp = event["commit"]["record"]["createdAt"]
         post = fetch_liked_post(client, post_uri)
         if post:
-            liked_posts.append(post)
+            liked_posts.append({**post, "like_timestamp": like_timestamp})
     return liked_posts
 
 
