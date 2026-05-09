@@ -13,6 +13,7 @@ export default function Home() {
   const [appState, setAppState] = useState<AppState>({ status: 'idle' })
 
   async function handleRun() {
+    if (appState.status === 'running') return
     setAppState({ status: 'running' })
     try {
       // const res = await fetch('/api/collect', {
@@ -22,6 +23,7 @@ export default function Home() {
       // })
       // if (!res.ok) throw new Error(await res.text())
       // const { downloadUrl } = await res.json()
+      await new Promise((resolve) => setTimeout(resolve, 10000))
       const downloadUrl = "https://www.image2url.com/r2/default/images/1778351119439-4535f6b3-d0cd-4f4c-ba6b-5549348eebc7.jpg"
       setAppState({ status: 'success', downloadUrl })
     } catch (e) {
