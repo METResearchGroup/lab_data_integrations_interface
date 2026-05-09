@@ -24,8 +24,9 @@ export default function Home() {
       // })
       // if (!res.ok) throw new Error(await res.text())
       // const { downloadUrl } = await res.json()
-      await new Promise((resolve) => setTimeout(resolve, 10000))
-      const downloadUrl = "https://www.image2url.com/r2/default/images/1778351119439-4535f6b3-d0cd-4f4c-ba6b-5549348eebc7.jpg"
+      await new Promise((resolve) => setTimeout(resolve, 5000))
+      const blob = new Blob(['uri,url,author_handle,text,created_at\ntest-uri,https://bsky.app,user.bsky.social,hello world,2024-01-01'], { type: 'text/csv' })
+      const downloadUrl = URL.createObjectURL(blob)
       setAppState({ status: 'success', downloadUrl })
     } catch (e) {
       setAppState({ status: 'error', message: e instanceof Error ? e.message : 'Something went wrong' })
