@@ -7,10 +7,11 @@ import RunButton from "@/components/RunButton";
 import ExportButton from "@/components/ExportButton";
 import { DataSourceId } from "@/lib/sources";
 import { AppState, CollectionParams } from "@/lib/types";
+import { DEFAULT_LIMIT } from "@/lib/constants";
 
 export default function Home() {
   const [source, setSource] = useState<DataSourceId>("bluesky");
-  const [params, setParams] = useState<CollectionParams>({ limit: 50 });
+  const [params, setParams] = useState<CollectionParams>({ limit: DEFAULT_LIMIT });
   const [appState, setAppState] = useState<AppState>({ status: "idle" });
 
   async function handleRun() {
@@ -50,7 +51,12 @@ export default function Home() {
       <div className="w-full max-w-lg rounded-xl bg-white p-8 shadow-sm flex flex-col gap-6">
         <DataSourceDropdown value={source} onChange={setSource} />
 
-        <ParametersInput source={source} value={params} onChange={setParams} />
+        <ParametersInput
+          source={source}
+          value={params}
+          onChange={setParams}
+          onLimitFocus={() => setAppState({ status: "idle" })}
+        />
 
         <RunButton
           onClick={handleRun}
