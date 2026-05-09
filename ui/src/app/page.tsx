@@ -15,6 +15,10 @@ export default function Home() {
 
   async function handleRun() {
     if (appState.status === "running") return;
+    if (!params.limit || params.limit < 1) {
+      setAppState({ status: "error", message: "Please enter in the number of results field with at least 1" });
+      return;
+    }
     setAppState({ status: "running" });
     try {
       // const res = await fetch('/api/collect', {

@@ -1,11 +1,11 @@
 "use client";
 
-interface LimitInputProps {
+interface ResultsLimitInputProps {
   value: number;
   onChange: (value: number) => void;
 }
 
-export default function LimitInput({ value, onChange }: LimitInputProps) {
+export default function ResultsLimitInput({ value, onChange }: ResultsLimitInputProps) {
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor="limit" className="text-sm font-medium text-zinc-700">

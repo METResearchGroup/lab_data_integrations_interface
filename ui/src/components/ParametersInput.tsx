@@ -2,7 +2,7 @@
 
 import { DataSourceId } from "@/lib/sources";
 import { CollectionParams } from "@/lib/types";
-import LimitInput from "@/components/LimitInput";
+import ResultsLimitInput from "@/components/ResultsLimitInput";
 import HandlesInput from "@/components/HandlesInput";
 
 interface ParametersInputProps {
@@ -18,7 +18,7 @@ export default function ParametersInput({
 }: ParametersInputProps) {
   return (
     <div className="flex flex-col gap-4">
-      <LimitInput
+      <ResultsLimitInput
         value={value.limit}
         onChange={(limit) => onChange({ ...value, limit })}
       />
