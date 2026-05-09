@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
 interface ExportButtonProps {
-  downloadUrl?: string
+  downloadUrl?: string;
 }
 
 export default function ExportButton({ downloadUrl }: ExportButtonProps) {
@@ -14,5 +14,5 @@ export default function ExportButton({ downloadUrl }: ExportButtonProps) {
     >
       Export CSV
     </a>
-  )
+  );
 }

@@ -1,17 +1,21 @@
-'use client'
+"use client";
 
-import { DataSourceId } from '@/lib/sources'
-import { CollectionParams } from '@/lib/types'
-import LimitInput from '@/components/LimitInput'
-import HandlesInput from '@/components/HandlesInput'
+import { DataSourceId } from "@/lib/sources";
+import { CollectionParams } from "@/lib/types";
+import LimitInput from "@/components/LimitInput";
+import HandlesInput from "@/components/HandlesInput";
 
 interface ParametersInputProps {
-  source: DataSourceId
-  value: CollectionParams
-  onChange: (value: CollectionParams) => void
+  source: DataSourceId;
+  value: CollectionParams;
+  onChange: (value: CollectionParams) => void;
 }
 
-export default function ParametersInput({ source: _source, value, onChange }: ParametersInputProps) {
+export default function ParametersInput({
+  source: _source,
+  value,
+  onChange,
+}: ParametersInputProps) {
   return (
     <div className="flex flex-col gap-4">
       <LimitInput
@@ -23,5 +27,5 @@ export default function ParametersInput({ source: _source, value, onChange }: Pa
         onChange={(handles) => onChange({ ...value, handles })}
       />
     </div>
-  )
+  );
 }
