@@ -4,6 +4,7 @@ import { useState } from 'react'
 import DataSourceDropdown from '@/components/DataSourceDropdown'
 import ParametersInput from '@/components/ParametersInput'
 import RunButton from '@/components/RunButton'
+import ExportButton from '@/components/ExportButton'
 import { DataSourceId } from '@/lib/sources'
 import { AppState, CollectionParams } from '@/lib/types'
 
@@ -37,6 +38,7 @@ export default function Home() {
         <DataSourceDropdown value={source} onChange={setSource} />
         <ParametersInput source={source} value={params} onChange={setParams} />
         <RunButton onClick={handleRun} disabled={appState.status === 'running'} />
+        <ExportButton downloadUrl={appState.status === 'success' ? appState.downloadUrl : undefined} />
         {appState.status === 'error' && (
           <p className="text-sm text-red-600">{appState.message}</p>
         )}
