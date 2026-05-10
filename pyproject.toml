@@ -8,6 +8,8 @@ dependencies = [
     "fastapi>=0.136.1",
     "python-dotenv>=1.2.2",
     "typer>=0.25.1",
+    "websockets>=15.0.1",
+
 ]
 
 [dependency-groups]
