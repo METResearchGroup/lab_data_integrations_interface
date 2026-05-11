@@ -70,3 +70,7 @@ Example user stories we'll want to support:
 
 - "Can I have a sample of 100,000 posts from Bluesky?"
 - "Can I get a sample of posts from the past 2 months on Bluesky?"
+
+Example eventual system design diagram
+
+![System Design Diagram](static/system_design.png)
