@@ -5,6 +5,7 @@ import DataSourceDropdown from "@/components/DataSourceDropdown";
 import ParametersInput from "@/components/ParametersInput";
 import RunButton from "@/components/RunButton";
 import ExportButton from "@/components/ExportButton";
+import ProgressBar from "@/components/ProgressBar";
 import { DataSourceId } from "@/lib/sources";
 import { AppState, CollectionParams } from "@/lib/types";
 import { DEFAULT_LIMIT } from "@/lib/constants";
@@ -62,6 +63,8 @@ export default function Home() {
           onClick={handleRun}
           disabled={appState.status === "running"}
         />
+
+        {appState.status === "running" && <ProgressBar />}
 
         <ExportButton
           downloadUrl={
