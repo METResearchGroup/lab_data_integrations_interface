@@ -46,6 +46,7 @@ def generate_chat_prompt(examples: list[str]) -> tuple[str, str]:
 
 
 def get_examples_dict(examples_path: Path) -> list[dict[str, str]]:
+    """Returns at most the first 5 posts in the CSV file."""
     examples = []
     with open(examples_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
