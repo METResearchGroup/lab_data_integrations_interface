@@ -1,5 +1,7 @@
 class CircuitBreaker:
     def __init__(self, failure_threshold: int = 5):
+        if failure_threshold < 1:
+            raise ValueError(f"failure_threshold must be >= 1, got {failure_threshold}")
         self.failure_threshold = failure_threshold
         self.consecutive_failures = 0
         self.is_open = False
