@@ -1,5 +1,5 @@
 class CircuitBreaker:
-    def __init__(self, failure_threshold: int = 3):
+    def __init__(self, failure_threshold: int = 5):
         self.failure_threshold = failure_threshold
         self.consecutive_failures = 0
         self.is_open = False

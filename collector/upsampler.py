@@ -76,11 +76,11 @@ def generate_new_post(chain) -> SocialMediaPost:
 
 
 def run_upsampling(prompt: tuple[str, str], total_samples: int, new_dir: Path) -> None:
+    new_dir.mkdir(parents=True, exist_ok=True)
+    
     chain = get_chain(prompt)
     breaker = CircuitBreaker()
-
     failures: list[dict[str, str]] = []
-    new_dir.mkdir(parents=True, exist_ok=True)
 
     with open(new_dir / "new_posts.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=["id", "handle", "text", "post_timestamp"])
