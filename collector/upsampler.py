@@ -9,18 +9,13 @@ import typer
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from pydantic import BaseModel
 from tqdm import tqdm
 
+from collector.circuit_breaker import CircuitBreaker
+from collector.models import SocialMediaPost
 from lib.timestamp_utils import get_current_timestamp
 
 load_dotenv()
-
-class SocialMediaPost(BaseModel):
-    id: str
-    handle: str
-    text: str
-    post_timestamp: str
 
 
 def get_git_hash() -> str:
@@ -76,21 +71,6 @@ def get_chain(prompt: tuple[str, str]):
 
 def generate_new_post(chain) -> SocialMediaPost:
     return chain.invoke({})
-
-
-class CircuitBreaker:
-    def __init__(self, failure_threshold: int = 3):
-        self.failure_threshold = failure_threshold
-        self.consecutive_failures = 0
-        self.is_open = False
-
-    def record_success(self) -> None:
-        self.consecutive_failures = 0
-
-    def record_failure(self) -> None:
-        self.consecutive_failures += 1
-        if self.consecutive_failures >= self.failure_threshold:
-            self.is_open = True
 
 
 def run_upsampling(prompt: tuple[str, str], total_samples: int, new_dir: Path) -> None:
