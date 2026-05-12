@@ -62,7 +62,11 @@ def get_examples_dict(examples_path: Path) -> list[dict[str, str]]:
 
 
 def write_new_posts_file(new_posts: list[SocialMediaPost], new_dir: Path) -> None:
-    pass
+    new_dir.mkdir(parents=True, exist_ok=True)
+    with open(new_dir / "new_posts.csv", "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["id", "handle", "text", "post_timestamp"])
+        writer.writeheader()
+        writer.writerows(post.model_dump() for post in new_posts)
 
 
 ## NEED TO IMPLEMENT RETRY + DEADLETTER STUFF
