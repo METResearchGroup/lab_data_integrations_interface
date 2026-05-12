@@ -6,7 +6,10 @@ import time
 from pathlib import Path
 
 import typer
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
+from tqdm import tqdm
 
 from lib.timestamp_utils import get_current_timestamp
 
@@ -63,7 +66,20 @@ def write_new_posts_file(new_posts, examples_dict, new_dir):
 
 
 def generate_new_posts(prompt, examples_path, total_samples):
-    pass
+    system_prompt, user_prompt = prompt
+    template = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", user_prompt),
+    ])
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.9)
+    chain = template | llm.with_structured_output(SocialMediaPost)
+
+    new_posts = []
+    for _ in tqdm(range(total_samples)):
+        result = chain.invoke({})
+        new_posts.append(result)
+
+    return new_posts
 
 
 def copy_old_file(examples_path, new_dir):
