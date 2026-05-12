@@ -104,6 +104,21 @@ def run_upsampling(prompt: tuple[str, str], total_samples: int, new_dir: Path) -
 def write_deadletter_json(
     failures: list[dict[str, str]], prompt: tuple[str, str], new_dir: Path
 ) -> None:
+    """Write failures to deadletter.json. No file created if there are no failures.
+
+    Example deadletter.json:
+        {
+            "prompt": {
+                "system": "You are generating synthetic social media posts...",
+                "human": "Here are example posts:\\n\\n['post 1', 'post 2']\\n\\nGenerate one new post."
+            },
+            "num_failures": 2,
+            "failures": [
+                {"error": "Connection timeout after 30s"},
+                {"error": "ValidationError: field 'text' is required"}
+            ]
+        }
+    """
     if not failures:
         return
     system_prompt, user_prompt = prompt
