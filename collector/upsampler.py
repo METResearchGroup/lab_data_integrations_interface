@@ -77,7 +77,7 @@ def generate_new_post(chain) -> SocialMediaPost:
 
 def run_upsampling(prompt: tuple[str, str], total_samples: int, new_dir: Path) -> None:
     new_dir.mkdir(parents=True, exist_ok=True)
-    
+
     chain = get_chain(prompt)
     breaker = CircuitBreaker()
     failures: list[dict[str, str]] = []
@@ -108,15 +108,15 @@ def write_deadletter_json(
 
     Example deadletter.json:
         {
-            "prompt": {
-                "system": "You are generating synthetic social media posts...",
-                "human": "Here are example posts:\\n\\n['post 1', 'post 2']\\n\\nGenerate one new post."
-            },
-            "num_failures": 2,
-            "failures": [
-                {"error": "Connection timeout after 30s"},
-                {"error": "ValidationError: field 'text' is required"}
-            ]
+          "prompt": {
+            "system": "You are generating synthetic social media posts...",
+            "human": "Here are example posts:\\n\\n['post 1', 'post 2']\\n\\nGenerate one new post."
+          },
+          "num_failures": 2,
+          "failures": [
+            {"error": "Connection timeout after 30s"},
+            {"error": "ValidationError: field 'text' is required"}
+          ]
         }
     """
     if not failures:
