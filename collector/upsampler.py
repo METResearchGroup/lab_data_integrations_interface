@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 import typer
+from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
@@ -13,6 +14,7 @@ from tqdm import tqdm
 
 from lib.timestamp_utils import get_current_timestamp
 
+load_dotenv()
 
 class SocialMediaPost(BaseModel):
     id: str
@@ -61,34 +63,49 @@ def get_examples_dict(examples_path: Path) -> list[dict[str, str]]:
     return examples
 
 
-def write_new_posts_file(new_posts: list[SocialMediaPost], new_dir: Path) -> None:
+def get_chain(prompt: tuple[str, str]):
+    system_prompt, user_prompt = prompt
+    template = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", user_prompt),
+    ])
+    llm = ChatOpenAI(model="gpt-5.4-nano", temperature=0.9)
+    return template | llm.with_structured_output(SocialMediaPost)
+
+
+def generate_new_post(chain) -> SocialMediaPost:
+    return chain.invoke({})
+
+
+def run_upsampling(prompt: tuple[str, str], total_samples: int, new_dir: Path) -> None:
+    chain = get_chain(prompt)
+
+    failures: list[dict[str, str]] = []
     new_dir.mkdir(parents=True, exist_ok=True)
+
     with open(new_dir / "new_posts.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=["id", "handle", "text", "post_timestamp"])
         writer.writeheader()
-        writer.writerows(post.model_dump() for post in new_posts)
+        for _ in tqdm(range(total_samples)):
+            try:
+                post = generate_new_post(chain)
+                writer.writerow(post.model_dump())
+            except Exception as e:
+                failures.append({"error": str(e)})
+
+    write_deadletter_json(failures, prompt, new_dir)
 
 
-## NEED TO IMPLEMENT RETRY + DEADLETTER STUFF
-def generate_new_posts(
-    prompt: tuple[str, str], examples_path: Path, total_samples: int
-) -> list[SocialMediaPost]:
+def write_deadletter_json(failures: list[dict[str, str]], prompt: tuple[str, str], new_dir: Path) -> None:
+    if not failures:
+        return
     system_prompt, user_prompt = prompt
-    template = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            ("human", user_prompt),
-        ]
-    )
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.9)
-    chain = template | llm.with_structured_output(SocialMediaPost)
-
-    new_posts = []
-    for _ in tqdm(range(total_samples)):
-        result = chain.invoke({})
-        new_posts.append(result)
-
-    return new_posts
+    with open(new_dir / "deadletter.json", "w") as f:
+        json.dump({
+            "prompt": {"system": system_prompt, "human": user_prompt},
+            "num_failures": len(failures),
+            "failures": failures,
+        }, f, indent=2)
 
 
 def copy_old_file(examples_path: Path, new_dir: Path) -> None:
@@ -130,17 +147,15 @@ def main(
     examples = extract_examples(examples_dict)
     prompt = generate_chat_prompt(examples)
 
-    start = time.perf_counter()
-    new_posts = generate_new_posts(prompt, examples_path, total_samples)
-    elapsed = time.perf_counter() - start
-
     timestamp = get_current_timestamp()
     new_dir = examples_path.parent / timestamp
 
+    start = time.perf_counter()
+    run_upsampling(prompt, total_samples, new_dir)
+    elapsed = time.perf_counter() - start
+
     copy_old_file(examples_path, new_dir)
-    write_new_posts_file(new_posts, new_dir)
     write_to_metadata_json(elapsed, new_dir, examples_path, total_samples, timestamp)
-    # write to deadletter file
 
 
 if __name__ == "__main__":

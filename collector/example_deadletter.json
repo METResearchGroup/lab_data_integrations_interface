@@ -1,0 +1,11 @@
+{
+  "prompt": {
+    "system": "You are generating synthetic social media posts for a research dataset...",
+    "human": "Here are example posts:\n\n['post 1', 'post 2']\n\nGenerate one new post in the same style."
+  },
+  "num_failures": 2,
+  "failures": [
+    {"error": "Connection timeout after 30s"},
+    {"error": "ValidationError: field 'text' is required"}
+  ]
+}
