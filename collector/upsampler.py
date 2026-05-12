@@ -61,10 +61,12 @@ def get_examples_dict(examples_path: Path) -> list[dict[str, str]]:
 
 def get_chain(prompt: tuple[str, str]):
     system_prompt, user_prompt = prompt
-    template = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        ("human", user_prompt),
-    ])
+    template = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            ("human", user_prompt),
+        ]
+    )
     llm = ChatOpenAI(model="gpt-5.4-nano", temperature=0.9)
     return template | llm.with_structured_output(SocialMediaPost)
 
@@ -99,16 +101,22 @@ def run_upsampling(prompt: tuple[str, str], total_samples: int, new_dir: Path) -
     write_deadletter_json(failures, prompt, new_dir)
 
 
-def write_deadletter_json(failures: list[dict[str, str]], prompt: tuple[str, str], new_dir: Path) -> None:
+def write_deadletter_json(
+    failures: list[dict[str, str]], prompt: tuple[str, str], new_dir: Path
+) -> None:
     if not failures:
         return
     system_prompt, user_prompt = prompt
     with open(new_dir / "deadletter.json", "w") as f:
-        json.dump({
-            "prompt": {"system": system_prompt, "human": user_prompt},
-            "num_failures": len(failures),
-            "failures": failures,
-        }, f, indent=2)
+        json.dump(
+            {
+                "prompt": {"system": system_prompt, "human": user_prompt},
+                "num_failures": len(failures),
+                "failures": failures,
+            },
+            f,
+            indent=2,
+        )
 
 
 def copy_old_file(examples_path: Path, new_dir: Path) -> None:
