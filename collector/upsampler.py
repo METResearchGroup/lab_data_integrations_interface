@@ -78,8 +78,24 @@ def generate_new_post(chain) -> SocialMediaPost:
     return chain.invoke({})
 
 
+class CircuitBreaker:
+    def __init__(self, failure_threshold: int = 3):
+        self.failure_threshold = failure_threshold
+        self.consecutive_failures = 0
+        self.is_open = False
+
+    def record_success(self) -> None:
+        self.consecutive_failures = 0
+
+    def record_failure(self) -> None:
+        self.consecutive_failures += 1
+        if self.consecutive_failures >= self.failure_threshold:
+            self.is_open = True
+
+
 def run_upsampling(prompt: tuple[str, str], total_samples: int, new_dir: Path) -> None:
     chain = get_chain(prompt)
+    breaker = CircuitBreaker()
 
     failures: list[dict[str, str]] = []
     new_dir.mkdir(parents=True, exist_ok=True)
@@ -88,11 +104,17 @@ def run_upsampling(prompt: tuple[str, str], total_samples: int, new_dir: Path) -
         writer = csv.DictWriter(f, fieldnames=["id", "handle", "text", "post_timestamp"])
         writer.writeheader()
         for _ in tqdm(range(total_samples)):
+            if breaker.is_open:
+                failures.append({"error": "circuit breaker open, stopping early"})
+                break
             try:
                 post = generate_new_post(chain)
                 writer.writerow(post.model_dump())
+                f.flush()
+                breaker.record_success()
             except Exception as e:
                 failures.append({"error": str(e)})
+                breaker.record_failure()
 
     write_deadletter_json(failures, prompt, new_dir)
 
