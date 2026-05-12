@@ -21,7 +21,7 @@ class SocialMediaPost(BaseModel):
     post_timestamp: str
 
 
-def get_git_hash():
+def get_git_hash() -> str:
     return subprocess.run(
         ["git", "rev-parse", "HEAD"],
         capture_output=True,
@@ -29,11 +29,11 @@ def get_git_hash():
     ).stdout.strip()
 
 
-def generate_chat_prompt(examples):
+def generate_chat_prompt(examples: list[str]) -> tuple[str, str]:
     system_prompt = """
-                    You are generating synthetic social media posts for a research dataset. 
-                    Given real example posts, generate exactly one new post that matches 
-                    their topic, tone, and writing style — but is not a copy or paraphrase 
+                    You are generating synthetic social media posts for a research dataset.
+                    Given real example posts, generate exactly one new post that matches
+                    their topic, tone, and writing style — but is not a copy or paraphrase
                     of any single example. Posts should be under 300 characters.
                     """
     user_prompt = f"""
@@ -43,7 +43,7 @@ def generate_chat_prompt(examples):
     return (system_prompt, user_prompt)
 
 
-def get_examples_dict(examples_path):
+def get_examples_dict(examples_path: Path) -> list[dict[str, str]]:
     examples = []
     with open(examples_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -61,16 +61,21 @@ def get_examples_dict(examples_path):
     return examples
 
 
-def write_new_posts_file(new_posts, examples_dict, new_dir):
+def write_new_posts_file(new_posts: list[SocialMediaPost], new_dir: Path) -> None:
     pass
 
 
-def generate_new_posts(prompt, examples_path, total_samples):
+## NEED TO IMPLEMENT RETRY + DEADLETTER STUFF
+def generate_new_posts(
+    prompt: tuple[str, str], examples_path: Path, total_samples: int
+) -> list[SocialMediaPost]:
     system_prompt, user_prompt = prompt
-    template = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        ("human", user_prompt),
-    ])
+    template = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            ("human", user_prompt),
+        ]
+    )
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.9)
     chain = template | llm.with_structured_output(SocialMediaPost)
 
@@ -82,12 +87,14 @@ def generate_new_posts(prompt, examples_path, total_samples):
     return new_posts
 
 
-def copy_old_file(examples_path, new_dir):
+def copy_old_file(examples_path: Path, new_dir: Path) -> None:
     new_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(examples_path, new_dir / examples_path.name)
 
 
-def write_to_metadata_json(elapsed, new_dir, examples_path, total_samples, timestamp):
+def write_to_metadata_json(
+    elapsed: float, new_dir: Path, examples_path: Path, total_samples: int, timestamp: str
+) -> None:
     metadata = {
         "git_commit_hash": get_git_hash(),
         "timestamp": timestamp,
@@ -101,8 +108,10 @@ def write_to_metadata_json(elapsed, new_dir, examples_path, total_samples, times
     with open(new_dir / "metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)
 
-def extract_examples(examples_dict):
+
+def extract_examples(examples_dict: list[dict[str, str]]) -> list[str]:
     return [ex_dict["post"] for ex_dict in examples_dict]
+
 
 def main(
     examples_path: Path = typer.Option(
@@ -125,7 +134,7 @@ def main(
     new_dir = examples_path.parent / timestamp
 
     copy_old_file(examples_path, new_dir)
-    write_new_posts_file(new_posts, examples_dict, new_dir)
+    write_new_posts_file(new_posts, new_dir)
     write_to_metadata_json(elapsed, new_dir, examples_path, total_samples, timestamp)
     # write to deadletter file
 
