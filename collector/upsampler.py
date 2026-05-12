@@ -1,3 +1,4 @@
+import csv
 import json
 import shutil
 import subprocess
@@ -30,9 +31,19 @@ def generate_chat_prompt():
     pass
 
 def get_examples_dict(examples_path):
-    """
-    Get at most 5 rows from examples_path
-    """
+    examples = []
+    with open(examples_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            examples.append({
+                "post_id": row["post_id"],
+                "post_handle": row["handle"],
+                "post": row["post"],
+                "post_timestamp": row["post_timestamp"],
+            })
+            if len(examples) == 5:
+                break
+    return examples
 
 def write_new_posts_file(examples_dict, new_dir):
     pass
