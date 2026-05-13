@@ -47,7 +47,7 @@ def generate_chat_prompt(examples: list[str]) -> tuple[str, str]:
     return (system_prompt, user_prompt)
 
 
-def get_examples_dict(examples_path: Path, num_posts: int) -> list[dict[str, str]]:
+def get_examples_dicts(examples_path: Path, num_posts: int) -> list[dict[str, str]]:
     """Returns at most the first num_posts posts in the CSV file."""
     examples = []
     with open(examples_path, newline="", encoding="utf-8") as f:
@@ -141,9 +141,12 @@ def write_deadletter_json(
         )
 
 
-def copy_old_file(examples_path: Path, new_dir: Path) -> None:
+def store_example_posts(examples_dict: list[dict[str, str]], new_dir: Path) -> None:
     new_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(examples_path, new_dir / examples_path.name)
+    with open(new_dir / "examples.csv", "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["post_id", "post_handle", "post", "post_timestamp"])
+        writer.writeheader()
+        writer.writerows(examples_dict)
 
 
 def write_to_metadata_json(
@@ -180,9 +183,9 @@ def main(
         max=MAX_GENERATED_POSTS,
     ),
 ):
-    examples_dict = get_examples_dict(examples_path, num_examples)
+    examples_dicts = get_examples_dicts(examples_path, num_examples)
 
-    examples = extract_examples(examples_dict)
+    examples = extract_examples(examples_dicts)
     prompt = generate_chat_prompt(examples)
 
     timestamp = get_current_timestamp()
@@ -192,7 +195,7 @@ def main(
     run_upsampling(prompt, total_samples, new_dir)
     elapsed = time.perf_counter() - start
 
-    copy_old_file(examples_path, new_dir)
+    store_example_posts(examples_dicts, new_dir)
     write_to_metadata_json(elapsed, new_dir, examples_path, total_samples, timestamp)
 
 
