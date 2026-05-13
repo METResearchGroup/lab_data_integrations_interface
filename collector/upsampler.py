@@ -12,6 +12,7 @@ from langchain_openai import ChatOpenAI
 from tqdm import tqdm
 
 from collector.circuit_breaker import CircuitBreaker
+from collector.constants import DEFAULT_MODEL, MODEL_TEMPERATURE
 from collector.models import SocialMediaPost
 from lib.timestamp_utils import get_current_timestamp
 
@@ -67,7 +68,7 @@ def get_chain(prompt: tuple[str, str]):
             ("human", user_prompt),
         ]
     )
-    llm = ChatOpenAI(model="gpt-5.4-nano", temperature=0.9)
+    llm = ChatOpenAI(model=DEFAULT_MODEL, temperature=MODEL_TEMPERATURE)
     return template | llm.with_structured_output(SocialMediaPost)
 
 
