@@ -1,6 +1,5 @@
 import csv
 import json
-import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -8,6 +7,7 @@ from pathlib import Path
 import typer
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
 from tqdm import tqdm
 
@@ -19,7 +19,7 @@ from collector.constants import (
     MAX_GENERATED_POSTS,
     MODEL_TEMPERATURE,
 )
-from collector.models import SocialMediaPost
+from collector.models import GeneratedSocialMediaPost, LlmGeneratedSocialMediaPost
 from lib.timestamp_utils import get_current_timestamp
 
 load_dotenv()
@@ -66,7 +66,7 @@ def get_examples_dicts(examples_path: Path, num_posts: int) -> list[dict[str, st
     return examples
 
 
-def get_chain(prompt: tuple[str, str]):
+def get_chain(prompt: tuple[str, str]) -> Runnable:
     system_prompt, user_prompt = prompt
     template = ChatPromptTemplate.from_messages(
         [
@@ -75,11 +75,15 @@ def get_chain(prompt: tuple[str, str]):
         ]
     )
     llm = ChatOpenAI(model=DEFAULT_MODEL, temperature=MODEL_TEMPERATURE)
-    return template | llm.with_structured_output(SocialMediaPost)
+    return template | llm.with_structured_output(LlmGeneratedSocialMediaPost)
 
 
-def generate_new_post(chain) -> SocialMediaPost:
-    return chain.invoke({})
+def generate_new_post(chain: Runnable) -> GeneratedSocialMediaPost:
+    llm_post: LlmGeneratedSocialMediaPost = chain.invoke({})
+    return GeneratedSocialMediaPost(
+        text= llm_post.text,
+        generation_timestamp=get_current_timestamp()
+    )
 
 
 def run_upsampling(prompt: tuple[str, str], total_samples: int, new_dir: Path) -> None:
@@ -90,7 +94,7 @@ def run_upsampling(prompt: tuple[str, str], total_samples: int, new_dir: Path) -
     failures: list[dict[str, str]] = []
 
     with open(new_dir / "new_posts.csv", "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["id", "handle", "text", "post_timestamp"])
+        writer = csv.DictWriter(f, fieldnames=["text", "generation_timestamp"])
         writer.writeheader()
         for _ in tqdm(range(total_samples)):
             if breaker.is_open:
