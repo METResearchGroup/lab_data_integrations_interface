@@ -13,9 +13,9 @@ from tqdm import tqdm
 
 from collector.circuit_breaker import CircuitBreaker
 from collector.constants import (
-    DEFAULT_MODEL,
-    DEFAULT_GENERATED_POSTS,
     DEFAULT_EXAMPLE_POSTS,
+    DEFAULT_GENERATED_POSTS,
+    DEFAULT_MODEL,
     MAX_GENERATED_POSTS,
     MODEL_TEMPERATURE,
 )
@@ -81,8 +81,7 @@ def get_chain(prompt: tuple[str, str]) -> Runnable:
 def generate_new_post(chain: Runnable) -> GeneratedSocialMediaPost:
     llm_post: LlmGeneratedSocialMediaPost = chain.invoke({})
     return GeneratedSocialMediaPost(
-        text= llm_post.text,
-        generation_timestamp=get_current_timestamp()
+        text=llm_post.text, generation_timestamp=get_current_timestamp()
     )
 
 
