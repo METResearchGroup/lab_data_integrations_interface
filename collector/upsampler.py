@@ -12,7 +12,13 @@ from langchain_openai import ChatOpenAI
 from tqdm import tqdm
 
 from collector.circuit_breaker import CircuitBreaker
-from collector.constants import DEFAULT_MODEL, MODEL_TEMPERATURE
+from collector.constants import (
+    DEFAULT_MODEL,
+    DEFAULT_GENERATED_POSTS,
+    DEFAULT_EXAMPLE_POSTS,
+    MAX_GENERATED_POSTS,
+    MODEL_TEMPERATURE,
+)
 from collector.models import SocialMediaPost
 from lib.timestamp_utils import get_current_timestamp
 
@@ -41,8 +47,8 @@ def generate_chat_prompt(examples: list[str]) -> tuple[str, str]:
     return (system_prompt, user_prompt)
 
 
-def get_examples_dict(examples_path: Path) -> list[dict[str, str]]:
-    """Returns at most the first 5 posts in the CSV file."""
+def get_examples_dict(examples_path: Path, num_posts: int) -> list[dict[str, str]]:
+    """Returns at most the first num_posts posts in the CSV file."""
     examples = []
     with open(examples_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -165,11 +171,16 @@ def main(
     examples_path: Path = typer.Option(
         ..., help="Full path to examples CSV file (e.g. /folder/to/file.csv)"
     ),
+    num_examples: int = typer.Option(
+        DEFAULT_EXAMPLE_POSTS, help="Number of posts to use as examples for LLM (default 5)"
+    ),
     total_samples: int = typer.Option(
-        10, help="Total number of samples to generate (max 40)", max=40
+        DEFAULT_GENERATED_POSTS,
+        help="Total number of samples to generate (max 40)",
+        max=MAX_GENERATED_POSTS,
     ),
 ):
-    examples_dict = get_examples_dict(examples_path)
+    examples_dict = get_examples_dict(examples_path, num_examples)
 
     examples = extract_examples(examples_dict)
     prompt = generate_chat_prompt(examples)
