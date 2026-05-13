@@ -1,0 +1,9 @@
+[project]
+name = "app"
+version = "0.1.0"
+description = "Hello World Telemetry App"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.136.1",
+]
