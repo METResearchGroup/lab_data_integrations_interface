@@ -4,13 +4,18 @@ services:
     ports: 
       - "8082:8082"
     environment:
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4317
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-lgtm:4318
+      - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      - OTEL_LOGS_EXPORTER=otlp
+      - OTEL_SERVICE_NAME=fastapi-app
+      - OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
+      - OTEL_LOGS_EXPORTER=otlp
     
   otel-lgtm:
     image: grafana/otel-lgtm
     ports:
       - "3000:3000"
-      - "4317:4317"
+      - "4318:4318"
 
   
   
