@@ -8,5 +8,6 @@ dependencies = [
     "fastapi>=0.136.1",
     "opentelemetry-distro>=0.62b1",
     "opentelemetry-exporter-otlp>=1.41.1",
+    "opentelemetry-instrumentation-logging>=0.62b1",
     "uvicorn>=0.46.0",
 ]
