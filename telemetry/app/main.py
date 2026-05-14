@@ -4,6 +4,8 @@ import logging
 from fastapi import FastAPI, HTTPException
 
 app = FastAPI()
+
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
