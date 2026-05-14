@@ -9,7 +9,6 @@ services:
       - OTEL_LOGS_EXPORTER=otlp
       - OTEL_SERVICE_NAME=fastapi-app
       - OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
-      - OTEL_LOGS_EXPORTER=otlp
     
   otel-lgtm:
     image: grafana/otel-lgtm
