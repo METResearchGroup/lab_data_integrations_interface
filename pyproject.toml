@@ -9,7 +9,6 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "typer>=0.25.1",
     "websockets>=15.0.1",
-
 ]
 
 [dependency-groups]
@@ -19,6 +18,9 @@ dev = [
     "pyright>=1.1.400",
     "ruff>=0.9.0",
 ]
+
+[tool.uv]
+exclude-newer = "7 days"
 
 [tool.ruff]
 target-version = "py311"
