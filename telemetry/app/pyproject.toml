@@ -1,0 +1,18 @@
+[project]
+name = "app"
+version = "0.1.0"
+description = "Hello World Telemetry App"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.136.1",
+    "opentelemetry-distro>=0.62b1",
+    "opentelemetry-exporter-otlp>=1.41.1",
+    "opentelemetry-instrumentation-asyncio>=0.62b1",
+    "opentelemetry-instrumentation-fastapi>=0.62b1",
+    "opentelemetry-instrumentation-logging>=0.62b1",
+    "opentelemetry-instrumentation-requests>=0.62b1",
+    "opentelemetry-instrumentation-starlette>=0.62b1",
+    "opentelemetry-instrumentation-urllib3>=0.62b1",
+    "uvicorn>=0.46.0",
+]
