@@ -4,6 +4,9 @@
 
 This runbook covers how to run the demo app and verify each endpoint in Grafana.
 
+## Building the App
+docker compose up --build
+
 ## Running the App
 
 ```
