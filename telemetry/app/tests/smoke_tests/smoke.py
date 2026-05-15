@@ -166,8 +166,7 @@ def sync_deps() -> None:
     proc = run_cmd(["uv", "sync"], check=False)
     if proc.returncode != 0:
         raise SmokeError(
-            f"uv sync failed ({proc.returncode})\n"
-            f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}",
+            f"uv sync failed ({proc.returncode})\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}",
         )
 
 
