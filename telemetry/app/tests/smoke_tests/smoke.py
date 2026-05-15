@@ -115,6 +115,8 @@ def http_json(
         except json.JSONDecodeError:
             parsed = body
         return status, parsed
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise SmokeError(f"{method} {url} transport error: {e}") from e
     if expected_status is not None and status != expected_status:
         raise SmokeError(
             f"{method} {url} -> {status} (expected {expected_status}): {body[:500]}",
