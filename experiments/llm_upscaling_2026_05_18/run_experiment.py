@@ -52,7 +52,10 @@ def build_chain(examples: list[str], n_per_call: int):
 def generate_posts(examples: list[str], n_per_call: int) -> list[str]:
     chain = build_chain(examples, n_per_call)
     num_calls = math.ceil(TOTAL_POSTS / n_per_call)
-    results = cast(list[LlmBatchedPosts], chain.batch([{}] * num_calls, config=RunnableConfig(max_concurrency=10)))
+    results = cast(
+        list[LlmBatchedPosts],
+        chain.batch([{}] * num_calls, config=RunnableConfig(max_concurrency=10)),
+    )
     return [post for result in results for post in result.posts]
 
 
@@ -91,7 +94,11 @@ def compute_metrics(posts: list[str], examples: list[str]) -> dict:
 
     mean_sim_to_examples = float(cosine_similarity(X_generated, X_examples).mean())
 
-    return {"mean_gini": mean_gini, "mean_cos_sim": mean_cos_sim, "mean_sim_to_examples": mean_sim_to_examples}
+    return {
+        "mean_gini": mean_gini,
+        "mean_cos_sim": mean_cos_sim,
+        "mean_sim_to_examples": mean_sim_to_examples,
+    }
 
 
 def print_results(rows: list[dict]) -> None:
