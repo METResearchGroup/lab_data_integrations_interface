@@ -27,7 +27,12 @@ fake = Faker()
 @pytest.fixture
 def example_rows() -> list[dict[str, str]]:
     return [
-        {"post_id": fake.uuid4(), "handle": fake.user_name(), "post": fake.sentence(), "post_timestamp": fake.iso8601()}
+        {
+            "post_id": fake.uuid4(),
+            "handle": fake.user_name(),
+            "post": fake.sentence(),
+            "post_timestamp": fake.iso8601(),
+        }
         for _ in range(3)
     ]
 
@@ -49,7 +54,10 @@ def generated_post() -> GeneratedSocialMediaPost:
 
 @pytest.fixture
 def generated_posts() -> list[GeneratedSocialMediaPost]:
-    return [GeneratedSocialMediaPost(text=fake.sentence(), generation_timestamp=fake.iso8601()) for _ in range(5)]
+    return [
+        GeneratedSocialMediaPost(text=fake.sentence(), generation_timestamp=fake.iso8601())
+        for _ in range(5)
+    ]
 
 
 @pytest.fixture
@@ -79,10 +87,19 @@ def test_validate_sample_count_error_includes_suggestions():
         validate_sample_count(101, 10)
 
 
-
 # extract_examples
 def test_extract_examples_returns_posts(example_rows):
-    examples = extract_examples([{"post_id": r["post_id"], "post_handle": r["handle"], "post": r["post"], "post_timestamp": r["post_timestamp"]} for r in example_rows])
+    examples = extract_examples(
+        [
+            {
+                "post_id": r["post_id"],
+                "post_handle": r["handle"],
+                "post": r["post"],
+                "post_timestamp": r["post_timestamp"],
+            }
+            for r in example_rows
+        ]
+    )
     assert examples == [r["post"] for r in example_rows]
 
 
@@ -173,13 +190,29 @@ def test_write_deadletter_json_no_file_when_no_failures(tmp_path, prompt):
 
 # store_example_posts
 def test_store_example_posts_creates_csv(tmp_path, example_rows):
-    dicts = [{"post_id": r["post_id"], "post_handle": r["handle"], "post": r["post"], "post_timestamp": r["post_timestamp"]} for r in example_rows]
+    dicts = [
+        {
+            "post_id": r["post_id"],
+            "post_handle": r["handle"],
+            "post": r["post"],
+            "post_timestamp": r["post_timestamp"],
+        }
+        for r in example_rows
+    ]
     store_example_posts(dicts, tmp_path)
     assert (tmp_path / "examples.csv").exists()
 
 
 def test_store_example_posts_correct_rows(tmp_path, example_rows):
-    dicts = [{"post_id": r["post_id"], "post_handle": r["handle"], "post": r["post"], "post_timestamp": r["post_timestamp"]} for r in example_rows]
+    dicts = [
+        {
+            "post_id": r["post_id"],
+            "post_handle": r["handle"],
+            "post": r["post"],
+            "post_timestamp": r["post_timestamp"],
+        }
+        for r in example_rows
+    ]
     store_example_posts(dicts, tmp_path)
     with open(tmp_path / "examples.csv", newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
@@ -210,7 +243,6 @@ def test_write_to_metadata_json_cli_args_are_strings(tmp_path, examples_csv):
     assert isinstance(data["cli_args"]["total_samples"], str)
 
 
-
 # run_upsampling
 def _make_fake_batch_result(n: int) -> list[LlmBatchedPosts]:
     return [LlmBatchedPosts(posts=[fake.sentence() for _ in range(n)])]
@@ -220,7 +252,10 @@ def _make_fake_batch_result(n: int) -> list[LlmBatchedPosts]:
 def upsampling_mocks():
     with (
         patch("collector.upsampler.get_chain", return_value=MagicMock()),
-        patch("collector.upsampler._run_batch", side_effect=lambda chain, inputs: _make_fake_batch_result(len(inputs))),
+        patch(
+            "collector.upsampler._run_batch",
+            side_effect=lambda chain, inputs: _make_fake_batch_result(len(inputs)),
+        ),
         patch("collector.upsampler.print_running_gini") as mock_print_gini,
         patch("collector.upsampler.write_metrics_json") as mock_write_metrics,
     ):

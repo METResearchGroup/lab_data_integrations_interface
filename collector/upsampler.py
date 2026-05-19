@@ -20,9 +20,9 @@ from collector.constants import (
     MAX_GENERATED_POSTS,
     MODEL_TEMPERATURE,
 )
+from collector.metrics import print_running_gini, write_metrics_json
 from collector.models import GeneratedSocialMediaPost, LlmBatchedPosts
 from collector.prompts import BATCH_USER_PROMPT_TEMPLATE, SYSTEM_PROMPT
-from collector.metrics import print_running_gini, write_metrics_json
 from collector.retry import retry_llm_completion
 from lib.load_env_vars import EnvVarsContainer
 from lib.timestamp_utils import get_current_timestamp

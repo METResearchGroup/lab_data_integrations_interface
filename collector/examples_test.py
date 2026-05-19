@@ -18,9 +18,12 @@ def main() -> None:
         [
             sys.executable,
             "collector/upsampler.py",
-            "--examples-path", str(EXAMPLES_PATH),
-            "--total-samples", str(TOTAL_SAMPLES),
-            "--n-per-call", str(N_PER_CALL),
+            "--examples-path",
+            str(EXAMPLES_PATH),
+            "--total-samples",
+            str(TOTAL_SAMPLES),
+            "--n-per-call",
+            str(N_PER_CALL),
         ],
         capture_output=False,
     )

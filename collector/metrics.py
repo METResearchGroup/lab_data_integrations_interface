@@ -106,7 +106,6 @@ class FleschReadingEaseMetric(CalculateMetric):
         )
 
 
-
 def _gini(array: np.ndarray) -> float:
     array = array.flatten().astype(float)
     if np.amin(array) < 0:
@@ -124,13 +123,19 @@ def _mean_gini_for_group(tfidf_matrix, start: int, count: int) -> float:
 
 
 def _compute_group_metrics(posts: list[str], tfidf_matrix, tfidf_start: int) -> dict:
-    gini_scores = [_gini(tfidf_matrix[tfidf_start + i].toarray().ravel()) for i in range(len(posts))]
+    gini_scores = [
+        _gini(tfidf_matrix[tfidf_start + i].toarray().ravel()) for i in range(len(posts))
+    ]
     reading_ease = FleschReadingEaseMetric()
     kincaid_grade = FleschKincaidGradeMetric()
     return {
         "mean_post_length": round(float(np.mean([len(p) for p in posts])), 4),
-        "mean_post_reading_ease": round(float(np.mean([reading_ease.calculate(p) for p in posts])), 4),
-        "mean_post_reading_grade_level": round(float(np.mean([kincaid_grade.calculate(p) for p in posts])), 4),
+        "mean_post_reading_ease": round(
+            float(np.mean([reading_ease.calculate(p) for p in posts])), 4
+        ),
+        "mean_post_reading_grade_level": round(
+            float(np.mean([kincaid_grade.calculate(p) for p in posts])), 4
+        ),
         "mean_gini": round(float(np.mean(gini_scores)), 4),
     }
 
