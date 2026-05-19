@@ -15,3 +15,7 @@ class LlmGeneratedSocialMediaPost(BaseModel):
 class GeneratedSocialMediaPost(BaseModel):
     text: str
     generation_timestamp: str
+
+
+class LlmBatchedPosts(BaseModel):
+    posts: list[str]

@@ -12,6 +12,9 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "typer>=0.25.1",
     "websockets>=15.0.1",
+    "numpy>=2.4.4",
+    "scikit-learn>=1.8.0",
+    "rich>=15.0.0",
 ]
 
 [dependency-groups]
