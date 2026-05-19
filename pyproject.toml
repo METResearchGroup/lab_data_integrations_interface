@@ -19,6 +19,12 @@ dependencies = [
     "spacy>=3.7.0",
 ]
 
+[project.optional-dependencies]
+testing = [
+    "faker>=37.0.0",
+    "pytest>=8.0.0",
+]
+
 [dependency-groups]
 dev = [
     "complexipy>=5.1.0",
