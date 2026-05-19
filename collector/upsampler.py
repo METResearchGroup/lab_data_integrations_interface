@@ -22,6 +22,7 @@ from collector.constants import (
 )
 from collector.models import GeneratedSocialMediaPost, LlmBatchedPosts
 from collector.prompts import BATCH_USER_PROMPT_TEMPLATE, SYSTEM_PROMPT
+from collector.metrics import print_running_gini, write_metrics_json
 from collector.retry import retry_llm_completion
 from lib.load_env_vars import EnvVarsContainer
 from lib.timestamp_utils import get_current_timestamp
@@ -86,7 +87,11 @@ def _run_batch(chain: Runnable, chunk_inputs: list[dict]) -> list[LlmBatchedPost
 
 
 def run_upsampling(
-    prompt: tuple[str, str], total_samples: int, new_dir: Path, n_per_call: int
+    prompt: tuple[str, str],
+    total_samples: int,
+    new_dir: Path,
+    n_per_call: int,
+    ground_truth_posts: list[str],
 ) -> None:
     new_dir.mkdir(parents=True, exist_ok=True)
     csv_path = new_dir / "new_posts.csv"
@@ -102,8 +107,9 @@ def run_upsampling(
         )
     num_calls = int(num_calls_float)
     failures: list[dict[str, str]] = []
+    all_generated_texts: list[str] = []
 
-    for i in tqdm(range(0, num_calls, MAX_CONCURRENCY)):
+    for call_number, i in enumerate(tqdm(range(0, num_calls, MAX_CONCURRENCY)), start=1):
         # calculate size of each chunk (MAX_CONCURRENCY for all except for remainder chunk)
         chunk_inputs = [{}] * min(MAX_CONCURRENCY, num_calls - i)
         try:
@@ -114,10 +120,14 @@ def run_upsampling(
                 for text in result.posts
             ]
             append_posts_to_csv(posts, csv_path)
+            all_generated_texts.extend(post.text for post in posts)
+            print_running_gini(ground_truth_posts, all_generated_texts, call_number)
         except Exception as e:
             failures.append({"error": str(e)})
 
     write_deadletter_json(failures, prompt, new_dir)
+    if all_generated_texts:
+        write_metrics_json(ground_truth_posts, all_generated_texts, new_dir)
 
 
 def write_deadletter_json(
@@ -218,7 +228,7 @@ def main(
     new_dir = examples_path.parent / timestamp
 
     start = time.perf_counter()
-    run_upsampling(prompt, total_samples, new_dir, n_per_call)
+    run_upsampling(prompt, total_samples, new_dir, n_per_call, examples)
     elapsed = time.perf_counter() - start
 
     store_example_posts(examples_dicts, new_dir)
