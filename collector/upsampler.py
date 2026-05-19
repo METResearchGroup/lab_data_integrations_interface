@@ -22,6 +22,7 @@ from collector.constants import (
 )
 from collector.models import GeneratedSocialMediaPost, LlmBatchedPosts
 from collector.prompts import BATCH_USER_PROMPT_TEMPLATE, SYSTEM_PROMPT
+from collector.retry import retry_llm_completion
 from lib.load_env_vars import EnvVarsContainer
 from lib.timestamp_utils import get_current_timestamp
 
@@ -76,6 +77,14 @@ def append_posts_to_csv(posts: list[GeneratedSocialMediaPost], path: Path) -> No
         writer.writerows(post.model_dump() for post in posts)
 
 
+@retry_llm_completion()
+def _run_batch(chain: Runnable, chunk_inputs: list[dict]) -> list[LlmBatchedPosts]:
+    return cast(
+        list[LlmBatchedPosts],
+        chain.batch(chunk_inputs, config=RunnableConfig(max_concurrency=MAX_CONCURRENCY)),
+    )
+
+
 def run_upsampling(
     prompt: tuple[str, str], total_samples: int, new_dir: Path, n_per_call: int
 ) -> None:
@@ -98,10 +107,7 @@ def run_upsampling(
         # calculate size of each chunk (MAX_CONCURRENCY for all except for remainder chunk)
         chunk_inputs = [{}] * min(MAX_CONCURRENCY, num_calls - i)
         try:
-            results = cast(
-                list[LlmBatchedPosts],
-                chain.batch(chunk_inputs, config=RunnableConfig(max_concurrency=MAX_CONCURRENCY)),
-            )
+            results = _run_batch(chain, chunk_inputs)
             posts = [
                 GeneratedSocialMediaPost(text=text, generation_timestamp=get_current_timestamp())
                 for result in results
