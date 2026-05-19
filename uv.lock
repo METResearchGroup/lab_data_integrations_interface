@@ -3,7 +3,7 @@ revision = 3
 requires-python = "==3.11.*"
 
 [options]
-exclude-newer = "2026-05-12T00:09:47.890873Z"
+exclude-newer = "2026-05-12T18:12:53.603472Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -394,6 +394,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "rich" },
     { name = "scikit-learn" },
+    { name = "tenacity" },
     { name = "typer" },
     { name = "websockets" },
 ]
@@ -417,6 +418,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "scikit-learn", specifier = ">=1.8.0" },
+    { name = "tenacity", specifier = ">=9.0.0" },
     { name = "typer", specifier = ">=0.25.1" },
     { name = "websockets", specifier = ">=15.0.1" },
 ]
