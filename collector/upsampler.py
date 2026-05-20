@@ -3,26 +3,29 @@ import json
 import subprocess
 import time
 from pathlib import Path
+from typing import cast
 
 import typer
-from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable
+from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_openai import ChatOpenAI
 from tqdm import tqdm
 
-from collector.circuit_breaker import CircuitBreaker
 from collector.constants import (
     DEFAULT_EXAMPLE_POSTS,
     DEFAULT_GENERATED_POSTS,
     DEFAULT_MODEL,
+    DEFAULT_N_PER_CALL,
+    MAX_CONCURRENCY,
     MAX_GENERATED_POSTS,
     MODEL_TEMPERATURE,
 )
-from collector.models import GeneratedSocialMediaPost, LlmGeneratedSocialMediaPost
+from collector.metrics import print_running_gini, write_metrics_json
+from collector.models import GeneratedSocialMediaPost, LlmBatchedPosts
+from collector.prompts import BATCH_USER_PROMPT_TEMPLATE, SYSTEM_PROMPT
+from collector.retry import retry_llm_completion
+from lib.load_env_vars import EnvVarsContainer
 from lib.timestamp_utils import get_current_timestamp
-
-load_dotenv()
 
 
 def get_git_hash() -> str:
@@ -33,18 +36,8 @@ def get_git_hash() -> str:
     ).stdout.strip()
 
 
-def generate_chat_prompt(examples: list[str]) -> tuple[str, str]:
-    system_prompt = """
-                    You are generating synthetic social media posts for a research dataset.
-                    Given real example posts, generate exactly one new post that matches
-                    their topic, tone, and writing style — but is not a copy or paraphrase
-                    of any single example. Posts should be under 300 characters.
-                    """
-    user_prompt = f"""
-                    Here are example posts:\n\n{examples}\n\n
-                    Generate one new post in the same style.
-                    """
-    return (system_prompt, user_prompt)
+def generate_chat_prompt(examples: list[str], n_per_call: int) -> tuple[str, str]:
+    return (SYSTEM_PROMPT, BATCH_USER_PROMPT_TEMPLATE.format(examples=examples, n=n_per_call))
 
 
 def get_examples_dicts(examples_path: Path, num_posts: int) -> list[dict[str, str]]:
@@ -61,7 +54,7 @@ def get_examples_dicts(examples_path: Path, num_posts: int) -> list[dict[str, st
                     "post_timestamp": row["post_timestamp"],
                 }
             )
-            if len(examples) == 5:
+            if len(examples) == num_posts:
                 break
     return examples
 
@@ -74,41 +67,67 @@ def get_chain(prompt: tuple[str, str]) -> Runnable:
             ("human", user_prompt),
         ]
     )
+    EnvVarsContainer.get_env_var("OPENAI_API_KEY", required=True)
     llm = ChatOpenAI(model=DEFAULT_MODEL, temperature=MODEL_TEMPERATURE)
-    return template | llm.with_structured_output(LlmGeneratedSocialMediaPost)
+    return template | llm.with_structured_output(LlmBatchedPosts)
 
 
-def generate_new_post(chain: Runnable) -> GeneratedSocialMediaPost:
-    llm_post: LlmGeneratedSocialMediaPost = chain.invoke({})
-    return GeneratedSocialMediaPost(
-        text=llm_post.text, generation_timestamp=get_current_timestamp()
+def append_posts_to_csv(posts: list[GeneratedSocialMediaPost], path: Path) -> None:
+    with open(path, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["text", "generation_timestamp"])
+        writer.writerows(post.model_dump() for post in posts)
+
+
+@retry_llm_completion()
+def _run_batch(chain: Runnable, chunk_inputs: list[dict]) -> list[LlmBatchedPosts]:
+    return cast(
+        list[LlmBatchedPosts],
+        chain.batch(chunk_inputs, config=RunnableConfig(max_concurrency=MAX_CONCURRENCY)),
     )
 
 
-def run_upsampling(prompt: tuple[str, str], total_samples: int, new_dir: Path) -> None:
+def run_upsampling(
+    prompt: tuple[str, str],
+    total_samples: int,
+    new_dir: Path,
+    n_per_call: int,
+    ground_truth_posts: list[str],
+) -> None:
     new_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = new_dir / "new_posts.csv"
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        csv.DictWriter(f, fieldnames=["text", "generation_timestamp"]).writeheader()
 
     chain = get_chain(prompt)
-    breaker = CircuitBreaker()
+    num_calls_float = total_samples / n_per_call
+    if not num_calls_float.is_integer():
+        raise ValueError(
+            f"total_samples ({total_samples}) must be divisible by n_per_call ({n_per_call})"
+        )
+    num_calls = int(num_calls_float)
     failures: list[dict[str, str]] = []
+    all_generated_texts: list[str] = []
 
-    with open(new_dir / "new_posts.csv", "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["text", "generation_timestamp"])
-        writer.writeheader()
-        for _ in tqdm(range(total_samples)):
-            if breaker.is_open:
-                failures.append({"error": "circuit breaker open, stopping early"})
-                break
-            try:
-                post = generate_new_post(chain)
-                writer.writerow(post.model_dump())
-                f.flush()
-                breaker.record_success()
-            except Exception as e:
-                failures.append({"error": str(e)})
-                breaker.record_failure()
+    for call_number, i in enumerate(tqdm(range(0, num_calls, MAX_CONCURRENCY)), start=1):
+        # calculate size of each chunk (MAX_CONCURRENCY for all except for remainder chunk)
+        chunk_inputs = [{}] * min(MAX_CONCURRENCY, num_calls - i)
+        try:
+            results = _run_batch(chain, chunk_inputs)
+            posts = [
+                GeneratedSocialMediaPost(text=text, generation_timestamp=get_current_timestamp())
+                for result in results
+                for text in result.posts
+            ]
+            append_posts_to_csv(posts, csv_path)
+            all_generated_texts.extend(post.text for post in posts)
+            print_running_gini(ground_truth_posts, all_generated_texts, call_number)
+        except Exception as e:
+            failures.append({"error": str(e)})
 
     write_deadletter_json(failures, prompt, new_dir)
+    if all_generated_texts:
+        write_metrics_json(ground_truth_posts, all_generated_texts, new_dir)
 
 
 def write_deadletter_json(
@@ -169,6 +188,15 @@ def write_to_metadata_json(
         json.dump(metadata, f, indent=2)
 
 
+def validate_sample_count(total_samples: int, n_per_call: int) -> None:
+    if total_samples % n_per_call != 0:
+        raise typer.BadParameter(
+            f"--total-samples ({total_samples}) must be divisible by --n-per-call ({n_per_call}). "
+            f"Try {(total_samples // n_per_call) * n_per_call} or "
+            f"{(total_samples // n_per_call + 1) * n_per_call}."
+        )
+
+
 def extract_examples(examples_dict: list[dict[str, str]]) -> list[str]:
     return [ex_dict["post"] for ex_dict in examples_dict]
 
@@ -182,20 +210,25 @@ def main(
     ),
     total_samples: int = typer.Option(
         DEFAULT_GENERATED_POSTS,
-        help="Total number of samples to generate (max 40)",
+        help="Total number of samples to generate (max 1000)",
         max=MAX_GENERATED_POSTS,
     ),
+    n_per_call: int = typer.Option(
+        DEFAULT_N_PER_CALL, help="Number of posts to generate per LLM call (default 25)"
+    ),
 ):
+    validate_sample_count(total_samples, n_per_call)
+
     examples_dicts = get_examples_dicts(examples_path, num_examples)
 
     examples = extract_examples(examples_dicts)
-    prompt = generate_chat_prompt(examples)
+    prompt = generate_chat_prompt(examples, n_per_call)
 
     timestamp = get_current_timestamp()
     new_dir = examples_path.parent / timestamp
 
     start = time.perf_counter()
-    run_upsampling(prompt, total_samples, new_dir)
+    run_upsampling(prompt, total_samples, new_dir, n_per_call, examples)
     elapsed = time.perf_counter() - start
 
     store_example_posts(examples_dicts, new_dir)

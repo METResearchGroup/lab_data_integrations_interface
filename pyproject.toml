@@ -12,6 +12,17 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "typer>=0.25.1",
     "websockets>=15.0.1",
+    "numpy>=2.4.4",
+    "scikit-learn>=1.8.0",
+    "rich>=15.0.0",
+    "tenacity>=9.0.0",
+    "spacy>=3.7.0",
+]
+
+[project.optional-dependencies]
+testing = [
+    "faker>=37.0.0",
+    "pytest>=8.0.0",
 ]
 
 [dependency-groups]
@@ -37,3 +48,4 @@ pythonVersion = "3.11"
 typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
+exclude = ["tests", "experiments"]
