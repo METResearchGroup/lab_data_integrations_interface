@@ -126,7 +126,7 @@ def run_upsampling(
             failures.append({"error": str(e)})
 
     write_deadletter_json(failures, prompt, new_dir)
-    if all_generated_texts:
+    if len(all_generated_texts) > 0:
         write_metrics_json(ground_truth_posts, all_generated_texts, new_dir)
 
 
@@ -206,15 +206,15 @@ def main(
         ..., help="Full path to examples CSV file (e.g. /folder/to/file.csv)"
     ),
     num_examples: int = typer.Option(
-        DEFAULT_EXAMPLE_POSTS, help="Number of posts to use as examples for LLM (default 5)"
+        DEFAULT_EXAMPLE_POSTS, help=f"Number of posts to use as examples for LLM (default {DEFAULT_EXAMPLE_POSTS})"
     ),
     total_samples: int = typer.Option(
         DEFAULT_GENERATED_POSTS,
-        help="Total number of samples to generate (max 1000)",
+        help=f"Total number of samples to generate (max {MAX_GENERATED_POSTS})",
         max=MAX_GENERATED_POSTS,
     ),
     n_per_call: int = typer.Option(
-        DEFAULT_N_PER_CALL, help="Number of posts to generate per LLM call (default 25)"
+        DEFAULT_N_PER_CALL, help=f"Number of posts to generate per LLM call (default {DEFAULT_N_PER_CALL})"
     ),
 ):
     validate_sample_count(total_samples, n_per_call)
