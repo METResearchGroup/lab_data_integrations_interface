@@ -130,6 +130,7 @@ def run_upsampling(
                 GeneratedSocialMediaPost(text=text, generation_timestamp=get_current_timestamp())
                 for result in results
                 for text in result.posts
+                if text.strip()
             ]
             append_posts_to_csv(posts, csv_path)
             all_generated_texts.extend(post.text for post in posts)
