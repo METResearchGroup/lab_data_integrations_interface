@@ -42,6 +42,9 @@ def generate_chat_prompt(examples: list[str], n_per_call: int) -> tuple[str, str
 
 
 def _get_field_value(field_name: str, row: dict) -> str | None:
+    """Get a value for a specific field in the .csv file.
+    The field can be mapped to the canonical field names using the column_name_conversion dictionary.
+    """
     return next(
         (row[key] for key in COLUMN_NAME_CONVERSION[field_name] if key in row), None
     )
