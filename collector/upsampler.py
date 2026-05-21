@@ -20,6 +20,7 @@ from collector.constants import (
     MAX_GENERATED_POSTS,
     MODEL_TEMPERATURE,
 )
+from collector.column_name_conversion import COLUMN_NAME_CONVERSION
 from collector.metrics import print_running_gini, write_metrics_json
 from collector.models import GeneratedSocialMediaPost, LlmBatchedPosts
 from collector.prompts import BATCH_USER_PROMPT_TEMPLATE, SYSTEM_PROMPT
@@ -40,6 +41,12 @@ def generate_chat_prompt(examples: list[str], n_per_call: int) -> tuple[str, str
     return (SYSTEM_PROMPT, BATCH_USER_PROMPT_TEMPLATE.format(examples=examples, n=n_per_call))
 
 
+def _get_field_value(field_name: str, row: dict) -> str | None:
+    return next(
+        (row[key] for key in COLUMN_NAME_CONVERSION[field_name] if key in row), None
+    )
+
+
 def get_examples_dicts(examples_path: Path, num_posts: int, examples_offset: int = 0) -> list[dict[str, str]]:
     """Returns at most num_posts posts from the CSV file, starting at row examples_offset."""
     examples = []
@@ -50,10 +57,10 @@ def get_examples_dicts(examples_path: Path, num_posts: int, examples_offset: int
         for row in reader:
             examples.append(
                 {
-                    "post_id": row["post_id"],
-                    "post_handle": row["handle"],
-                    "post": row["post"],
-                    "post_timestamp": row["post_timestamp"],
+                    "post_id": _get_field_value("post_id", row),
+                    "post_handle": _get_field_value("post_handle", row),
+                    "post": _get_field_value("post", row),
+                    "post_timestamp": _get_field_value("post_timestamp", row),
                 }
             )
             if len(examples) == num_posts:
