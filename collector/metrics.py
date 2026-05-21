@@ -72,12 +72,16 @@ def save_embedding(text_hash: str, text: str, embedding: np.ndarray) -> None:
     cache = _get_cache()
     cache[text_hash] = embedding.tolist()
     CACHE_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    new_row = pd.DataFrame([{
-        "hash": text_hash,
-        "text": text,
-        "embedding": embedding.tolist(),
-        "metadata": json.dumps({"model": EMBEDDING_MODEL}),
-    }])
+    new_row = pd.DataFrame(
+        [
+            {
+                "hash": text_hash,
+                "text": text,
+                "embedding": embedding.tolist(),
+                "metadata": json.dumps({"model": EMBEDDING_MODEL}),
+            }
+        ]
+    )
     if CACHE_FILE_PATH.exists():
         df = pd.concat([pd.read_parquet(CACHE_FILE_PATH), new_row], ignore_index=True)
     else:
@@ -203,7 +207,7 @@ def _mean_gini_for_group(tfidf_matrix, start: int, count: int) -> float:
 
 def _distinct_1(posts: list[str]) -> float:
     """
-    Ratio of unique unigrams to total unigrams across all posts; 
+    Ratio of unique unigrams to total unigrams across all posts;
     higher means more lexical diversity.
     """
     tokens = [token for post in posts for token in post.split()]
@@ -214,7 +218,7 @@ def _distinct_1(posts: list[str]) -> float:
 
 def _distinct_2(posts: list[str]) -> float:
     """
-    Ratio of unique bigrams to total bigrams across all posts; 
+    Ratio of unique bigrams to total bigrams across all posts;
     higher means less repetition of two-word sequences.
     """
     all_bigrams = []
