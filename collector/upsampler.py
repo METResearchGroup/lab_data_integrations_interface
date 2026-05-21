@@ -40,11 +40,13 @@ def generate_chat_prompt(examples: list[str], n_per_call: int) -> tuple[str, str
     return (SYSTEM_PROMPT, BATCH_USER_PROMPT_TEMPLATE.format(examples=examples, n=n_per_call))
 
 
-def get_examples_dicts(examples_path: Path, num_posts: int) -> list[dict[str, str]]:
-    """Returns at most the first num_posts posts in the CSV file."""
+def get_examples_dicts(examples_path: Path, num_posts: int, examples_offset: int = 0) -> list[dict[str, str]]:
+    """Returns at most num_posts posts from the CSV file, starting at row examples_offset."""
     examples = []
     with open(examples_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
+        for _ in range(examples_offset):
+            next(reader, None)
         for row in reader:
             examples.append(
                 {
@@ -208,6 +210,9 @@ def main(
     num_examples: int = typer.Option(
         DEFAULT_EXAMPLE_POSTS, help=f"Number of posts to use as examples for LLM (default {DEFAULT_EXAMPLE_POSTS})"
     ),
+    examples_offset: int = typer.Option(
+        0, help="Row offset into the examples CSV to start reading from (default 0)"
+    ),
     total_samples: int = typer.Option(
         DEFAULT_GENERATED_POSTS,
         help=f"Total number of samples to generate (max {MAX_GENERATED_POSTS})",
@@ -219,7 +224,7 @@ def main(
 ):
     validate_sample_count(total_samples, n_per_call)
 
-    examples_dicts = get_examples_dicts(examples_path, num_examples)
+    examples_dicts = get_examples_dicts(examples_path, num_examples, examples_offset)
 
     examples = extract_examples(examples_dicts)
     prompt = generate_chat_prompt(examples, n_per_call)
