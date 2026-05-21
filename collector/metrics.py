@@ -201,6 +201,32 @@ def _mean_gini_for_group(tfidf_matrix, start: int, count: int) -> float:
     return float(np.mean([_gini(tfidf_matrix[start + i].toarray().ravel()) for i in range(count)]))
 
 
+def _distinct_1(posts: list[str]) -> float:
+    """
+    Ratio of unique unigrams to total unigrams across all posts; 
+    higher means more lexical diversity.
+    """
+    tokens = [token for post in posts for token in post.split()]
+    if not tokens:
+        return 0.0
+    return round(len(set(tokens)) / len(tokens), 4)
+
+
+def _distinct_2(posts: list[str]) -> float:
+    """
+    Ratio of unique bigrams to total bigrams across all posts; 
+    higher means less repetition of two-word sequences.
+    """
+    all_bigrams = []
+    for post in posts:
+        tokens = post.split()
+        # e.g. ["the","cat","sat"] + ["cat","sat"] → [("the","cat"),("cat","sat")]
+        all_bigrams.extend(zip(tokens, tokens[1:]))
+    if not all_bigrams:
+        return 0.0
+    return round(len(set(all_bigrams)) / len(all_bigrams), 4)
+
+
 def _compute_group_metrics(posts: list[str], tfidf_matrix, tfidf_start: int) -> dict:
     gini_scores = [
         _gini(tfidf_matrix[tfidf_start + i].toarray().ravel()) for i in range(len(posts))
@@ -216,6 +242,8 @@ def _compute_group_metrics(posts: list[str], tfidf_matrix, tfidf_start: int) -> 
             float(np.mean([kincaid_grade.calculate(p) for p in posts])), 4
         ),
         "mean_gini": round(float(np.mean(gini_scores)), 4),
+        "distinct_1": _distinct_1(posts),
+        "distinct_2": _distinct_2(posts),
     }
 
 
@@ -251,7 +279,7 @@ def write_metrics_json(
         "ground_truth": _compute_group_metrics(ground_truth_posts, X, 0),
         "generated": _compute_group_metrics(generated_posts, X, n_gt),
         "embedding_similarities": {
-            "within_sample": round(_mean_pairwise_cosine(gt_embeddings), 4),
+            "within_examples": round(_mean_pairwise_cosine(gt_embeddings), 4),
             "within_generation": round(_mean_pairwise_cosine(gen_embeddings), 4),
             "inter_data": round(_mean_cross_cosine(gt_embeddings, gen_embeddings), 4),
         },
