@@ -222,25 +222,31 @@ def test_store_example_posts_correct_rows(tmp_path, example_rows):
 
 # write_to_metadata_json
 def test_write_to_metadata_json_creates_file(tmp_path, examples_csv):
-    write_to_metadata_json(1.23, tmp_path, examples_csv, 100, fake.iso8601())
+    write_to_metadata_json(1.23, tmp_path, examples_csv, 5, 0, 100, 25, fake.iso8601())
     assert (tmp_path / "metadata.json").exists()
 
 
 def test_write_to_metadata_json_correct_keys(tmp_path, examples_csv):
-    write_to_metadata_json(1.23, tmp_path, examples_csv, 100, fake.iso8601())
+    write_to_metadata_json(1.23, tmp_path, examples_csv, 5, 0, 100, 25, fake.iso8601())
     data = json.loads((tmp_path / "metadata.json").read_text())
     assert "git_commit_hash" in data
     assert "timestamp" in data
     assert "runtime_seconds" in data
     assert "examples_path" in data["cli_args"]
+    assert "num_examples" in data["cli_args"]
+    assert "examples_offset" in data["cli_args"]
     assert "total_samples" in data["cli_args"]
+    assert "n_per_call" in data["cli_args"]
 
 
-def test_write_to_metadata_json_cli_args_are_strings(tmp_path, examples_csv):
-    write_to_metadata_json(1.23, tmp_path, examples_csv, 100, fake.iso8601())
+def test_write_to_metadata_json_cli_args_are_correct_types(tmp_path, examples_csv):
+    write_to_metadata_json(1.23, tmp_path, examples_csv, 5, 0, 100, 25, fake.iso8601())
     data = json.loads((tmp_path / "metadata.json").read_text())
     assert isinstance(data["cli_args"]["examples_path"], str)
-    assert isinstance(data["cli_args"]["total_samples"], str)
+    assert isinstance(data["cli_args"]["num_examples"], int)
+    assert isinstance(data["cli_args"]["examples_offset"], int)
+    assert isinstance(data["cli_args"]["total_samples"], int)
+    assert isinstance(data["cli_args"]["n_per_call"], int)
 
 
 # run_upsampling
