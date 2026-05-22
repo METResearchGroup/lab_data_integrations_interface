@@ -17,6 +17,8 @@ dependencies = [
     "rich>=15.0.0",
     "tenacity>=9.0.0",
     "spacy>=3.7.0",
+    "pandas>=2.0.0",
+    "pyarrow>=14.0.0",
 ]
 
 [project.optional-dependencies]

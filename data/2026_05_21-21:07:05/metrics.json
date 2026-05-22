@@ -1,0 +1,23 @@
+{
+  "ground_truth": {
+    "mean_post_length": 183.65,
+    "mean_post_reading_ease": 61.0641,
+    "mean_post_reading_grade_level": 9.3142,
+    "mean_gini": 0.9745,
+    "distinct_1": 0.5975,
+    "distinct_2": 0.9565
+  },
+  "generated": {
+    "mean_post_length": 154.07,
+    "mean_post_reading_ease": 59.5494,
+    "mean_post_reading_grade_level": 8.1488,
+    "mean_gini": 0.9779,
+    "distinct_1": 0.4046,
+    "distinct_2": 0.8685
+  },
+  "embedding_similarities": {
+    "within_examples": 0.3388,
+    "within_generation": 0.4487,
+    "inter_data": 0.3591
+  }
+}

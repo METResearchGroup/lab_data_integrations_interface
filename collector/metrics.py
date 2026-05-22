@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from abc import ABC, abstractmethod
@@ -9,8 +10,16 @@ from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import spacy
+from openai import OpenAI
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+EMBEDDING_MODEL = "text-embedding-3-small"
+CACHE_FILE_PATH = Path(__file__).parent.parent / "data" / "embeddings_cache.parquet"
+
+_embedding_cache: dict[str, list[float]] | None = None
 
 VOWEL_GROUP_RE = re.compile(r"[aeiouy]+", re.IGNORECASE)
 NON_LETTER_RE = re.compile(r"[^a-z]")
@@ -26,6 +35,80 @@ def _nlp() -> spacy.language.Language:
 
 def _safe_divide(a: float, b: float) -> float:
     return a / b if b != 0 else 0.0
+
+
+def hash_text(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def _get_cache() -> dict[str, list[float]]:
+    """
+    Loads embeddings into memory and returns the embeddings
+    """
+    global _embedding_cache
+    if _embedding_cache is None:
+        if CACHE_FILE_PATH.exists():
+            df = pd.read_parquet(CACHE_FILE_PATH)
+            _embedding_cache = dict(zip(df["hash"], df["embedding"]))
+        else:
+            _embedding_cache = {}
+    return _embedding_cache
+
+
+def check_if_embedding_exists(text_hash: str) -> bool:
+    return text_hash in _get_cache()
+
+
+def load_embedding(text_hash: str) -> np.ndarray:
+    return np.array(_get_cache()[text_hash])
+
+
+def create_embedding(text: str) -> np.ndarray:
+    response = OpenAI().embeddings.create(input=[text], model=EMBEDDING_MODEL)
+    return np.array(response.data[0].embedding)
+
+
+def save_embedding(text_hash: str, text: str, embedding: np.ndarray) -> None:
+    cache = _get_cache()
+    cache[text_hash] = embedding.tolist()
+    CACHE_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    new_row = pd.DataFrame(
+        [
+            {
+                "hash": text_hash,
+                "text": text,
+                "embedding": embedding.tolist(),
+                "metadata": json.dumps({"model": EMBEDDING_MODEL}),
+            }
+        ]
+    )
+    if CACHE_FILE_PATH.exists():
+        df = pd.concat([pd.read_parquet(CACHE_FILE_PATH), new_row], ignore_index=True)
+    else:
+        df = new_row
+    df.to_parquet(CACHE_FILE_PATH, index=False)
+
+
+def get_embedding(text: str) -> np.ndarray:
+    text_hash = hash_text(text)
+    if check_if_embedding_exists(text_hash):
+        return load_embedding(text_hash)
+    embedding = create_embedding(text)
+    save_embedding(text_hash, text, embedding)
+    return embedding
+
+
+def _mean_pairwise_cosine(matrix: np.ndarray) -> float:
+    n = len(matrix)
+    if n < 2:
+        return 0.0
+    sim = cosine_similarity(matrix)
+    i, j = np.triu_indices(n, k=1)
+    return float(np.mean(sim[i, j]))
+
+
+def _mean_cross_cosine(matrix_a: np.ndarray, matrix_b: np.ndarray) -> float:
+    return float(np.mean(cosine_similarity(matrix_a, matrix_b)))
 
 
 def _count_syllables(word: str) -> int:
@@ -122,6 +205,32 @@ def _mean_gini_for_group(tfidf_matrix, start: int, count: int) -> float:
     return float(np.mean([_gini(tfidf_matrix[start + i].toarray().ravel()) for i in range(count)]))
 
 
+def _distinct_1(posts: list[str]) -> float:
+    """
+    Ratio of unique unigrams to total unigrams across all posts;
+    higher means more lexical diversity.
+    """
+    tokens = [token for post in posts for token in post.split()]
+    if not tokens:
+        return 0.0
+    return round(len(set(tokens)) / len(tokens), 4)
+
+
+def _distinct_2(posts: list[str]) -> float:
+    """
+    Ratio of unique bigrams to total bigrams across all posts;
+    higher means less repetition of two-word sequences.
+    """
+    all_bigrams = []
+    for post in posts:
+        tokens = post.split()
+        # e.g. ["the","cat","sat"] + ["cat","sat"] → [("the","cat"),("cat","sat")]
+        all_bigrams.extend(zip(tokens, tokens[1:]))
+    if not all_bigrams:
+        return 0.0
+    return round(len(set(all_bigrams)) / len(all_bigrams), 4)
+
+
 def _compute_group_metrics(posts: list[str], tfidf_matrix, tfidf_start: int) -> dict:
     gini_scores = [
         _gini(tfidf_matrix[tfidf_start + i].toarray().ravel()) for i in range(len(posts))
@@ -137,6 +246,8 @@ def _compute_group_metrics(posts: list[str], tfidf_matrix, tfidf_start: int) -> 
             float(np.mean([kincaid_grade.calculate(p) for p in posts])), 4
         ),
         "mean_gini": round(float(np.mean(gini_scores)), 4),
+        "distinct_1": _distinct_1(posts),
+        "distinct_2": _distinct_2(posts),
     }
 
 
@@ -164,9 +275,18 @@ def write_metrics_json(
     all_posts = ground_truth_posts + generated_posts
     X = TfidfVectorizer().fit_transform(all_posts)
     n_gt = len(ground_truth_posts)
+
+    gt_embeddings = np.array([get_embedding(p) for p in ground_truth_posts])
+    gen_embeddings = np.array([get_embedding(p) for p in generated_posts])
+
     metrics = {
         "ground_truth": _compute_group_metrics(ground_truth_posts, X, 0),
         "generated": _compute_group_metrics(generated_posts, X, n_gt),
+        "embedding_similarities": {
+            "within_examples": round(_mean_pairwise_cosine(gt_embeddings), 4),
+            "within_generation": round(_mean_pairwise_cosine(gen_embeddings), 4),
+            "inter_data": round(_mean_cross_cosine(gt_embeddings, gen_embeddings), 4),
+        },
     }
     with open(output_dir / "metrics.json", "w") as f:
         json.dump(metrics, f, indent=2)

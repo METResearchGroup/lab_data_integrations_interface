@@ -11,6 +11,7 @@ from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_openai import ChatOpenAI
 from tqdm import tqdm
 
+from collector.column_name_conversion import COLUMN_NAME_CONVERSION
 from collector.constants import (
     DEFAULT_EXAMPLE_POSTS,
     DEFAULT_GENERATED_POSTS,
@@ -40,18 +41,29 @@ def generate_chat_prompt(examples: list[str], n_per_call: int) -> tuple[str, str
     return (SYSTEM_PROMPT, BATCH_USER_PROMPT_TEMPLATE.format(examples=examples, n=n_per_call))
 
 
-def get_examples_dicts(examples_path: Path, num_posts: int) -> list[dict[str, str]]:
-    """Returns at most the first num_posts posts in the CSV file."""
+def _get_field_value(field_name: str, row: dict) -> str | None:
+    """Get a value for a specific field in the .csv file.
+    The field can be mapped to the canonical field names using the column_name_conversion dict.
+    """
+    return next((row[key] for key in COLUMN_NAME_CONVERSION[field_name] if key in row), None)
+
+
+def get_examples_dicts(
+    examples_path: Path, num_posts: int, examples_offset: int = 0
+) -> list[dict[str, str]]:
+    """Returns at most num_posts posts from the CSV file, starting at row examples_offset."""
     examples = []
     with open(examples_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
+        for _ in range(examples_offset):
+            next(reader, None)
         for row in reader:
             examples.append(
                 {
-                    "post_id": row["post_id"],
-                    "post_handle": row["handle"],
-                    "post": row["post"],
-                    "post_timestamp": row["post_timestamp"],
+                    "post_id": _get_field_value("post_id", row),
+                    "post_handle": _get_field_value("post_handle", row),
+                    "post": _get_field_value("post", row),
+                    "post_timestamp": _get_field_value("post_timestamp", row),
                 }
             )
             if len(examples) == num_posts:
@@ -118,6 +130,7 @@ def run_upsampling(
                 GeneratedSocialMediaPost(text=text, generation_timestamp=get_current_timestamp())
                 for result in results
                 for text in result.posts
+                if text.strip()
             ]
             append_posts_to_csv(posts, csv_path)
             all_generated_texts.extend(post.text for post in posts)
@@ -126,7 +139,7 @@ def run_upsampling(
             failures.append({"error": str(e)})
 
     write_deadletter_json(failures, prompt, new_dir)
-    if all_generated_texts:
+    if len(all_generated_texts) > 0:
         write_metrics_json(ground_truth_posts, all_generated_texts, new_dir)
 
 
@@ -172,14 +185,24 @@ def store_example_posts(examples_dict: list[dict[str, str]], new_dir: Path) -> N
 
 
 def write_to_metadata_json(
-    elapsed: float, new_dir: Path, examples_path: Path, total_samples: int, timestamp: str
+    elapsed: float,
+    new_dir: Path,
+    examples_path: Path,
+    num_examples: int,
+    examples_offset: int,
+    total_samples: int,
+    n_per_call: int,
+    timestamp: str,
 ) -> None:
     metadata = {
         "git_commit_hash": get_git_hash(),
         "timestamp": timestamp,
         "cli_args": {
             "examples_path": str(examples_path),
-            "total_samples": str(total_samples),
+            "num_examples": num_examples,
+            "examples_offset": examples_offset,
+            "total_samples": total_samples,
+            "n_per_call": n_per_call,
         },
         "runtime_seconds": round(elapsed, 4),
     }
@@ -206,20 +229,25 @@ def main(
         ..., help="Full path to examples CSV file (e.g. /folder/to/file.csv)"
     ),
     num_examples: int = typer.Option(
-        DEFAULT_EXAMPLE_POSTS, help="Number of posts to use as examples for LLM (default 5)"
+        DEFAULT_EXAMPLE_POSTS,
+        help=f"Number of posts to use as examples for LLM (default {DEFAULT_EXAMPLE_POSTS})",
+    ),
+    examples_offset: int = typer.Option(
+        0, help="Row offset into the examples CSV to start reading from (default 0)"
     ),
     total_samples: int = typer.Option(
         DEFAULT_GENERATED_POSTS,
-        help="Total number of samples to generate (max 1000)",
+        help=f"Total number of samples to generate (max {MAX_GENERATED_POSTS})",
         max=MAX_GENERATED_POSTS,
     ),
     n_per_call: int = typer.Option(
-        DEFAULT_N_PER_CALL, help="Number of posts to generate per LLM call (default 25)"
+        DEFAULT_N_PER_CALL,
+        help=f"Number of posts to generate per LLM call (default {DEFAULT_N_PER_CALL})",
     ),
 ):
     validate_sample_count(total_samples, n_per_call)
 
-    examples_dicts = get_examples_dicts(examples_path, num_examples)
+    examples_dicts = get_examples_dicts(examples_path, num_examples, examples_offset)
 
     examples = extract_examples(examples_dicts)
     prompt = generate_chat_prompt(examples, n_per_call)
@@ -232,7 +260,16 @@ def main(
     elapsed = time.perf_counter() - start
 
     store_example_posts(examples_dicts, new_dir)
-    write_to_metadata_json(elapsed, new_dir, examples_path, total_samples, timestamp)
+    write_to_metadata_json(
+        elapsed,
+        new_dir,
+        examples_path,
+        num_examples,
+        examples_offset,
+        total_samples,
+        n_per_call,
+        timestamp,
+    )
 
 
 if __name__ == "__main__":

@@ -1,0 +1,12 @@
+{
+  "git_commit_hash": "a8f847a7af1352bb0011dee592afa01b50fd3ad5",
+  "timestamp": "2026_05_21-20:58:02",
+  "cli_args": {
+    "examples_path": "data/all_mirrors_claude.csv",
+    "num_examples": 20,
+    "examples_offset": 0,
+    "total_samples": 100,
+    "n_per_call": 10
+  },
+  "runtime_seconds": 40.0927
+}
