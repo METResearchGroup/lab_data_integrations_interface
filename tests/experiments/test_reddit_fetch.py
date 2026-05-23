@@ -1,19 +1,15 @@
 import json
-import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-EXPERIMENT_DIR = Path(__file__).resolve().parents[2] / "experiments" / "reddit_fetch_data_2026_05_23"
-sys.path.insert(0, str(EXPERIMENT_DIR))
-
-from reddit_client import (  # noqa: E402
+from experiments.reddit_fetch_data_2026_05_23.main import write_metadata
+from experiments.reddit_fetch_data_2026_05_23.reddit_client import (
     CSV_FIELDNAMES,
     fetch_subreddit_posts,
     submission_to_row,
 )
-from main import write_metadata  # noqa: E402
 
 SYNC_TIMESTAMP = "2026_05_23-14:30:00"
 

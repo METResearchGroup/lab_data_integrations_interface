@@ -1,19 +1,22 @@
-"""One-shot Reddit data collection experiment."""
+"""One-shot Reddit data collection experiment.
+
+Run from repo root:
+
+    PYTHONPATH=. uv run python experiments/reddit_fetch_data_2026_05_23/main.py
+"""
 
 from __future__ import annotations
 
 import csv
 import json
-import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(_REPO_ROOT))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
+from experiments.reddit_fetch_data_2026_05_23.reddit_client import (
+    CSV_FIELDNAMES,
+    fetch_subreddit_posts,
+    init_reddit,
+)
 from lib.timestamp_utils import get_current_timestamp
-
-from reddit_client import CSV_FIELDNAMES, fetch_subreddit_posts, init_reddit
 
 SUBREDDITS: list[str] = [
     "Conservative",
