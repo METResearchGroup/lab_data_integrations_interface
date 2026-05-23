@@ -19,6 +19,7 @@ dependencies = [
     "spacy>=3.7.0",
     "pandas>=2.0.0",
     "pyarrow>=14.0.0",
+    "uvicorn>=0.47.0",
 ]
 
 [project.optional-dependencies]

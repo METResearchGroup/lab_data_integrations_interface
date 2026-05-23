@@ -8,7 +8,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-05-14T16:19:10.770889Z"
+exclude-newer = "2026-05-16T20:16:10.161275Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -498,6 +498,7 @@ dependencies = [
     { name = "spacy" },
     { name = "tenacity" },
     { name = "typer" },
+    { name = "uvicorn" },
     { name = "websockets" },
 ]
 
@@ -533,6 +534,7 @@ requires-dist = [
     { name = "spacy", specifier = ">=3.7.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "typer", specifier = ">=0.25.1" },
+    { name = "uvicorn", specifier = ">=0.47.0" },
     { name = "websockets", specifier = ">=15.0.1" },
 ]
 provides-extras = ["testing"]
@@ -1552,6 +1554,19 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/20/049418d094d396dfa6606b30af925cc68a6670c3b9103b23e6990f84b589/uuid_utils-0.14.1-pp311-pypy311_pp73-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:50fffc2827348c1e48972eed3d1c698959e63f9d030aa5dd82ba451113158a62", size = 476731, upload-time = "2026-02-20T22:50:30.589Z" },
     { url = "https://files.pythonhosted.org/packages/77/a1/0857f64d53a90321e6a46a3d4cc394f50e1366132dcd2ae147f9326ca98b/uuid_utils-0.14.1-pp311-pypy311_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c1dbe718765f70f5b7f9b7f66b6a937802941b1cc56bcf642ce0274169741e01", size = 338902, upload-time = "2026-02-20T22:50:33.927Z" },
     { url = "https://files.pythonhosted.org/packages/ed/d0/5bf7cbf1ac138c92b9ac21066d18faf4d7e7f651047b700eb192ca4b9fdb/uuid_utils-0.14.1-pp311-pypy311_pp73-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:258186964039a8e36db10810c1ece879d229b01331e09e9030bc5dcabe231bd2", size = 364700, upload-time = "2026-02-20T22:50:21.732Z" },
+]
+
+[[package]]
+name = "uvicorn"
+version = "0.47.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "h11" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f6/b1/8e7077a8641086aea449e1b5752a570f1b5906c64e0a33cd6d93b63a066b/uvicorn-0.47.0.tar.gz", hash = "sha256:7c9a0ea1a9414106bbab7324609c162d8fa0cdcdcb703060987269d77c7bb533", size = 90582, upload-time = "2026-05-14T18:16:54.455Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/15/41/ac2dfdbc1f60c7af4f994c7a335cfa7040c01642b605d65f611cecc2a1e4/uvicorn-0.47.0-py3-none-any.whl", hash = "sha256:2c5715bc12d1892d84752049f400cd1c3cb018514967fdfeb97640443a6a9432", size = 71301, upload-time = "2026-05-14T18:16:51.762Z" },
 ]
 
 [[package]]
