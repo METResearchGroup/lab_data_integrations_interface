@@ -71,6 +71,15 @@ resource "aws_apprunner_service" "backend" {
     auto_deployments_enabled = true
   }
 
+  health_check_configuration {
+    protocol            = "HTTP"
+    path                = "/health"
+    interval            = 10
+    timeout             = 5
+    healthy_threshold   = 1
+    unhealthy_threshold = 5
+  }
+
   instance_configuration {
     cpu               = "512"
     memory            = "1024"
