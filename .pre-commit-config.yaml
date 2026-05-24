@@ -12,6 +12,7 @@ repos:
     rev: v1.1.409
     hooks:
       - id: pyright
+        exclude: ^experimentation/
 
   - repo: https://github.com/rohaquinlop/complexipy-pre-commit
     rev: v5.1.0
