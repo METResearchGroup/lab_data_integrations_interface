@@ -1,9 +1,6 @@
 """SQLite bulk loader — one file per table with WAL pragmas.
 
-Run from repo root:
-    PYTHONPATH=. uv run python experiments/database_experiments_2026_05_23/sqlite/loader.py \
-      --mock-data-dir experiments/database_experiments_2026_05_23/mock_data \
-      --output-dir experiments/database_experiments_2026_05_23/sqlite_data
+Run from repo root with PYTHONPATH=.
 """
 
 from __future__ import annotations

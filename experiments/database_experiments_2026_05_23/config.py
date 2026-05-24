@@ -1,7 +1,6 @@
 """Benchmark configuration and scale caps.
 
-Run from repo root:
-    PYTHONPATH=. uv run python -c "from experiments.database_experiments_2026_05_23.config import BenchmarkConfig"
+Run from repo root with PYTHONPATH=.
 """
 
 from dataclasses import dataclass, field
@@ -32,6 +31,7 @@ def ensure_repo_import_path() -> None:
     experiment_root = Path(__file__).resolve().parent
     if sys.path and Path(sys.path[0]).resolve() == experiment_root:
         sys.path.pop(0)
+
 
 BACKEND_ORDER = ("postgres", "sqlite", "duckdb")
 SAMPLE_AUTHOR_COUNT = 100

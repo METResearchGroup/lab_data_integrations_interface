@@ -1,9 +1,6 @@
 """Generate mock Bluesky-shaped Parquet data for database benchmark experiments.
 
-Run from repo root:
-    PYTHONPATH=. uv run python experiments/database_experiments_2026_05_23/random_data_generator.py --seed 42
-    PYTHONPATH=. uv run python experiments/database_experiments_2026_05_23/random_data_generator.py --validate
-    PYTHONPATH=. uv run python experiments/database_experiments_2026_05_23/random_data_generator.py --seed 42 --scale smoke
+Run from repo root with PYTHONPATH=.
 """
 
 from __future__ import annotations
@@ -22,8 +19,17 @@ import pyarrow.parquet as pq
 from faker import Faker
 
 from experiments.database_experiments_2026_05_23.config import FULL_CAPS, SMOKE_CAPS, ScaleCaps
-from experiments.database_experiments_2026_05_23.date_utils import days_ago, format_created_at, parse_created_at
-from experiments.database_experiments_2026_05_23.models import FollowModel, LikeModel, PostModel, UserModel
+from experiments.database_experiments_2026_05_23.date_utils import (
+    days_ago,
+    format_created_at,
+    parse_created_at,
+)
+from experiments.database_experiments_2026_05_23.models import (
+    FollowModel,
+    LikeModel,
+    PostModel,
+    UserModel,
+)
 from lib.timestamp_utils import CREATED_AT_FORMAT
 
 DEFAULT_OUTPUT_DIR = Path("experiments/database_experiments_2026_05_23/mock_data")
@@ -93,7 +99,6 @@ def generate_likes(
 ) -> list[LikeModel]:
     likes: list[LikeModel] = []
     three_days_ago = days_ago(3)
-    posts_by_id = {post.post_id: post for post in posts}
 
     for user in users:
         count = max(0, int(np_rng.normal(loc=200, scale=5)))
@@ -125,6 +130,23 @@ def generate_likes(
     return likes
 
 
+def _maybe_record_follow(
+    seen: set[tuple[str, str]],
+    follower_id: str,
+    followee_id: str,
+    rng: random.Random,
+    max_follows: int,
+) -> bool:
+    """Record a follow pair when selected. Returns True if cap is reached."""
+    if follower_id == followee_id or rng.random() >= 0.001:
+        return len(seen) >= max_follows
+    pair = (follower_id, followee_id)
+    if pair in seen:
+        return len(seen) >= max_follows
+    seen.add(pair)
+    return len(seen) >= max_follows
+
+
 def generate_follows(
     users: list[UserModel],
     rng: random.Random,
@@ -134,15 +156,7 @@ def generate_follows(
 
     for follower in users:
         for followee in users:
-            if follower.user_id == followee.user_id:
-                continue
-            if rng.random() >= 0.001:
-                continue
-            pair = (follower.user_id, followee.user_id)
-            if pair in seen:
-                continue
-            seen.add(pair)
-            if len(seen) >= max_follows:
+            if _maybe_record_follow(seen, follower.user_id, followee.user_id, rng, max_follows):
                 break
         if len(seen) >= max_follows:
             break
@@ -192,25 +206,28 @@ def _validate_created_at(values: pd.Series, label: str) -> None:
         raise ValueError(f"{label} has invalid created_at format: {bad.iloc[0]}")
 
 
-def validate_mock_data(mock_data_dir: Path, caps: ScaleCaps | None = None) -> dict[str, int]:
+def _load_table_counts(mock_data_dir: Path) -> dict[str, int]:
     counts: dict[str, int] = {}
     for table in TABLES:
         path = mock_data_dir / f"{table}.parquet"
         if not path.exists():
             raise FileNotFoundError(f"Missing parquet file: {path}")
-        frame = pq.read_table(path).to_pandas()
-        counts[table] = len(frame)
+        counts[table] = pq.read_metadata(path).num_rows
+    return counts
 
-    if caps is not None:
-        if counts["user"] > caps.users:
-            raise ValueError(f"user count {counts['user']} exceeds cap {caps.users}")
-        if counts["post"] > caps.posts:
-            raise ValueError(f"post count {counts['post']} exceeds cap {caps.posts}")
-        if counts["like"] > caps.likes:
-            raise ValueError(f"like count {counts['like']} exceeds cap {caps.likes}")
-        if counts["follow"] > caps.follows:
-            raise ValueError(f"follow count {counts['follow']} exceeds cap {caps.follows}")
 
+def _validate_caps(counts: dict[str, int], caps: ScaleCaps) -> None:
+    if counts["user"] > caps.users:
+        raise ValueError(f"user count {counts['user']} exceeds cap {caps.users}")
+    if counts["post"] > caps.posts:
+        raise ValueError(f"post count {counts['post']} exceeds cap {caps.posts}")
+    if counts["like"] > caps.likes:
+        raise ValueError(f"like count {counts['like']} exceeds cap {caps.likes}")
+    if counts["follow"] > caps.follows:
+        raise ValueError(f"follow count {counts['follow']} exceeds cap {caps.follows}")
+
+
+def _validate_table_integrity(mock_data_dir: Path) -> None:
     users = pq.read_table(mock_data_dir / "user.parquet").to_pandas()
     posts = pq.read_table(mock_data_dir / "post.parquet").to_pandas()
     likes = pq.read_table(mock_data_dir / "like.parquet").to_pandas()
@@ -228,7 +245,9 @@ def validate_mock_data(mock_data_dir: Path, caps: ScaleCaps | None = None) -> di
         raise ValueError("Duplicate like_id values found")
 
     posts_by_id = posts.set_index("post_id")
-    merged = likes.merge(posts_by_id[["author_id"]], left_on="post_id", right_index=True, suffixes=("", "_post"))
+    merged = likes.merge(
+        posts_by_id[["author_id"]], left_on="post_id", right_index=True, suffixes=("", "_post")
+    )
     self_likes = merged[merged["author_id"] == merged["author_id_post"]]
     if not self_likes.empty:
         raise ValueError(f"Found {len(self_likes)} self-likes")
@@ -236,6 +255,13 @@ def validate_mock_data(mock_data_dir: Path, caps: ScaleCaps | None = None) -> di
     follow_pairs = follows[["follower_id", "followee_id"]].apply(tuple, axis=1)
     if follow_pairs.duplicated().any():
         raise ValueError("Duplicate follow pairs found")
+
+
+def validate_mock_data(mock_data_dir: Path, caps: ScaleCaps | None = None) -> dict[str, int]:
+    counts = _load_table_counts(mock_data_dir)
+    if caps is not None:
+        _validate_caps(counts, caps)
+    _validate_table_integrity(mock_data_dir)
 
     print(f"Row counts: {counts}")
     print(f"created_at format: {CREATED_AT_FORMAT}")

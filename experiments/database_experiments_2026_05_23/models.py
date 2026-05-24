@@ -1,7 +1,6 @@
 """Pydantic models for mock Bluesky-shaped benchmark data.
 
-Run from repo root:
-    PYTHONPATH=. uv run python -c "from experiments.database_experiments_2026_05_23.models import UserModel"
+Run from repo root with PYTHONPATH=.
 """
 
 from pydantic import BaseModel

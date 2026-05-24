@@ -1,7 +1,6 @@
 """Timestamp parsing and range helpers for string-formatted created_at values.
 
-Run from repo root:
-    PYTHONPATH=. uv run python -c "from experiments.database_experiments_2026_05_23.date_utils import days_ago; print(days_ago(7))"
+Run from repo root with PYTHONPATH=.
 """
 
 from datetime import UTC, datetime, timedelta

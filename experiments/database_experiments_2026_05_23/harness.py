@@ -1,7 +1,6 @@
 """Shared multi-threaded benchmark harness with warm-up and measured phases.
 
-Run from repo root:
-    PYTHONPATH=. uv run python experiments/database_experiments_2026_05_23/harness.py --self-check
+Run from repo root with PYTHONPATH=.
 """
 
 from __future__ import annotations
@@ -10,10 +9,12 @@ import argparse
 import random
 import sys
 import threading
-from collections.abc import Callable
 from typing import Protocol
 
-from experiments.database_experiments_2026_05_23.metrics import ResourceMonitor, compute_latency_stats
+from experiments.database_experiments_2026_05_23.metrics import (
+    ResourceMonitor,
+    compute_latency_stats,
+)
 from experiments.database_experiments_2026_05_23.queries import QUERY_SPECS, QueryId
 
 

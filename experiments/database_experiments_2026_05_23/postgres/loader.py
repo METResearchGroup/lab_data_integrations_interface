@@ -1,8 +1,6 @@
 """Postgres bulk loader for mock Parquet data.
 
-Run from repo root:
-    POSTGRES_DSN=postgresql://postgres:test@localhost:5432/db_experiments_issue29 \
-      PYTHONPATH=. uv run python experiments/database_experiments_2026_05_23/postgres/loader.py
+Run from repo root with PYTHONPATH=.
 """
 
 from __future__ import annotations

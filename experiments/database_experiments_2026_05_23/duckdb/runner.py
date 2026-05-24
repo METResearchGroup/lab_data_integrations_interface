@@ -1,7 +1,6 @@
 """DuckDB benchmark runner with Parquet views and EXPLAIN ANALYZE profiling.
 
-Run from repo root:
-    PYTHONPATH=. uv run python -c "from experiments.database_experiments_2026_05_23.duckdb.runner import DuckDBRunner"
+Run from repo root with PYTHONPATH=.
 """
 
 from __future__ import annotations
@@ -33,14 +32,6 @@ def _get_duckdb():
         if not hasattr(_duckdb_module, "connect"):
             raise ImportError("Installed duckdb package is missing connect()")
         return _duckdb_module
-
-
-def _range_params() -> dict[str, str]:
-    return {
-        "today_start": format_range_start(start_of_today()),
-        "week_start": format_range_start(days_ago(7)),
-        "three_weeks_start": format_range_start(days_ago(21)),
-    }
 
 
 def _register_parquet_views(conn: object, mock_data_dir: Path) -> None:

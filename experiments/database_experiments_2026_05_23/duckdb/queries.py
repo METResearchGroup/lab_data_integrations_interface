@@ -1,14 +1,16 @@
 """DuckDB SQL implementations over Parquet views.
 
-Run from repo root:
-    PYTHONPATH=. uv run python -c "from experiments.database_experiments_2026_05_23.duckdb.queries import DUCKDB_QUERIES"
+Run from repo root with PYTHONPATH=.
 """
 
 from __future__ import annotations
 
-from experiments.database_experiments_2026_05_23.date_utils import days_ago, format_range_start, start_of_today
+from experiments.database_experiments_2026_05_23.date_utils import (
+    days_ago,
+    format_range_start,
+    start_of_today,
+)
 from experiments.database_experiments_2026_05_23.queries import QueryId
-
 
 DUCKDB_QUERIES: dict[QueryId, str] = {
     QueryId.POSTS_TODAY_LIMIT_100: """

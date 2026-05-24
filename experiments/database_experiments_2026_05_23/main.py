@@ -1,10 +1,6 @@
 """Orchestrate database benchmark experiments across Postgres, SQLite, and DuckDB.
 
-Run from repo root:
-    PYTHONPATH=. uv run python experiments/database_experiments_2026_05_23/main.py --scale smoke
-    POSTGRES_DSN=postgresql://postgres:test@localhost:5432/db_experiments_issue29 \
-      PYTHONPATH=. uv run python experiments/database_experiments_2026_05_23/main.py \
-      --threads 8 --iterations 3 --warmup 2
+Run from repo root with PYTHONPATH=.
 """
 
 from __future__ import annotations
@@ -31,11 +27,11 @@ from experiments.database_experiments_2026_05_23.config import (
     BenchmarkConfig,
     ensure_repo_import_path,
 )
-
-ensure_repo_import_path()
-
-from experiments.database_experiments_2026_05_23.date_utils import days_ago, format_range_start, start_of_today
-from experiments.database_experiments_2026_05_23.duckdb.runner import DuckDBRunner
+from experiments.database_experiments_2026_05_23.date_utils import (
+    days_ago,
+    format_range_start,
+    start_of_today,
+)
 from experiments.database_experiments_2026_05_23.harness import run_benchmark
 from experiments.database_experiments_2026_05_23.postgres.runner import PostgresRunner, default_dsn
 from experiments.database_experiments_2026_05_23.queries import QUERY_SPECS
@@ -134,6 +130,9 @@ def build_backend_runner(name: str, config: BenchmarkConfig):
     if name == "sqlite":
         return SQLiteRunner(config.sqlite_data_dir)
     if name == "duckdb":
+        ensure_repo_import_path()
+        from experiments.database_experiments_2026_05_23.duckdb.runner import DuckDBRunner
+
         return DuckDBRunner(config.mock_data_dir)
     raise ValueError(f"Unknown backend: {name}")
 
@@ -160,6 +159,7 @@ def aggregate_metrics(backend_results: dict[str, dict]) -> dict:
 
 
 def main() -> None:
+    ensure_repo_import_path()
     config = parse_args()
     run_timestamp = get_current_timestamp()
     run_dir = config.output_dir / run_timestamp
@@ -195,7 +195,7 @@ def main() -> None:
 
         storage_after_benchmark = runner.collect_storage_metrics()
         profiles = {}
-        if backend_name == "duckdb" and isinstance(runner, DuckDBRunner):
+        if backend_name == "duckdb":
             profiles = runner.run_profiles(author_ids)
 
         backend_payload = {

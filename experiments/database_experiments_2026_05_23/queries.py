@@ -1,19 +1,18 @@
 """Engine-agnostic logical query definitions for the database benchmark.
 
-Run from repo root:
-    PYTHONPATH=. uv run python -c "from experiments.database_experiments_2026_05_23.queries import QueryId; print(len(QueryId))"
+Run from repo root with PYTHONPATH=.
 """
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class QueryCategory(str, Enum):
+class QueryCategory(StrEnum):
     OLAP = "OLAP"
     OLTP = "OLTP"
 
 
-class QueryId(str, Enum):
+class QueryId(StrEnum):
     POSTS_TODAY_LIMIT_100 = "posts_today_limit_100"
     TOP_100_POSTERS_PAST_WEEK = "top_100_posters_past_week"
     TRUMP_POST_COUNT_PAST_WEEK = "trump_post_count_past_week"

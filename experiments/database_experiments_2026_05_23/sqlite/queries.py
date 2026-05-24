@@ -1,7 +1,6 @@
 """SQLite query implementations with in-Python cross-table joins.
 
-Run from repo root:
-    PYTHONPATH=. uv run python -c "from experiments.database_experiments_2026_05_23.sqlite.queries import SQLiteQueryExecutor"
+Run from repo root with PYTHONPATH=.
 """
 
 from __future__ import annotations
