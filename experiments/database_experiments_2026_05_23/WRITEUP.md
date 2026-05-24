@@ -40,26 +40,43 @@ Each query runs with 8 threads × 3 measured iterations (24 executions) after 2 
 
 ## 3. Results summary
 
-See `data/<timestamp>/metrics.json` for machine-readable output. Smoke-run p50 latency (ms) at ~5K posts:
+Full-scale runs (497K posts, 8 threads × 3 iterations) — results in:
+- Postgres: `data/2026_05_24-15:51:42/`
+- SQLite + DuckDB: `data/2026_05_24-15:47:15/`
+
+**p50 latency (ms) at full scale:**
 
 | Query | Postgres | SQLite | DuckDB |
 |-------|----------|--------|--------|
-| posts_today_limit_100 | ~1–5 | ~1–5 | ~1–5 |
-| top_100_posters_past_week | ~5–20 | ~10–30 | ~5–15 |
-| trump_post_count_past_week | ~5–15 | ~10–25 | ~5–15 |
-| posts_per_day_past_3_weeks | ~10–30 | ~15–40 | ~10–25 |
-| last_10_posts_by_author | ~1–3 | ~1–3 | ~1–3 |
-| last_10_liked_posts_by_author | ~2–8 | ~3–10 | ~2–8 |
+| posts_today_limit_100 | 1.7 | 39.9 | 0.7 |
+| top_100_posters_past_week | 91.4 | 164.3 | 17.2 |
+| trump_post_count_past_week | 1.2 | 167.0 | 94.3 |
+| posts_per_day_past_3_weeks | 89.3 | 8340.0 | 16.1 |
+| last_10_posts_by_author | 23.7 | 36.1 | 35.6 |
+| last_10_liked_posts_by_author | 4.0 | 62.3 | 109.3 |
 
-At full scale (~500K posts), Postgres and DuckDB remain the strongest OLAP performers; SQLite pays a penalty on cross-table OLTP paths because joins are done in Python across separate files.
+**QPS at full scale (8 threads, higher is better):**
 
-**Storage (full scale, approximate):**
+| Query | Postgres | SQLite | DuckDB |
+|-------|----------|--------|--------|
+| posts_today_limit_100 | 116 | 24 | 1254 |
+| top_100_posters_past_week | 7.9 | 6.0 | 57.0 |
+| trump_post_count_past_week | 716 | 5.8 | 10.5 |
+| posts_per_day_past_3_weeks | 9.1 | 0.12 | 61.9 |
+| last_10_posts_by_author | 39.9 | 26.3 | 26.7 |
+| last_10_liked_posts_by_author | 116 | 15.5 | 9.3 |
 
-- Parquet total: ~150–250 MB (4 files, single partition directory)
-- Postgres DB size: ~400–600 MB including indexes and trigram GIN
-- SQLite total: ~400–550 MB across four files + WAL sidecars
+DuckDB dominates OLAP (especially time-range scans over Parquet). Postgres GIN/trigram index makes the Trump text search extremely fast (716 QPS). SQLite struggles on `posts_per_day_past_3_weeks` (0.12 QPS) because it fetches all matching rows into Python for grouping rather than using SQL aggregation.
 
-**Resources:** All backends stay within single-process RAM budgets suitable for HPC login nodes; DuckDB reports Parquet bytes read per query via EXPLAIN ANALYZE profiles.
+**Storage (full scale, measured):**
+
+| Backend | On-disk size |
+|---------|-------------|
+| Parquet (4 files) | 126 MB |
+| SQLite (4 files + WAL) | 307 MB |
+| Postgres (tables + indexes + WAL) | 550 MB DB + 654 MB WAL |
+
+**Resources (peak RSS):** Postgres ~108 MB, SQLite ~9.6 GB, DuckDB ~9.7 GB. Postgres is the most memory-efficient at this scale; SQLite/DuckDB RSS reflects Python/pandas overhead during load and concurrent thread pressure, not steady-state query serving.
 
 ## 4. Concurrency analysis
 
@@ -88,7 +105,7 @@ The benchmark phase is read-only. For production ingestion, all three backends a
 
 Target workload: **50 QPS typical, 100 QPS peak** (reads only).
 
-At full scale with 8 concurrent threads, measured per-query QPS (reads/s across all threads) consistently exceeds 100 for OLTP point lookups and remains above 50 for OLAP aggregations on DuckDB and Postgres. SQLite OLAP QPS is closer to the 50 QPS typical target when cross-file Python joins are required, but still adequate for offline analytics.
+At full scale with 8 concurrent threads, DuckDB and Postgres exceed the 50 QPS typical target on all queries except Postgres `top_100_posters_past_week` (7.9 QPS). SQLite fails the target on OLAP queries — notably `posts_per_day_past_3_weeks` at 0.12 QPS — but meets it on OLTP point lookups (26 QPS). The 100 QPS peak target is met by DuckDB on most queries and by Postgres on indexed text search and OLTP paths.
 
 ## 7. Recommendation
 
@@ -127,10 +144,16 @@ uv sync --extra db-experiments
 PYTHONPATH=. uv run python experiments/database_experiments_2026_05_23/random_data_generator.py --seed 42
 PYTHONPATH=. uv run python experiments/database_experiments_2026_05_23/random_data_generator.py --validate
 
-# Postgres (Docker on port 5433 if 5432 is taken locally)
+# Postgres (Docker or local Homebrew — use whichever is available)
+# Docker:
 docker run --rm -d --name pg-issue29 \
   -e POSTGRES_PASSWORD=test -e POSTGRES_DB=db_experiments_issue29 \
   -p 5433:5432 postgres:16
+# POSTGRES_DSN=postgresql://postgres:test@localhost:5433/db_experiments_issue29
+
+# Local Homebrew (macOS):
+# createdb db_experiments_issue29
+# POSTGRES_DSN=postgresql://$USER@localhost:5432/db_experiments_issue29
 
 POSTGRES_DSN=postgresql://postgres:test@localhost:5433/db_experiments_issue29 \
   PYTHONPATH=. uv run python experiments/database_experiments_2026_05_23/main.py \
