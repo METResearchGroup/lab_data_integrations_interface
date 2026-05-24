@@ -2,8 +2,6 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 from experiments.reddit_fetch_data_2026_05_23.main import write_metadata
 from experiments.reddit_fetch_data_2026_05_23.reddit_client import (
     CSV_FIELDNAMES,
