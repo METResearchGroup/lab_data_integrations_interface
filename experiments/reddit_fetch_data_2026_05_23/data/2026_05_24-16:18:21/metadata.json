@@ -1,0 +1,48 @@
+{
+  "sync_timestamp": "2026_05_24-16:18:21",
+  "subreddits": [
+    "Conservative",
+    "Republican",
+    "AskConservatives",
+    "politics",
+    "liberal",
+    "democrats"
+  ],
+  "posts_per_subreddit": 10,
+  "total_posts": 60,
+  "counts": {
+    "conservative": 10,
+    "republican": 10,
+    "askconservatives": 10,
+    "politics": 10,
+    "liberal": 10,
+    "democrats": 10
+  },
+  "files": {
+    "conservative": "conservative.csv",
+    "republican": "republican.csv",
+    "askconservatives": "askconservatives.csv",
+    "politics": "politics.csv",
+    "liberal": "liberal.csv",
+    "democrats": "democrats.csv"
+  },
+  "comments_per_post_max": 100,
+  "min_comment_body_length": 30,
+  "total_comments": 1678,
+  "comment_counts": {
+    "conservative": 92,
+    "republican": 59,
+    "askconservatives": 527,
+    "politics": 802,
+    "liberal": 36,
+    "democrats": 162
+  },
+  "comment_files": {
+    "conservative": "conservative_comments.csv",
+    "republican": "republican_comments.csv",
+    "askconservatives": "askconservatives_comments.csv",
+    "politics": "politics_comments.csv",
+    "liberal": "liberal_comments.csv",
+    "democrats": "democrats_comments.csv"
+  }
+}
