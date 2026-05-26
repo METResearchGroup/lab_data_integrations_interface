@@ -1,13 +1,17 @@
 FROM python:3.11-slim
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# uv 0.11.16
+COPY --from=ghcr.io/astral-sh/uv@sha256:440fd6477af86a2f1b38080c539f1672cd22acb1b1a47e321dba5158ab08864d /uv /usr/local/bin/uv
 
 WORKDIR /app
+RUN useradd --create-home --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
 
-COPY pyproject.toml uv.lock ./
+COPY --chown=appuser:appuser pyproject.toml uv.lock ./
+USER appuser
 RUN uv sync --frozen --no-dev
 
-COPY backend/ ./backend/
+COPY --chown=appuser:appuser backend/ ./backend/
 
 EXPOSE 8080
 
