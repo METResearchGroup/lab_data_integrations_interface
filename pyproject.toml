@@ -20,12 +20,19 @@ dependencies = [
     "pandas>=2.0.0",
     "pyarrow>=14.0.0",
     "uvicorn>=0.47.0",
+    "praw>=7.7.0",
 ]
 
 [project.optional-dependencies]
 testing = [
     "faker>=37.0.0",
     "pytest>=8.0.0",
+]
+db-experiments = [
+    "duckdb>=1.0.0",
+    "psycopg[binary,pool]>=3.2.0",
+    "psutil>=6.0.0",
+    "faker>=37.0.0",
 ]
 
 [dependency-groups]
