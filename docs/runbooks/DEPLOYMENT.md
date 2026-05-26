@@ -24,7 +24,7 @@ From the project root:
 ```bash
 aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin <account-id>.dkr.ecr.us-east-2.amazonaws.com
 
-docker build -f backend/Dockerfile -t lab-data-integrations-backend .
+docker build --platform linux/amd64 -f backend/Dockerfile -t lab-data-integrations-backend .
 docker tag lab-data-integrations-backend:latest <account-id>.dkr.ecr.us-east-2.amazonaws.com/lab-data-integrations-backend:latest
 docker push <account-id>.dkr.ecr.us-east-2.amazonaws.com/lab-data-integrations-backend:latest
 ```
@@ -43,7 +43,7 @@ Build and push a new image from the project root:
 ```bash
 aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin <account-id>.dkr.ecr.us-east-2.amazonaws.com
 
-docker build -f backend/Dockerfile -t lab-data-integrations-backend .
+docker build --platform linux/amd64 -f backend/Dockerfile -t lab-data-integrations-backend .
 docker tag lab-data-integrations-backend:latest <account-id>.dkr.ecr.us-east-2.amazonaws.com/lab-data-integrations-backend:latest
 docker push <account-id>.dkr.ecr.us-east-2.amazonaws.com/lab-data-integrations-backend:latest
 ```
