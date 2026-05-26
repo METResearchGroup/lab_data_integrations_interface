@@ -6,7 +6,7 @@
 - Terraform installed
 
 ## AWS Region
-All resources are in `us-east-1`.
+All resources are in `us-east-2`.
 
 ---
 
