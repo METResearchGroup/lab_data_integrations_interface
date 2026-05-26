@@ -1,5 +1,5 @@
-output "app_runner_url" {
-  value = "https://${aws_apprunner_service.backend.service_url}"
+output "backend_url" {
+  value = "http://${aws_lb.backend.dns_name}"
 }
 
 output "ecr_repository_url" {
