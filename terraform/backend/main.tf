@@ -5,6 +5,12 @@ terraform {
       version = "~> 5.0"
     }
   }
+
+  backend "s3" {
+    bucket = "lab-data-integrations-tf-state"
+    key = "backend/terraform.tfstate"
+    region = "us-east-2"
+  }
 }
 
 provider "aws" {
