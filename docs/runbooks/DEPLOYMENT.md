@@ -12,9 +12,17 @@ All resources are in `us-east-2`.
 
 ## First Deploy
 
-### 1. Create ECR repository
+### 1. Bootstrap Terraform state (one-time only)
+Creates the S3 bucket used to store Terraform state. Only needs to be run once ever.
 ```bash
-cd terraform
+cd terraform/backend/bootstrap
+terraform init
+terraform apply
+```
+
+### 2. Create ECR repository
+```bash
+cd terraform/backend
 terraform init
 terraform apply -target=aws_ecr_repository.backend
 ```
@@ -31,7 +39,7 @@ docker push <account-id>.dkr.ecr.us-east-2.amazonaws.com/lab-data-integrations-b
 
 ### 3. Create ECS infrastructure
 ```bash
-cd terraform
+cd terraform/backend
 terraform apply
 ```
 
@@ -57,7 +65,7 @@ aws ecs update-service --cluster lab-data-integrations-backend --service lab-dat
 
 ## Infrastructure changes only
 ```bash
-cd terraform
+cd terraform/backend
 terraform apply
 ```
 
