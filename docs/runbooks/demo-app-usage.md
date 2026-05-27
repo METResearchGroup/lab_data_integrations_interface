@@ -76,3 +76,46 @@ What to check in Grafana:
 - **Tempo**: a trace for `GET /slow` with a visibly longer span duration compared to `/hello`
 - **Loki**: a log line `injecting delay of 2000 ms`
 - **Prometheus**: higher latency metrics for this endpoint
+
+---
+
+### GET /fanout
+
+Launches `n` child operations in parallel to test how traces fan out across concurrent work.
+
+```
+curl "http://localhost:8082/fanout?branches=5"
+```
+
+Request-level trace:
+```
+GET /fanout
+└── fanout_parent
+    ├── child_op_0  ✅
+    ├── child_op_1  ✅
+    ├── child_op_2  ✅
+    ├── child_op_3  ✅
+    └── child_op_4  ✅
+```
+
+What to check in Grafana:
+- **Tempo**: a trace for `GET /fanout` with `fanout_parent` as the parent span and `n` child spans beneath it. All child spans should start at roughly the same time (confirming parallel execution) and have similar durations (~100ms each).
+
+---
+
+### GET /db
+
+Simulates a call to an external dependency (SQLite) to show how a DB span appears as a child of the HTTP request span.
+
+```
+curl http://localhost:8082/db
+```
+
+Request-level trace:
+```
+GET /db
+└── db_query  ✅ (< 1ms, SQLite read from local disk)
+```
+
+What to check in Grafana:
+- **Tempo**: a trace for `GET /db` with `db_query` as a named child span. The outer request span (~3ms) will be longer than `db_query` (~400μs) — the difference is FastAPI/async overhead, not DB time.
