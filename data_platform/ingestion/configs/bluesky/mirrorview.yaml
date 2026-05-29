@@ -1,0 +1,91 @@
+name: mirrorview
+description: Mirrorview topic keyword collection across Bluesky
+date: "2026-05-29"
+record_types:
+  - app.bsky.feed.post
+fetch:
+  limit: 100
+  max_rows: 500
+  sort: latest
+  keyword:
+    # gun_control
+    - gun control
+    - gun rights
+    - second amendment
+    - 2nd amendment
+    - 2A
+    - gun violence
+    - gun safety
+    - firearms
+    - firearm
+    - gun laws
+    - gun reform
+    - background checks
+    - assault weapons
+    - assault weapon
+    - mass shooting
+    - NRA
+    - gun ban
+    - open carry
+    - concealed carry
+    - red flag laws
+    # climate_change
+    - climate change
+    - global warming
+    - climate crisis
+    - climate action
+    - carbon emissions
+    - greenhouse gases
+    - fossil fuels
+    - renewable energy
+    - climate policy
+    - Paris agreement
+    - carbon tax
+    - green new deal
+    - climate science
+    - global temperature
+    - sea level rise
+    - carbon footprint
+    - clean energy
+    - climate denial
+    # abortion
+    - abortion
+    - reproductive rights
+    - pro-choice
+    - pro-life
+    - roe v wade
+    - planned parenthood
+    - abortion rights
+    - abortion ban
+    - abortion access
+    - reproductive health
+    - fetal rights
+    - women's rights
+    - abortion clinic
+    - late term abortion
+    - abortion pill
+    - heartbeat bill
+    - abortion law
+    - reproductive freedom
+    - right to choose
+    # immigration
+    - immigration
+    - border security
+    - illegal immigration
+    - immigration reform
+    - deportation
+    - ICE
+    - border wall
+    - asylum
+    - refugees
+    - DACA
+    - green card
+    - citizenship
+    - immigration policy
+    - border patrol
+    - undocumented immigrants
+    - visa
+    - sanctuary cities
+    - border crisis
+    - migrant
+    - immigration detention

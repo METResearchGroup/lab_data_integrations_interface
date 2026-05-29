@@ -7,4 +7,5 @@ fetch:
   handle: user.bsky.social
   keyword: example
   limit: 50
+  max_rows: 200
   sort: latest

@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import csv
 import json
-import os
 from pathlib import Path
 from typing import Any
 
 import yaml
 from atproto import Client
-from dotenv import load_dotenv
 
+from lib.load_env_vars import EnvVarsContainer
 from lib.timestamp_utils import get_current_timestamp
 
 DEFAULT_CONFIG = Path(__file__).resolve().parent / "configs/bluesky/default.yaml"
 RAW_ROOT = Path(__file__).resolve().parents[1] / "data/bluesky/raw"
+API_MAX_LIMIT = 100
 
 POSTS_RECORD_TYPE = "app.bsky.feed.post"
 POSTS_CSV = "posts.csv"
@@ -30,10 +30,32 @@ POST_COLUMNS = [
 ]
 
 
-def _record_type_to_filename(record_type: str) -> str:
+def _record_type_to_filename(record_type: str, output_stem: str = "posts") -> str:
     if record_type == POSTS_RECORD_TYPE:
-        return POSTS_CSV
+        return f"{output_stem}.csv"
     return f"{record_type.rsplit('.', 1)[-1]}.csv"
+
+
+def _quote_query_term(keyword: str) -> str:
+    if any(ch.isspace() for ch in keyword) or any(ch in keyword for ch in ('"', ":", "(", ")")):
+        escaped = keyword.replace('"', '\\"')
+        return f'"{escaped}"'
+    return keyword
+
+
+def build_or_query(keywords: list[str]) -> str:
+    """Build a single searchPosts q string that ORs all keywords together."""
+    return " OR ".join(_quote_query_term(keyword) for keyword in keywords)
+
+
+def _iter_fetch_queries(fetch: dict[str, Any]) -> list[tuple[str, str]]:
+    keyword = fetch.get("keyword")
+    if isinstance(keyword, list):
+        return [("posts", build_or_query(keyword))]
+    if isinstance(keyword, str) and keyword:
+        return [("posts", keyword)]
+
+    raise ValueError("fetch config must include 'keyword' as a string or list of strings")
 
 
 def _posts_to_rows(response: Any) -> list[dict[str, Any]]:
@@ -63,44 +85,156 @@ def _write_csv(rows: list[dict[str, Any]], output_path: Path, fieldnames: list[s
         writer.writerows(rows)
 
 
+def _search_posts_page(
+    client: Client,
+    fetch: dict[str, Any],
+    query: str,
+    *,
+    page_limit: int,
+    cursor: str | None = None,
+) -> Any:
+    base_params = {
+        "q": query,
+        "limit": page_limit,
+        "sort": fetch.get("sort", "latest"),
+    }
+    if cursor:
+        base_params["cursor"] = cursor
+    handle = fetch.get("handle")
+    if handle:
+        return client.app.bsky.feed.search_posts(
+            params={**base_params, "author": handle},  # type: ignore[arg-type]
+        )
+    return client.app.bsky.feed.search_posts(params=base_params)  # type: ignore[arg-type]
+
+
+def _page_limit(fetch: dict[str, Any], rows_so_far: int, max_rows: int) -> int:
+    per_page = min(int(fetch["limit"]), API_MAX_LIMIT)
+    remaining = max_rows - rows_so_far
+    return min(per_page, remaining)
+
+
+def fetch_posts_with_pagination(
+    client: Client,
+    fetch: dict[str, Any],
+    query: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Fetch posts using searchPosts cursor pagination up to max_rows."""
+    max_rows = int(fetch.get("max_rows", fetch["limit"]))
+    rows_by_uri: dict[str, dict[str, Any]] = {}
+    cursor: str | None = None
+    pages_fetched = 0
+    hits_total: int | None = None
+
+    while len(rows_by_uri) < max_rows:
+        page_limit = _page_limit(fetch, len(rows_by_uri), max_rows)
+        if page_limit <= 0:
+            break
+
+        response = _search_posts_page(
+            client,
+            fetch,
+            query,
+            page_limit=page_limit,
+            cursor=cursor,
+        )
+        pages_fetched += 1
+        if response.hits_total is not None:
+            hits_total = response.hits_total
+
+        for row in _posts_to_rows(response):
+            rows_by_uri.setdefault(row["uri"], row)
+
+        if not response.posts or not response.cursor:
+            break
+        cursor = response.cursor
+
+    pagination = {
+        "pages_fetched": pages_fetched,
+        "hits_total": hits_total,
+        "max_rows": max_rows,
+        "page_limit": min(int(fetch["limit"]), API_MAX_LIMIT),
+        "rows_collected": len(rows_by_uri),
+        "reached_max_rows": len(rows_by_uri) >= max_rows and cursor is not None,
+    }
+    return list(rows_by_uri.values()), pagination
+
+
+def export_synced_records(
+    rows: list[dict[str, Any]],
+    output_dir: Path,
+    output_stem: str,
+) -> str:
+    csv_name = _record_type_to_filename(POSTS_RECORD_TYPE, output_stem)
+    csv_path = output_dir / csv_name
+    _write_csv(rows, csv_path, POST_COLUMNS)
+    return csv_name
+
+
+def fetch_and_export_post_records(
+    client: Client,
+    fetch: dict[str, Any],
+    output_dir: Path,
+) -> tuple[dict[str, str], dict[str, int], dict[str, dict[str, Any]]]:
+    written_files: dict[str, str] = {}
+    row_counts: dict[str, int] = {}
+    pagination_stats: dict[str, dict[str, Any]] = {}
+
+    for output_stem, query in _iter_fetch_queries(fetch):
+        rows, pagination = fetch_posts_with_pagination(client, fetch, query)
+        csv_name = export_synced_records(rows, output_dir, output_stem)
+        file_key = f"{POSTS_RECORD_TYPE}/{output_stem}"
+        written_files[file_key] = csv_name
+        row_counts[file_key] = len(rows)
+        pagination_stats[file_key] = pagination
+        print(
+            f"sync_records: {output_stem} -> {len(rows)} rows "
+            f"({pagination['pages_fetched']} pages, max_rows={pagination['max_rows']})"
+        )
+
+    return written_files, row_counts, pagination_stats
+
+
+def write_metadata(output_dir: Path, metadata: dict[str, Any]) -> None:
+    metadata_path = output_dir / "metadata.json"
+    with metadata_path.open("w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2)
+
+
+def load_config(config_path: Path) -> dict[str, Any]:
+    with config_path.open(encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def setup_client() -> Client:
+    client = Client()
+    client.login(
+        EnvVarsContainer.get_env_var("BLUESKY_HANDLE", required=True),
+        EnvVarsContainer.get_env_var("BLUESKY_PASSWORD", required=True),
+    )
+    return client
+
+
 def sync_records(config_path: Path = DEFAULT_CONFIG) -> Path:
     """Fetch Bluesky records per config and write raw CSV + metadata."""
-    load_dotenv()
-
-    with config_path.open(encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+    config = load_config(config_path)
 
     fetch = config["fetch"]
     sync_timestamp = get_current_timestamp()
     output_dir = RAW_ROOT / sync_timestamp
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    client = Client()
-    client.login(
-        os.environ["BLUESKY_HANDLE"],
-        os.environ["BLUESKY_APP_PASSWORD"],
-    )
-
-    response = client.app.bsky.feed.search_posts(
-        params={
-            "q": fetch["keyword"],
-            "author": fetch["handle"],
-            "limit": fetch["limit"],
-            "sort": fetch.get("sort", "latest"),
-        }
-    )
+    client = setup_client()
 
     record_types: list[str] = config["record_types"]
     written_files: dict[str, str] = {}
     row_counts: dict[str, int] = {}
+    pagination_stats: dict[str, dict[str, Any]] = {}
 
     if POSTS_RECORD_TYPE in record_types:
-        rows = _posts_to_rows(response)
-        csv_name = _record_type_to_filename(POSTS_RECORD_TYPE)
-        csv_path = output_dir / csv_name
-        _write_csv(rows, csv_path, POST_COLUMNS)
-        written_files[POSTS_RECORD_TYPE] = csv_name
-        row_counts[POSTS_RECORD_TYPE] = len(rows)
+        written_files, row_counts, pagination_stats = fetch_and_export_post_records(
+            client, fetch, output_dir
+        )
 
     metadata = {
         "name": config["name"],
@@ -110,10 +244,11 @@ def sync_records(config_path: Path = DEFAULT_CONFIG) -> Path:
         "record_types": record_types,
         "fetch": fetch,
         "row_counts": row_counts,
+        "pagination": pagination_stats,
         "files": written_files,
     }
-    (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    write_metadata(output_dir, metadata)
 
     total_rows = sum(row_counts.values())
-    print(f"sync_records: wrote {total_rows} rows to {output_dir}")
+    print(f"sync_records: wrote {total_rows} rows across {len(row_counts)} files to {output_dir}")
     return output_dir
