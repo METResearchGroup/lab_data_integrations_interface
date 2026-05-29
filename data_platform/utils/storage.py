@@ -13,7 +13,7 @@ from lib.timestamp_utils import get_current_timestamp
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 METADATA_FILENAME = "metadata.json"
-Stage = Literal["raw", "preprocessed"]
+Stage = Literal["raw", "preprocessed", "features"]
 
 
 def _write_csv(rows: list[dict[str, Any]], output_path: Path, fieldnames: list[str]) -> None:
