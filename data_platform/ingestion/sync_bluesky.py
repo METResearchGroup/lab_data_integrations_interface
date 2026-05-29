@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -20,6 +21,7 @@ import yaml
 from atproto import Client
 from tqdm import tqdm
 
+from data_platform.models.sync import SyncBlueskyPostModel
 from lib.load_env_vars import EnvVarsContainer
 from lib.timestamp_utils import get_current_timestamp
 
@@ -30,17 +32,6 @@ API_MAX_LIMIT = 100
 
 POSTS_RECORD_TYPE = "app.bsky.feed.post"
 POSTS_CSV = "posts.csv"
-POST_COLUMNS = [
-    "uri",
-    "url",
-    "author_handle",
-    "text",
-    "created_at",
-    "like_count",
-    "repost_count",
-    "reply_count",
-    "quote_count",
-]
 
 DEBUG_LOG_PATH = Path(__file__).resolve().parents[2] / ".cursor/debug-e2777d.log"
 
@@ -56,8 +47,15 @@ def _debug_log(location: str, message: str, data: dict[str, Any], hypothesis_id:
         "data": data,
         "timestamp": int(time.time() * 1000),
     }
-    with DEBUG_LOG_PATH.open("a", encoding="utf-8") as log_file:
-        log_file.write(json.dumps(payload) + "\n")
+    line = json.dumps(payload) + "\n"
+    try:
+        fd = os.open(DEBUG_LOG_PATH, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+        try:
+            os.write(fd, line.encode())
+        finally:
+            os.close(fd)
+    except OSError:
+        pass
     # #endregion
 
 
@@ -229,6 +227,16 @@ def fetch_posts_with_pagination(
 
             if not response.posts or not response.cursor:
                 break
+            if new_rows == 0:
+                # #region agent log
+                _debug_log(
+                    "sync_bluesky.py:fetch_posts_with_pagination",
+                    "stopping pagination: duplicate-only page",
+                    {"pages_fetched": pages_fetched, "rows_collected": len(rows_by_uri)},
+                    "B",
+                )
+                # #endregion
+                break
             cursor = response.cursor
 
     pagination = {
@@ -242,6 +250,10 @@ def fetch_posts_with_pagination(
     return list(rows_by_uri.values()), pagination
 
 
+def _rows_to_validated_dicts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [SyncBlueskyPostModel.model_validate(row).model_dump() for row in rows]
+
+
 def export_synced_records(
     rows: list[dict[str, Any]],
     output_dir: Path,
@@ -249,7 +261,9 @@ def export_synced_records(
 ) -> str:
     csv_name = _record_type_to_filename(POSTS_RECORD_TYPE, output_stem)
     csv_path = output_dir / csv_name
-    _write_csv(rows, csv_path, POST_COLUMNS)
+    validated_rows = _rows_to_validated_dicts(rows)
+    fieldnames = list(SyncBlueskyPostModel.model_fields.keys())
+    _write_csv(validated_rows, csv_path, fieldnames)
     return csv_name
 
 
@@ -291,15 +305,48 @@ def load_config(config_path: Path) -> dict[str, Any]:
 
 
 def resolve_config_path(config: Path) -> Path:
+    # #region agent log
+    _debug_log(
+        "sync_bluesky.py:resolve_config_path",
+        "resolve entry",
+        {"config": str(config), "parent": str(config.parent), "parent_is_dot": config.parent == Path(".")},
+        "D",
+    )
+    # #endregion
     candidates = [config]
     if config.suffix != ".yaml":
         candidates.append(config.with_suffix(".yaml"))
     if config.parent == Path("."):
         candidates.extend(CONFIGS_DIR / candidate.name for candidate in candidates)
+    # #region agent log
+    _debug_log(
+        "sync_bluesky.py:resolve_config_path",
+        "candidates built",
+        {"candidates": [str(c) for c in candidates]},
+        "D",
+    )
+    # #endregion
 
     for candidate in candidates:
+        # #region agent log
+        _debug_log(
+            "sync_bluesky.py:resolve_config_path",
+            "checking candidate",
+            {"candidate": str(candidate)},
+            "D",
+        )
+        # #endregion
         if candidate.exists():
-            return candidate.resolve()
+            resolved = candidate.resolve()
+            # #region agent log
+            _debug_log(
+                "sync_bluesky.py:resolve_config_path",
+                "candidate resolved",
+                {"resolved": str(resolved)},
+                "D",
+            )
+            # #endregion
+            return resolved
 
     raise FileNotFoundError(f"Config not found: {config}")
 
@@ -388,6 +435,14 @@ def main(
         help="YAML config path or filename under configs/bluesky/ (e.g. mirrorview.yaml)",
     ),
 ) -> None:
+    # #region agent log
+    _debug_log(
+        "sync_bluesky.py:main",
+        "cli entry",
+        {"config_arg": str(config)},
+        "A",
+    )
+    # #endregion
     config_path = resolve_config_path(config)
     sync_records(config_path)
 
