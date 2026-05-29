@@ -76,6 +76,7 @@ def structured_chat_completion(
             "uri": ctx.get("uri"),
             "model": model,
             "timestamp": opik_telemetry.utc_now_iso(),
+            "output_schema": output_schema.model_json_schema(),
         },
         prompts=[prompt],
         thread_id=ctx.get("run_id"),

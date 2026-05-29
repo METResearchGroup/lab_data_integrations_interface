@@ -143,26 +143,27 @@ def generate_features(
     written: dict[str, Path] = {}
     counts: dict[str, int] = {}
 
-    for feature_name, spec in config.feature_registry.items():
-        csv_path, label_count = generate_and_export_feature_labels(
-            records,
-            spec,
-            config,
+    with opik_telemetry.project_scope():
+        for feature_name, spec in config.feature_registry.items():
+            csv_path, label_count = generate_and_export_feature_labels(
+                records,
+                spec,
+                config,
+                output_run_dir,
+            )
+            written[feature_name] = csv_path
+            counts[feature_name] = label_count
+
+        config.output_run_storage.write_run_metadata(
             output_run_dir,
+            {
+                "source_preprocessed_run": str(source_run_dir),
+                "feature_counts": counts,
+                "features": list(config.feature_registry.keys()),
+            },
         )
-        written[feature_name] = csv_path
-        counts[feature_name] = label_count
 
-    config.output_run_storage.write_run_metadata(
-        output_run_dir,
-        {
-            "source_preprocessed_run": str(source_run_dir),
-            "feature_counts": counts,
-            "features": list(config.feature_registry.keys()),
-        },
-    )
-
-    opik_telemetry.flush()
+        opik_telemetry.flush()
 
     print(f"generate_features: wrote {len(written)} feature files to {output_run_dir}")
     return written
