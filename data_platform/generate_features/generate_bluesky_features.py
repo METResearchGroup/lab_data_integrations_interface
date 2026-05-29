@@ -59,7 +59,7 @@ def load_posts() -> pd.DataFrame:
 
     return pd.DataFrame(
         SyncBlueskyPostModel.model_validate(row).model_dump()
-        for row in posts.to_dict(orient="records")[:10] # TODO: remove once testing is done.
+        for row in posts.to_dict(orient="records")
     )
 
 

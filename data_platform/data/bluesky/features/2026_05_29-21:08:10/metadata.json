@@ -1,0 +1,19 @@
+{
+  "source_preprocessed_run": "/Users/mark/Documents/work/lab_data_integrations_interface/data_platform/data/bluesky/preprocessed/2026_05_29-20:14:22",
+  "feature_counts": {
+    "is_news_or_opinion": 765,
+    "is_political": 765,
+    "is_self_contained": 765,
+    "is_structurally_complete": 765,
+    "is_toxic_tiered": 765,
+    "political_stance": 765
+  },
+  "features": [
+    "is_news_or_opinion",
+    "is_political",
+    "is_self_contained",
+    "is_structurally_complete",
+    "is_toxic_tiered",
+    "political_stance"
+  ]
+}
