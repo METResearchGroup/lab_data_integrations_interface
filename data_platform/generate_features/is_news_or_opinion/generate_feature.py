@@ -53,21 +53,26 @@ class LlmIsNewsOrOpinionModel(BaseModel):
     )
 
 
-def generate_feature(text: str) -> str:
+class IsNewsOrOpinionModel(BaseModel):
+    uri: str
+    category: Literal["news", "opinion", "neither"]
+
+
+def generate_feature(uri: str, text: str) -> IsNewsOrOpinionModel:
     """Classify text as news, opinion, or neither."""
     result = structured_chat_completion(
         user_prompt=text,
         output_schema=LlmIsNewsOrOpinionModel,
         system_prompt=SYSTEM_PROMPT,
     )
-    return result.category
+    return IsNewsOrOpinionModel(uri=uri, category=result.category)
 
 
 if __name__ == "__main__":
     samples = [
-        "Breaking: wildfire evacuations ordered for three counties.",
-        "We need stronger climate policy, not more empty promises.",
-        "Happy Friday everyone!",
+        ("at://example/post/1", "Breaking: wildfire evacuations ordered for three counties."),
+        ("at://example/post/2", "We need stronger climate policy, not more empty promises."),
+        ("at://example/post/3", "Happy Friday everyone!"),
     ]
-    for sample in samples:
-        print(f"{sample!r} -> {generate_feature(sample)!r}")
+    for uri, text in samples:
+        print(generate_feature(uri, text).model_dump())

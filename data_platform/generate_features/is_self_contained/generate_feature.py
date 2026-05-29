@@ -60,21 +60,26 @@ class LlmIsSelfContainedModel(BaseModel):
     )
 
 
-def generate_feature(text: str) -> bool:
-    """Return True if the text is self-contained."""
+class IsSelfContainedModel(BaseModel):
+    uri: str
+    is_self_contained: bool
+
+
+def generate_feature(uri: str, text: str) -> IsSelfContainedModel:
+    """Classify whether the post text is self-contained."""
     result = structured_chat_completion(
         user_prompt=text,
         output_schema=LlmIsSelfContainedModel,
         system_prompt=SYSTEM_PROMPT,
     )
-    return result.is_self_contained
+    return IsSelfContainedModel(uri=uri, is_self_contained=result.is_self_contained)
 
 
 if __name__ == "__main__":
     samples = [
-        "Republicans always bring up mental health after school shootings.",
-        "He bought the rifle legally at a gun show last year.",
-        "The left wants background checks expanded nationwide.",
+        ("at://example/post/1", "Republicans always bring up mental health after school shootings."),
+        ("at://example/post/2", "He bought the rifle legally at a gun show last year."),
+        ("at://example/post/3", "The left wants background checks expanded nationwide."),
     ]
-    for sample in samples:
-        print(f"{sample!r} -> {generate_feature(sample)!r}")
+    for uri, text in samples:
+        print(generate_feature(uri, text).model_dump())

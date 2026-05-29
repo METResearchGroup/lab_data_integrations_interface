@@ -52,21 +52,26 @@ class LlmIsPoliticalModel(BaseModel):
     )
 
 
-def generate_feature(text: str) -> bool:
-    """Return True if the text is political."""
+class IsPoliticalModel(BaseModel):
+    uri: str
+    is_political: bool
+
+
+def generate_feature(uri: str, text: str) -> IsPoliticalModel:
+    """Classify whether the post text is political."""
     result = structured_chat_completion(
         user_prompt=text,
         output_schema=LlmIsPoliticalModel,
         system_prompt=SYSTEM_PROMPT,
     )
-    return result.is_political
+    return IsPoliticalModel(uri=uri, is_political=result.is_political)
 
 
 if __name__ == "__main__":
     samples = [
-        "Congress passed the spending bill after a late-night vote.",
-        "Best pizza in Chicago? Go.",
-        "Democrats are pushing for another round of stimulus checks.",
+        ("at://example/post/1", "Congress passed the spending bill after a late-night vote."),
+        ("at://example/post/2", "Best pizza in Chicago? Go."),
+        ("at://example/post/3", "Democrats are pushing for another round of stimulus checks."),
     ]
-    for sample in samples:
-        print(f"{sample!r} -> {generate_feature(sample)!r}")
+    for uri, text in samples:
+        print(generate_feature(uri, text).model_dump())

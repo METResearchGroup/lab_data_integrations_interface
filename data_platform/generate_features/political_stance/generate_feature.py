@@ -65,22 +65,30 @@ class LlmPoliticalStanceModel(BaseModel):
     )
 
 
-def generate_feature(text: str) -> str:
-    """Classify text as left, right, neutral, or unclear."""
+class PoliticalStanceModel(BaseModel):
+    uri: str
+    political_stance: Literal["left", "right", "neutral", "unclear"]
+
+
+def generate_feature(uri: str, text: str) -> PoliticalStanceModel:
+    """Classify the post's political stance."""
     result = structured_chat_completion(
         user_prompt=text,
         output_schema=LlmPoliticalStanceModel,
         system_prompt=SYSTEM_PROMPT,
     )
-    return result.political_stance
+    return PoliticalStanceModel(uri=uri, political_stance=result.political_stance)
 
 
 if __name__ == "__main__":
     samples = [
-        "Expand Medicaid and fund public schools instead of another tax cut for billionaires.",
-        "We need law and order, not defunding the police.",
-        "The committee released its report on Tuesday.",
-        "Great weather today.",
+        (
+            "at://example/post/1",
+            "Expand Medicaid and fund public schools instead of another tax cut for billionaires.",
+        ),
+        ("at://example/post/2", "We need law and order, not defunding the police."),
+        ("at://example/post/3", "The committee released its report on Tuesday."),
+        ("at://example/post/4", "Great weather today."),
     ]
-    for sample in samples:
-        print(f"{sample!r} -> {generate_feature(sample)!r}")
+    for uri, text in samples:
+        print(generate_feature(uri, text).model_dump())

@@ -74,21 +74,29 @@ class LlmIsStructurallyCompleteModel(BaseModel):
     )
 
 
-def generate_feature(text: str) -> bool:
-    """Return True if the text is structurally complete."""
+class IsStructurallyCompleteModel(BaseModel):
+    uri: str
+    is_structurally_complete: bool
+
+
+def generate_feature(uri: str, text: str) -> IsStructurallyCompleteModel:
+    """Classify whether the post text is structurally complete."""
     result = structured_chat_completion(
         user_prompt=text,
         output_schema=LlmIsStructurallyCompleteModel,
         system_prompt=SYSTEM_PROMPT,
     )
-    return result.is_structurally_complete
+    return IsStructurallyCompleteModel(
+        uri=uri,
+        is_structurally_complete=result.is_structurally_complete,
+    )
 
 
 if __name__ == "__main__":
     samples = [
-        "The Senate confirmed the nominee 52-48.",
-        "[1/4] Here's why this ruling matters.",
-        "thoughts on the new bill?",
+        ("at://example/post/1", "The Senate confirmed the nominee 52-48."),
+        ("at://example/post/2", "[1/4] Here's why this ruling matters."),
+        ("at://example/post/3", "thoughts on the new bill?"),
     ]
-    for sample in samples:
-        print(f"{sample!r} -> {generate_feature(sample)!r}")
+    for uri, text in samples:
+        print(generate_feature(uri, text).model_dump())
