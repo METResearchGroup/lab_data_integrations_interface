@@ -26,7 +26,8 @@ ENV_VAR_TYPES: Final[dict[str, type[str]]] = {
     "REDDIT_USERNAME": str,
     "REDDIT_PASSWORD": str,
     "BLUESKY_HANDLE": str,
-    "BLUESKY_PASSWORD": str
+    "BLUESKY_PASSWORD": str,
+    "OPIK_WORKSPACE": str,
 }
 
 

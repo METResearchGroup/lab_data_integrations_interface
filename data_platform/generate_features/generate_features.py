@@ -13,6 +13,7 @@ from tqdm import tqdm
 
 from data_platform.utils.storage import StorageManager
 from lib.timestamp_utils import get_current_timestamp
+from ml_tooling.llm import opik as opik_telemetry
 
 FeatureFn = Callable[[str, str], BaseModel]
 
@@ -54,6 +55,7 @@ def run_feature_pipeline(
     feature_name: str,
     id_column: str,
     text_column: str,
+    run_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Generate feature labels for each record."""
     if records.empty:
@@ -65,7 +67,16 @@ def run_feature_pipeline(
         total=len(records),
         desc=feature_name,
     ):
-        result = generate_fn(str(record[id_column]), str(record[text_column]))
+        record_id = str(record[id_column])
+        token = opik_telemetry.push_context(
+            feature_name=feature_name,
+            uri=record_id,
+            run_id=run_id,
+        )
+        try:
+            result = generate_fn(record_id, str(record[text_column]))
+        finally:
+            opik_telemetry.pop_context(token)
         rows.append(result.model_dump())
     return rows
 
@@ -101,6 +112,7 @@ def generate_and_export_feature_labels(
         feature_name=spec.name,
         id_column=config.id_column,
         text_column=config.text_column,
+        run_id=str(output_run_dir),
     )
     csv_path = save_feature_labels(
         config.platform,
@@ -149,6 +161,8 @@ def generate_features(
             "features": list(config.feature_registry.keys()),
         },
     )
+
+    opik_telemetry.flush()
 
     print(f"generate_features: wrote {len(written)} feature files to {output_run_dir}")
     return written
