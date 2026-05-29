@@ -5,23 +5,18 @@ record_types:
   - app.bsky.feed.post
 fetch:
   limit: 100
-  max_rows: 500
   sort: latest
   keyword:
     # gun_control
     - gun control
     - gun rights
     - second amendment
-    - 2nd amendment
-    - 2A
     - gun violence
     - gun safety
-    - firearms
     - firearm
     - gun laws
     - gun reform
     - background checks
-    - assault weapons
     - assault weapon
     - mass shooting
     - NRA

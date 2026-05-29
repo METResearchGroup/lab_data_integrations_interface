@@ -10,9 +10,7 @@ from __future__ import annotations
 
 import csv
 import json
-import os
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
@@ -32,31 +30,7 @@ API_MAX_LIMIT = 100
 
 POSTS_RECORD_TYPE = "app.bsky.feed.post"
 POSTS_CSV = "posts.csv"
-
-DEBUG_LOG_PATH = Path(__file__).resolve().parents[2] / ".cursor/debug-e2777d.log"
-
-
-def _debug_log(location: str, message: str, data: dict[str, Any], hypothesis_id: str) -> None:
-    # #region agent log
-    payload = {
-        "sessionId": "e2777d",
-        "runId": "pre-fix",
-        "hypothesisId": hypothesis_id,
-        "location": location,
-        "message": message,
-        "data": data,
-        "timestamp": int(time.time() * 1000),
-    }
-    line = json.dumps(payload) + "\n"
-    try:
-        fd = os.open(DEBUG_LOG_PATH, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
-        try:
-            os.write(fd, line.encode())
-        finally:
-            os.close(fd)
-    except OSError:
-        pass
-    # #endregion
+DEFAULT_QUERY_BATCH_SIZE = 5
 
 
 def _record_type_to_filename(record_type: str, output_stem: str = "posts") -> str:
@@ -73,14 +47,26 @@ def _quote_query_term(keyword: str) -> str:
 
 
 def build_or_query(keywords: list[str]) -> str:
-    """Build a single searchPosts q string that ORs all keywords together."""
-    return " OR ".join(_quote_query_term(keyword) for keyword in keywords)
+    """Build a searchPosts q string using Bluesky's pipe-delimited OR syntax."""
+    return " | ".join(_quote_query_term(keyword) for keyword in keywords)
+
+
+def _query_batch_size(fetch: dict[str, Any]) -> int:
+    return int(fetch.get("query_batch_size", DEFAULT_QUERY_BATCH_SIZE))
+
+
+def _chunk_keywords(keywords: list[str], batch_size: int) -> list[list[str]]:
+    return [keywords[i : i + batch_size] for i in range(0, len(keywords), batch_size)]
 
 
 def _iter_fetch_queries(fetch: dict[str, Any]) -> list[tuple[str, str]]:
     keyword = fetch.get("keyword")
     if isinstance(keyword, list):
-        return [("posts", build_or_query(keyword))]
+        chunks = _chunk_keywords(keyword, _query_batch_size(fetch))
+        return [
+            (f"posts_batch_{index + 1}", build_or_query(chunk))
+            for index, chunk in enumerate(chunks)
+        ]
     if isinstance(keyword, str) and keyword:
         return [("posts", keyword)]
 
@@ -137,117 +123,25 @@ def _search_posts_page(
     return client.app.bsky.feed.search_posts(params=base_params)  # type: ignore[arg-type]
 
 
-def _page_limit(fetch: dict[str, Any], rows_so_far: int, max_rows: int) -> int:
-    per_page = min(int(fetch["limit"]), API_MAX_LIMIT)
-    remaining = max_rows - rows_so_far
-    return min(per_page, remaining)
-
-
-def fetch_posts_with_pagination(
+def fetch_posts_for_batch(
     client: Client,
     fetch: dict[str, Any],
     query: str,
     *,
-    desc: str = "Syncing posts",
+    batch_label: str,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Fetch posts using searchPosts cursor pagination up to max_rows."""
-    max_rows = int(fetch.get("max_rows", fetch["limit"]))
-    rows_by_uri: dict[str, dict[str, Any]] = {}
-    cursor: str | None = None
-    pages_fetched = 0
-    hits_total: int | None = None
-
-    with tqdm(
-        total=max_rows,
-        unit="row",
-        desc=desc,
-        disable=not sys.stderr.isatty(),
-    ) as pbar:
-        while len(rows_by_uri) < max_rows:
-            page_limit = _page_limit(fetch, len(rows_by_uri), max_rows)
-            if page_limit <= 0:
-                break
-
-            # #region agent log
-            _debug_log(
-                "sync_bluesky.py:fetch_posts_with_pagination",
-                "pagination loop iteration start",
-                {
-                    "pages_fetched": pages_fetched,
-                    "rows_collected": len(rows_by_uri),
-                    "max_rows": max_rows,
-                    "cursor_present": cursor is not None,
-                    "cursor_prefix": (cursor or "")[:24],
-                    "query_len": len(query),
-                },
-                "B",
-            )
-            # #endregion
-            api_start = time.monotonic()
-            response = _search_posts_page(
-                client,
-                fetch,
-                query,
-                page_limit=page_limit,
-                cursor=cursor,
-            )
-            api_elapsed_ms = int((time.monotonic() - api_start) * 1000)
-            pages_fetched += 1
-            if response.hits_total is not None:
-                hits_total = response.hits_total
-                if hits_total < pbar.total:
-                    pbar.total = hits_total
-                    pbar.refresh()
-
-            before = len(rows_by_uri)
-            for row in _posts_to_rows(response):
-                rows_by_uri.setdefault(row["uri"], row)
-            new_rows = len(rows_by_uri) - before
-            pbar.update(new_rows)
-            pbar.set_postfix(pages=pages_fetched, hits_total=hits_total)
-
-            # #region agent log
-            _debug_log(
-                "sync_bluesky.py:fetch_posts_with_pagination",
-                "pagination page completed",
-                {
-                    "pages_fetched": pages_fetched,
-                    "api_elapsed_ms": api_elapsed_ms,
-                    "posts_in_page": len(response.posts),
-                    "new_unique_rows": new_rows,
-                    "rows_collected": len(rows_by_uri),
-                    "hits_total": hits_total,
-                    "has_cursor": bool(response.cursor),
-                    "cursor_prefix": (response.cursor or "")[:24],
-                    "will_break": not response.posts or not response.cursor,
-                },
-                "B" if new_rows == 0 and response.posts else "C",
-            )
-            # #endregion
-
-            if not response.posts or not response.cursor:
-                break
-            if new_rows == 0:
-                # #region agent log
-                _debug_log(
-                    "sync_bluesky.py:fetch_posts_with_pagination",
-                    "stopping pagination: duplicate-only page",
-                    {"pages_fetched": pages_fetched, "rows_collected": len(rows_by_uri)},
-                    "B",
-                )
-                # #endregion
-                break
-            cursor = response.cursor
-
-    pagination = {
-        "pages_fetched": pages_fetched,
-        "hits_total": hits_total,
-        "max_rows": max_rows,
-        "page_limit": min(int(fetch["limit"]), API_MAX_LIMIT),
-        "rows_collected": len(rows_by_uri),
-        "reached_max_rows": len(rows_by_uri) >= max_rows and cursor is not None,
+    """Fetch up to fetch.limit posts for a single batched query."""
+    batch_limit = min(int(fetch["limit"]), API_MAX_LIMIT)
+    response = _search_posts_page(client, fetch, query, page_limit=batch_limit)
+    rows = _posts_to_rows(response)
+    stats = {
+        "batch_label": batch_label,
+        "query_len": len(query),
+        "limit": batch_limit,
+        "rows_collected": len(rows),
+        "hits_total": response.hits_total,
     }
-    return list(rows_by_uri.values()), pagination
+    return rows, stats
 
 
 def _rows_to_validated_dicts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -272,23 +166,52 @@ def fetch_and_export_post_records(
     fetch: dict[str, Any],
     output_dir: Path,
 ) -> tuple[dict[str, str], dict[str, int], dict[str, dict[str, Any]]]:
-    written_files: dict[str, str] = {}
-    row_counts: dict[str, int] = {}
-    pagination_stats: dict[str, dict[str, Any]] = {}
+    queries = _iter_fetch_queries(fetch)
+    keyword = fetch.get("keyword")
+    keyword_count = len(keyword) if isinstance(keyword, list) else 1
+    batch_size = _query_batch_size(fetch) if isinstance(keyword, list) else 1
+    per_batch_limit = min(int(fetch["limit"]), API_MAX_LIMIT)
+    batch_count = len(queries)
 
-    for output_stem, query in _iter_fetch_queries(fetch):
-        rows, pagination = fetch_posts_with_pagination(
-            client, fetch, query, desc=f"Syncing {output_stem}"
+    rows_by_uri: dict[str, dict[str, Any]] = {}
+    batch_stats: dict[str, dict[str, Any]] = {}
+
+    for batch_label, query in tqdm(
+        queries,
+        desc="Syncing batches",
+        disable=not sys.stderr.isatty(),
+    ):
+        rows, stats = fetch_posts_for_batch(
+            client, fetch, query, batch_label=batch_label
         )
-        csv_name = export_synced_records(rows, output_dir, output_stem)
-        file_key = f"{POSTS_RECORD_TYPE}/{output_stem}"
-        written_files[file_key] = csv_name
-        row_counts[file_key] = len(rows)
-        pagination_stats[file_key] = pagination
+        batch_stats[batch_label] = stats
+        for row in rows:
+            rows_by_uri.setdefault(row["uri"], row)
         print(
-            f"sync_records: {output_stem} -> {len(rows)} rows "
-            f"({pagination['pages_fetched']} pages, max_rows={pagination['max_rows']})"
+            f"sync_records: {batch_label} -> {stats['rows_collected']} rows "
+            f"(query_len={stats['query_len']}, limit={stats['limit']})"
         )
+
+    all_rows = list(rows_by_uri.values())
+    max_rows = fetch.get("max_rows")
+    if max_rows is not None:
+        all_rows = all_rows[: int(max_rows)]
+
+    csv_name = export_synced_records(all_rows, output_dir, "posts")
+    file_key = f"{POSTS_RECORD_TYPE}/posts"
+    written_files = {file_key: csv_name}
+    row_counts = {file_key: len(all_rows)}
+    pagination_stats = {
+        file_key: {
+            "query_batch_size": batch_size,
+            "keyword_count": keyword_count,
+            "batch_count": batch_count,
+            "per_batch_limit": per_batch_limit,
+            "expected_max_rows": batch_count * per_batch_limit,
+            "rows_collected": len(all_rows),
+            "batches": batch_stats,
+        }
+    }
 
     return written_files, row_counts, pagination_stats
 
@@ -305,93 +228,33 @@ def load_config(config_path: Path) -> dict[str, Any]:
 
 
 def resolve_config_path(config: Path) -> Path:
-    # #region agent log
-    _debug_log(
-        "sync_bluesky.py:resolve_config_path",
-        "resolve entry",
-        {"config": str(config), "parent": str(config.parent), "parent_is_dot": config.parent == Path(".")},
-        "D",
-    )
-    # #endregion
     candidates = [config]
     if config.suffix != ".yaml":
         candidates.append(config.with_suffix(".yaml"))
     if config.parent == Path("."):
-        candidates.extend(CONFIGS_DIR / candidate.name for candidate in candidates)
-    # #region agent log
-    _debug_log(
-        "sync_bluesky.py:resolve_config_path",
-        "candidates built",
-        {"candidates": [str(c) for c in candidates]},
-        "D",
-    )
-    # #endregion
+        candidates.extend(
+            CONFIGS_DIR / candidate.name for candidate in list(candidates)
+        )
 
     for candidate in candidates:
-        # #region agent log
-        _debug_log(
-            "sync_bluesky.py:resolve_config_path",
-            "checking candidate",
-            {"candidate": str(candidate)},
-            "D",
-        )
-        # #endregion
         if candidate.exists():
-            resolved = candidate.resolve()
-            # #region agent log
-            _debug_log(
-                "sync_bluesky.py:resolve_config_path",
-                "candidate resolved",
-                {"resolved": str(resolved)},
-                "D",
-            )
-            # #endregion
-            return resolved
+            return candidate.resolve()
 
     raise FileNotFoundError(f"Config not found: {config}")
 
 
 def setup_client() -> Client:
-    # #region agent log
-    _debug_log(
-        "sync_bluesky.py:setup_client",
-        "login starting",
-        {},
-        "A",
-    )
-    # #endregion
-    login_start = time.monotonic()
     client = Client()
     client.login(
         EnvVarsContainer.get_env_var("BLUESKY_HANDLE", required=True),
         EnvVarsContainer.get_env_var("BLUESKY_PASSWORD", required=True),
     )
-    # #region agent log
-    _debug_log(
-        "sync_bluesky.py:setup_client",
-        "login completed",
-        {"elapsed_ms": int((time.monotonic() - login_start) * 1000)},
-        "A",
-    )
-    # #endregion
     return client
 
 
 def sync_records(config_path: Path = DEFAULT_CONFIG) -> Path:
     """Fetch Bluesky records per config and write raw CSV + metadata."""
     config = load_config(config_path)
-    # #region agent log
-    _debug_log(
-        "sync_bluesky.py:sync_records",
-        "config loaded",
-        {
-            "config_path": str(config_path),
-            "max_rows": config.get("fetch", {}).get("max_rows"),
-            "keyword_count": len(config.get("fetch", {}).get("keyword", [])),
-        },
-        "C",
-    )
-    # #endregion
 
     fetch = config["fetch"]
     sync_timestamp = get_current_timestamp()
@@ -435,14 +298,6 @@ def main(
         help="YAML config path or filename under configs/bluesky/ (e.g. mirrorview.yaml)",
     ),
 ) -> None:
-    # #region agent log
-    _debug_log(
-        "sync_bluesky.py:main",
-        "cli entry",
-        {"config_arg": str(config)},
-        "A",
-    )
-    # #endregion
     config_path = resolve_config_path(config)
     sync_records(config_path)
 
