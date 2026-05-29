@@ -74,17 +74,30 @@ def load_posts() -> pd.DataFrame:
     return pd.DataFrame(_rows_to_validated_dicts(posts.to_dict(orient="records")))
 
 
-def save_preprocessed_posts(posts: pd.DataFrame) -> Path:
+def save_preprocessed_posts(posts: pd.DataFrame, *, input_count: int) -> Path:
     """Persist preprocessed posts to a new timestamped run directory."""
     output_dir = PREPROCESSED_STORAGE.create_new_run_dir()
     PREPROCESSED_STORAGE.write_records(posts.to_dict(orient="records"), output_dir)
+    source_raw_run = RAW_STORAGE.latest_run_dir()
+    metadata = {
+        "source_raw_run": str(source_raw_run) if source_raw_run is not None else None,
+        "preprocess_timestamp": output_dir.name,
+        "row_counts": {
+            "input": input_count,
+            "output": len(posts),
+        },
+        "files": {
+            "posts": PREPROCESSED_STORAGE.records_filename,
+        },
+    }
+    PREPROCESSED_STORAGE.write_run_metadata(output_dir, metadata)
     return output_dir
 
 
 def preprocess_records() -> Path:
     posts = load_posts()
     preprocessed = run_preprocessing_pipeline(posts)
-    output_dir = save_preprocessed_posts(preprocessed)
+    output_dir = save_preprocessed_posts(preprocessed, input_count=len(posts))
     print(
         f"preprocess_records: kept {len(preprocessed)} of {len(posts)} posts -> {output_dir}"
     )
