@@ -28,6 +28,7 @@ ENV_VAR_TYPES: Final[dict[str, type[str]]] = {
     "BLUESKY_HANDLE": str,
     "BLUESKY_PASSWORD": str,
     "OPIK_WORKSPACE": str,
+    "GOOGLE_API_KEY": str,
 }
 
 
