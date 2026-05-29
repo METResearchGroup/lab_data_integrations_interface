@@ -11,6 +11,7 @@ import pandas as pd
 from pydantic import BaseModel
 from tqdm import tqdm
 
+from data_platform.utils.feature_labels import FeatureLabelQuery
 from data_platform.utils.storage import StorageManager
 from lib.timestamp_utils import get_current_timestamp
 from ml_tooling.llm import opik as opik_telemetry
@@ -33,19 +34,16 @@ class FeatureGenerationConfig:
     feature_registry: dict[str, FeatureSpec]
     input_storage: StorageManager
     output_run_storage: StorageManager
+    feature_label_query: FeatureLabelQuery
 
 
 def filter_records_needing_features(
     records: pd.DataFrame,
     feature_name: str,
+    config: FeatureGenerationConfig,
 ) -> pd.DataFrame:
-    """Return records that still need labels for feature_name.
-
-    Stub: passthrough all records. Later this will diff against existing
-    feature labels (likely by record id).
-    """
-    _ = feature_name
-    return records.copy()
+    """Return records that still need labels for feature_name."""
+    return config.feature_label_query.filter_unlabeled(records, feature_name)
 
 
 def run_feature_pipeline(
@@ -105,7 +103,8 @@ def generate_and_export_feature_labels(
     output_run_dir: Path,
 ) -> tuple[Path, int]:
     """Generate labels for one feature and write them to the run directory."""
-    candidates = filter_records_needing_features(records, spec.name)
+    candidates = filter_records_needing_features(records, spec.name, config)
+    already_labeled = len(records) - len(candidates)
     labels = run_feature_pipeline(
         candidates,
         spec.generate_fn,
@@ -123,7 +122,8 @@ def generate_and_export_feature_labels(
     )
     print(
         f"generate_features: {spec.name} -> "
-        f"{len(labels)} labels from {len(candidates)} candidate records"
+        f"{len(labels)} labels from {len(candidates)} candidate records "
+        f"({already_labeled} already labeled)"
     )
     return csv_path, len(labels)
 

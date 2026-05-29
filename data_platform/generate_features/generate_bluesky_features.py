@@ -20,9 +20,11 @@ from data_platform.generate_features.is_news_or_opinion.generate_feature import 
 )
 from data_platform.generate_features.registry import FEATURE_REGISTRY
 from data_platform.models.sync import SyncBlueskyPostModel
-from data_platform.utils.storage import BlueskyStorageManager, StorageManager
+from data_platform.utils.feature_labels import FeatureLabelQuery
+from data_platform.utils.storage import DATA_ROOT, BlueskyStorageManager, StorageManager
 
 PREPROCESSED_STORAGE = BlueskyStorageManager("preprocessed")
+FEATURES_ROOT = DATA_ROOT / "bluesky" / "features"
 FEATURES_RUN_STORAGE = StorageManager(
     "bluesky",
     "features",
@@ -42,6 +44,10 @@ def bluesky_feature_config() -> FeatureGenerationConfig:
         feature_registry=FEATURE_REGISTRY,
         input_storage=PREPROCESSED_STORAGE,
         output_run_storage=FEATURES_RUN_STORAGE,
+        feature_label_query=FeatureLabelQuery(
+            features_root=FEATURES_ROOT,
+            id_column=URI_COLUMN,
+        ),
     )
 
 
