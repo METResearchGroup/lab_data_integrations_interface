@@ -1,4 +1,4 @@
-"""Generate LLM features for preprocessed Bluesky posts.
+"""Generate features for preprocessed Bluesky posts.
 
 Run from the repo root:
 

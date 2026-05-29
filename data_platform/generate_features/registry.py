@@ -17,6 +17,10 @@ from data_platform.generate_features.is_structurally_complete.generate_feature i
     IsStructurallyCompleteModel,
     generate_feature as generate_is_structurally_complete,
 )
+from data_platform.generate_features.is_toxic_tiered.generate_feature import (
+    IsToxicTieredModel,
+    generate_feature as generate_is_toxic_tiered,
+)
 from data_platform.generate_features.political_stance.generate_feature import (
     PoliticalStanceModel,
     generate_feature as generate_political_stance,
@@ -42,6 +46,11 @@ FEATURE_REGISTRY: dict[str, FeatureSpec] = {
         name="is_structurally_complete",
         generate_fn=generate_is_structurally_complete,
         model=IsStructurallyCompleteModel,
+    ),
+    "is_toxic_tiered": FeatureSpec(
+        name="is_toxic_tiered",
+        generate_fn=generate_is_toxic_tiered,
+        model=IsToxicTieredModel,
     ),
     "political_stance": FeatureSpec(
         name="political_stance",
