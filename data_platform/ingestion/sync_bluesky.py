@@ -5,13 +5,15 @@ import json
 from pathlib import Path
 from typing import Any
 
+import typer
 import yaml
 from atproto import Client
 
 from lib.load_env_vars import EnvVarsContainer
 from lib.timestamp_utils import get_current_timestamp
 
-DEFAULT_CONFIG = Path(__file__).resolve().parent / "configs/bluesky/default.yaml"
+CONFIGS_DIR = Path(__file__).resolve().parent / "configs/bluesky"
+DEFAULT_CONFIG = CONFIGS_DIR / "default.yaml"
 RAW_ROOT = Path(__file__).resolve().parents[1] / "data/bluesky/raw"
 API_MAX_LIMIT = 100
 
@@ -206,6 +208,20 @@ def load_config(config_path: Path) -> dict[str, Any]:
         return yaml.safe_load(f)
 
 
+def resolve_config_path(config: Path) -> Path:
+    candidates = [config]
+    if config.suffix != ".yaml":
+        candidates.append(config.with_suffix(".yaml"))
+    if config.parent == Path("."):
+        candidates.extend(CONFIGS_DIR / candidate.name for candidate in candidates)
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.resolve()
+
+    raise FileNotFoundError(f"Config not found: {config}")
+
+
 def setup_client() -> Client:
     client = Client()
     client.login(
@@ -252,3 +268,18 @@ def sync_records(config_path: Path = DEFAULT_CONFIG) -> Path:
     total_rows = sum(row_counts.values())
     print(f"sync_records: wrote {total_rows} rows across {len(row_counts)} files to {output_dir}")
     return output_dir
+
+
+def main(
+    config: Path = typer.Option(
+        DEFAULT_CONFIG,
+        "--config",
+        help="YAML config path or filename under configs/bluesky/ (e.g. mirrorview.yaml)",
+    ),
+) -> None:
+    config_path = resolve_config_path(config)
+    sync_records(config_path)
+
+
+if __name__ == "__main__":
+    typer.run(main)
