@@ -1,10 +1,16 @@
+"""Preprocess Bluesky posts from raw CSV storage to filtered preprocessed output.
+
+Run from the repo root:
+
+    PYTHONPATH=. uv run python data_platform/preprocessing/preprocess_bluesky.py
+"""
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
-from pydantic import TypeAdapter, ValidationError
 
 from data_platform.models.sync import SyncBlueskyPostModel
 from data_platform.preprocessing.validators.validators import (
@@ -13,12 +19,11 @@ from data_platform.preprocessing.validators.validators import (
     check_if_text_english,
     check_if_valid_post_length,
 )
-from lib.timestamp_utils import get_current_timestamp
+from data_platform.utils.storage import BlueskyStorageManager
 
-PREPROCESSED_ROOT = Path(__file__).resolve().parents[1] / "data/bluesky/preprocessed"
+RAW_STORAGE = BlueskyStorageManager("raw")
+PREPROCESSED_STORAGE = BlueskyStorageManager("preprocessed")
 TEXT_COLUMN = "text"
-
-_SYNC_BLUESKY_POSTS_ADAPTER = TypeAdapter(list[SyncBlueskyPostModel])
 
 TextValidator = Callable[[str], bool]
 
@@ -56,36 +61,35 @@ def run_preprocessing_pipeline(
     return filter_posts(posts, validators)
 
 
-def validate_load(posts: pd.DataFrame) -> pd.DataFrame:
-    """Validate loaded posts against SyncBlueskyPostModel; raise on failure."""
-    if posts.empty:
-        return posts.copy()
-
-    try:
-        _SYNC_BLUESKY_POSTS_ADAPTER.validate_python(posts.to_dict(orient="records"))
-    except ValidationError as exc:
-        raise ValueError("Loaded posts failed SyncBlueskyPostModel validation") from exc
-
-    return posts
+def _rows_to_validated_dicts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [SyncBlueskyPostModel.model_validate(row).model_dump() for row in rows]
 
 
 def load_posts() -> pd.DataFrame:
-    """Load raw posts for preprocessing. Stub until raw I/O is wired up."""
-    return pd.DataFrame(columns=list(SyncBlueskyPostModel.model_fields.keys()))
+    """Load raw posts for preprocessing from the latest sync run."""
+    posts = RAW_STORAGE.load_records(latest=True)
+    if posts.empty:
+        return posts.copy()
+
+    return pd.DataFrame(_rows_to_validated_dicts(posts.to_dict(orient="records")))
 
 
 def save_preprocessed_posts(posts: pd.DataFrame) -> Path:
-    """Persist preprocessed posts. Stub until preprocessed I/O is wired up."""
-    output_dir = PREPROCESSED_ROOT / get_current_timestamp()
-    output_dir.mkdir(parents=True, exist_ok=True)
+    """Persist preprocessed posts to a new timestamped run directory."""
+    output_dir = PREPROCESSED_STORAGE.create_new_run_dir()
+    PREPROCESSED_STORAGE.write_records(posts.to_dict(orient="records"), output_dir)
     return output_dir
 
 
 def preprocess_records() -> Path:
-    posts = validate_load(load_posts())
+    posts = load_posts()
     preprocessed = run_preprocessing_pipeline(posts)
     output_dir = save_preprocessed_posts(preprocessed)
     print(
         f"preprocess_records: kept {len(preprocessed)} of {len(posts)} posts -> {output_dir}"
     )
     return output_dir
+
+
+if __name__ == "__main__":
+    preprocess_records()

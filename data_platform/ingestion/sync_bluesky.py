@@ -8,8 +8,6 @@ Run from the repo root:
 """
 from __future__ import annotations
 
-import csv
-import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -20,13 +18,14 @@ from atproto import Client
 from tqdm import tqdm
 
 from data_platform.models.sync import SyncBlueskyPostModel
+from data_platform.utils.storage import BlueskyStorageManager
 from lib.load_env_vars import EnvVarsContainer
 from lib.timestamp_utils import get_current_timestamp
 
 CONFIGS_DIR = Path(__file__).resolve().parent / "configs/bluesky"
 DEFAULT_CONFIG = CONFIGS_DIR / "default.yaml"
-RAW_ROOT = Path(__file__).resolve().parents[1] / "data/bluesky/raw"
 API_MAX_LIMIT = 100
+STORAGE = BlueskyStorageManager("raw")
 
 POSTS_RECORD_TYPE = "app.bsky.feed.post"
 POSTS_CSV = "posts.csv"
@@ -93,11 +92,17 @@ def _posts_to_rows(response: Any) -> list[dict[str, Any]]:
     return rows
 
 
-def _write_csv(rows: list[dict[str, Any]], output_path: Path, fieldnames: list[str]) -> None:
-    with output_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+def _rows_to_validated_dicts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [SyncBlueskyPostModel.model_validate(row).model_dump() for row in rows]
+
+
+def validate_and_write_records(
+    rows: list[dict[str, Any]],
+    output_dir: Path,
+    *,
+    filename: str,
+) -> None:
+    STORAGE.write_records(_rows_to_validated_dicts(rows), output_dir, filename=filename)
 
 
 def _search_posts_page(
@@ -144,23 +149,6 @@ def fetch_posts_for_batch(
     return rows, stats
 
 
-def _rows_to_validated_dicts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [SyncBlueskyPostModel.model_validate(row).model_dump() for row in rows]
-
-
-def export_synced_records(
-    rows: list[dict[str, Any]],
-    output_dir: Path,
-    output_stem: str,
-) -> str:
-    csv_name = _record_type_to_filename(POSTS_RECORD_TYPE, output_stem)
-    csv_path = output_dir / csv_name
-    validated_rows = _rows_to_validated_dicts(rows)
-    fieldnames = list(SyncBlueskyPostModel.model_fields.keys())
-    _write_csv(validated_rows, csv_path, fieldnames)
-    return csv_name
-
-
 def fetch_and_export_post_records(
     client: Client,
     fetch: dict[str, Any],
@@ -197,7 +185,8 @@ def fetch_and_export_post_records(
     if max_rows is not None:
         all_rows = all_rows[: int(max_rows)]
 
-    csv_name = export_synced_records(all_rows, output_dir, "posts")
+    csv_name = _record_type_to_filename(POSTS_RECORD_TYPE, "posts")
+    validate_and_write_records(all_rows, output_dir, filename=csv_name)
     file_key = f"{POSTS_RECORD_TYPE}/posts"
     written_files = {file_key: csv_name}
     row_counts = {file_key: len(all_rows)}
@@ -214,12 +203,6 @@ def fetch_and_export_post_records(
     }
 
     return written_files, row_counts, pagination_stats
-
-
-def write_metadata(output_dir: Path, metadata: dict[str, Any]) -> None:
-    metadata_path = output_dir / "metadata.json"
-    with metadata_path.open("w", encoding="utf-8") as f:
-        json.dump(metadata, f, indent=2)
 
 
 def load_config(config_path: Path) -> dict[str, Any]:
@@ -258,8 +241,7 @@ def sync_records(config_path: Path = DEFAULT_CONFIG) -> Path:
 
     fetch = config["fetch"]
     sync_timestamp = get_current_timestamp()
-    output_dir = RAW_ROOT / sync_timestamp
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = STORAGE.create_new_run_dir(sync_timestamp)
 
     client = setup_client()
 
@@ -284,7 +266,7 @@ def sync_records(config_path: Path = DEFAULT_CONFIG) -> Path:
         "pagination": pagination_stats,
         "files": written_files,
     }
-    write_metadata(output_dir, metadata)
+    STORAGE.write_run_metadata(output_dir, metadata)
 
     total_rows = sum(row_counts.values())
     print(f"sync_records: wrote {total_rows} rows across {len(row_counts)} files to {output_dir}")

@@ -892,6 +892,7 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "spacy" },
     { name = "tenacity" },
+    { name = "tqdm" },
     { name = "typer" },
     { name = "websockets" },
 ]
@@ -902,6 +903,9 @@ db-experiments = [
     { name = "faker" },
     { name = "psutil" },
     { name = "psycopg", extra = ["binary", "pool"] },
+]
+preprocessing = [
+    { name = "langdetect" },
 ]
 testing = [
     { name = "faker" },
@@ -925,6 +929,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.136.1" },
     { name = "langchain", specifier = ">=1.2.17" },
     { name = "langchain-openai", specifier = ">=1.2.1" },
+    { name = "langdetect", marker = "extra == 'preprocessing'", specifier = ">=1.0.9" },
     { name = "numpy", specifier = ">=2.4.4" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "praw", specifier = ">=7.7.0" },
@@ -940,10 +945,11 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "spacy", specifier = ">=3.7.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
+    { name = "tqdm", specifier = ">=4.66.0" },
     { name = "typer", specifier = ">=0.25.1" },
     { name = "websockets", specifier = ">=15.0.1" },
 ]
-provides-extras = ["testing", "db-experiments"]
+provides-extras = ["testing", "db-experiments", "preprocessing"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1012,6 +1018,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/4f/24/9777489d6fbbee64a
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1d/7a/9c97a7b9cbe4c5dc6a44cdb1545450c28f0c8ce89b9c1f0ee7fbad896263/langchain_protocol-0.0.15-py3-none-any.whl", hash = "sha256:461eb794358f83d5e42635a5797799ffec7b4702314e34edf73ac21e75d3ef79", size = 6982, upload-time = "2026-05-01T22:30:03.877Z" },
 ]
+
+[[package]]
+name = "langdetect"
+version = "1.0.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0e/72/a3add0e4eec4eb9e2569554f7c70f4a3c27712f40e3284d483e88094cc0e/langdetect-1.0.9.tar.gz", hash = "sha256:cbc1fef89f8d062739774bd51eda3da3274006b3661d199c2655f6b3f6d605a0", size = 981474, upload-time = "2021-05-07T07:54:13.562Z" }
 
 [[package]]
 name = "langgraph"
