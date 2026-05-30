@@ -1,5 +1,5 @@
 {
-  "source_raw_run": "/Users/mark/Documents/work/lab_data_integrations_interface/data_platform/data/bluesky/raw/2026_05_29-19:01:09",
+  "source_raw_run": "raw/2026_05_29-19:01:09",
   "preprocess_timestamp": "2026_05_29-20:14:22",
   "row_counts": {
     "input": 1438,
@@ -7,5 +7,6 @@
   },
   "files": {
     "posts": "posts.csv"
-  }
+  },
+  "dataset_id": "bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479"
 }

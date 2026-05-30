@@ -5,6 +5,8 @@ Run from the repo root:
     PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py
 
     PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py --config mirrorview.yaml
+
+Ingestion YAML must include `dataset_id` (e.g. bluesky_<uuid>).
 """
 from __future__ import annotations
 
@@ -18,6 +20,7 @@ from atproto import Client
 from tqdm import tqdm
 
 from data_platform.models.sync import SyncBlueskyPostModel
+from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
 from data_platform.utils.storage import BlueskyStorageManager
 from lib.load_env_vars import EnvVarsContainer
 from lib.timestamp_utils import get_current_timestamp
@@ -25,7 +28,6 @@ from lib.timestamp_utils import get_current_timestamp
 CONFIGS_DIR = Path(__file__).resolve().parent / "configs/bluesky"
 DEFAULT_CONFIG = CONFIGS_DIR / "default.yaml"
 API_MAX_LIMIT = 100
-STORAGE = BlueskyStorageManager("raw")
 
 POSTS_RECORD_TYPE = "app.bsky.feed.post"
 POSTS_CSV = "posts.csv"
@@ -99,10 +101,11 @@ def _rows_to_validated_dicts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]
 def validate_and_write_records(
     rows: list[dict[str, Any]],
     output_dir: Path,
+    storage: BlueskyStorageManager,
     *,
     filename: str,
 ) -> None:
-    STORAGE.write_records(_rows_to_validated_dicts(rows), output_dir, filename=filename)
+    storage.write_records(_rows_to_validated_dicts(rows), output_dir, filename=filename)
 
 
 def _search_posts_page(
@@ -153,6 +156,7 @@ def fetch_and_export_post_records(
     client: Client,
     fetch: dict[str, Any],
     output_dir: Path,
+    storage: BlueskyStorageManager,
 ) -> tuple[dict[str, str], dict[str, int], dict[str, dict[str, Any]]]:
     queries = _iter_fetch_queries(fetch)
     keyword = fetch.get("keyword")
@@ -186,7 +190,7 @@ def fetch_and_export_post_records(
         all_rows = all_rows[: int(max_rows)]
 
     csv_name = _record_type_to_filename(POSTS_RECORD_TYPE, "posts")
-    validate_and_write_records(all_rows, output_dir, filename=csv_name)
+    validate_and_write_records(all_rows, output_dir, storage, filename=csv_name)
     file_key = f"{POSTS_RECORD_TYPE}/posts"
     written_files = {file_key: csv_name}
     row_counts = {file_key: len(all_rows)}
@@ -226,6 +230,13 @@ def resolve_config_path(config: Path) -> Path:
     raise FileNotFoundError(f"Config not found: {config}")
 
 
+def _require_dataset_id(config: dict[str, Any]) -> str:
+    raw = config.get("dataset_id")
+    if not raw:
+        raise ValueError("ingestion config must include dataset_id (bluesky_<uuid>)")
+    return validate_dataset_id(str(raw))
+
+
 def setup_client() -> Client:
     client = Client()
     client.login(
@@ -238,10 +249,25 @@ def setup_client() -> Client:
 def sync_records(config_path: Path = DEFAULT_CONFIG) -> Path:
     """Fetch Bluesky records per config and write raw CSV + metadata."""
     config = load_config(config_path)
+    dataset_id = _require_dataset_id(config)
+    storage = BlueskyStorageManager("raw", dataset_id)
+
+    manifest_path = (
+        storage.root_dir.parent / "dataset.json"
+    )
+    if not manifest_path.exists():
+        write_dataset_manifest(
+            "bluesky",
+            dataset_id,
+            name=str(config["name"]),
+            ingestion_config=str(
+                config_path.relative_to(Path(__file__).resolve().parents[2])
+            ),
+        )
 
     fetch = config["fetch"]
     sync_timestamp = get_current_timestamp()
-    output_dir = STORAGE.create_new_run_dir(sync_timestamp)
+    output_dir = storage.create_new_run_dir(sync_timestamp)
 
     client = setup_client()
 
@@ -252,21 +278,23 @@ def sync_records(config_path: Path = DEFAULT_CONFIG) -> Path:
 
     if POSTS_RECORD_TYPE in record_types:
         written_files, row_counts, pagination_stats = fetch_and_export_post_records(
-            client, fetch, output_dir
+            client, fetch, output_dir, storage
         )
 
     metadata = {
+        "dataset_id": dataset_id,
         "name": config["name"],
         "description": config["description"],
         "date": config["date"],
         "sync_timestamp": sync_timestamp,
+        "ingestion_config": config_path.name,
         "record_types": record_types,
         "fetch": fetch,
         "row_counts": row_counts,
         "pagination": pagination_stats,
         "files": written_files,
     }
-    STORAGE.write_run_metadata(output_dir, metadata)
+    storage.write_run_metadata(output_dir, metadata)
 
     total_rows = sum(row_counts.values())
     print(f"sync_records: wrote {total_rows} rows across {len(row_counts)} files to {output_dir}")

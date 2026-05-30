@@ -11,6 +11,7 @@ import pandas as pd
 from pydantic import BaseModel
 from tqdm import tqdm
 
+from data_platform.utils.dataset import dataset_root, relative_run_path
 from data_platform.utils.feature_labels import FeatureLabelQuery
 from data_platform.utils.storage import StorageManager
 from lib.timestamp_utils import get_current_timestamp
@@ -85,12 +86,14 @@ def save_feature_labels(
     rows: list[dict[str, Any]],
     model: type[BaseModel],
     run_dir: Path,
+    dataset_id: str,
 ) -> Path:
     """Persist feature labels for one feature to the shared features run directory."""
     storage = StorageManager(
         platform,
         "features",
         model,
+        dataset_id,
         records_filename=f"{feature_name}.csv",
     )
     return storage.write_records(rows, run_dir, filename=f"{feature_name}.csv")
@@ -119,6 +122,7 @@ def generate_and_export_feature_labels(
         labels,
         spec.model,
         output_run_dir,
+        config.output_run_storage.dataset_id,
     )
     print(
         f"generate_features: {spec.name} -> "
@@ -154,10 +158,15 @@ def generate_features(
             written[feature_name] = csv_path
             counts[feature_name] = label_count
 
+        root = dataset_root(
+            config.platform,
+            config.input_storage.dataset_id,
+        )
         config.output_run_storage.write_run_metadata(
             output_run_dir,
             {
-                "source_preprocessed_run": str(source_run_dir),
+                "dataset_id": config.input_storage.dataset_id,
+                "source_preprocessed_run": relative_run_path(root, source_run_dir),
                 "feature_counts": counts,
                 "features": list(config.feature_registry.keys()),
             },

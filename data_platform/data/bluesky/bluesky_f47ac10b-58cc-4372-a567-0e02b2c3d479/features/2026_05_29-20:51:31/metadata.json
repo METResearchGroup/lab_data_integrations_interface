@@ -1,5 +1,5 @@
 {
-  "source_preprocessed_run": "/Users/mark/Documents/work/lab_data_integrations_interface/data_platform/data/bluesky/preprocessed/2026_05_29-20:14:22",
+  "source_preprocessed_run": "preprocessed/2026_05_29-20:14:22",
   "feature_counts": {
     "is_news_or_opinion": 10,
     "is_political": 10,
@@ -13,5 +13,6 @@
     "is_self_contained",
     "is_structurally_complete",
     "political_stance"
-  ]
+  ],
+  "dataset_id": "bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479"
 }
