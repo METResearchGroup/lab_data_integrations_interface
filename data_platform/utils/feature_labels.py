@@ -6,6 +6,8 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
+from data_platform.utils.duckdb_features import feature_glob
+
 
 @dataclass(frozen=True)
 class FeatureLabelQuery:
@@ -15,7 +17,7 @@ class FeatureLabelQuery:
     id_column: str = "uri"
 
     def _feature_csv_glob(self, feature_name: str) -> str:
-        return (self.features_root / "*" / f"{feature_name}.csv").as_posix()
+        return feature_glob(self.features_root, feature_name)
 
     def _feature_csv_paths(self, feature_name: str) -> list[Path]:
         return sorted(self.features_root.glob(f"*/{feature_name}.csv"))
