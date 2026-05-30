@@ -2,7 +2,8 @@
 
 Run from the repo root:
 
-    PYTHONPATH=. uv run python data_platform/generate_features/is_structurally_complete/generate_feature.py
+    PYTHONPATH=. uv run python \\
+        data_platform/generate_features/is_structurally_complete/generate_feature.py
 """
 
 from __future__ import annotations

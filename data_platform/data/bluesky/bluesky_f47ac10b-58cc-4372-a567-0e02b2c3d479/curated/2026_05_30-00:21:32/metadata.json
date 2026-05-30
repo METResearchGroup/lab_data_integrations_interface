@@ -1,6 +1,6 @@
 {
   "name": "mirrorview",
-  "source_preprocessed_run": "bluesky/preprocessed/2026_05_29-20:14:22",
+  "source_preprocessed_run": "preprocessed/2026_05_29-20:14:22",
   "row_counts": {
     "preprocessed": 785,
     "wide": 785,
@@ -38,5 +38,6 @@
   ],
   "files": {
     "export": "mirrorview.csv"
-  }
+  },
+  "dataset_id": "bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479"
 }

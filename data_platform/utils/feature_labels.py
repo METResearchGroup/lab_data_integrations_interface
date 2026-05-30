@@ -55,5 +55,5 @@ class FeatureLabelQuery:
         if not labeled:
             return records.copy()
 
-        mask = ~records[self.id_column].astype(str).isin(labeled)
+        mask = ~records[self.id_column].astype(str).isin(list(labeled))
         return records.loc[mask].reset_index(drop=True)

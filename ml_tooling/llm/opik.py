@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import contextvars
 import contextlib
+import contextvars
 from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any

@@ -9,6 +9,7 @@ import pandas as pd
 from pydantic import BaseModel
 
 from data_platform.models.sync import SyncBlueskyPostModel
+from data_platform.utils.dataset import validate_dataset_id
 from lib.timestamp_utils import get_current_timestamp
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
@@ -28,23 +29,26 @@ class StorageManager:
     stage: Stage
     model: type[BaseModel]
     records_filename: str
+    dataset_id: str
 
     def __init__(
         self,
         platform: str,
         stage: Stage,
         model: type[BaseModel],
+        dataset_id: str,
         *,
         records_filename: str,
     ) -> None:
         self.platform = platform
         self.stage = stage
         self.model = model
+        self.dataset_id = validate_dataset_id(dataset_id)
         self.records_filename = records_filename
 
     @property
     def root_dir(self) -> Path:
-        return DATA_ROOT / self.platform / self.stage
+        return DATA_ROOT / self.platform / self.dataset_id / self.stage
 
     def create_new_run_dir(self, timestamp: str | None = None) -> Path:
         run_dir = self.root_dir / (timestamp or get_current_timestamp())
@@ -70,9 +74,7 @@ class StorageManager:
         if latest:
             resolved = self.latest_run_dir()
             if resolved is None:
-                raise FileNotFoundError(
-                    f"No {self.stage} runs found under {self.root_dir}"
-                )
+                raise FileNotFoundError(f"No {self.stage} runs found under {self.root_dir}")
             return resolved
         raise ValueError("Either run_dir must be provided or latest=True")
 
@@ -126,6 +128,7 @@ class BlueskyStorageManager(StorageManager):
     def __init__(
         self,
         stage: Stage = "raw",
+        dataset_id: str = "",
         *,
         records_filename: str = "posts.csv",
     ) -> None:
@@ -133,5 +136,6 @@ class BlueskyStorageManager(StorageManager):
             "bluesky",
             stage,
             SyncBlueskyPostModel,
+            dataset_id,
             records_filename=records_filename,
         )

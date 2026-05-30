@@ -14,9 +14,7 @@ from typing import Any
 
 from lib.load_env_vars import EnvVarsContainer
 
-PERSPECTIVE_API_URL = (
-    "https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze"
-)
+PERSPECTIVE_API_URL = "https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze"
 TOXICITY_ATTRIBUTE = "TOXICITY"
 
 
@@ -48,13 +46,9 @@ def get_toxicity_prob(text: str) -> float:
         raise RuntimeError(f"Perspective API request failed: {exc.reason}") from exc
 
     try:
-        return float(
-            body["attributeScores"][TOXICITY_ATTRIBUTE]["summaryScore"]["value"]
-        )
+        return float(body["attributeScores"][TOXICITY_ATTRIBUTE]["summaryScore"]["value"])
     except (KeyError, TypeError, ValueError) as exc:
-        raise RuntimeError(
-            f"Unexpected Perspective API response shape: {body}"
-        ) from exc
+        raise RuntimeError(f"Unexpected Perspective API response shape: {body}") from exc
 
 
 if __name__ == "__main__":

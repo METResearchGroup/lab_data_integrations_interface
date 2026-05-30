@@ -77,7 +77,10 @@ def generate_feature(uri: str, text: str) -> IsSelfContainedModel:
 
 if __name__ == "__main__":
     samples = [
-        ("at://example/post/1", "Republicans always bring up mental health after school shootings."),
+        (
+            "at://example/post/1",
+            ("Republicans always bring up mental health after school shootings."),
+        ),
         ("at://example/post/2", "He bought the rifle legally at a gun show last year."),
         ("at://example/post/3", "The left wants background checks expanded nationwide."),
     ]
