@@ -3,26 +3,38 @@ from __future__ import annotations
 from data_platform.generate_features.generate_features import FeatureSpec
 from data_platform.generate_features.is_news_or_opinion.generate_feature import (
     IsNewsOrOpinionModel,
+)
+from data_platform.generate_features.is_news_or_opinion.generate_feature import (
     generate_feature as generate_is_news_or_opinion,
 )
 from data_platform.generate_features.is_political.generate_feature import (
     IsPoliticalModel,
+)
+from data_platform.generate_features.is_political.generate_feature import (
     generate_feature as generate_is_political,
 )
 from data_platform.generate_features.is_self_contained.generate_feature import (
     IsSelfContainedModel,
+)
+from data_platform.generate_features.is_self_contained.generate_feature import (
     generate_feature as generate_is_self_contained,
 )
 from data_platform.generate_features.is_structurally_complete.generate_feature import (
     IsStructurallyCompleteModel,
+)
+from data_platform.generate_features.is_structurally_complete.generate_feature import (
     generate_feature as generate_is_structurally_complete,
 )
 from data_platform.generate_features.is_toxic_tiered.generate_feature import (
     IsToxicTieredModel,
+)
+from data_platform.generate_features.is_toxic_tiered.generate_feature import (
     generate_feature as generate_is_toxic_tiered,
 )
 from data_platform.generate_features.political_stance.generate_feature import (
     PoliticalStanceModel,
+)
+from data_platform.generate_features.political_stance.generate_feature import (
     generate_feature as generate_political_stance,
 )
 

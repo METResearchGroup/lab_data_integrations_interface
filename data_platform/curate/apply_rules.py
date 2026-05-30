@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import pandas as pd
 import yaml
@@ -78,7 +78,7 @@ def _filter_mask(df: pd.DataFrame, rule: FilterRule) -> pd.Series:
     if rule.column not in df.columns:
         raise KeyError(f"Filter column not found in wide table: {rule.column}")
 
-    series = df[rule.column]
+    series = cast(pd.Series, df[rule.column])
     if rule.op == "eq":
         mask = _compare_eq(series, rule.value)
     elif rule.op == "ne":

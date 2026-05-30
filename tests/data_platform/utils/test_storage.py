@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from data_platform.utils.storage import BlueskyStorageManager, DATA_ROOT
+from data_platform.utils.storage import BlueskyStorageManager
 
 VALID_ID = "bluesky_00000000-0000-4000-8000-000000000001"
 

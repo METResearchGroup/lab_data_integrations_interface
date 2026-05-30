@@ -2,8 +2,10 @@
 
 Run from the repo root:
 
-    PYTHONPATH=. uv run python data_platform/curate/curate_bluesky.py --dataset-id bluesky_<uuid> --config mirrorview.yaml
+    PYTHONPATH=. uv run python data_platform/curate/curate_bluesky.py \\
+        --dataset-id bluesky_<uuid> --config mirrorview.yaml
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -27,9 +29,7 @@ def resolve_config_path(config: Path) -> Path:
     if config.suffix != ".yaml":
         candidates.append(config.with_suffix(".yaml"))
     if config.parent == Path("."):
-        candidates.extend(
-            CONFIGS_DIR / candidate.name for candidate in list(candidates)
-        )
+        candidates.extend(CONFIGS_DIR / candidate.name for candidate in list(candidates))
 
     for candidate in candidates:
         if candidate.exists():
@@ -48,14 +48,10 @@ def curate_mirrorview(config_path: Path, dataset_id: str) -> Path:
     rules = load_rules_config(config_path)
     preprocessed_run = preprocessed_storage.latest_run_dir()
     if preprocessed_run is None:
-        raise FileNotFoundError(
-            f"No preprocessed runs found for dataset {dataset_id}"
-        )
+        raise FileNotFoundError(f"No preprocessed runs found for dataset {dataset_id}")
 
     posts_csv = preprocessed_run / preprocessed_storage.records_filename
-    wide_df = build_wide_table(
-        ConsolidateConfig(posts_csv=posts_csv, features_root=features_root)
-    )
+    wide_df = build_wide_table(ConsolidateConfig(posts_csv=posts_csv, features_root=features_root))
     rules_result = apply_rules(wide_df, rules)
     filtered_df = rules_result.dataframe
 
@@ -84,9 +80,7 @@ def curate_mirrorview(config_path: Path, dataset_id: str) -> Path:
     }
     curated_storage.write_run_metadata(run_dir, metadata)
 
-    print(
-        f"curate_mirrorview: kept {len(filtered_df)} of {len(wide_df)} posts -> {run_dir}"
-    )
+    print(f"curate_mirrorview: kept {len(filtered_df)} of {len(wide_df)} posts -> {run_dir}")
     return output_path
 
 

@@ -142,6 +142,8 @@ def generate_features(
         return {}
 
     source_run_dir = config.input_storage.latest_run_dir()
+    if source_run_dir is None:
+        raise FileNotFoundError(f"No preprocessed runs found under {config.input_storage.root_dir}")
     output_run_dir = config.output_run_storage.create_new_run_dir(get_current_timestamp())
 
     written: dict[str, Path] = {}

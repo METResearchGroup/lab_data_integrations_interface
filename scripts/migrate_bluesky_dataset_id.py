@@ -5,6 +5,7 @@ Run from repo root:
     PYTHONPATH=. uv run python scripts/migrate_bluesky_dataset_id.py --dry-run
     PYTHONPATH=. uv run python scripts/migrate_bluesky_dataset_id.py
 """
+
 from __future__ import annotations
 
 import argparse
@@ -19,11 +20,11 @@ from data_platform.utils.dataset import (
     validate_dataset_id,
     write_dataset_manifest,
 )
+
 STAGES = ("raw", "preprocessed", "features", "curated")
 SOURCE_KEYS = ("source_raw_run", "source_preprocessed_run")
 CONFIG_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "data_platform/ingestion/configs/bluesky/mirrorview.yaml"
+    Path(__file__).resolve().parents[1] / "data_platform/ingestion/configs/bluesky/mirrorview.yaml"
 )
 _DATA_ROOT = Path(__file__).resolve().parents[1] / "data_platform" / "data"
 BLUESKY_ROOT = _DATA_ROOT / "bluesky"
@@ -85,9 +86,7 @@ def migrate(*, dry_run: bool, dataset_id: str, config_path: Path) -> None:
     metadata_files = list(BLUESKY_ROOT.rglob("metadata.json"))
     # After move, metadata will be under dataset_dir; collect from stages pre-move
     stage_metadata = [
-        p
-        for p in metadata_files
-        if p.parent.parent in {BLUESKY_ROOT / stage for stage in STAGES}
+        p for p in metadata_files if p.parent.parent in {BLUESKY_ROOT / stage for stage in STAGES}
     ]
 
     print(f"dataset_id: {dataset_id}")
@@ -106,9 +105,7 @@ def migrate(*, dry_run: bool, dataset_id: str, config_path: Path) -> None:
             "bluesky",
             dataset_id,
             name="mirrorview",
-            ingestion_config=str(
-                config_path.relative_to(Path(__file__).resolve().parents[1])
-            ),
+            ingestion_config=str(config_path.relative_to(Path(__file__).resolve().parents[1])),
         )
         print(f"  wrote {manifest_path}")
 
@@ -119,11 +116,15 @@ def migrate(*, dry_run: bool, dataset_id: str, config_path: Path) -> None:
             with metadata_path.open("w", encoding="utf-8") as f:
                 json.dump(patched, f, indent=2)
 
-    counts = _stage_run_counts(dataset_dir) if not dry_run else {
-        stage: sum(1 for p in (BLUESKY_ROOT / stage).iterdir() if p.is_dir())
-        for stage in STAGES
-        if (BLUESKY_ROOT / stage).exists()
-    }
+    counts = (
+        _stage_run_counts(dataset_dir)
+        if not dry_run
+        else {
+            stage: sum(1 for p in (BLUESKY_ROOT / stage).iterdir() if p.is_dir())
+            for stage in STAGES
+            if (BLUESKY_ROOT / stage).exists()
+        }
+    )
     print("run counts:", counts)
     if dry_run:
         print("(dry-run: no changes written)")

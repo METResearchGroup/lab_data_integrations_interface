@@ -2,8 +2,10 @@
 
 Run from the repo root:
 
-    PYTHONPATH=. uv run python data_platform/preprocessing/preprocess_bluesky.py --dataset-id bluesky_<uuid>
+    PYTHONPATH=. uv run python data_platform/preprocessing/preprocess_bluesky.py \\
+        --dataset-id bluesky_<uuid>
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
@@ -113,9 +115,7 @@ def preprocess_records(dataset_id: str) -> Path:
     output_dir = save_preprocessed_posts(
         preprocessed, dataset_id=dataset_id, input_count=len(posts)
     )
-    print(
-        f"preprocess_records: kept {len(preprocessed)} of {len(posts)} posts -> {output_dir}"
-    )
+    print(f"preprocess_records: kept {len(preprocessed)} of {len(posts)} posts -> {output_dir}")
     return output_dir
 
 

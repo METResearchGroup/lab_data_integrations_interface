@@ -2,7 +2,8 @@
 
 Run from the repo root:
 
-    PYTHONPATH=. uv run python data_platform/generate_features/generate_bluesky_features.py --dataset-id bluesky_<uuid>
+    PYTHONPATH=. uv run python data_platform/generate_features/generate_bluesky_features.py \\
+        --dataset-id bluesky_<uuid>
 """
 
 from __future__ import annotations

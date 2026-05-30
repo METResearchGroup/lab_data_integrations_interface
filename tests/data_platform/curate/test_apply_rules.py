@@ -22,9 +22,7 @@ def _mirrorview_rules() -> CurateRulesConfig:
             FilterRule(column="news_or_opinion_category", op="eq", value="news"),
             FilterRule(column="is_political", op="eq", value=True),
             FilterRule(column="is_self_contained", op="eq", value=True),
-            FilterRule(
-                column="is_structurally_complete", op="eq", value=True
-            ),
+            FilterRule(column="is_structurally_complete", op="eq", value=True),
         ],
     )
 

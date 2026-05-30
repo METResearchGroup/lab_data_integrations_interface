@@ -23,9 +23,7 @@ HIGH_MIN = 0.7
 
 class IsToxicTieredModel(BaseModel):
     uri: str
-    toxicity_prob: float = Field(
-        description="Perspective API TOXICITY probability in [0, 1]."
-    )
+    toxicity_prob: float = Field(description="Perspective API TOXICITY probability in [0, 1].")
     toxicity_tier: ToxicityTier = Field(
         description="Toxicity tiers: low (<= 0.1), medium (0.1-0.7), high (>= 0.7)."
     )

@@ -74,9 +74,7 @@ class StorageManager:
         if latest:
             resolved = self.latest_run_dir()
             if resolved is None:
-                raise FileNotFoundError(
-                    f"No {self.stage} runs found under {self.root_dir}"
-                )
+                raise FileNotFoundError(f"No {self.stage} runs found under {self.root_dir}")
             return resolved
         raise ValueError("Either run_dir must be provided or latest=True")
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,8 +17,7 @@ MANIFEST_FILENAME = "dataset.json"
 def validate_dataset_id(dataset_id: str) -> str:
     if not DATASET_ID_PATTERN.match(dataset_id):
         raise ValueError(
-            "dataset_id must match bluesky_{uuid} "
-            "(lowercase RFC 4122 hex with hyphens)"
+            "dataset_id must match bluesky_{uuid} (lowercase RFC 4122 hex with hyphens)"
         )
     return dataset_id
 
@@ -54,7 +53,7 @@ def write_dataset_manifest(
         "dataset_id": validate_dataset_id(dataset_id),
         "platform": platform,
         "name": name,
-        "created_at": created_at or datetime.now(timezone.utc).isoformat(),
+        "created_at": created_at or datetime.now(UTC).isoformat(),
         "ingestion_config": ingestion_config,
     }
     path = root / MANIFEST_FILENAME

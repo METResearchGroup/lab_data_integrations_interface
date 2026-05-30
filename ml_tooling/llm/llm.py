@@ -94,6 +94,7 @@ def structured_chat_completion(
 
 
 if __name__ == "__main__":
+
     class _SampleSentimentResult(BaseModel):
         sentiment: str
         confidence: float

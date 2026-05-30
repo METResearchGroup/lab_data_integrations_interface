@@ -66,9 +66,7 @@ def test_build_wide_table_joins_features(tmp_path: Path) -> None:
 
     assert len(wide) == 2
     assert "news_or_opinion_category" in wide.columns
-    assert wide.loc[wide["uri"] == "at://a/post/1", "news_or_opinion_category"].iloc[
-        0
-    ] == "news"
+    assert wide.loc[wide["uri"] == "at://a/post/1", "news_or_opinion_category"].iloc[0] == "news"
     assert wide.loc[wide["uri"] == "at://a/post/1", "is_political"].iloc[0] in {
         True,
         "True",

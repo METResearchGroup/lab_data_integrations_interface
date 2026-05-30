@@ -8,6 +8,7 @@ Run from the repo root:
 
 Ingestion YAML must include `dataset_id` (e.g. bluesky_<uuid>).
 """
+
 from __future__ import annotations
 
 import sys
@@ -173,9 +174,7 @@ def fetch_and_export_post_records(
         desc="Syncing batches",
         disable=not sys.stderr.isatty(),
     ):
-        rows, stats = fetch_posts_for_batch(
-            client, fetch, query, batch_label=batch_label
-        )
+        rows, stats = fetch_posts_for_batch(client, fetch, query, batch_label=batch_label)
         batch_stats[batch_label] = stats
         for row in rows:
             rows_by_uri.setdefault(row["uri"], row)
@@ -219,9 +218,7 @@ def resolve_config_path(config: Path) -> Path:
     if config.suffix != ".yaml":
         candidates.append(config.with_suffix(".yaml"))
     if config.parent == Path("."):
-        candidates.extend(
-            CONFIGS_DIR / candidate.name for candidate in list(candidates)
-        )
+        candidates.extend(CONFIGS_DIR / candidate.name for candidate in list(candidates))
 
     for candidate in candidates:
         if candidate.exists():
@@ -252,17 +249,13 @@ def sync_records(config_path: Path = DEFAULT_CONFIG) -> Path:
     dataset_id = _require_dataset_id(config)
     storage = BlueskyStorageManager("raw", dataset_id)
 
-    manifest_path = (
-        storage.root_dir.parent / "dataset.json"
-    )
+    manifest_path = storage.root_dir.parent / "dataset.json"
     if not manifest_path.exists():
         write_dataset_manifest(
             "bluesky",
             dataset_id,
             name=str(config["name"]),
-            ingestion_config=str(
-                config_path.relative_to(Path(__file__).resolve().parents[2])
-            ),
+            ingestion_config=str(config_path.relative_to(Path(__file__).resolve().parents[2])),
         )
 
     fetch = config["fetch"]
