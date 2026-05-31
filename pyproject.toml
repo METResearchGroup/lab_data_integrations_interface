@@ -25,6 +25,7 @@ dependencies = [
     "pyyaml>=6.0.0",
     "tqdm>=4.66.0",
     "opik>=1.0.0",
+    "langdetect>=1.0.9",
 ]
 
 [project.optional-dependencies]
