@@ -115,7 +115,12 @@ class BaseBatchExecutionEngine:
         batch_size: int,
         on_batch_complete: Callable[[int, int], None],
     ) -> BatchRunStats:
-        """Run atomic batches with retries, seen-uri filtering, and deadletter on failure."""
+        """Label records using feature classifier.
+        
+        Steps:
+        1. Batch inference (with retries). On failures here, add to deadletter.
+        2. Write the labeled records to output.
+        """
         stats = BatchRunStats()
         max_retries = self.run_config.max_label_retries
 
@@ -128,6 +133,8 @@ class BaseBatchExecutionEngine:
             if not pending:
                 continue
 
+            # Step 1: Run batch inference logic (with retry). If failed,
+            # add to deadletter.
             uris = [task.uri for task in pending]
             try:
                 labels = _batch_with_retry(pending)
@@ -144,6 +151,7 @@ class BaseBatchExecutionEngine:
                 on_batch_complete(0, 1)
                 continue
 
+            # Step 2: Write labeled records.
             self.batch_write_records(
                 labels,
                 feature_name=feature_name,

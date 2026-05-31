@@ -23,7 +23,6 @@ from data_platform.generate_features.models import (
     FeatureSpec,
     LabelTask,
 )
-from data_platform.utils.dataset import dataset_root, relative_run_path
 from data_platform.utils.duckdb_features import feature_csv_path
 from ml_tooling.llm import opik as opik_telemetry
 
@@ -40,20 +39,6 @@ def tasks_from_dataframe(
         LabelTask(uri=str(row[id_column]), text=str(row[text_column]))
         for _, row in records.iterrows()
     ]
-
-
-def resolve_source_preprocessed_run(
-    config: FeatureGenerationConfig,
-    preprocessed_run: str | None,
-) -> str:
-    """Return a pinned or latest preprocessed run path relative to the dataset root."""
-    if preprocessed_run:
-        return preprocessed_run
-    source_run_dir = config.input_storage.latest_run_dir()
-    if source_run_dir is None:
-        raise FileNotFoundError(f"No preprocessed runs found under {config.input_storage.root_dir}")
-    root = dataset_root(config.platform, config.input_storage.dataset_id)
-    return relative_run_path(root, source_run_dir)
 
 
 def filter_records_needing_features(
@@ -90,6 +75,8 @@ def _run_feature_labeling(
     mark_feature_in_progress(metadata, feature_name)
     flush_metadata(config.features_dir, metadata)
 
+    # LangChain or custom engine, each of which has their own way of managing
+    # concurrency
     engine = build_engine(spec, config.run_config)
     stats = engine.label_records(
         tasks,
@@ -112,7 +99,7 @@ def _process_one_feature(
     config: FeatureGenerationConfig,
     metadata: FeatureRunMetadata,
 ) -> Path:
-    """Label or skip a single feature and return its output CSV path."""
+    """Label posts for a single feature and export labels."""
     feature_status = metadata.features.get(feature_name)
     csv_path = feature_csv_path(config.features_dir, feature_name)
 
@@ -120,15 +107,19 @@ def _process_one_feature(
         print(f"generate_features: skipping completed feature {feature_name}")
         return csv_path
 
+    # filter posts needing features
     pending_df = filter_records_needing_features(records, feature_name, config)
+
+    # generate tasks based on records
     tasks = tasks_from_dataframe(pending_df, config.id_column, config.text_column)
-    if not tasks:
+    if len(tasks) == 0:
         prior_labeled = feature_status.labeled if feature_status else 0
         mark_feature_completed(metadata, feature_name, prior_labeled)
         flush_metadata(config.features_dir, metadata)
         print(f"generate_features: {feature_name} — nothing to label")
         return csv_path
 
+    # run feature labeling
     stats = _run_feature_labeling(feature_name, spec, tasks, config, metadata)
     print(
         f"generate_features: {feature_name} -> {stats.labeled} new labels "
@@ -137,7 +128,7 @@ def _process_one_feature(
     return csv_path
 
 
-def _maybe_mark_sync_completed(
+def _mark_sync_completed(
     metadata: FeatureRunMetadata,
     feature_names: tuple[str, ...],
     features_dir: Path,
@@ -161,16 +152,9 @@ def generate_features(
         print("generate_features: no records to label")
         return {}
 
-    source_preprocessed_run = resolve_source_preprocessed_run(
-        config,
-        config.preprocessed_run,
-    )
     feature_names = tuple(config.feature_registry.keys())
     metadata = load_or_init_metadata(
-        config.features_dir,
-        config.input_storage.dataset_id,
-        source_preprocessed_run,
-        config.run_config,
+        config,
         feature_names=feature_names,
     )
 
@@ -179,6 +163,7 @@ def generate_features(
 
     with opik_telemetry.project_scope():
         for feature_name, spec in config.feature_registry.items():
+            print(f"Generating features for {feature_name}")
             written[feature_name] = _process_one_feature(
                 feature_name,
                 spec,
@@ -186,8 +171,9 @@ def generate_features(
                 config,
                 metadata,
             )
+            print(f"Completed feature generation for {feature_name}")
 
-        _maybe_mark_sync_completed(metadata, feature_names, config.features_dir)
+        _mark_sync_completed(metadata, feature_names, config.features_dir)
 
         if config.run_config.opik_enabled:
             opik_telemetry.flush()

@@ -6,10 +6,11 @@ import json
 from pathlib import Path
 
 from data_platform.generate_features.models import (
-    FeatureRunConfig,
+    FeatureGenerationConfig,
     FeatureRunMetadata,
     FeatureStatus,
 )
+from data_platform.utils.dataset import dataset_root, relative_run_path
 from data_platform.utils.storage import METADATA_FILENAME
 from lib.timestamp_utils import get_current_timestamp
 
@@ -30,30 +31,45 @@ def flush_metadata(features_dir: Path, metadata: FeatureRunMetadata) -> None:
     tmp_path.replace(path)
 
 
+def resolve_source_preprocessed_run(
+    config: FeatureGenerationConfig,
+    preprocessed_run: str | None,
+) -> str:
+    """Return a pinned or latest preprocessed run path relative to the dataset root."""
+    if preprocessed_run:
+        return preprocessed_run
+    source_run_dir = config.input_storage.latest_run_dir()
+    if source_run_dir is None:
+        raise FileNotFoundError(f"No preprocessed runs found under {config.input_storage.root_dir}")
+    root = dataset_root(config.platform, config.input_storage.dataset_id)
+    return relative_run_path(root, source_run_dir)
+
+
 def load_or_init_metadata(
-    features_dir: Path,
-    dataset_id: str,
-    source_preprocessed_run: str,
-    run_config: FeatureRunConfig,
+    config: FeatureGenerationConfig,
     *,
     feature_names: tuple[str, ...],
 ) -> FeatureRunMetadata:
     """Load existing feature-run metadata or create a new in-progress document."""
-    path = metadata_path(features_dir)
+    path = metadata_path(config.features_dir)
     if path.exists():
         with path.open(encoding="utf-8") as f:
             return FeatureRunMetadata.from_dict(json.load(f))
 
+    source_preprocessed_run = resolve_source_preprocessed_run(
+        config,
+        config.preprocessed_run,
+    )
     features = {name: FeatureStatus() for name in feature_names}
     metadata = FeatureRunMetadata(
-        dataset_id=dataset_id,
+        dataset_id=config.input_storage.dataset_id,
         source_preprocessed_run=source_preprocessed_run,
         sync_status="in_progress",
         features=features,
-        config=run_config,
+        config=config.run_config,
         updated_at=get_current_timestamp(),
     )
-    flush_metadata(features_dir, metadata)
+    flush_metadata(config.features_dir, metadata)
     return metadata
 
 
