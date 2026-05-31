@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from lib.timestamp_utils import utc_now_iso
+from lib.timestamp_utils import get_current_timestamp
 
 
 def deadletter_path(features_dir: Path) -> Path:
@@ -29,7 +29,7 @@ def append_deadletter_batch(
         "uris": uris,
         "error": error,
         "attempts": attempts,
-        "ts": utc_now_iso(),
+        "ts": get_current_timestamp(),
         "batch_index": batch_index,
     }
     path = deadletter_path(features_dir)

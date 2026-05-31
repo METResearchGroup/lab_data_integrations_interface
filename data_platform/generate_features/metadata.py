@@ -11,7 +11,7 @@ from data_platform.generate_features.models import (
     FeatureStatus,
 )
 from data_platform.utils.storage import METADATA_FILENAME
-from lib.timestamp_utils import get_current_timestamp, utc_now_iso
+from lib.timestamp_utils import get_current_timestamp
 
 
 def metadata_path(features_dir: Path) -> Path:
@@ -22,7 +22,7 @@ def metadata_path(features_dir: Path) -> Path:
 def flush_metadata(features_dir: Path, metadata: FeatureRunMetadata) -> None:
     """Atomically write metadata.json under features_dir with an updated timestamp."""
     features_dir.mkdir(parents=True, exist_ok=True)
-    metadata.updated_at = utc_now_iso()
+    metadata.updated_at = get_current_timestamp()
     path = metadata_path(features_dir)
     tmp_path = features_dir / f"{METADATA_FILENAME}.tmp"
     with tmp_path.open("w", encoding="utf-8") as f:
