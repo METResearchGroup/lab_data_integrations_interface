@@ -34,6 +34,7 @@ class BatchExecutionEngine(Protocol):
         *,
         feature_name: str,
         features_dir: Path,
+        dataset_id: str,
     ) -> None: ...
 
     def label_records(
@@ -42,18 +43,23 @@ class BatchExecutionEngine(Protocol):
         *,
         feature_name: str,
         features_dir: Path,
+        dataset_id: str,
         batch_size: int,
         on_batch_complete: Callable[[int, int], None],
     ) -> BatchRunStats: ...
 
 
-def load_seen_uris_from_features_dir(features_dir: Path, feature_name: str) -> set[str]:
+def load_seen_uris_from_features_dir(
+    features_dir: Path,
+    feature_name: str,
+    dataset_id: str,
+) -> set[str]:
     """Return URIs already present in the feature CSV under features_dir."""
     storage = StorageManager(
         "bluesky",
         "features",
         BaseModel,
-        "",
+        dataset_id,
         records_filename=f"{feature_name}.csv",
     )
     return storage.load_seen_uris(features_dir, filename=f"{feature_name}.csv")
@@ -63,9 +69,10 @@ def filter_seen_tasks(
     tasks: list[LabelTask],
     features_dir: Path,
     feature_name: str,
+    dataset_id: str,
 ) -> list[LabelTask]:
     """Drop tasks whose URI is already labeled in the on-disk feature CSV."""
-    seen = load_seen_uris_from_features_dir(features_dir, feature_name)
+    seen = load_seen_uris_from_features_dir(features_dir, feature_name, dataset_id)
     if not seen:
         return tasks
     return [task for task in tasks if task.uri not in seen]
@@ -93,6 +100,7 @@ class BaseBatchExecutionEngine:
         *,
         feature_name: str,
         features_dir: Path,
+        dataset_id: str,
     ) -> None:
         """Validate and append label rows to features_dir/{feature_name}.csv."""
         if not labels:
@@ -101,7 +109,7 @@ class BaseBatchExecutionEngine:
             "bluesky",
             "features",
             self.spec.model,
-            "",
+            dataset_id,
             records_filename=f"{feature_name}.csv",
         )
         storage.append_records(labels, features_dir, filename=f"{feature_name}.csv")
@@ -112,11 +120,12 @@ class BaseBatchExecutionEngine:
         *,
         feature_name: str,
         features_dir: Path,
+        dataset_id: str,
         batch_size: int,
         on_batch_complete: Callable[[int, int], None],
     ) -> BatchRunStats:
         """Label records using feature classifier.
-        
+
         Steps:
         1. Batch inference (with retries). On failures here, add to deadletter.
         2. Write the labeled records to output.
@@ -129,7 +138,7 @@ class BaseBatchExecutionEngine:
             return self.batch_label_records(chunk)
 
         for batch_index, chunk in enumerate(batched(tasks, batch_size)):
-            pending = filter_seen_tasks(chunk, features_dir, feature_name)
+            pending = filter_seen_tasks(chunk, features_dir, feature_name, dataset_id)
             if not pending:
                 continue
 
@@ -156,6 +165,7 @@ class BaseBatchExecutionEngine:
                 labels,
                 feature_name=feature_name,
                 features_dir=features_dir,
+                dataset_id=dataset_id,
             )
             stats.labeled += len(labels)
             on_batch_complete(len(labels), 0)

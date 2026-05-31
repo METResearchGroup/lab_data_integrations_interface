@@ -12,11 +12,7 @@ import opik
 
 PROJECT_NAME = "lab_data_integrations_interface"
 
-opik.configure(
-    use_local=False,
-    project_name=PROJECT_NAME,
-    automatic_approvals=True,
-)
+_configured = False
 
 _opik_enabled: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "opik_enabled",
@@ -29,6 +25,19 @@ _feature_context: contextvars.ContextVar[dict[str, Any]] = contextvars.ContextVa
 )
 
 F = TypeVar("F", bound=Callable[..., Any])
+
+
+def _ensure_configured() -> None:
+    """Configure Opik once when telemetry is enabled."""
+    global _configured
+    if _configured or not is_opik_enabled():
+        return
+    opik.configure(
+        use_local=False,
+        project_name=PROJECT_NAME,
+        automatic_approvals=True,
+    )
+    _configured = True
 
 
 def set_opik_enabled(enabled: bool) -> None:
@@ -61,6 +70,7 @@ def enrich_llm_trace(**kwargs: Any) -> None:
     """Update the current Opik trace; kwargs are forwarded to ``update_current_trace``."""
     if not is_opik_enabled():
         return
+    _ensure_configured()
     from opik import opik_context
 
     opik_context.update_current_trace(**kwargs)
@@ -71,6 +81,7 @@ def resolve_system_prompt(*, feature_name: str, system_prompt: str) -> Any:
     """Register or resolve a versioned system prompt in the Opik prompt library."""
     if not is_opik_enabled():
         return system_prompt
+    _ensure_configured()
     return opik.get_global_client().create_prompt(
         name=feature_name,
         prompt=system_prompt,
@@ -82,6 +93,7 @@ def langchain_callbacks(*, feature_name: str | None = None) -> list[Any]:
     """Build LangChain callback handlers for Opik tracing."""
     if not is_opik_enabled():
         return []
+    _ensure_configured()
     from opik.integrations.langchain import OpikTracer
 
     tags = [feature_name] if feature_name else None
@@ -92,6 +104,7 @@ def flush() -> None:
     """Flush pending Opik traces to the server."""
     if not is_opik_enabled():
         return
+    _ensure_configured()
     opik.flush_tracker()
 
 
@@ -100,16 +113,17 @@ def track_llm_call(name: str) -> Callable[[F], F]:
     tracked_fn: dict[str, Callable[..., Any]] = {}
 
     def decorator(fn: F) -> F:
-        opik_tracked = opik.track(
-            name=name,
-            project_name=PROJECT_NAME,
-            ignore_arguments=["output_schema", "system_prompt"],
-        )(fn)
-        tracked_fn["impl"] = opik_tracked
+        if is_opik_enabled():
+            _ensure_configured()
+            tracked_fn["impl"] = opik.track(
+                name=name,
+                project_name=PROJECT_NAME,
+                ignore_arguments=["output_schema", "system_prompt"],
+            )(fn)
 
         @wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            if is_opik_enabled():
+            if is_opik_enabled() and "impl" in tracked_fn:
                 return tracked_fn["impl"](*args, **kwargs)
             return fn(*args, **kwargs)
 
@@ -124,5 +138,6 @@ def project_scope():
     if not is_opik_enabled():
         yield
         return
+    _ensure_configured()
     with opik.project_context(PROJECT_NAME):
         yield

@@ -8,8 +8,8 @@ import pytest
 
 from data_platform.ingestion import sync_bluesky
 from data_platform.utils.storage import BlueskyStorageManager
-from tests.data_platform.constants import VALID_DATASET_ID
 from tests.data_platform.conftest import make_ingestion_row
+from tests.data_platform.constants import VALID_DATASET_ID
 from tests.data_platform.ingestion.conftest import (
     minimal_sync_config,
     mock_post,

@@ -82,6 +82,7 @@ def _run_feature_labeling(
         tasks,
         feature_name=feature_name,
         features_dir=config.features_dir,
+        dataset_id=config.input_storage.dataset_id,
         batch_size=config.run_config.batch_size,
         on_batch_complete=_make_on_batch_complete(metadata, feature_name, config.features_dir),
     )

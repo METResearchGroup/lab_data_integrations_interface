@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pandas as pd
-
 from data_platform.curate.consolidate import ConsolidateConfig, build_wide_table
 from tests.data_platform.conftest import (
     make_political_feature_rows,

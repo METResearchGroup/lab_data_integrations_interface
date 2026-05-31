@@ -69,9 +69,7 @@ def write_preprocessed_posts(
     dataset_id: str = FEATURES_DATASET_ID,
     run_dir_name: str = PREPROCESSED_RUN_DIR,
 ) -> Path:
-    preprocessed_dir = (
-        data_root / "bluesky" / dataset_id / "preprocessed" / run_dir_name
-    )
+    preprocessed_dir = data_root / "bluesky" / dataset_id / "preprocessed" / run_dir_name
     preprocessed_dir.mkdir(parents=True)
     pd.DataFrame(list(records)).to_csv(preprocessed_dir / "posts.csv", index=False)
     return preprocessed_dir
@@ -92,7 +90,4 @@ def sample_preprocessed_records(
 ) -> list[dict[str, str]]:
     uris = [URI_POST_A, URI_POST_B]
     texts = ["one", "two"]
-    return [
-        {"uri": uris[i], "text": texts[i]}
-        for i in range(min(count, len(uris)))
-    ]
+    return [{"uri": uris[i], "text": texts[i]} for i in range(min(count, len(uris)))]

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 
-from tests.data_platform.constants import VALID_DATASET_ID
 from tests.data_platform.conftest import make_ingestion_row
+from tests.data_platform.constants import VALID_DATASET_ID
 
 
 def test_bluesky_storage_root_includes_dataset_id(data_root, bluesky_storage) -> None:
