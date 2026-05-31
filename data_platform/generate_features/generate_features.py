@@ -104,23 +104,32 @@ def _process_one_feature(
     feature_status = metadata.features.get(feature_name)
     csv_path = feature_csv_path(config.features_dir, feature_name)
 
-    if feature_status and feature_status.status == "completed":
-        print(f"generate_features: skipping completed feature {feature_name}")
-        return csv_path
-
-    # filter posts needing features
+    # Compare input posts against saved labels, to see which records need features.
     pending_df = filter_records_needing_features(records, feature_name, config)
-
-    # generate tasks based on records
     tasks = tasks_from_dataframe(pending_df, config.id_column, config.text_column)
+
     if len(tasks) == 0:
+        # Every input post is already labeled in {feature}.csv — nothing to do.
         prior_labeled = feature_status.labeled if feature_status else 0
         mark_feature_completed(metadata, feature_name, prior_labeled)
         flush_metadata(config.features_dir, metadata)
-        print(f"generate_features: {feature_name} — nothing to label")
+        if feature_status and feature_status.status == "completed":
+            # Idempotent rerun: feature was done before and still has no new posts.
+            print(f"generate_features: skipping completed feature {feature_name}")
+        else:
+            # First run (or in-progress run) found no pending posts in this batch.
+            print(f"generate_features: {feature_name} — nothing to label")
         return csv_path
 
-    # run feature labeling
+    # Resume with new posts: a past batch of posts may have been done and
+    # we marked the metadata as done, but we have new posts.
+    if feature_status and feature_status.status == "completed":
+        print(
+            f"generate_features: {feature_name} was completed; "
+            f"labeling {len(tasks)} new posts"
+        )
+
+    # Pending posts remain — run batch labeling and append to {feature}.csv.
     stats = _run_feature_labeling(feature_name, spec, tasks, config, metadata)
     print(
         f"generate_features: {feature_name} -> {stats.labeled} new labels "

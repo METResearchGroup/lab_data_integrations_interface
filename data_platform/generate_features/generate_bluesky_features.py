@@ -104,6 +104,7 @@ def generate_bluesky_features(
         opik_enabled=not no_opik,
     )
     posts = load_posts(dataset_id, preprocessed_run)
+    posts = posts.head(200) # TODO: keep for now until verified.
     if posts.empty:
         print("generate_bluesky_features: no preprocessed posts found")
         return {}
