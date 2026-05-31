@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
+import os
 from collections.abc import Callable
 from functools import lru_cache, wraps
 from typing import Any, TypeVar
@@ -13,6 +14,7 @@ import opik
 PROJECT_NAME = "lab_data_integrations_interface"
 
 _configured = False
+_tracked_impls: dict[tuple[str, int], Callable[..., Any]] = {}
 
 _opik_enabled: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "opik_enabled",
@@ -27,10 +29,19 @@ _feature_context: contextvars.ContextVar[dict[str, Any]] = contextvars.ContextVa
 F = TypeVar("F", bound=Callable[..., Any])
 
 
+def _opik_api_key_available() -> bool:
+    return bool(os.environ.get("OPIK_API_KEY"))
+
+
+def _opik_active() -> bool:
+    """Return whether Opik tracing should run in the current context."""
+    return is_opik_enabled() and _opik_api_key_available()
+
+
 def _ensure_configured() -> None:
     """Configure Opik once when telemetry is enabled."""
     global _configured
-    if _configured or not is_opik_enabled():
+    if _configured or not _opik_active():
         return
     opik.configure(
         use_local=False,
@@ -68,7 +79,7 @@ def current_context() -> dict[str, Any]:
 
 def enrich_llm_trace(**kwargs: Any) -> None:
     """Update the current Opik trace; kwargs are forwarded to ``update_current_trace``."""
-    if not is_opik_enabled():
+    if not _opik_active():
         return
     _ensure_configured()
     from opik import opik_context
@@ -79,7 +90,7 @@ def enrich_llm_trace(**kwargs: Any) -> None:
 @lru_cache(maxsize=64)
 def resolve_system_prompt(*, feature_name: str, system_prompt: str) -> Any:
     """Register or resolve a versioned system prompt in the Opik prompt library."""
-    if not is_opik_enabled():
+    if not _opik_active():
         return system_prompt
     _ensure_configured()
     return opik.get_global_client().create_prompt(
@@ -91,7 +102,7 @@ def resolve_system_prompt(*, feature_name: str, system_prompt: str) -> Any:
 
 def langchain_callbacks(*, feature_name: str | None = None) -> list[Any]:
     """Build LangChain callback handlers for Opik tracing."""
-    if not is_opik_enabled():
+    if not _opik_active():
         return []
     _ensure_configured()
     from opik.integrations.langchain import OpikTracer
@@ -102,29 +113,32 @@ def langchain_callbacks(*, feature_name: str | None = None) -> list[Any]:
 
 def flush() -> None:
     """Flush pending Opik traces to the server."""
-    if not is_opik_enabled():
+    if not _opik_active():
         return
     _ensure_configured()
     opik.flush_tracker()
 
 
+def _tracked_impl(name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
+    key = (name, id(fn))
+    if key not in _tracked_impls:
+        _ensure_configured()
+        _tracked_impls[key] = opik.track(
+            name=name,
+            project_name=PROJECT_NAME,
+            ignore_arguments=["output_schema", "system_prompt"],
+        )(fn)
+    return _tracked_impls[key]
+
+
 def track_llm_call(name: str) -> Callable[[F], F]:
     """Return an ``@opik.track`` decorator for LLM entrypoints, or a no-op when disabled."""
-    tracked_fn: dict[str, Callable[..., Any]] = {}
 
     def decorator(fn: F) -> F:
-        if is_opik_enabled():
-            _ensure_configured()
-            tracked_fn["impl"] = opik.track(
-                name=name,
-                project_name=PROJECT_NAME,
-                ignore_arguments=["output_schema", "system_prompt"],
-            )(fn)
-
         @wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            if is_opik_enabled() and "impl" in tracked_fn:
-                return tracked_fn["impl"](*args, **kwargs)
+            if _opik_active():
+                return _tracked_impl(name, fn)(*args, **kwargs)
             return fn(*args, **kwargs)
 
         return wrapper  # type: ignore[return-value]
@@ -135,7 +149,7 @@ def track_llm_call(name: str) -> Callable[[F], F]:
 @contextlib.contextmanager
 def project_scope():
     """Scope all Opik operations in a batch to ``PROJECT_NAME``."""
-    if not is_opik_enabled():
+    if not _opik_active():
         yield
         return
     _ensure_configured()
