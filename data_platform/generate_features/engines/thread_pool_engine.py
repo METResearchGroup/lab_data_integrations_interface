@@ -4,13 +4,19 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 
-from data_platform.generate_features.engines.base import BaseBatchExecutionEngine, row_with_label_timestamp
+from data_platform.generate_features.engines.base import (
+    BaseBatchExecutionEngine,
+    row_with_label_timestamp,
+)
 from data_platform.generate_features.models import LabelTask
 from lib.timestamp_utils import get_current_timestamp
 
 
 class ThreadPoolBatchEngine(BaseBatchExecutionEngine):
+    """Label tasks by calling generate_fn concurrently in a thread pool."""
+
     def batch_label_records(self, tasks: list[LabelTask]) -> list[dict]:
+        """Score each task with generate_fn and return validated label dict rows."""
         if not tasks:
             return []
 

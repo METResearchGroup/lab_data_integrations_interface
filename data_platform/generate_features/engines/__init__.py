@@ -9,6 +9,7 @@ from data_platform.generate_features.models import FeatureRunConfig, FeatureSpec
 
 
 def build_engine(spec: FeatureSpec, run_config: FeatureRunConfig) -> BatchExecutionEngine:
+    """Construct the batch engine implementation declared on the feature spec."""
     if spec.engine_type == "langchain":
         return LangChainBatchEngine(spec, run_config)
     if spec.engine_type == "thread_pool":

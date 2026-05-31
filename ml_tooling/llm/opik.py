@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
-from datetime import UTC, datetime
+from collections.abc import Callable
 from functools import lru_cache, wraps
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 import opik
 
@@ -37,6 +37,7 @@ def set_opik_enabled(enabled: bool) -> None:
 
 
 def is_opik_enabled() -> bool:
+    """Return whether Opik tracing is enabled in the current context."""
     return _opik_enabled.get()
 
 
@@ -92,11 +93,6 @@ def flush() -> None:
     if not is_opik_enabled():
         return
     opik.flush_tracker()
-
-
-def utc_now_iso() -> str:
-    """Return the current UTC timestamp as an ISO-8601 string."""
-    return datetime.now(UTC).isoformat()
 
 
 def track_llm_call(name: str) -> Callable[[F], F]:

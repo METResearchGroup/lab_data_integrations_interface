@@ -21,6 +21,8 @@ from lib.timestamp_utils import get_current_timestamp
 
 
 class BatchExecutionEngine(Protocol):
+    """Protocol for labeling tasks in atomic batches with CSV append."""
+
     spec: FeatureSpec
     run_config: FeatureRunConfig
 
@@ -46,6 +48,7 @@ class BatchExecutionEngine(Protocol):
 
 
 def load_seen_uris_from_features_dir(features_dir: Path, feature_name: str) -> set[str]:
+    """Return URIs already present in the feature CSV under features_dir."""
     storage = StorageManager(
         "bluesky",
         "features",
@@ -61,6 +64,7 @@ def filter_seen_tasks(
     features_dir: Path,
     feature_name: str,
 ) -> list[LabelTask]:
+    """Drop tasks whose URI is already labeled in the on-disk feature CSV."""
     seen = load_seen_uris_from_features_dir(features_dir, feature_name)
     if not seen:
         return tasks
@@ -68,11 +72,14 @@ def filter_seen_tasks(
 
 
 def batched(tasks: list[LabelTask], batch_size: int) -> Iterator[list[LabelTask]]:
+    """Yield consecutive chunks of at most batch_size tasks."""
     for i in range(0, len(tasks), batch_size):
         yield tasks[i : i + batch_size]
 
 
 class BaseBatchExecutionEngine:
+    """Shared batch loop: retry labeling, append CSV rows, or record deadletter batches."""
+
     def __init__(self, spec: FeatureSpec, run_config: FeatureRunConfig) -> None:
         self.spec = spec
         self.run_config = run_config
@@ -87,6 +94,7 @@ class BaseBatchExecutionEngine:
         feature_name: str,
         features_dir: Path,
     ) -> None:
+        """Validate and append label rows to features_dir/{feature_name}.csv."""
         if not labels:
             return
         storage = StorageManager(
@@ -107,6 +115,7 @@ class BaseBatchExecutionEngine:
         batch_size: int,
         on_batch_complete: Callable[[int, int], None],
     ) -> BatchRunStats:
+        """Run atomic batches with retries, seen-uri filtering, and deadletter on failure."""
         stats = BatchRunStats()
         max_retries = self.run_config.max_label_retries
 
@@ -147,5 +156,6 @@ class BaseBatchExecutionEngine:
 
 
 def row_with_label_timestamp(row: dict, *, label_timestamp: str | None = None) -> dict:
+    """Attach label_timestamp to a label row, defaulting to the current run timestamp."""
     ts = label_timestamp or get_current_timestamp()
     return {**row, "label_timestamp": ts}

@@ -28,6 +28,16 @@ URI_COLUMN = "uri"
 TEXT_COLUMN = "text"
 
 
+def generate_feature_subset(features: list[str] | None) -> tuple[str, ...] | None:
+    """Validate feature names and return a registry subset, or None to run all features."""
+    if not features:
+        return None
+    unknown = set(features) - set(FEATURE_REGISTRY)
+    if unknown:
+        raise ValueError(f"Unknown features: {sorted(unknown)}")
+    return tuple(features)
+
+
 def bluesky_feature_config(
     dataset_id: str,
     *,
@@ -35,6 +45,7 @@ def bluesky_feature_config(
     preprocessed_run: str | None = None,
     features_subset: tuple[str, ...] | None = None,
 ) -> FeatureGenerationConfig:
+    """Build a FeatureGenerationConfig for Bluesky flat feature CSV output."""
     dataset_id = validate_dataset_id(dataset_id)
     registry = FEATURE_REGISTRY
     if features_subset:
@@ -58,7 +69,7 @@ def bluesky_feature_config(
 
 
 def load_posts(dataset_id: str, preprocessed_run: str | None = None) -> pd.DataFrame:
-    """Load preprocessed posts from latest or pinned preprocessing run."""
+    """Load preprocessed posts from the latest or a pinned preprocessing run."""
     storage = BlueskyStorageManager("preprocessed", dataset_id)
     if preprocessed_run:
         run_dir = dataset_root("bluesky", dataset_id) / preprocessed_run
@@ -81,16 +92,11 @@ def generate_bluesky_features(
     max_concurrency: int = 20,
     no_opik: bool = False,
     preprocessed_run: str | None = None,
-    features: str | None = None,
+    feature_subset: list[str] | None = None,
 ) -> dict[str, Path]:
-    """Load Bluesky posts and generate configured features."""
+    """Load Bluesky posts and generate the requested feature labels."""
     dataset_id = validate_dataset_id(dataset_id)
-    features_subset: tuple[str, ...] | None = None
-    if features:
-        features_subset = tuple(name.strip() for name in features.split(",") if name.strip())
-        unknown = set(features_subset) - set(FEATURE_REGISTRY)
-        if unknown:
-            raise ValueError(f"Unknown features: {sorted(unknown)}")
+    features_subset = generate_feature_subset(feature_subset)
 
     run_config = FeatureRunConfig(
         batch_size=batch_size,
@@ -111,6 +117,14 @@ def generate_bluesky_features(
     return generate_features(posts, config)
 
 
+def _features_from_cli(raw: list[str] | None) -> list[str] | None:
+    """Normalize Typer --features values into a list of feature names."""
+    if raw is None:
+        return None
+    names = [part.strip() for item in raw for part in item.split(",") if part.strip()]
+    return names or None
+
+
 def main(
     dataset_id: str = typer.Option(
         ...,
@@ -125,19 +139,20 @@ def main(
         "--preprocessed-run",
         help="Pin preprocessed run path, e.g. preprocessed/2026_05_29-20:14:22",
     ),
-    features: str | None = typer.Option(
+    features: list[str] | None = typer.Option(
         None,
         "--features",
-        help="Comma-separated feature subset, e.g. is_political,is_toxic_tiered",
+        help="Feature name(s); repeat the flag per feature, e.g. --features is_political",
     ),
 ) -> None:
+    """CLI entrypoint for resumable Bluesky feature generation."""
     generate_bluesky_features(
         dataset_id,
         batch_size=batch_size,
         max_concurrency=max_concurrency,
         no_opik=no_opik,
         preprocessed_run=preprocessed_run,
-        features=features,
+        feature_subset=_features_from_cli(features),
     )
 
 

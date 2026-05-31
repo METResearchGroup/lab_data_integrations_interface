@@ -25,7 +25,7 @@ class _DummyModel:
         return {"uri": None, "label_timestamp": None, "x": None}
 
     @staticmethod
-    def model_validate(row: dict) -> "_DummyModel":
+    def model_validate(row: dict) -> _DummyModel:
         return _DummyModel()
 
 
@@ -43,7 +43,9 @@ def test_skips_completed_features(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     dataset_id = "bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479"
     features_dir = tmp_path / "features"
     features_dir.mkdir(parents=True)
-    preprocessed_dir = tmp_path / "data" / "bluesky" / dataset_id / "preprocessed" / "2026_01_01-00:00:00"
+    preprocessed_dir = (
+        tmp_path / "data" / "bluesky" / dataset_id / "preprocessed" / "2026_01_01-00:00:00"
+    )
     preprocessed_dir.mkdir(parents=True)
     pd.DataFrame([{"uri": "at://a/post/1", "text": "one"}]).to_csv(
         preprocessed_dir / "posts.csv",
@@ -92,7 +94,9 @@ def test_orchestrator_calls_label_records(tmp_path: Path, monkeypatch: pytest.Mo
     dataset_id = "bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479"
     features_dir = tmp_path / "features"
     features_dir.mkdir(parents=True)
-    preprocessed_dir = tmp_path / "data" / "bluesky" / dataset_id / "preprocessed" / "2026_01_01-00:00:00"
+    preprocessed_dir = (
+        tmp_path / "data" / "bluesky" / dataset_id / "preprocessed" / "2026_01_01-00:00:00"
+    )
     preprocessed_dir.mkdir(parents=True)
     pd.DataFrame(
         [

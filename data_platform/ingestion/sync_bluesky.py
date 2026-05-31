@@ -8,11 +8,13 @@ Run from the repo root:
 
 Resume the latest in-progress run for a dataset:
 
-    PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py --config mirrorview_scale.yaml --resume
+    PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py \\
+        --config mirrorview_scale.yaml --resume
 
 Resume a specific raw run timestamp:
 
-    PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py --config mirrorview_scale.yaml --resume --run-dir 2026_05_30-12:00:00
+    PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py \\
+        --config mirrorview_scale.yaml --resume --run-dir 2026_05_30-12:00:00
 
 Ingestion YAML must include `dataset_id` (e.g. bluesky_<uuid>).
 """
@@ -30,7 +32,6 @@ from atproto import Client
 from tqdm import tqdm
 
 from data_platform.ingestion.bluesky_retry import retry_bluesky_request
-from data_platform.models.sync import SyncBlueskyPostModel
 from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
 from data_platform.utils.storage import BlueskyStorageManager
 from lib.load_env_vars import EnvVarsContainer
@@ -182,9 +183,7 @@ def fetch_posts_for_keyword(
 
     while len(rows) < target:
         page_limit = min(target - len(rows), API_MAX_LIMIT)
-        response = _search_posts_page(
-            client, fetch, query, page_limit=page_limit, cursor=cursor
-        )
+        response = _search_posts_page(client, fetch, query, page_limit=page_limit, cursor=cursor)
         if pages_fetched == 0:
             hits_total = response.hits_total
         page_rows = _posts_to_rows(response)
@@ -244,7 +243,9 @@ def init_sync_metadata(
     }
 
 
-def _flush_metadata(storage: BlueskyStorageManager, run_dir: Path, metadata: dict[str, Any]) -> None:
+def _flush_metadata(
+    storage: BlueskyStorageManager, run_dir: Path, metadata: dict[str, Any]
+) -> None:
     storage.write_run_metadata_atomic(run_dir, metadata)
 
 
@@ -476,7 +477,9 @@ def sync_records(
     )
 
     total_rows = metadata["row_count"]
-    print(f"sync_records: wrote {total_rows} rows to {output_dir} (status={metadata['sync_status']})")
+    print(
+        f"sync_records: wrote {total_rows} rows to {output_dir} (status={metadata['sync_status']})"
+    )
     return output_dir
 
 

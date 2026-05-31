@@ -12,7 +12,11 @@ from data_platform.generate_features.metadata import (
     set_sync_status_completed,
     update_batch_counts,
 )
-from data_platform.generate_features.models import FeatureRunConfig, FeatureRunMetadata, FeatureStatus
+from data_platform.generate_features.models import (
+    FeatureRunConfig,
+    FeatureRunMetadata,
+    FeatureStatus,
+)
 
 
 def test_load_or_init_metadata_creates_file(tmp_path: Path) -> None:

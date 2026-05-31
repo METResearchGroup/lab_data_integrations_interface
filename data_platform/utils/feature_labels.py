@@ -6,22 +6,23 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from data_platform.utils.duckdb_features import flat_feature_csv
+from data_platform.utils.duckdb_features import feature_csv_path
 
 
 @dataclass(frozen=True)
 class FeatureLabelQuery:
-    """Query labeled record ids from flat feature CSVs at features root."""
+    """Query labeled record ids from feature CSVs at the features root."""
 
     features_root: Path
     id_column: str = "uri"
 
-    def _flat_feature_csv(self, feature_name: str) -> Path:
-        return flat_feature_csv(self.features_root, feature_name)
+    def _feature_csv_path(self, feature_name: str) -> Path:
+        """Resolve the on-disk CSV path for a feature under features_root."""
+        return feature_csv_path(self.features_root, feature_name)
 
     def labeled_ids(self, feature_name: str) -> set[str]:
-        """Return ids labeled for feature_name in the flat feature CSV."""
-        csv_path = self._flat_feature_csv(feature_name)
+        """Return ids labeled for feature_name in the feature CSV."""
+        csv_path = self._feature_csv_path(feature_name)
         if not csv_path.exists():
             return set()
 

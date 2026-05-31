@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pandas as pd
@@ -16,11 +17,14 @@ from data_platform.generate_features.metadata import (
     update_batch_counts,
 )
 from data_platform.generate_features.models import (
+    BatchRunStats,
     FeatureGenerationConfig,
+    FeatureRunMetadata,
+    FeatureSpec,
     LabelTask,
 )
 from data_platform.utils.dataset import dataset_root, relative_run_path
-from data_platform.utils.duckdb_features import flat_feature_csv
+from data_platform.utils.duckdb_features import feature_csv_path
 from ml_tooling.llm import opik as opik_telemetry
 
 
@@ -29,6 +33,7 @@ def tasks_from_dataframe(
     id_column: str,
     text_column: str,
 ) -> list[LabelTask]:
+    """Convert a posts dataframe into LabelTask rows for batch labeling."""
     if records.empty:
         return []
     return [
@@ -41,6 +46,7 @@ def resolve_source_preprocessed_run(
     config: FeatureGenerationConfig,
     preprocessed_run: str | None,
 ) -> str:
+    """Return a pinned or latest preprocessed run path relative to the dataset root."""
     if preprocessed_run:
         return preprocessed_run
     source_run_dir = config.input_storage.latest_run_dir()
@@ -59,11 +65,98 @@ def filter_records_needing_features(
     return config.feature_label_query.filter_unlabeled(records, feature_name)
 
 
+def _make_on_batch_complete(
+    metadata: FeatureRunMetadata,
+    feature_name: str,
+    features_dir: Path,
+) -> Callable[[int, int], None]:
+    """Build a callback that flushes metadata after each atomic batch."""
+
+    def on_batch_complete(labeled_delta: int, failed_delta: int) -> None:
+        update_batch_counts(metadata, feature_name, labeled_delta, failed_delta)
+        flush_metadata(features_dir, metadata)
+
+    return on_batch_complete
+
+
+def _run_feature_labeling(
+    feature_name: str,
+    spec: FeatureSpec,
+    tasks: list[LabelTask],
+    config: FeatureGenerationConfig,
+    metadata: FeatureRunMetadata,
+) -> BatchRunStats:
+    """Execute batch labeling for one feature and update metadata on completion."""
+    mark_feature_in_progress(metadata, feature_name)
+    flush_metadata(config.features_dir, metadata)
+
+    engine = build_engine(spec, config.run_config)
+    stats = engine.label_records(
+        tasks,
+        feature_name=feature_name,
+        features_dir=config.features_dir,
+        batch_size=config.run_config.batch_size,
+        on_batch_complete=_make_on_batch_complete(metadata, feature_name, config.features_dir),
+    )
+
+    total_labeled = metadata.features[feature_name].labeled
+    mark_feature_completed(metadata, feature_name, total_labeled)
+    flush_metadata(config.features_dir, metadata)
+    return stats
+
+
+def _process_one_feature(
+    feature_name: str,
+    spec: FeatureSpec,
+    records: pd.DataFrame,
+    config: FeatureGenerationConfig,
+    metadata: FeatureRunMetadata,
+) -> Path:
+    """Label or skip a single feature and return its output CSV path."""
+    feature_status = metadata.features.get(feature_name)
+    csv_path = feature_csv_path(config.features_dir, feature_name)
+
+    if feature_status and feature_status.status == "completed":
+        print(f"generate_features: skipping completed feature {feature_name}")
+        return csv_path
+
+    pending_df = filter_records_needing_features(records, feature_name, config)
+    tasks = tasks_from_dataframe(pending_df, config.id_column, config.text_column)
+    if not tasks:
+        prior_labeled = feature_status.labeled if feature_status else 0
+        mark_feature_completed(metadata, feature_name, prior_labeled)
+        flush_metadata(config.features_dir, metadata)
+        print(f"generate_features: {feature_name} — nothing to label")
+        return csv_path
+
+    stats = _run_feature_labeling(feature_name, spec, tasks, config, metadata)
+    print(
+        f"generate_features: {feature_name} -> {stats.labeled} new labels "
+        f"({stats.failed_batches} failed batches) -> {csv_path}"
+    )
+    return csv_path
+
+
+def _maybe_mark_sync_completed(
+    metadata: FeatureRunMetadata,
+    feature_names: tuple[str, ...],
+    features_dir: Path,
+) -> None:
+    """Set sync_status completed when every feature entry is marked completed."""
+    all_done = all(
+        metadata.features.get(name) and metadata.features[name].status == "completed"
+        for name in feature_names
+    )
+    if all_done:
+        set_sync_status_completed(metadata)
+        flush_metadata(features_dir, metadata)
+
+
 def generate_features(
     records: pd.DataFrame,
     config: FeatureGenerationConfig,
 ) -> dict[str, Path]:
-    """Generate all configured features with resumable flat CSV append."""
+    """Generate configured features with resumable append to per-feature CSV files."""
     if records.empty:
         print("generate_features: no records to label")
         return {}
@@ -86,60 +179,15 @@ def generate_features(
 
     with opik_telemetry.project_scope():
         for feature_name, spec in config.feature_registry.items():
-            feature_status = metadata.features.get(feature_name)
-            if feature_status and feature_status.status == "completed":
-                print(f"generate_features: skipping completed feature {feature_name}")
-                written[feature_name] = flat_feature_csv(config.features_dir, feature_name)
-                continue
-
-            pending_df = filter_records_needing_features(records, feature_name, config)
-            tasks = tasks_from_dataframe(
-                pending_df,
-                config.id_column,
-                config.text_column,
-            )
-            if not tasks:
-                prior_labeled = feature_status.labeled if feature_status else 0
-                mark_feature_completed(metadata, feature_name, prior_labeled)
-                flush_metadata(config.features_dir, metadata)
-                written[feature_name] = flat_feature_csv(config.features_dir, feature_name)
-                print(f"generate_features: {feature_name} — nothing to label")
-                continue
-
-            mark_feature_in_progress(metadata, feature_name)
-            flush_metadata(config.features_dir, metadata)
-
-            engine = build_engine(spec, config.run_config)
-
-            def on_batch_complete(labeled_delta: int, failed_delta: int) -> None:
-                update_batch_counts(metadata, feature_name, labeled_delta, failed_delta)
-                flush_metadata(config.features_dir, metadata)
-
-            stats = engine.label_records(
-                tasks,
-                feature_name=feature_name,
-                features_dir=config.features_dir,
-                batch_size=config.run_config.batch_size,
-                on_batch_complete=on_batch_complete,
+            written[feature_name] = _process_one_feature(
+                feature_name,
+                spec,
+                records,
+                config,
+                metadata,
             )
 
-            total_labeled = metadata.features[feature_name].labeled
-            mark_feature_completed(metadata, feature_name, total_labeled)
-            flush_metadata(config.features_dir, metadata)
-            csv_path = flat_feature_csv(config.features_dir, feature_name)
-            written[feature_name] = csv_path
-            print(
-                f"generate_features: {feature_name} -> {stats.labeled} new labels "
-                f"({stats.failed_batches} failed batches) -> {csv_path}"
-            )
-
-        all_done = all(
-            metadata.features.get(name) and metadata.features[name].status == "completed"
-            for name in feature_names
-        )
-        if all_done:
-            set_sync_status_completed(metadata)
-            flush_metadata(config.features_dir, metadata)
+        _maybe_mark_sync_completed(metadata, feature_names, config.features_dir)
 
         if config.run_config.opik_enabled:
             opik_telemetry.flush()

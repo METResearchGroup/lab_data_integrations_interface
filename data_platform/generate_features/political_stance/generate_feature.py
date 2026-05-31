@@ -11,6 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from lib.timestamp_utils import get_current_timestamp
 from ml_tooling.llm.llm import structured_chat_completion
 
 SYSTEM_PROMPT = """\
@@ -73,8 +74,6 @@ class PoliticalStanceModel(BaseModel):
 
 def generate_feature(uri: str, text: str) -> PoliticalStanceModel:
     """Classify the post's political stance."""
-    from lib.timestamp_utils import get_current_timestamp
-
     result = structured_chat_completion(
         user_prompt=text,
         output_schema=LlmPoliticalStanceModel,

@@ -48,6 +48,7 @@ class FeatureRunMetadata:
     updated_at: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize metadata to the features/metadata.json document shape."""
         return {
             "dataset_id": self.dataset_id,
             "source_preprocessed_run": self.source_preprocessed_run,
@@ -76,6 +77,7 @@ class FeatureRunMetadata:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FeatureRunMetadata:
+        """Load metadata from a parsed features/metadata.json dict."""
         config_raw = data.get("config", {})
         config = FeatureRunConfig(
             batch_size=config_raw.get("batch_size", 64),

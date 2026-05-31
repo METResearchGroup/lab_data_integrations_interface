@@ -44,14 +44,26 @@ def test_build_wide_table_joins_features(tmp_path: Path) -> None:
     features_root.mkdir(parents=True)
     pd.DataFrame(
         [
-            {"uri": "at://a/post/1", "label_timestamp": "2026_01_01-00:00:00", "is_political": True},
-            {"uri": "at://b/post/2", "label_timestamp": "2026_01_01-00:00:00", "is_political": False},
+            {
+                "uri": "at://a/post/1",
+                "label_timestamp": "2026_01_01-00:00:00",
+                "is_political": True,
+            },
+            {
+                "uri": "at://b/post/2",
+                "label_timestamp": "2026_01_01-00:00:00",
+                "is_political": False,
+            },
         ]
     ).to_csv(features_root / "is_political.csv", index=False)
     pd.DataFrame(
         [
             {"uri": "at://a/post/1", "label_timestamp": "2026_01_01-00:00:00", "category": "news"},
-            {"uri": "at://b/post/2", "label_timestamp": "2026_01_01-00:00:00", "category": "opinion"},
+            {
+                "uri": "at://b/post/2",
+                "label_timestamp": "2026_01_01-00:00:00",
+                "category": "opinion",
+            },
         ]
     ).to_csv(features_root / "is_news_or_opinion.csv", index=False)
 

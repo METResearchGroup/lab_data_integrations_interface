@@ -7,13 +7,21 @@ import pandas as pd
 from data_platform.utils.feature_labels import FeatureLabelQuery
 
 
-def test_labeled_ids_from_flat_feature_csv(tmp_path: Path) -> None:
+def test_labeled_ids_from_feature_csv(tmp_path: Path) -> None:
     features_root = tmp_path / "features"
     features_root.mkdir(parents=True)
     pd.DataFrame(
         [
-            {"uri": "at://a/post/1", "label_timestamp": "2026_01_01-00:00:00", "is_political": True},
-            {"uri": "at://b/post/2", "label_timestamp": "2026_01_01-00:00:00", "is_political": False},
+            {
+                "uri": "at://a/post/1",
+                "label_timestamp": "2026_01_01-00:00:00",
+                "is_political": True,
+            },
+            {
+                "uri": "at://b/post/2",
+                "label_timestamp": "2026_01_01-00:00:00",
+                "is_political": False,
+            },
         ]
     ).to_csv(features_root / "is_political.csv", index=False)
 

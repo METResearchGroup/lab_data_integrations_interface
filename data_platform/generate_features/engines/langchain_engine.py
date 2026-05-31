@@ -6,13 +6,18 @@ from typing import cast
 
 from langchain_core.runnables import RunnableConfig
 
-from data_platform.generate_features.engines.base import BaseBatchExecutionEngine, row_with_label_timestamp
+from data_platform.generate_features.engines.base import (
+    BaseBatchExecutionEngine,
+    row_with_label_timestamp,
+)
 from data_platform.generate_features.models import FeatureRunConfig, FeatureSpec, LabelTask
 from lib.timestamp_utils import get_current_timestamp
 from ml_tooling.llm.llm import build_structured_chat_chain
 
 
 class LangChainBatchEngine(BaseBatchExecutionEngine):
+    """Label tasks via one structured-output chain and Runnable.batch concurrency."""
+
     def __init__(self, spec: FeatureSpec, run_config: FeatureRunConfig) -> None:
         super().__init__(spec, run_config)
         if spec.system_prompt is None or spec.llm_output_schema is None:
@@ -24,6 +29,7 @@ class LangChainBatchEngine(BaseBatchExecutionEngine):
         self._label_timestamp = get_current_timestamp()
 
     def batch_label_records(self, tasks: list[LabelTask]) -> list[dict]:
+        """Run chain.batch on pending tasks and return validated label dict rows."""
         if not tasks:
             return []
 

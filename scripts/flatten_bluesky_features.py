@@ -12,12 +12,12 @@ import argparse
 import csv
 import json
 import shutil
-from datetime import UTC, datetime
 from pathlib import Path
 
 from data_platform.generate_features.registry import FEATURE_REGISTRY
 from data_platform.utils.dataset import dataset_root, validate_dataset_id
 from data_platform.utils.storage import METADATA_FILENAME
+from lib.timestamp_utils import utc_now_iso
 
 DEFAULT_BATCH_SIZE = 64
 DEFAULT_MAX_CONCURRENCY = 20
@@ -25,7 +25,7 @@ DEFAULT_MAX_LABEL_RETRIES = 3
 
 
 def discover_nested_run_dirs(features_dir: Path) -> list[Path]:
-    """List features/{timestamp}/ dirs sorted by name."""
+    """List nested features/{timestamp}/ directories sorted by run name."""
     if not features_dir.exists():
         return []
     run_dirs = [
@@ -37,6 +37,7 @@ def discover_nested_run_dirs(features_dir: Path) -> list[Path]:
 
 
 def load_run_metadata(run_dir: Path) -> dict:
+    """Read metadata.json from a nested feature run directory, or return {}."""
     metadata_path = run_dir / METADATA_FILENAME
     if not metadata_path.exists():
         return {}
@@ -45,6 +46,7 @@ def load_run_metadata(run_dir: Path) -> dict:
 
 
 def _read_csv_rows(csv_path: Path) -> list[dict[str, str]]:
+    """Load all rows from a feature CSV path, or return an empty list."""
     if not csv_path.exists():
         return []
     with csv_path.open(newline="", encoding="utf-8") as f:
@@ -52,6 +54,7 @@ def _read_csv_rows(csv_path: Path) -> list[dict[str, str]]:
 
 
 def collect_feature_rows(features_dir: Path, feature_name: str) -> list[dict[str, str]]:
+    """Gather rows from every nested run CSV, tagging each with label_timestamp."""
     rows: list[dict[str, str]] = []
     for run_dir in discover_nested_run_dirs(features_dir):
         csv_path = run_dir / f"{feature_name}.csv"
@@ -61,6 +64,7 @@ def collect_feature_rows(features_dir: Path, feature_name: str) -> list[dict[str
 
 
 def dedupe_rows_by_uri(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Keep one row per uri, preferring the latest label_timestamp run."""
     by_uri: dict[str, dict[str, str]] = {}
     for row in rows:
         uri = row.get("uri", "")
@@ -73,6 +77,7 @@ def dedupe_rows_by_uri(rows: list[dict[str, str]]) -> list[dict[str, str]]:
 
 
 def _fieldnames_for_feature(feature_name: str, rows: list[dict[str, str]]) -> list[str]:
+    """Return CSV column order: uri, label_timestamp, then remaining feature fields."""
     if not rows:
         spec = FEATURE_REGISTRY[feature_name]
         model_fields = list(spec.model.model_fields.keys())
@@ -89,11 +94,12 @@ def _fieldnames_for_feature(feature_name: str, rows: list[dict[str, str]]) -> li
     return ordered
 
 
-def write_flat_feature_csv(
+def write_feature_csv(
     features_dir: Path,
     feature_name: str,
     rows: list[dict[str, str]],
 ) -> int:
+    """Write deduped rows to features_dir/{feature_name}.csv and return the row count."""
     if not rows:
         return 0
     fieldnames = _fieldnames_for_feature(feature_name, rows)
@@ -110,7 +116,8 @@ def build_migrated_metadata(
     feature_counts: dict[str, int],
     source_preprocessed_run: str,
 ) -> dict:
-    now = datetime.now(UTC).isoformat()
+    """Build the root features/metadata.json document after flattening nested runs."""
+    now = utc_now_iso()
     features_meta = {
         name: {
             "status": "completed" if feature_counts.get(name, 0) > 0 else "pending",
@@ -119,9 +126,7 @@ def build_migrated_metadata(
         }
         for name in FEATURE_REGISTRY
     }
-    all_completed = all(
-        features_meta[name]["status"] == "completed" for name in FEATURE_REGISTRY
-    )
+    all_completed = all(features_meta[name]["status"] == "completed" for name in FEATURE_REGISTRY)
     return {
         "dataset_id": dataset_id,
         "source_preprocessed_run": source_preprocessed_run,
@@ -140,11 +145,13 @@ def build_migrated_metadata(
 
 
 def delete_nested_run_dirs(run_dirs: list[Path]) -> None:
+    """Remove nested features/{timestamp}/ directories after a successful flatten."""
     for run_dir in run_dirs:
         shutil.rmtree(run_dir)
 
 
 def flatten_features(dataset_id: str, *, dry_run: bool) -> None:
+    """Flatten nested feature runs into root-level CSVs and optional metadata.json."""
     dataset_id = validate_dataset_id(dataset_id)
     features_dir = dataset_root("bluesky", dataset_id) / "features"
     run_dirs = discover_nested_run_dirs(features_dir)
@@ -178,13 +185,11 @@ def flatten_features(dataset_id: str, *, dry_run: bool) -> None:
         print(json.dumps(metadata, indent=2))
         return
 
-    print(
-        "WARNING: This permanently deletes nested features/{timestamp}/ directories."
-    )
+    print("WARNING: This permanently deletes nested features/{timestamp}/ directories.")
     features_dir.mkdir(parents=True, exist_ok=True)
     for feature_name in FEATURE_REGISTRY:
         rows = dedupe_rows_by_uri(collect_feature_rows(features_dir, feature_name))
-        write_flat_feature_csv(features_dir, feature_name, rows)
+        write_feature_csv(features_dir, feature_name, rows)
 
     metadata_path = features_dir / METADATA_FILENAME
     tmp_path = features_dir / f"{METADATA_FILENAME}.tmp"
@@ -197,6 +202,7 @@ def flatten_features(dataset_id: str, *, dry_run: bool) -> None:
 
 
 def main() -> None:
+    """Parse CLI args and run flatten_features for one Bluesky dataset."""
     parser = argparse.ArgumentParser(description="Flatten nested Bluesky feature runs.")
     parser.add_argument("--dataset-id", required=True)
     parser.add_argument("--dry-run", action="store_true")

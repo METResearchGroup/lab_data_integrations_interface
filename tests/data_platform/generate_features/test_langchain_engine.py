@@ -20,7 +20,9 @@ class _RowModel(BaseModel):
     score: bool
 
 
-def test_langchain_batch_engine_writes_rows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_langchain_batch_engine_writes_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     mock_chain = MagicMock()
     mock_chain.batch.return_value = [_LlmOut(score=True), _LlmOut(score=False)]
 
