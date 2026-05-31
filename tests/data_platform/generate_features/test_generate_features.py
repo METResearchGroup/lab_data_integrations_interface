@@ -58,11 +58,19 @@ def test_skips_completed_features(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
         engine_type="thread_pool",
         generate_fn=lambda u, t: None,  # type: ignore[arg-type]
     )
+    config = FeatureGenerationConfig(
+        platform="bluesky",
+        id_column="uri",
+        text_column="text",
+        feature_registry={"feat_a": spec},
+        input_storage=BlueskyStorageManager("preprocessed", dataset_id),
+        features_dir=features_dir,
+        feature_label_query=FeatureLabelQuery(features_root=features_dir),
+        run_config=FeatureRunConfig(opik_enabled=False),
+        preprocessed_run="preprocessed/2026_01_01-00:00:00",
+    )
     metadata = load_or_init_metadata(
-        features_dir,
-        dataset_id,
-        "preprocessed/2026_01_01-00:00:00",
-        FeatureRunConfig(opik_enabled=False),
+        config,
         feature_names=("feat_a",),
     )
     metadata.features["feat_a"] = FeatureStatus(status="completed", labeled=1)
@@ -75,16 +83,6 @@ def test_skips_completed_features(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     )
 
     records = pd.DataFrame([{"uri": "at://a/post/1", "text": "one"}])
-    config = FeatureGenerationConfig(
-        platform="bluesky",
-        id_column="uri",
-        text_column="text",
-        feature_registry={"feat_a": spec},
-        input_storage=BlueskyStorageManager("preprocessed", dataset_id),
-        features_dir=features_dir,
-        feature_label_query=FeatureLabelQuery(features_root=features_dir),
-        run_config=FeatureRunConfig(opik_enabled=False),
-    )
     generate_features(records, config)
     mock_engine.label_records.assert_not_called()
 

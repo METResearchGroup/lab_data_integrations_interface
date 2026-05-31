@@ -13,19 +13,30 @@ from data_platform.generate_features.metadata import (
     update_batch_counts,
 )
 from data_platform.generate_features.models import (
+    FeatureGenerationConfig,
     FeatureRunConfig,
     FeatureRunMetadata,
     FeatureStatus,
 )
+from data_platform.utils.feature_labels import FeatureLabelQuery
+from data_platform.utils.storage import BlueskyStorageManager
 
 
 def test_load_or_init_metadata_creates_file(tmp_path: Path) -> None:
     features_dir = tmp_path / "features"
-    config = FeatureRunConfig(batch_size=32, opik_enabled=False)
+    dataset_id = "bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    config = FeatureGenerationConfig(
+        platform="bluesky",
+        id_column="uri",
+        text_column="text",
+        feature_registry={},
+        input_storage=BlueskyStorageManager("preprocessed", dataset_id),
+        features_dir=features_dir,
+        feature_label_query=FeatureLabelQuery(features_root=features_dir),
+        run_config=FeatureRunConfig(batch_size=32, opik_enabled=False),
+        preprocessed_run="preprocessed/2026_01_01-00:00:00",
+    )
     metadata = load_or_init_metadata(
-        features_dir,
-        "bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479",
-        "preprocessed/2026_01_01-00:00:00",
         config,
         feature_names=("is_political",),
     )
