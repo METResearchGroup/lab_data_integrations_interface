@@ -56,17 +56,24 @@ class LlmIsNewsOrOpinionModel(BaseModel):
 
 class IsNewsOrOpinionModel(BaseModel):
     uri: str
+    label_timestamp: str
     category: Literal["news", "opinion", "neither"]
 
 
 def generate_feature(uri: str, text: str) -> IsNewsOrOpinionModel:
     """Classify text as news, opinion, or neither."""
+    from lib.timestamp_utils import get_current_timestamp
+
     result = structured_chat_completion(
         user_prompt=text,
         output_schema=LlmIsNewsOrOpinionModel,
         system_prompt=SYSTEM_PROMPT,
     )
-    return IsNewsOrOpinionModel(uri=uri, category=result.category)
+    return IsNewsOrOpinionModel(
+        uri=uri,
+        label_timestamp=get_current_timestamp(),
+        category=result.category,
+    )
 
 
 if __name__ == "__main__":

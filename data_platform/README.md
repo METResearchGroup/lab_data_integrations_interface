@@ -14,7 +14,7 @@ Each logical collection is identified by **`dataset_id`** (`bluesky_<uuid>`), pi
 |-------|--------|--------|
 | Ingestion | `data_platform/ingestion/` | `data/bluesky/{dataset_id}/raw/{timestamp}/` |
 | Preprocessing | `data_platform/preprocessing/` | `data/bluesky/{dataset_id}/preprocessed/{timestamp}/posts.csv` |
-| Features | `data_platform/generate_features/` | `data/bluesky/{dataset_id}/features/{timestamp}/*.csv` |
+| Features | `data_platform/generate_features/` | `data/bluesky/{dataset_id}/features/{feature}.csv`, `metadata.json` |
 | Curate | `data_platform/curate/` | `data/bluesky/{dataset_id}/curated/{timestamp}/` |
 
 ## Commands
@@ -47,7 +47,17 @@ PYTHONPATH=. uv run python data_platform/preprocessing/preprocess_bluesky.py \
   --dataset-id bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479
 
 PYTHONPATH=. uv run python data_platform/generate_features/generate_bluesky_features.py \
+  --dataset-id bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479 \
+  --batch-size 64 --no-opik
+
+One-time migration from nested `features/{timestamp}/` layout (destructive):
+
+```bash
+PYTHONPATH=. uv run python scripts/flatten_bluesky_features.py \
+  --dataset-id bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479 --dry-run
+PYTHONPATH=. uv run python scripts/flatten_bluesky_features.py \
   --dataset-id bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479
+```
 
 PYTHONPATH=. uv run python data_platform/curate/curate_bluesky.py \
   --dataset-id bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479 \

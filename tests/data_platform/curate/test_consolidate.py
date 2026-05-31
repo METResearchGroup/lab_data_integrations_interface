@@ -41,20 +41,19 @@ def test_build_wide_table_joins_features(tmp_path: Path) -> None:
     _write_posts(posts_csv)
 
     features_root = tmp_path / "features"
-    run_dir = features_root / "run1"
-    run_dir.mkdir(parents=True)
+    features_root.mkdir(parents=True)
     pd.DataFrame(
         [
-            {"uri": "at://a/post/1", "is_political": True},
-            {"uri": "at://b/post/2", "is_political": False},
+            {"uri": "at://a/post/1", "label_timestamp": "2026_01_01-00:00:00", "is_political": True},
+            {"uri": "at://b/post/2", "label_timestamp": "2026_01_01-00:00:00", "is_political": False},
         ]
-    ).to_csv(run_dir / "is_political.csv", index=False)
+    ).to_csv(features_root / "is_political.csv", index=False)
     pd.DataFrame(
         [
-            {"uri": "at://a/post/1", "category": "news"},
-            {"uri": "at://b/post/2", "category": "opinion"},
+            {"uri": "at://a/post/1", "label_timestamp": "2026_01_01-00:00:00", "category": "news"},
+            {"uri": "at://b/post/2", "label_timestamp": "2026_01_01-00:00:00", "category": "opinion"},
         ]
-    ).to_csv(run_dir / "is_news_or_opinion.csv", index=False)
+    ).to_csv(features_root / "is_news_or_opinion.csv", index=False)
 
     wide = build_wide_table(
         ConsolidateConfig(

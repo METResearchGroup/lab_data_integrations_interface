@@ -54,17 +54,24 @@ class LlmIsPoliticalModel(BaseModel):
 
 class IsPoliticalModel(BaseModel):
     uri: str
+    label_timestamp: str
     is_political: bool
 
 
 def generate_feature(uri: str, text: str) -> IsPoliticalModel:
     """Classify whether the post text is political."""
+    from lib.timestamp_utils import get_current_timestamp
+
     result = structured_chat_completion(
         user_prompt=text,
         output_schema=LlmIsPoliticalModel,
         system_prompt=SYSTEM_PROMPT,
     )
-    return IsPoliticalModel(uri=uri, is_political=result.is_political)
+    return IsPoliticalModel(
+        uri=uri,
+        label_timestamp=get_current_timestamp(),
+        is_political=result.is_political,
+    )
 
 
 if __name__ == "__main__":

@@ -62,17 +62,24 @@ class LlmIsSelfContainedModel(BaseModel):
 
 class IsSelfContainedModel(BaseModel):
     uri: str
+    label_timestamp: str
     is_self_contained: bool
 
 
 def generate_feature(uri: str, text: str) -> IsSelfContainedModel:
     """Classify whether the post text is self-contained."""
+    from lib.timestamp_utils import get_current_timestamp
+
     result = structured_chat_completion(
         user_prompt=text,
         output_schema=LlmIsSelfContainedModel,
         system_prompt=SYSTEM_PROMPT,
     )
-    return IsSelfContainedModel(uri=uri, is_self_contained=result.is_self_contained)
+    return IsSelfContainedModel(
+        uri=uri,
+        label_timestamp=get_current_timestamp(),
+        is_self_contained=result.is_self_contained,
+    )
 
 
 if __name__ == "__main__":

@@ -67,17 +67,24 @@ class LlmPoliticalStanceModel(BaseModel):
 
 class PoliticalStanceModel(BaseModel):
     uri: str
+    label_timestamp: str
     political_stance: Literal["left", "right", "neutral", "unclear"]
 
 
 def generate_feature(uri: str, text: str) -> PoliticalStanceModel:
     """Classify the post's political stance."""
+    from lib.timestamp_utils import get_current_timestamp
+
     result = structured_chat_completion(
         user_prompt=text,
         output_schema=LlmPoliticalStanceModel,
         system_prompt=SYSTEM_PROMPT,
     )
-    return PoliticalStanceModel(uri=uri, political_stance=result.political_stance)
+    return PoliticalStanceModel(
+        uri=uri,
+        label_timestamp=get_current_timestamp(),
+        political_stance=result.political_stance,
+    )
 
 
 if __name__ == "__main__":

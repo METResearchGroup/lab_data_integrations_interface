@@ -5,8 +5,8 @@ from __future__ import annotations
 import contextlib
 import contextvars
 from datetime import UTC, datetime
-from functools import lru_cache
-from typing import Any
+from functools import lru_cache, wraps
+from typing import Any, Callable, TypeVar
 
 import opik
 
@@ -18,10 +18,26 @@ opik.configure(
     automatic_approvals=True,
 )
 
+_opik_enabled: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "opik_enabled",
+    default=True,
+)
+
 _feature_context: contextvars.ContextVar[dict[str, Any]] = contextvars.ContextVar(
     "opik_feature_context",
     default={},
 )
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def set_opik_enabled(enabled: bool) -> None:
+    """Enable or disable Opik telemetry for the current context."""
+    _opik_enabled.set(enabled)
+
+
+def is_opik_enabled() -> bool:
+    return _opik_enabled.get()
 
 
 def push_context(**fields: Any) -> contextvars.Token[dict[str, Any]]:
@@ -42,6 +58,8 @@ def current_context() -> dict[str, Any]:
 
 def enrich_llm_trace(**kwargs: Any) -> None:
     """Update the current Opik trace; kwargs are forwarded to ``update_current_trace``."""
+    if not is_opik_enabled():
+        return
     from opik import opik_context
 
     opik_context.update_current_trace(**kwargs)
@@ -50,6 +68,8 @@ def enrich_llm_trace(**kwargs: Any) -> None:
 @lru_cache(maxsize=64)
 def resolve_system_prompt(*, feature_name: str, system_prompt: str) -> Any:
     """Register or resolve a versioned system prompt in the Opik prompt library."""
+    if not is_opik_enabled():
+        return system_prompt
     return opik.get_global_client().create_prompt(
         name=feature_name,
         prompt=system_prompt,
@@ -59,6 +79,8 @@ def resolve_system_prompt(*, feature_name: str, system_prompt: str) -> Any:
 
 def langchain_callbacks(*, feature_name: str | None = None) -> list[Any]:
     """Build LangChain callback handlers for Opik tracing."""
+    if not is_opik_enabled():
+        return []
     from opik.integrations.langchain import OpikTracer
 
     tags = [feature_name] if feature_name else None
@@ -67,6 +89,8 @@ def langchain_callbacks(*, feature_name: str | None = None) -> list[Any]:
 
 def flush() -> None:
     """Flush pending Opik traces to the server."""
+    if not is_opik_enabled():
+        return
     opik.flush_tracker()
 
 
@@ -75,17 +99,34 @@ def utc_now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def track_llm_call(name: str):
-    """Return an ``@opik.track`` decorator for LLM entrypoints."""
-    return opik.track(
-        name=name,
-        project_name=PROJECT_NAME,
-        ignore_arguments=["output_schema", "system_prompt"],
-    )
+def track_llm_call(name: str) -> Callable[[F], F]:
+    """Return an ``@opik.track`` decorator for LLM entrypoints, or a no-op when disabled."""
+    tracked_fn: dict[str, Callable[..., Any]] = {}
+
+    def decorator(fn: F) -> F:
+        opik_tracked = opik.track(
+            name=name,
+            project_name=PROJECT_NAME,
+            ignore_arguments=["output_schema", "system_prompt"],
+        )(fn)
+        tracked_fn["impl"] = opik_tracked
+
+        @wraps(fn)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if is_opik_enabled():
+                return tracked_fn["impl"](*args, **kwargs)
+            return fn(*args, **kwargs)
+
+        return wrapper  # type: ignore[return-value]
+
+    return decorator
 
 
 @contextlib.contextmanager
 def project_scope():
     """Scope all Opik operations in a batch to ``PROJECT_NAME``."""
+    if not is_opik_enabled():
+        yield
+        return
     with opik.project_context(PROJECT_NAME):
         yield
