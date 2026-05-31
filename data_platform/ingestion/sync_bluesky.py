@@ -6,20 +6,30 @@ Run from the repo root:
 
     PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py --config mirrorview.yaml
 
+Resume the latest in-progress run for a dataset:
+
+    PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py --config mirrorview_scale.yaml --resume
+
+Resume a specific raw run timestamp:
+
+    PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py --config mirrorview_scale.yaml --resume --run-dir 2026_05_30-12:00:00
+
 Ingestion YAML must include `dataset_id` (e.g. bluesky_<uuid>).
 """
 
 from __future__ import annotations
 
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import typer
 import yaml
 from atproto import Client
 from tqdm import tqdm
 
+from data_platform.ingestion.bluesky_retry import retry_bluesky_request
 from data_platform.models.sync import SyncBlueskyPostModel
 from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
 from data_platform.utils.storage import BlueskyStorageManager
@@ -33,6 +43,17 @@ API_MAX_LIMIT = 100
 POSTS_RECORD_TYPE = "app.bsky.feed.post"
 POSTS_CSV = "posts.csv"
 DEFAULT_QUERY_BATCH_SIZE = 5
+
+KeywordStatus = Literal["pending", "in_progress", "completed", "failed", "skipped"]
+SyncStatus = Literal["in_progress", "completed"]
+
+
+@dataclass(frozen=True)
+class FetchWorkItem:
+    batch_label: str
+    query: str
+    ledger_key: str
+    keywords_in_batch: list[str] | None = None
 
 
 def _record_type_to_filename(record_type: str, output_stem: str = "posts") -> str:
@@ -61,18 +82,44 @@ def _chunk_keywords(keywords: list[str], batch_size: int) -> list[list[str]]:
     return [keywords[i : i + batch_size] for i in range(0, len(keywords), batch_size)]
 
 
-def _iter_fetch_queries(fetch: dict[str, Any]) -> list[tuple[str, str]]:
+def iter_fetch_work_items(fetch: dict[str, Any]) -> list[FetchWorkItem]:
+    """Return work items as (batch_label, query, ledger_key) for checkpointing."""
     keyword = fetch.get("keyword")
+    batch_size = _query_batch_size(fetch)
     if isinstance(keyword, list):
-        chunks = _chunk_keywords(keyword, _query_batch_size(fetch))
-        return [
-            (f"posts_batch_{index + 1}", build_or_query(chunk))
-            for index, chunk in enumerate(chunks)
-        ]
+        items: list[FetchWorkItem] = []
+        for index, chunk in enumerate(_chunk_keywords(keyword, batch_size)):
+            batch_label = f"posts_batch_{index + 1}"
+            query = build_or_query(chunk)
+            if batch_size == 1:
+                ledger_key = chunk[0]
+                keywords_in_batch = None
+            else:
+                ledger_key = batch_label
+                keywords_in_batch = chunk
+            items.append(
+                FetchWorkItem(
+                    batch_label=batch_label,
+                    query=query,
+                    ledger_key=ledger_key,
+                    keywords_in_batch=keywords_in_batch,
+                )
+            )
+        return items
     if isinstance(keyword, str) and keyword:
-        return [("posts", keyword)]
+        return [
+            FetchWorkItem(
+                batch_label="posts",
+                query=keyword,
+                ledger_key=keyword,
+            )
+        ]
 
     raise ValueError("fetch config must include 'keyword' as a string or list of strings")
+
+
+def _iter_fetch_queries(fetch: dict[str, Any]) -> list[tuple[str, str]]:
+    return [(item.batch_label, item.query) for item in iter_fetch_work_items(fetch)]
 
 
 def _posts_to_rows(response: Any) -> list[dict[str, Any]]:
@@ -95,20 +142,7 @@ def _posts_to_rows(response: Any) -> list[dict[str, Any]]:
     return rows
 
 
-def _rows_to_validated_dicts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [SyncBlueskyPostModel.model_validate(row).model_dump() for row in rows]
-
-
-def validate_and_write_records(
-    rows: list[dict[str, Any]],
-    output_dir: Path,
-    storage: BlueskyStorageManager,
-    *,
-    filename: str,
-) -> None:
-    storage.write_records(_rows_to_validated_dicts(rows), output_dir, filename=filename)
-
-
+@retry_bluesky_request()
 def _search_posts_page(
     client: Client,
     fetch: dict[str, Any],
@@ -132,80 +166,220 @@ def _search_posts_page(
     return client.app.bsky.feed.search_posts(params=base_params)  # type: ignore[arg-type]
 
 
-def fetch_posts_for_batch(
+def fetch_posts_for_keyword(
     client: Client,
     fetch: dict[str, Any],
     query: str,
     *,
     batch_label: str,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Fetch up to fetch.limit posts for a single batched query."""
-    batch_limit = min(int(fetch["limit"]), API_MAX_LIMIT)
-    response = _search_posts_page(client, fetch, query, page_limit=batch_limit)
-    rows = _posts_to_rows(response)
+    """Fetch up to fetch.limit posts for a single query, paginating with cursor."""
+    target = int(fetch["limit"])
+    rows: list[dict[str, Any]] = []
+    cursor: str | None = None
+    pages_fetched = 0
+    hits_total: int | None = None
+
+    while len(rows) < target:
+        page_limit = min(target - len(rows), API_MAX_LIMIT)
+        response = _search_posts_page(
+            client, fetch, query, page_limit=page_limit, cursor=cursor
+        )
+        if pages_fetched == 0:
+            hits_total = response.hits_total
+        page_rows = _posts_to_rows(response)
+        if not page_rows:
+            break
+        rows.extend(page_rows)
+        pages_fetched += 1
+        cursor = response.cursor
+        if not cursor:
+            break
+
+    rows = rows[:target]
     stats = {
         "batch_label": batch_label,
         "query_len": len(query),
-        "limit": batch_limit,
+        "per_query_limit": target,
+        "pages_fetched": pages_fetched,
         "rows_collected": len(rows),
-        "hits_total": response.hits_total,
+        "hits_total": hits_total,
     }
     return rows, stats
 
 
-def fetch_and_export_post_records(
+def _keyword_entry(item: FetchWorkItem) -> dict[str, Any]:
+    entry: dict[str, Any] = {
+        "status": "pending",
+        "batch_label": item.batch_label,
+        "pages_fetched": 0,
+        "rows_collected": 0,
+        "hits_total": None,
+        "last_error": None,
+    }
+    if item.keywords_in_batch is not None:
+        entry["keywords_in_batch"] = item.keywords_in_batch
+    return entry
+
+
+def init_sync_metadata(
+    config: dict[str, Any],
+    config_path: Path,
+    sync_timestamp: str,
+    work_items: list[FetchWorkItem],
+) -> dict[str, Any]:
+    dataset_id = _require_dataset_id(config)
+    return {
+        "sync_status": "in_progress",
+        "dataset_id": dataset_id,
+        "name": config["name"],
+        "description": config["description"],
+        "date": config["date"],
+        "sync_timestamp": sync_timestamp,
+        "ingestion_config": config_path.name,
+        "record_types": config["record_types"],
+        "fetch": config["fetch"],
+        "row_count": 0,
+        "keywords": {item.ledger_key: _keyword_entry(item) for item in work_items},
+    }
+
+
+def _flush_metadata(storage: BlueskyStorageManager, run_dir: Path, metadata: dict[str, Any]) -> None:
+    storage.write_run_metadata_atomic(run_dir, metadata)
+
+
+def _mark_remaining_skipped(metadata: dict[str, Any]) -> None:
+    for entry in metadata["keywords"].values():
+        if entry["status"] == "pending":
+            entry["status"] = "skipped"
+
+
+def _sync_status_done(metadata: dict[str, Any]) -> SyncStatus:
+    statuses = {entry["status"] for entry in metadata["keywords"].values()}
+    unfinished = statuses - {"completed", "skipped"}
+    return "completed" if not unfinished else "in_progress"
+
+
+def run_keyword_sync_loop(
     client: Client,
     fetch: dict[str, Any],
     output_dir: Path,
     storage: BlueskyStorageManager,
-) -> tuple[dict[str, str], dict[str, int], dict[str, dict[str, Any]]]:
-    queries = _iter_fetch_queries(fetch)
-    keyword = fetch.get("keyword")
-    keyword_count = len(keyword) if isinstance(keyword, list) else 1
-    batch_size = _query_batch_size(fetch) if isinstance(keyword, list) else 1
-    per_batch_limit = min(int(fetch["limit"]), API_MAX_LIMIT)
-    batch_count = len(queries)
+    metadata: dict[str, Any],
+    work_items: list[FetchWorkItem],
+    *,
+    csv_filename: str,
+) -> None:
+    max_rows = fetch.get("max_rows")
+    max_rows_int = int(max_rows) if max_rows is not None else None
 
-    rows_by_uri: dict[str, dict[str, Any]] = {}
-    batch_stats: dict[str, dict[str, Any]] = {}
-
-    for batch_label, query in tqdm(
-        queries,
-        desc="Syncing batches",
+    for item in tqdm(
+        work_items,
+        desc="Syncing keywords",
         disable=not sys.stderr.isatty(),
     ):
-        rows, stats = fetch_posts_for_batch(client, fetch, query, batch_label=batch_label)
-        batch_stats[batch_label] = stats
-        for row in rows:
-            rows_by_uri.setdefault(row["uri"], row)
+        entry = metadata["keywords"][item.ledger_key]
+        status = entry["status"]
+        if status in ("completed", "skipped"):
+            continue
+
+        if max_rows_int is not None and metadata["row_count"] >= max_rows_int:
+            _mark_remaining_skipped(metadata)
+            _flush_metadata(storage, output_dir, metadata)
+            break
+
+        entry["status"] = "in_progress"
+        entry["last_error"] = None
+        _flush_metadata(storage, output_dir, metadata)
+
+        try:
+            rows, stats = fetch_posts_for_keyword(
+                client,
+                fetch,
+                item.query,
+                batch_label=item.batch_label,
+            )
+        except Exception as exc:  # noqa: BLE001 — record and continue
+            entry["status"] = "failed"
+            entry["last_error"] = str(exc)
+            _flush_metadata(storage, output_dir, metadata)
+            print(f"sync_records: {item.ledger_key} failed: {exc}")
+            continue
+
+        seen_uris = storage.load_seen_uris(output_dir, filename=csv_filename)
+        new_rows = [row for row in rows if row["uri"] not in seen_uris]
+        if new_rows:
+            storage.append_records(new_rows, output_dir, filename=csv_filename)
+
+        metadata["row_count"] = len(storage.load_seen_uris(output_dir, filename=csv_filename))
+        entry["status"] = "completed"
+        entry["pages_fetched"] = stats["pages_fetched"]
+        entry["rows_collected"] = stats["rows_collected"]
+        entry["hits_total"] = stats["hits_total"]
+        entry["last_error"] = None
+        _flush_metadata(storage, output_dir, metadata)
+
         print(
-            f"sync_records: {batch_label} -> {stats['rows_collected']} rows "
-            f"(query_len={stats['query_len']}, limit={stats['limit']})"
+            f"sync_records: {item.ledger_key} -> {stats['rows_collected']} rows "
+            f"(appended {len(new_rows)}, pages={stats['pages_fetched']})"
         )
 
-    all_rows = list(rows_by_uri.values())
-    max_rows = fetch.get("max_rows")
-    if max_rows is not None:
-        all_rows = all_rows[: int(max_rows)]
+        if max_rows_int is not None and metadata["row_count"] >= max_rows_int:
+            _mark_remaining_skipped(metadata)
+            _flush_metadata(storage, output_dir, metadata)
+            break
 
-    csv_name = _record_type_to_filename(POSTS_RECORD_TYPE, "posts")
-    validate_and_write_records(all_rows, output_dir, storage, filename=csv_name)
-    file_key = f"{POSTS_RECORD_TYPE}/posts"
-    written_files = {file_key: csv_name}
-    row_counts = {file_key: len(all_rows)}
-    pagination_stats = {
-        file_key: {
-            "query_batch_size": batch_size,
-            "keyword_count": keyword_count,
-            "batch_count": batch_count,
-            "per_batch_limit": per_batch_limit,
-            "expected_max_rows": batch_count * per_batch_limit,
-            "rows_collected": len(all_rows),
-            "batches": batch_stats,
-        }
-    }
+    metadata["sync_status"] = _sync_status_done(metadata)
+    _flush_metadata(storage, output_dir, metadata)
 
-    return written_files, row_counts, pagination_stats
+
+def find_resume_run_dir(
+    storage: BlueskyStorageManager,
+    *,
+    run_dir_name: str | None,
+) -> Path:
+    if run_dir_name is not None:
+        run_dir = storage.root_dir / run_dir_name
+        if not run_dir.is_dir():
+            raise FileNotFoundError(f"Run directory not found: {run_dir}")
+        return run_dir
+
+    if not storage.root_dir.exists():
+        raise FileNotFoundError(f"No raw runs found under {storage.root_dir}")
+
+    candidates: list[tuple[str, Path]] = []
+    for path in storage.root_dir.iterdir():
+        if not path.is_dir():
+            continue
+        metadata_path = path / "metadata.json"
+        if not metadata_path.exists():
+            continue
+        metadata = storage.load_run_metadata(path)
+        if metadata.get("sync_status") == "in_progress":
+            candidates.append((path.name, path))
+
+    if not candidates:
+        raise FileNotFoundError(
+            f"No in-progress raw run found under {storage.root_dir}. "
+            "Start a new sync or pass --run-dir."
+        )
+    return max(candidates, key=lambda item: item[0])[1]
+
+
+def merge_work_items_with_metadata(
+    work_items: list[FetchWorkItem],
+    metadata: dict[str, Any],
+) -> list[FetchWorkItem]:
+    ledger_keys = {item.ledger_key for item in work_items}
+    metadata_keys = set(metadata.get("keywords", {}))
+    missing = ledger_keys - metadata_keys
+    extra = metadata_keys - ledger_keys
+    if missing or extra:
+        raise ValueError(
+            "Config keywords do not match resume metadata "
+            f"(missing in metadata: {sorted(missing)}, extra in metadata: {sorted(extra)})"
+        )
+    return work_items
 
 
 def load_config(config_path: Path) -> dict[str, Any]:
@@ -243,8 +417,16 @@ def setup_client() -> Client:
     return client
 
 
-def sync_records(config_path: Path = DEFAULT_CONFIG) -> Path:
+def sync_records(
+    config_path: Path = DEFAULT_CONFIG,
+    *,
+    resume: bool = False,
+    run_dir_name: str | None = None,
+) -> Path:
     """Fetch Bluesky records per config and write raw CSV + metadata."""
+    if run_dir_name is not None and not resume:
+        raise ValueError("--run-dir requires --resume")
+
     config = load_config(config_path)
     dataset_id = _require_dataset_id(config)
     storage = BlueskyStorageManager("raw", dataset_id)
@@ -259,38 +441,42 @@ def sync_records(config_path: Path = DEFAULT_CONFIG) -> Path:
         )
 
     fetch = config["fetch"]
-    sync_timestamp = get_current_timestamp()
-    output_dir = storage.create_new_run_dir(sync_timestamp)
+    work_items = iter_fetch_work_items(fetch)
+    record_types: list[str] = config["record_types"]
 
+    if POSTS_RECORD_TYPE not in record_types:
+        raise ValueError(f"Unsupported record types for checkpoint sync: {record_types}")
+
+    csv_filename = _record_type_to_filename(POSTS_RECORD_TYPE, "posts")
     client = setup_client()
 
-    record_types: list[str] = config["record_types"]
-    written_files: dict[str, str] = {}
-    row_counts: dict[str, int] = {}
-    pagination_stats: dict[str, dict[str, Any]] = {}
+    if resume:
+        output_dir = find_resume_run_dir(storage, run_dir_name=run_dir_name)
+        metadata = storage.load_run_metadata(output_dir)
+        if metadata.get("sync_status") != "in_progress":
+            metadata["sync_status"] = "in_progress"
+            _flush_metadata(storage, output_dir, metadata)
+        work_items = merge_work_items_with_metadata(work_items, metadata)
+        print(f"sync_records: resuming {output_dir}")
+    else:
+        sync_timestamp = get_current_timestamp()
+        output_dir = storage.create_new_run_dir(sync_timestamp)
+        metadata = init_sync_metadata(config, config_path, sync_timestamp, work_items)
+        _flush_metadata(storage, output_dir, metadata)
+        print(f"sync_records: started new run {output_dir}")
 
-    if POSTS_RECORD_TYPE in record_types:
-        written_files, row_counts, pagination_stats = fetch_and_export_post_records(
-            client, fetch, output_dir, storage
-        )
+    run_keyword_sync_loop(
+        client,
+        fetch,
+        output_dir,
+        storage,
+        metadata,
+        work_items,
+        csv_filename=csv_filename,
+    )
 
-    metadata = {
-        "dataset_id": dataset_id,
-        "name": config["name"],
-        "description": config["description"],
-        "date": config["date"],
-        "sync_timestamp": sync_timestamp,
-        "ingestion_config": config_path.name,
-        "record_types": record_types,
-        "fetch": fetch,
-        "row_counts": row_counts,
-        "pagination": pagination_stats,
-        "files": written_files,
-    }
-    storage.write_run_metadata(output_dir, metadata)
-
-    total_rows = sum(row_counts.values())
-    print(f"sync_records: wrote {total_rows} rows across {len(row_counts)} files to {output_dir}")
+    total_rows = metadata["row_count"]
+    print(f"sync_records: wrote {total_rows} rows to {output_dir} (status={metadata['sync_status']})")
     return output_dir
 
 
@@ -300,9 +486,19 @@ def main(
         "--config",
         help="YAML config path or filename under configs/bluesky/ (e.g. mirrorview.yaml)",
     ),
+    resume: bool = typer.Option(
+        False,
+        "--resume",
+        help="Resume the latest in-progress raw run for this dataset",
+    ),
+    run_dir: str | None = typer.Option(
+        None,
+        "--run-dir",
+        help="Raw run timestamp directory name (requires --resume)",
+    ),
 ) -> None:
     config_path = resolve_config_path(config)
-    sync_records(config_path)
+    sync_records(config_path, resume=resume, run_dir_name=run_dir)
 
 
 if __name__ == "__main__":

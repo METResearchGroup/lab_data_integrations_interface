@@ -24,6 +24,16 @@ def _write_csv(rows: list[dict[str, Any]], output_path: Path, fieldnames: list[s
         writer.writerows(rows)
 
 
+def _append_csv(rows: list[dict[str, Any]], output_path: Path, fieldnames: list[str]) -> None:
+    file_exists = output_path.exists()
+    mode = "a" if file_exists else "w"
+    with output_path.open(mode, newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerows(rows)
+
+
 class StorageManager:
     platform: str
     stage: Stage
@@ -90,6 +100,32 @@ class StorageManager:
         _write_csv(rows, csv_path, fieldnames)
         return csv_path
 
+    def append_records(
+        self,
+        rows: list[dict[str, Any]],
+        run_dir: Path,
+        *,
+        filename: str | None = None,
+    ) -> Path:
+        validated = [self.model.model_validate(row).model_dump() for row in rows]
+        csv_path = run_dir / (filename or self.records_filename)
+        fieldnames = list(self.model.model_fields.keys())
+        _append_csv(validated, csv_path, fieldnames)
+        return csv_path
+
+    def load_seen_uris(
+        self,
+        run_dir: Path,
+        *,
+        filename: str | None = None,
+    ) -> set[str]:
+        csv_path = run_dir / (filename or self.records_filename)
+        if not csv_path.exists():
+            return set()
+        with csv_path.open(newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            return {row["uri"] for row in reader if row.get("uri")}
+
     def load_records(
         self,
         run_dir: Path | None = None,
@@ -108,6 +144,14 @@ class StorageManager:
         metadata_path = run_dir / METADATA_FILENAME
         with metadata_path.open("w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
+        return metadata_path
+
+    def write_run_metadata_atomic(self, run_dir: Path, metadata: dict[str, Any]) -> Path:
+        metadata_path = run_dir / METADATA_FILENAME
+        tmp_path = run_dir / f"{METADATA_FILENAME}.tmp"
+        with tmp_path.open("w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2)
+        tmp_path.replace(metadata_path)
         return metadata_path
 
     def load_run_metadata(

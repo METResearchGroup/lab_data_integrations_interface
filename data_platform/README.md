@@ -25,6 +25,21 @@ Ingestion reads `dataset_id` from the ingestion config:
 PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py --config mirrorview.yaml
 ```
 
+Large scale syncs checkpoint per keyword in `raw/{timestamp}/metadata.json` and append to `posts.csv` after each keyword completes. Resume after interrupt or rate limits:
+
+```bash
+PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py --config mirrorview_scale.yaml --resume
+```
+
+Inspect unfinished keywords:
+
+```bash
+jq '.keywords | to_entries | map(select(.value.status != "completed")) | length' \
+  data_platform/data/bluesky/<dataset_id>/raw/<timestamp>/metadata.json
+```
+
+See [docs/plans/2026-05-30_sync_bluesky_resumable_482910/README.md](../docs/plans/2026-05-30_sync_bluesky_resumable_482910/README.md).
+
 Preprocess, features, and curate require the same `--dataset-id` as in ingestion YAML:
 
 ```bash
