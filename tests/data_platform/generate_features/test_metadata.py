@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from data_platform.generate_features.metadata import (
     flush_metadata,
@@ -13,28 +12,18 @@ from data_platform.generate_features.metadata import (
     update_batch_counts,
 )
 from data_platform.generate_features.models import (
-    FeatureGenerationConfig,
     FeatureRunConfig,
     FeatureRunMetadata,
     FeatureStatus,
 )
-from data_platform.utils.feature_labels import FeatureLabelQuery
-from data_platform.utils.storage import BlueskyStorageManager
+from tests.data_platform.constants import FEATURES_DATASET_ID, PREPROCESSED_RUN
+from tests.data_platform.generate_features.conftest import make_feature_generation_config
 
 
-def test_load_or_init_metadata_creates_file(tmp_path: Path) -> None:
-    features_dir = tmp_path / "features"
-    dataset_id = "bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479"
-    config = FeatureGenerationConfig(
-        platform="bluesky",
-        id_column="uri",
-        text_column="text",
-        feature_registry={},
-        input_storage=BlueskyStorageManager("preprocessed", dataset_id),
-        features_dir=features_dir,
-        feature_label_query=FeatureLabelQuery(features_root=features_dir),
+def test_load_or_init_metadata_creates_file(features_dir) -> None:
+    config = make_feature_generation_config(
+        features_dir,
         run_config=FeatureRunConfig(batch_size=32, opik_enabled=False),
-        preprocessed_run="preprocessed/2026_01_01-00:00:00",
     )
     metadata = load_or_init_metadata(
         config,
@@ -45,11 +34,10 @@ def test_load_or_init_metadata_creates_file(tmp_path: Path) -> None:
     assert metadata.config.batch_size == 32
 
 
-def test_flush_metadata_round_trip(tmp_path: Path) -> None:
-    features_dir = tmp_path / "features"
+def test_flush_metadata_round_trip(features_dir) -> None:
     metadata = FeatureRunMetadata(
-        dataset_id="bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479",
-        source_preprocessed_run="preprocessed/2026_01_01-00:00:00",
+        dataset_id=FEATURES_DATASET_ID,
+        source_preprocessed_run=PREPROCESSED_RUN,
         config=FeatureRunConfig(),
     )
     metadata.features["is_political"] = FeatureStatus()

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -8,6 +7,7 @@ from pydantic import BaseModel
 
 from data_platform.generate_features.engines.langchain_engine import LangChainBatchEngine
 from data_platform.generate_features.models import FeatureRunConfig, FeatureSpec, LabelTask
+from tests.data_platform.constants import URI_POST_A, URI_POST_B
 
 
 class _LlmOut(BaseModel):
@@ -20,9 +20,7 @@ class _RowModel(BaseModel):
     score: bool
 
 
-def test_langchain_batch_engine_writes_rows(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_langchain_batch_engine_writes_rows(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_chain = MagicMock()
     mock_chain.batch.return_value = [_LlmOut(score=True), _LlmOut(score=False)]
 
@@ -41,10 +39,10 @@ def test_langchain_batch_engine_writes_rows(
     )
     engine = LangChainBatchEngine(spec, FeatureRunConfig(max_concurrency=2))
     tasks = [
-        LabelTask(uri="at://a/post/1", text="one"),
-        LabelTask(uri="at://b/post/2", text="two"),
+        LabelTask(uri=URI_POST_A, text="one"),
+        LabelTask(uri=URI_POST_B, text="two"),
     ]
     labels = engine.batch_label_records(tasks)
     assert len(labels) == 2
-    assert labels[0]["uri"] == "at://a/post/1"
+    assert labels[0]["uri"] == URI_POST_A
     assert "label_timestamp" in labels[0]

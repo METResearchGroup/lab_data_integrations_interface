@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from data_platform.generate_features.engines.thread_pool_engine import ThreadPoolBatchEngine
 from data_platform.generate_features.models import FeatureRunConfig, FeatureSpec, LabelTask
+from tests.data_platform.constants import URI_POST_A, URI_POST_B
 
 
 class _RowModel(BaseModel):
@@ -24,8 +25,8 @@ def test_thread_pool_batch_engine_labels_tasks() -> None:
     )
     engine = ThreadPoolBatchEngine(spec, FeatureRunConfig(max_concurrency=2))
     tasks = [
-        LabelTask(uri="at://a/post/1", text="hi"),
-        LabelTask(uri="at://b/post/2", text="hey"),
+        LabelTask(uri=URI_POST_A, text="hi"),
+        LabelTask(uri=URI_POST_B, text="hey"),
     ]
     labels = engine.batch_label_records(tasks)
     assert len(labels) == 2
