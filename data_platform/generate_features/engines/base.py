@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Protocol
 
 from pydantic import BaseModel
+from tqdm import tqdm
 
 from collector.retry import retry_llm_completion
 from data_platform.generate_features.deadletter import append_deadletter_batch
@@ -137,38 +139,52 @@ class BaseBatchExecutionEngine:
         def _batch_with_retry(chunk: list[LabelTask]) -> list[dict]:
             return self.batch_label_records(chunk)
 
-        for batch_index, chunk in enumerate(batched(tasks, batch_size)):
-            pending = filter_seen_tasks(chunk, features_dir, feature_name, dataset_id)
-            if not pending:
-                continue
+        pbar = tqdm(
+            total=len(tasks),
+            desc=feature_name,
+            unit="post",
+            disable=not sys.stderr.isatty(),
+        )
+        try:
+            for batch_index, chunk in enumerate(batched(tasks, batch_size)):
+                pending = filter_seen_tasks(chunk, features_dir, feature_name, dataset_id)
+                if not pending:
+                    continue
 
-            # Step 1: Run batch inference logic (with retry). If failed,
-            # add to deadletter.
-            uris = [task.uri for task in pending]
-            try:
-                labels = _batch_with_retry(pending)
-            except Exception as exc:
-                append_deadletter_batch(
-                    features_dir,
-                    feature=feature_name,
-                    uris=uris,
-                    error=f"{type(exc).__name__}: {exc}",
-                    attempts=max_retries + 1,
-                    batch_index=batch_index,
+                # Step 1: Run batch inference logic (with retry). If failed,
+                # add to deadletter.
+                uris = [task.uri for task in pending]
+                try:
+                    labels = _batch_with_retry(pending)
+                except Exception as exc:
+                    append_deadletter_batch(
+                        features_dir,
+                        feature=feature_name,
+                        uris=uris,
+                        error=f"{type(exc).__name__}: {exc}",
+                        attempts=max_retries + 1,
+                        batch_index=batch_index,
+                    )
+                    stats.failed_batches += 1
+                    on_batch_complete(0, 1)
+                    tqdm.write(
+                        f"{feature_name}: batch {batch_index} failed "
+                        f"({len(uris)} posts → deadletter)"
+                    )
+                    continue
+
+                # Step 2: Write labeled records.
+                self.batch_write_records(
+                    labels,
+                    feature_name=feature_name,
+                    features_dir=features_dir,
+                    dataset_id=dataset_id,
                 )
-                stats.failed_batches += 1
-                on_batch_complete(0, 1)
-                continue
-
-            # Step 2: Write labeled records.
-            self.batch_write_records(
-                labels,
-                feature_name=feature_name,
-                features_dir=features_dir,
-                dataset_id=dataset_id,
-            )
-            stats.labeled += len(labels)
-            on_batch_complete(len(labels), 0)
+                stats.labeled += len(labels)
+                pbar.update(len(labels))
+                on_batch_complete(len(labels), 0)
+        finally:
+            pbar.close()
 
         return stats
 
