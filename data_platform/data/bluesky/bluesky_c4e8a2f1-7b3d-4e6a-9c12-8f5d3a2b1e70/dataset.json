@@ -1,0 +1,7 @@
+{
+  "dataset_id": "bluesky_c4e8a2f1-7b3d-4e6a-9c12-8f5d3a2b1e70",
+  "platform": "bluesky",
+  "name": "mirrorview_scale",
+  "created_at": "2026-05-30T22:35:27.697982+00:00",
+  "ingestion_config": "data_platform/ingestion/configs/bluesky/mirrorview_scale.yaml"
+}
