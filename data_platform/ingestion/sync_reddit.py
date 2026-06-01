@@ -52,6 +52,7 @@ POSTS_RECORD_TYPE = "reddit.post"
 COMMENTS_CSV = "comments.csv"
 POSTS_CSV = "posts.csv"
 DEFAULT_LISTING = "hot"
+VALID_LISTING_TIME_FILTERS = frozenset({"all", "day", "hour", "month", "week", "year"})
 
 SubredditStatus = Literal["pending", "in_progress", "completed", "failed", "skipped"]
 SyncStatus = Literal["in_progress", "completed"]
@@ -92,15 +93,32 @@ def iter_fetch_work_items(fetch: dict[str, Any]) -> list[FetchWorkItem]:
     return items
 
 
+def _resolve_listing_time_filter(fetch: dict[str, Any], listing: str) -> str | None:
+    raw = fetch.get("listing_time_filter")
+    if raw is None:
+        return None
+    if listing != "top":
+        raise ValueError("fetch.listing_time_filter is only valid when listing is 'top'")
+    time_filter = str(raw)
+    if time_filter not in VALID_LISTING_TIME_FILTERS:
+        raise ValueError(f"Unsupported fetch.listing_time_filter value: {time_filter!r}")
+    return time_filter
+
+
 def _get_subreddit_listing(
     subreddit_obj: praw.models.Subreddit,
     listing: str,
     limit: int,
+    *,
+    time_filter: str | None = None,
 ) -> list[praw.models.Submission]:
     if listing == "new":
         return list(subreddit_obj.new(limit=limit))
     if listing == "top":
-        return list(subreddit_obj.top(limit=limit))
+        kwargs: dict[str, Any] = {"limit": limit}
+        if time_filter is not None:
+            kwargs["time_filter"] = time_filter
+        return list(subreddit_obj.top(**kwargs))
     if listing == "rising":
         return list(subreddit_obj.rising(limit=limit))
     if listing != "hot":
@@ -114,8 +132,12 @@ def _fetch_subreddit_page(
     subreddit: str,
     listing: str,
     limit: int,
+    *,
+    time_filter: str | None = None,
 ) -> list[praw.models.Submission]:
-    return _get_subreddit_listing(reddit.subreddit(subreddit), listing, limit)
+    return _get_subreddit_listing(
+        reddit.subreddit(subreddit), listing, limit, time_filter=time_filter
+    )
 
 
 def fetch_records_for_subreddit(
@@ -130,11 +152,14 @@ def fetch_records_for_subreddit(
     """Fetch posts and/or comments for a single subreddit."""
     limit = int(fetch["limit_per_subreddit"])
     listing = str(fetch.get("listing", DEFAULT_LISTING))
+    listing_time_filter = _resolve_listing_time_filter(fetch, listing)
     comments_per_post = int(fetch.get("comments_per_post", 100))
     min_comment_body_length = int(fetch.get("min_comment_body_length", 30))
 
     try:
-        submissions = _fetch_subreddit_page(reddit, subreddit, listing, limit)
+        submissions = _fetch_subreddit_page(
+            reddit, subreddit, listing, limit, time_filter=listing_time_filter
+        )
     except prawcore.exceptions.NotFound:
         logger.warning("Subreddit not found: %s", subreddit)
         return (
@@ -143,6 +168,7 @@ def fetch_records_for_subreddit(
             {
                 "subreddit": subreddit,
                 "listing": listing,
+                "listing_time_filter": listing_time_filter,
                 "limit_per_subreddit": limit,
                 "posts_collected": 0,
                 "comments_collected": 0,
@@ -177,6 +203,7 @@ def fetch_records_for_subreddit(
     stats = {
         "subreddit": subreddit,
         "listing": listing,
+        "listing_time_filter": listing_time_filter,
         "limit_per_subreddit": limit,
         "posts_collected": len(post_rows),
         "comments_collected": len(comment_rows),
@@ -263,7 +290,9 @@ def _append_fetched_subreddit_rows(
     *,
     include_comments: bool,
     include_posts: bool,
-) -> None:
+    prior_comment_ids: set[str] | None = None,
+) -> int:
+    comments_skipped = 0
     if include_posts and post_rows:
         seen_posts = post_storage.load_seen_ids(output_dir, "reddit_fullname", filename=POSTS_CSV)
         new_posts = [row for row in post_rows if row["reddit_fullname"] not in seen_posts]
@@ -271,12 +300,14 @@ def _append_fetched_subreddit_rows(
             post_storage.append_records(new_posts, output_dir, filename=POSTS_CSV)
 
     if include_comments and comment_rows:
-        seen_comments = comment_storage.load_seen_ids(
+        seen_comments = (prior_comment_ids or set()) | comment_storage.load_seen_ids(
             output_dir, "comment_fullname", filename=COMMENTS_CSV
         )
         new_comments = [row for row in comment_rows if row["comment_fullname"] not in seen_comments]
+        comments_skipped = len(comment_rows) - len(new_comments)
         if new_comments:
             comment_storage.append_records(new_comments, output_dir, filename=COMMENTS_CSV)
+    return comments_skipped
 
 
 def _stop_if_at_max_rows(
@@ -307,6 +338,12 @@ def run_subreddit_sync_loop(
     max_rows = fetch.get("max_rows")
     max_rows_int = int(max_rows) if max_rows is not None else None
     sync_timestamp = str(metadata["sync_timestamp"])
+    prior_comment_ids: set[str] = set()
+    if include_comments and fetch.get("dedupe_comments_from_prior_raw_runs"):
+        prior_comment_ids = comment_storage.load_seen_ids_from_prior_runs(
+            output_dir, "comment_fullname", filename=COMMENTS_CSV
+        )
+    comments_skipped = int(metadata.get("comments_skipped_as_duplicates", 0))
 
     for item in tqdm(
         work_items,
@@ -341,7 +378,7 @@ def run_subreddit_sync_loop(
             print(f"sync_records: {item.ledger_key} failed: {exc}")
             continue
 
-        _append_fetched_subreddit_rows(
+        comments_skipped += _append_fetched_subreddit_rows(
             comment_storage,
             post_storage,
             output_dir,
@@ -349,7 +386,9 @@ def run_subreddit_sync_loop(
             comment_rows,
             include_comments=include_comments,
             include_posts=include_posts,
+            prior_comment_ids=prior_comment_ids,
         )
+        metadata["comments_skipped_as_duplicates"] = comments_skipped
 
         comment_count, post_count = _count_seen_rows(
             comment_storage,

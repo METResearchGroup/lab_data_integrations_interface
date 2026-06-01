@@ -131,6 +131,22 @@ class StorageManager:
             reader = csv.DictReader(f)
             return {row[id_column] for row in reader if row.get(id_column)}
 
+    def load_seen_ids_from_prior_runs(
+        self,
+        exclude_run_dir: Path,
+        id_column: str,
+        *,
+        filename: str | None = None,
+    ) -> set[str]:
+        seen: set[str] = set()
+        if not self.root_dir.exists():
+            return seen
+        for run_dir in self.root_dir.iterdir():
+            if not run_dir.is_dir() or run_dir.resolve() == exclude_run_dir.resolve():
+                continue
+            seen.update(self.load_seen_ids(run_dir, id_column, filename=filename))
+        return seen
+
     def load_seen_uris(
         self,
         run_dir: Path,

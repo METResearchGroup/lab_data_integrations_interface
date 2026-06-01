@@ -1,0 +1,21 @@
+dataset_id: reddit_f47ac10b-58cc-4372-a567-0e02b2c3d479
+name: mirrorview_scale
+description: Mirrorview scaled top-month collection across Reddit political subreddits
+date: "2026-06-01"
+record_types:
+  - reddit.comment
+  - reddit.post
+fetch:
+  subreddits:
+    - Conservative
+    - Republican
+    - AskConservatives
+    - politics
+    - liberal
+    - democrats
+  listing: top
+  listing_time_filter: month
+  limit_per_subreddit: 300
+  comments_per_post: 300
+  min_comment_body_length: 30
+  dedupe_comments_from_prior_raw_runs: true
