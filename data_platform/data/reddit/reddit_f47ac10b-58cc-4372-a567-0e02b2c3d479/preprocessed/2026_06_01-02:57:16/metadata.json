@@ -1,0 +1,12 @@
+{
+  "dataset_id": "reddit_f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "source_raw_run": "raw/2026_06_01-02:51:43",
+  "preprocess_timestamp": "2026_06_01-02:57:16",
+  "row_counts": {
+    "input": 11222,
+    "output": 10663
+  },
+  "files": {
+    "comments": "comments.csv"
+  }
+}
