@@ -32,6 +32,7 @@ ENV_VAR_TYPES: Final[dict[str, type[str]]] = {
     "X_CONSUMER_KEY": str,
     "X_SECRET_KEY": str,
     "X_BEARER_TOKEN": str,
+    "TWITTER_BEARER_TOKEN": str,
 }
 
 

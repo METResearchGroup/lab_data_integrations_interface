@@ -12,6 +12,7 @@ from data_platform.models.sync import (
     SyncBlueskyPostModel,
     SyncRedditCommentModel,
     SyncRedditPostModel,
+    SyncTwitterPostModel,
 )
 from data_platform.utils.dataset import validate_dataset_id
 from lib.timestamp_utils import get_current_timestamp
@@ -230,3 +231,28 @@ class RedditStorageManager(StorageManager):
             records_filename="posts.csv",
             model=SyncRedditPostModel,
         )
+
+
+class TwitterStorageManager(StorageManager):
+    def __init__(
+        self,
+        stage: Stage = "raw",
+        dataset_id: str = "",
+        *,
+        records_filename: str = "posts.csv",
+    ) -> None:
+        super().__init__(
+            "twitter",
+            stage,
+            SyncTwitterPostModel,
+            dataset_id,
+            records_filename=records_filename,
+        )
+
+    def load_seen_tweet_ids(
+        self,
+        run_dir: Path,
+        *,
+        filename: str | None = None,
+    ) -> set[str]:
+        return self.load_seen_ids(run_dir, "tweet_id", filename=filename)
