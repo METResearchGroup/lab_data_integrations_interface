@@ -19,7 +19,8 @@ from data_platform.preprocessing.runner import (
     PreprocessPlatformSpec,
     TextValidator,
     filter_records,
-    passes_all_validators,
+)
+from data_platform.preprocessing.runner import (
     preprocess_records as run_preprocess_records,
 )
 from data_platform.preprocessing.validators.validators import (

@@ -3,8 +3,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import pytest
 import prawcore.exceptions
+import pytest
 
 from data_platform.ingestion import reddit_retry
 

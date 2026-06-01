@@ -137,13 +137,17 @@ def fetch_records_for_subreddit(
         submissions = _fetch_subreddit_page(reddit, subreddit, listing, limit)
     except prawcore.exceptions.NotFound:
         logger.warning("Subreddit not found: %s", subreddit)
-        return [], [], {
-            "subreddit": subreddit,
-            "listing": listing,
-            "limit_per_subreddit": limit,
-            "posts_collected": 0,
-            "comments_collected": 0,
-        }
+        return (
+            [],
+            [],
+            {
+                "subreddit": subreddit,
+                "listing": listing,
+                "limit_per_subreddit": limit,
+                "posts_collected": 0,
+                "comments_collected": 0,
+            },
+        )
 
     post_rows: list[dict[str, Any]] = []
     comment_rows: list[dict[str, Any]] = []
@@ -213,9 +217,7 @@ def init_sync_metadata(
     }
 
 
-def _flush_metadata(
-    storage: RedditStorageManager, run_dir: Path, metadata: dict[str, Any]
-) -> None:
+def _flush_metadata(storage: RedditStorageManager, run_dir: Path, metadata: dict[str, Any]) -> None:
     storage.write_run_metadata_atomic(run_dir, metadata)
 
 
@@ -252,6 +254,44 @@ def _count_seen_rows(
     return comment_count, post_count
 
 
+def _append_fetched_subreddit_rows(
+    comment_storage: RedditStorageManager,
+    post_storage: RedditStorageManager,
+    output_dir: Path,
+    post_rows: list[dict[str, Any]],
+    comment_rows: list[dict[str, Any]],
+    *,
+    include_comments: bool,
+    include_posts: bool,
+) -> None:
+    if include_posts and post_rows:
+        seen_posts = post_storage.load_seen_ids(output_dir, "reddit_fullname", filename=POSTS_CSV)
+        new_posts = [row for row in post_rows if row["reddit_fullname"] not in seen_posts]
+        if new_posts:
+            post_storage.append_records(new_posts, output_dir, filename=POSTS_CSV)
+
+    if include_comments and comment_rows:
+        seen_comments = comment_storage.load_seen_ids(
+            output_dir, "comment_fullname", filename=COMMENTS_CSV
+        )
+        new_comments = [row for row in comment_rows if row["comment_fullname"] not in seen_comments]
+        if new_comments:
+            comment_storage.append_records(new_comments, output_dir, filename=COMMENTS_CSV)
+
+
+def _stop_if_at_max_rows(
+    max_rows_int: int | None,
+    metadata: dict[str, Any],
+    storage: RedditStorageManager,
+    output_dir: Path,
+) -> bool:
+    if max_rows_int is not None and metadata["row_count"] >= max_rows_int:
+        _mark_remaining_skipped(metadata)
+        _flush_metadata(storage, output_dir, metadata)
+        return True
+    return False
+
+
 def run_subreddit_sync_loop(
     reddit: praw.Reddit,
     fetch: dict[str, Any],
@@ -278,9 +318,7 @@ def run_subreddit_sync_loop(
         if status in ("completed", "skipped"):
             continue
 
-        if max_rows_int is not None and metadata["row_count"] >= max_rows_int:
-            _mark_remaining_skipped(metadata)
-            _flush_metadata(comment_storage, output_dir, metadata)
+        if _stop_if_at_max_rows(max_rows_int, metadata, comment_storage, output_dir):
             break
 
         entry["status"] = "in_progress"
@@ -303,23 +341,15 @@ def run_subreddit_sync_loop(
             print(f"sync_records: {item.ledger_key} failed: {exc}")
             continue
 
-        if include_posts and post_rows:
-            seen_posts = post_storage.load_seen_ids(
-                output_dir, "reddit_fullname", filename=POSTS_CSV
-            )
-            new_posts = [row for row in post_rows if row["reddit_fullname"] not in seen_posts]
-            if new_posts:
-                post_storage.append_records(new_posts, output_dir, filename=POSTS_CSV)
-
-        if include_comments and comment_rows:
-            seen_comments = comment_storage.load_seen_ids(
-                output_dir, "comment_fullname", filename=COMMENTS_CSV
-            )
-            new_comments = [
-                row for row in comment_rows if row["comment_fullname"] not in seen_comments
-            ]
-            if new_comments:
-                comment_storage.append_records(new_comments, output_dir, filename=COMMENTS_CSV)
+        _append_fetched_subreddit_rows(
+            comment_storage,
+            post_storage,
+            output_dir,
+            post_rows,
+            comment_rows,
+            include_comments=include_comments,
+            include_posts=include_posts,
+        )
 
         comment_count, post_count = _count_seen_rows(
             comment_storage,
@@ -342,9 +372,7 @@ def run_subreddit_sync_loop(
             f"(total comments={comment_count}, total posts={post_count})"
         )
 
-        if max_rows_int is not None and metadata["row_count"] >= max_rows_int:
-            _mark_remaining_skipped(metadata)
-            _flush_metadata(comment_storage, output_dir, metadata)
+        if _stop_if_at_max_rows(max_rows_int, metadata, comment_storage, output_dir):
             break
 
     metadata["sync_status"] = _sync_status_done(metadata)

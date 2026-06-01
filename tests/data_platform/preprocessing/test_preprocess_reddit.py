@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -14,9 +13,7 @@ from tests.data_platform.ingestion.reddit_conftest import mock_comment_row
 
 
 def _valid_body() -> str:
-    return (
-        "This is a clear English comment about policy and governance without links or mentions."
-    )
+    return "This is a clear English comment about policy and governance without links or mentions."
 
 
 def _comment_row(**overrides: Any) -> dict[str, Any]:
