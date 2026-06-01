@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from lib.timestamp_utils import get_current_timestamp
 from ml_tooling.llm.llm import structured_chat_completion
 
 SYSTEM_PROMPT = """\
@@ -77,6 +78,7 @@ class LlmIsStructurallyCompleteModel(BaseModel):
 
 class IsStructurallyCompleteModel(BaseModel):
     uri: str
+    label_timestamp: str
     is_structurally_complete: bool
 
 
@@ -89,6 +91,7 @@ def generate_feature(uri: str, text: str) -> IsStructurallyCompleteModel:
     )
     return IsStructurallyCompleteModel(
         uri=uri,
+        label_timestamp=get_current_timestamp(),
         is_structurally_complete=result.is_structurally_complete,
     )
 

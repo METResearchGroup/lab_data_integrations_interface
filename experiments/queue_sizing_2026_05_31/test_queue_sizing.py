@@ -1,6 +1,8 @@
 """Measure in-memory queue footprint at increasing element counts.
 
-Run from repo root with PYTHONPATH=. uv run python experiments/queue_sizing_2026_05_31/test_queue_sizing.py
+Run from repo root:
+
+    PYTHONPATH=. uv run python experiments/queue_sizing_2026_05_31/test_queue_sizing.py
 """
 
 from __future__ import annotations

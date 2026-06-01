@@ -12,6 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from lib.timestamp_utils import get_current_timestamp
 from ml_tooling.llm.llm import structured_chat_completion
 
 SYSTEM_PROMPT = """\
@@ -56,6 +57,7 @@ class LlmIsNewsOrOpinionModel(BaseModel):
 
 class IsNewsOrOpinionModel(BaseModel):
     uri: str
+    label_timestamp: str
     category: Literal["news", "opinion", "neither"]
 
 
@@ -66,7 +68,11 @@ def generate_feature(uri: str, text: str) -> IsNewsOrOpinionModel:
         output_schema=LlmIsNewsOrOpinionModel,
         system_prompt=SYSTEM_PROMPT,
     )
-    return IsNewsOrOpinionModel(uri=uri, category=result.category)
+    return IsNewsOrOpinionModel(
+        uri=uri,
+        label_timestamp=get_current_timestamp(),
+        category=result.category,
+    )
 
 
 if __name__ == "__main__":

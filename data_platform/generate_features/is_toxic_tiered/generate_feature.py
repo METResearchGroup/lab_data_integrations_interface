@@ -13,6 +13,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from lib.timestamp_utils import get_current_timestamp
 from ml_tooling.perspective_api import get_toxicity_prob
 
 ToxicityTier = Literal["low", "medium", "high"]
@@ -23,6 +24,7 @@ HIGH_MIN = 0.7
 
 class IsToxicTieredModel(BaseModel):
     uri: str
+    label_timestamp: str
     toxicity_prob: float = Field(description="Perspective API TOXICITY probability in [0, 1].")
     toxicity_tier: ToxicityTier = Field(
         description="Toxicity tiers: low (<= 0.1), medium (0.1-0.7), high (>= 0.7)."
@@ -43,6 +45,7 @@ def generate_feature(uri: str, text: str) -> IsToxicTieredModel:
     toxicity_prob = get_toxicity_prob(text)
     return IsToxicTieredModel(
         uri=uri,
+        label_timestamp=get_current_timestamp(),
         toxicity_prob=toxicity_prob,
         toxicity_tier=toxicity_tier_from_prob(toxicity_prob),
     )

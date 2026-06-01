@@ -17,6 +17,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
 from lib.load_env_vars import EnvVarsContainer
+from lib.timestamp_utils import get_current_timestamp
 from ml_tooling.llm import opik as opik_telemetry
 
 DEFAULT_MODEL = "gpt-5.4-nano"
@@ -75,7 +76,7 @@ def structured_chat_completion(
             "feature_name": feature_name,
             "uri": ctx.get("uri"),
             "model": model,
-            "timestamp": opik_telemetry.utc_now_iso(),
+            "timestamp": get_current_timestamp(),
             "output_schema": output_schema.model_json_schema(),
         },
         prompts=[prompt],

@@ -32,9 +32,9 @@ MAX_DELAY = 120.0
 def _is_retryable_bluesky_error(exc: BaseException) -> bool:
     if isinstance(exc, httpx.HTTPStatusError):
         return exc.response.status_code == 429
-    if isinstance(exc, (httpx.TimeoutException, httpx.NetworkError, httpx.RequestError)):
+    if isinstance(exc, httpx.TimeoutException | httpx.NetworkError | httpx.RequestError):
         return True
-    if isinstance(exc, (InvokeTimeoutError, NetworkError)):
+    if isinstance(exc, InvokeTimeoutError | NetworkError):
         return True
     if isinstance(exc, RequestException):
         response = exc.response

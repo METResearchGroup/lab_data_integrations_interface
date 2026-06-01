@@ -2,59 +2,29 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pandas as pd
-
 from data_platform.curate.consolidate import ConsolidateConfig, build_wide_table
-
-
-def _write_posts(path: Path) -> None:
-    pd.DataFrame(
-        [
-            {
-                "uri": "at://a/post/1",
-                "url": "https://bsky.app/profile/a/post/1",
-                "author_handle": "a.bsky.social",
-                "text": "post one",
-                "created_at": "2026-01-01T00:00:00Z",
-                "like_count": 0,
-                "repost_count": 0,
-                "reply_count": 0,
-                "quote_count": 0,
-            },
-            {
-                "uri": "at://b/post/2",
-                "url": "https://bsky.app/profile/b/post/2",
-                "author_handle": "b.bsky.social",
-                "text": "post two",
-                "created_at": "2026-01-02T00:00:00Z",
-                "like_count": 1,
-                "repost_count": 0,
-                "reply_count": 0,
-                "quote_count": 0,
-            },
-        ]
-    ).to_csv(path, index=False)
+from tests.data_platform.conftest import (
+    make_political_feature_rows,
+    write_feature_csv,
+    write_posts_csv,
+)
+from tests.data_platform.constants import LABEL_TIMESTAMP, URI_POST_A, URI_POST_B
 
 
 def test_build_wide_table_joins_features(tmp_path: Path) -> None:
     posts_csv = tmp_path / "posts.csv"
-    _write_posts(posts_csv)
+    write_posts_csv(posts_csv)
 
     features_root = tmp_path / "features"
-    run_dir = features_root / "run1"
-    run_dir.mkdir(parents=True)
-    pd.DataFrame(
+    write_feature_csv(features_root, "is_political", make_political_feature_rows())
+    write_feature_csv(
+        features_root,
+        "is_news_or_opinion",
         [
-            {"uri": "at://a/post/1", "is_political": True},
-            {"uri": "at://b/post/2", "is_political": False},
-        ]
-    ).to_csv(run_dir / "is_political.csv", index=False)
-    pd.DataFrame(
-        [
-            {"uri": "at://a/post/1", "category": "news"},
-            {"uri": "at://b/post/2", "category": "opinion"},
-        ]
-    ).to_csv(run_dir / "is_news_or_opinion.csv", index=False)
+            {"uri": URI_POST_A, "label_timestamp": LABEL_TIMESTAMP, "category": "news"},
+            {"uri": URI_POST_B, "label_timestamp": LABEL_TIMESTAMP, "category": "opinion"},
+        ],
+    )
 
     wide = build_wide_table(
         ConsolidateConfig(
@@ -66,8 +36,8 @@ def test_build_wide_table_joins_features(tmp_path: Path) -> None:
 
     assert len(wide) == 2
     assert "news_or_opinion_category" in wide.columns
-    assert wide.loc[wide["uri"] == "at://a/post/1", "news_or_opinion_category"].iloc[0] == "news"
-    assert wide.loc[wide["uri"] == "at://a/post/1", "is_political"].iloc[0] in {
+    assert wide.loc[wide["uri"] == URI_POST_A, "news_or_opinion_category"].iloc[0] == "news"
+    assert wide.loc[wide["uri"] == URI_POST_A, "is_political"].iloc[0] in {
         True,
         "True",
     }

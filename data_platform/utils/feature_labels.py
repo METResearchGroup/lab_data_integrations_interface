@@ -6,28 +6,26 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from data_platform.utils.duckdb_features import feature_glob
+from data_platform.utils.duckdb_features import feature_csv_path
 
 
 @dataclass(frozen=True)
 class FeatureLabelQuery:
-    """Query labeled record ids from feature CSVs across all feature runs."""
+    """Query labeled record ids from feature CSVs at the features root."""
 
     features_root: Path
     id_column: str = "uri"
 
-    def _feature_csv_glob(self, feature_name: str) -> str:
-        return feature_glob(self.features_root, feature_name)
-
-    def _feature_csv_paths(self, feature_name: str) -> list[Path]:
-        return sorted(self.features_root.glob(f"*/{feature_name}.csv"))
+    def _feature_csv_path(self, feature_name: str) -> Path:
+        """Resolve the on-disk CSV path for a feature under features_root."""
+        return feature_csv_path(self.features_root, feature_name)
 
     def labeled_ids(self, feature_name: str) -> set[str]:
-        """Return ids labeled for feature_name in any features run directory."""
-        if not self._feature_csv_paths(feature_name):
+        """Return ids labeled for feature_name in the feature CSV."""
+        csv_path = self._feature_csv_path(feature_name)
+        if not csv_path.exists():
             return set()
 
-        glob_pattern = self._feature_csv_glob(feature_name)
         conn = duckdb.connect()
         try:
             rows = conn.execute(
@@ -35,7 +33,7 @@ class FeatureLabelQuery:
                 SELECT DISTINCT {self.id_column}
                 FROM read_csv(?, union_by_name = true)
                 """,
-                [glob_pattern],
+                [csv_path.as_posix()],
             ).fetchall()
         finally:
             conn.close()
