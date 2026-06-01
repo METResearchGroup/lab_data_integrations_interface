@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 from pathlib import Path
 
 from experiments.x_fetch_data_2026_06_01.x_client import (
@@ -17,6 +18,8 @@ from experiments.x_fetch_data_2026_06_01.x_client import (
     init_x_client,
 )
 from lib.timestamp_utils import get_current_timestamp
+
+logger = logging.getLogger(__name__)
 
 TOTAL_POST_CAP = 100
 POSTS_PER_KEYWORD = 10
@@ -93,12 +96,21 @@ def main() -> None:
             break
 
         limit = min(POSTS_PER_KEYWORD, remaining)
-        rows = fetch_posts_for_keyword(
-            client,
-            keyword,
-            limit=limit,
-            sync_timestamp=sync_timestamp,
-        )
+        try:
+            rows = fetch_posts_for_keyword(
+                client,
+                keyword,
+                limit=limit,
+                sync_timestamp=sync_timestamp,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to fetch posts for keyword=%r limit=%s sync_timestamp=%s",
+                keyword,
+                limit,
+                sync_timestamp,
+            )
+            rows = []
         all_rows.extend(rows)
         counts_by_keyword[keyword] = len(rows)
         print(f"{keyword}: {len(rows)} posts")

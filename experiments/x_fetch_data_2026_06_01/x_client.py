@@ -30,7 +30,7 @@ CSV_FIELDNAMES: list[str] = [
 def init_x_client() -> tweepy.Client:
     """Build a Tweepy Client using app-only Bearer Token auth."""
     bearer_token = EnvVarsContainer.get_env_var("X_BEARER_TOKEN", required=True)
-    return tweepy.Client(bearer_token=bearer_token)
+    return tweepy.Client(bearer_token=bearer_token, wait_on_rate_limit=True)
 
 
 def _quote_query_term(keyword: str) -> str:
