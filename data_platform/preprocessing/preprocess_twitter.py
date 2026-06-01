@@ -29,6 +29,7 @@ from data_platform.preprocessing.runner import (
 from data_platform.preprocessing.validators.twitter_validators import (
     check_if_twitter_text_has_no_external_urls,
     check_if_valid_twitter_post_length,
+    strip_tco_links,
 )
 from data_platform.preprocessing.validators.validators import (
     check_if_not_phone,
@@ -50,6 +51,7 @@ TWITTER_SPEC = PreprocessPlatformSpec(
     model_cls=SyncTwitterPostModel,
     binding=TWITTER_BINDING,
     text_validators=POST_TEXT_VALIDATORS,
+    text_transform=strip_tco_links,
 )
 
 

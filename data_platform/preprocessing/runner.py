@@ -30,6 +30,20 @@ class PreprocessPlatformSpec:
     binding: PlatformIdBinding
     text_validators: tuple[TextValidator, ...]
     row_validators: tuple[RowValidator, ...] = ()
+    text_transform: Callable[[str], str] | None = None
+
+
+def apply_text_transform(
+    df: pd.DataFrame,
+    spec: PreprocessPlatformSpec,
+) -> pd.DataFrame:
+    if spec.text_transform is None or df.empty:
+        return df
+    out = df.copy()
+    text_col = spec.binding.text_column
+    transform = spec.text_transform
+    out[text_col] = out[text_col].map(lambda v: transform(str(v)))
+    return out
 
 
 def passes_all_validators(
@@ -117,6 +131,7 @@ def preprocess_records(dataset_id: str, spec: PreprocessPlatformSpec) -> Path:
     dataset_id = validate_dataset_id(dataset_id)
     records = load_raw_records(spec, dataset_id)
     preprocessed = filter_records(records, spec)
+    preprocessed = apply_text_transform(preprocessed, spec)
     output_dir = save_preprocessed(preprocessed, spec, dataset_id, input_count=len(records))
     noun = spec.binding.records_file_key
     print(f"preprocess_records: kept {len(preprocessed)} of {len(records)} {noun} -> {output_dir}")

@@ -11,6 +11,10 @@ def strip_tco_links(text: str) -> str:
     return _TCO_URL_PATTERN.sub("", text)
 
 
+def has_tco_links(text: str) -> bool:
+    return _TCO_URL_PATTERN.search(text) is not None
+
+
 def check_if_valid_twitter_post_length(text: str) -> bool:
     return 50 <= len(text) <= 280
 
