@@ -20,6 +20,7 @@ dependencies = [
     "pandas>=2.0.0",
     "duckdb>=1.0.0",
     "pyarrow>=14.0.0",
+    "uvicorn>=0.47.0",
     "praw>=7.7.0",
     "prefect>=3.0.0",
     "pyyaml>=6.0.0",
