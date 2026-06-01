@@ -9,7 +9,7 @@ from typing import Any
 _DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 
 DATASET_ID_PATTERN = re.compile(
-    r"^bluesky_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    r"^(bluesky|reddit)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 )
 MANIFEST_FILENAME = "dataset.json"
 
@@ -17,7 +17,8 @@ MANIFEST_FILENAME = "dataset.json"
 def validate_dataset_id(dataset_id: str) -> str:
     if not DATASET_ID_PATTERN.match(dataset_id):
         raise ValueError(
-            "dataset_id must match bluesky_{uuid} (lowercase RFC 4122 hex with hyphens)"
+            "dataset_id must match {platform}_{uuid} where platform is bluesky or reddit "
+            "(lowercase RFC 4122 hex with hyphens)"
         )
     return dataset_id
 

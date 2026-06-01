@@ -1,0 +1,73 @@
+{
+  "sync_status": "completed",
+  "dataset_id": "reddit_f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "name": "mirrorview",
+  "description": "Mirrorview topic collection across Reddit political subreddits",
+  "date": "2026-05-31",
+  "sync_timestamp": "2026_06_01-02:51:43",
+  "ingestion_config": "mirrorview.yaml",
+  "record_types": [
+    "reddit.comment",
+    "reddit.post"
+  ],
+  "fetch": {
+    "subreddits": [
+      "Conservative",
+      "Republican",
+      "AskConservatives",
+      "politics",
+      "liberal",
+      "democrats"
+    ],
+    "listing": "hot",
+    "limit_per_subreddit": 50,
+    "comments_per_post": 200,
+    "min_comment_body_length": 30
+  },
+  "row_count": 11222,
+  "post_row_count": 300,
+  "subreddits": {
+    "conservative": {
+      "status": "completed",
+      "subreddit": "Conservative",
+      "posts_collected": 50,
+      "comments_collected": 363,
+      "last_error": null
+    },
+    "republican": {
+      "status": "completed",
+      "subreddit": "Republican",
+      "posts_collected": 50,
+      "comments_collected": 601,
+      "last_error": null
+    },
+    "askconservatives": {
+      "status": "completed",
+      "subreddit": "AskConservatives",
+      "posts_collected": 50,
+      "comments_collected": 3299,
+      "last_error": null
+    },
+    "politics": {
+      "status": "completed",
+      "subreddit": "politics",
+      "posts_collected": 50,
+      "comments_collected": 5236,
+      "last_error": null
+    },
+    "liberal": {
+      "status": "completed",
+      "subreddit": "liberal",
+      "posts_collected": 50,
+      "comments_collected": 446,
+      "last_error": null
+    },
+    "democrats": {
+      "status": "completed",
+      "subreddit": "democrats",
+      "posts_collected": 50,
+      "comments_collected": 1277,
+      "last_error": null
+    }
+  }
+}

@@ -1,0 +1,16 @@
+# Set dataset_id before running sync (required).
+dataset_id: reddit_00000000-0000-4000-8000-000000000099
+name: reddit-default
+description: Comments from a small set of subreddits
+date: "2026-05-31"
+record_types:
+  - reddit.comment
+  - reddit.post
+fetch:
+  subreddits:
+    - politics
+  listing: hot
+  limit_per_subreddit: 5
+  comments_per_post: 25
+  min_comment_body_length: 30
+  max_rows: 100

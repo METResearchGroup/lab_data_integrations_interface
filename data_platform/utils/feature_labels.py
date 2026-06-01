@@ -15,6 +15,7 @@ class FeatureLabelQuery:
 
     features_root: Path
     id_column: str = "uri"
+    feature_csv_id_column: str = "uri"
 
     def _feature_csv_path(self, feature_name: str) -> Path:
         """Resolve the on-disk CSV path for a feature under features_root."""
@@ -30,7 +31,7 @@ class FeatureLabelQuery:
         try:
             rows = conn.execute(
                 f"""
-                SELECT DISTINCT {self.id_column}
+                SELECT DISTINCT {self.feature_csv_id_column}
                 FROM read_csv(?, union_by_name = true)
                 """,
                 [csv_path.as_posix()],
