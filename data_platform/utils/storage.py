@@ -234,6 +234,8 @@ class RedditStorageManager(StorageManager):
 
 
 class TwitterStorageManager(StorageManager):
+    _STRING_ID_COLUMNS = {"tweet_id": str, "author_id": str}
+
     def __init__(
         self,
         stage: Stage = "raw",
@@ -247,6 +249,24 @@ class TwitterStorageManager(StorageManager):
             SyncTwitterPostModel,
             dataset_id,
             records_filename=records_filename,
+        )
+
+    def load_records(
+        self,
+        run_dir: Path | None = None,
+        *,
+        latest: bool = False,
+        filename: str | None = None,
+    ) -> pd.DataFrame:
+        resolved_run_dir = self._resolve_run_dir(run_dir, latest=latest)
+        csv_path = resolved_run_dir / (filename or self.records_filename)
+        if not csv_path.exists():
+            raise FileNotFoundError(f"Records file not found: {csv_path}")
+
+        return pd.read_csv(
+            csv_path,
+            keep_default_na=False,
+            dtype=self._STRING_ID_COLUMNS,
         )
 
     def load_seen_tweet_ids(
