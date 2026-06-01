@@ -92,13 +92,17 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
 
     comment_keep = mock_comment_row("t1_keep", subreddit="politics")
     comment_drop = mock_comment_row("t1_drop", subreddit="politics")
-    pd.DataFrame([comment_keep, comment_drop]).to_csv(preprocessed_dir / "comments.csv", index=False)
+    comment_neutral = mock_comment_row("t1_neutral", subreddit="politics")
+    pd.DataFrame([comment_keep, comment_drop, comment_neutral]).to_csv(
+        preprocessed_dir / "comments.csv", index=False
+    )
 
     features_root = root / "features"
     features_root.mkdir(parents=True)
-    for comment, political, category, self_contained, structurally_complete in [
-        (comment_keep, True, "opinion", True, True),
-        (comment_drop, True, "news", True, True),
+    for comment, political, category, self_contained, structurally_complete, stance in [
+        (comment_keep, True, "opinion", True, True, "left"),
+        (comment_drop, True, "news", True, True, "left"),
+        (comment_neutral, True, "opinion", True, True, "neutral"),
     ]:
         feature_payloads = [
             (
@@ -147,7 +151,7 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
                 {
                     FEATURE_CSV_ID_COLUMN: comment["comment_fullname"],
                     "label_timestamp": LABEL_TIMESTAMP,
-                    "political_stance": "neutral",
+                    "political_stance": stance,
                 },
             ),
         ]
@@ -175,7 +179,7 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
     assert curated.iloc[0][ID_COLUMN] == comment_keep["comment_fullname"]
     assert "body" in curated.columns
     assert metadata["row_counts"]["after_filters"] == 1
-    assert len(metadata["filter_results"]) == 4
+    assert len(metadata["filter_results"]) == 5
     assert metadata["filter_results"][0]["records_before"] >= metadata["filter_results"][-1][
         "records_passing"
     ]

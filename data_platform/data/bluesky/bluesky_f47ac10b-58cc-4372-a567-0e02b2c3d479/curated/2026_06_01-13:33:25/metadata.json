@@ -1,0 +1,53 @@
+{
+  "dataset_id": "bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "name": "mirrorview",
+  "source_preprocessed_run": "preprocessed/2026_05_29-20:14:22",
+  "row_counts": {
+    "preprocessed": 785,
+    "wide": 785,
+    "after_filters": 249
+  },
+  "filter_results": [
+    {
+      "column": "news_or_opinion_category",
+      "op": "eq",
+      "value": "opinion",
+      "records_before": 785,
+      "records_passing": 531
+    },
+    {
+      "column": "is_political",
+      "op": "eq",
+      "value": true,
+      "records_before": 531,
+      "records_passing": 506
+    },
+    {
+      "column": "political_stance",
+      "op": "in",
+      "value": [
+        "left",
+        "right"
+      ],
+      "records_before": 506,
+      "records_passing": 357
+    },
+    {
+      "column": "is_self_contained",
+      "op": "eq",
+      "value": true,
+      "records_before": 357,
+      "records_passing": 266
+    },
+    {
+      "column": "is_structurally_complete",
+      "op": "eq",
+      "value": true,
+      "records_before": 266,
+      "records_passing": 249
+    }
+  ],
+  "files": {
+    "export": "mirrorview.csv"
+  }
+}
