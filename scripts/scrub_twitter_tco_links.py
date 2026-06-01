@@ -39,8 +39,8 @@ def scrub_twitter_tco_links(*, dry_run: bool, twitter_root: Path) -> None:
             skipped += 1
             continue
 
-        mask = df["text"].astype(str).map(has_tco_links)
-        if not mask.any():
+        has_any_tco = bool(df["text"].astype(str).map(has_tco_links).any())
+        if not has_any_tco:
             continue
 
         out_path = path.with_name(f"{path.stem}_scrubbed{path.suffix}")
