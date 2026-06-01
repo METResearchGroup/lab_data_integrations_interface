@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Type
+from typing import Any
 
 import pandas as pd
 
@@ -15,11 +16,13 @@ from data_platform.utils.platform_ids import PlatformIdBinding
 from data_platform.utils.storage import StorageManager
 from lib.timestamp_utils import get_current_timestamp
 
+StorageManagerFactory = Callable[..., StorageManager]
+
 
 @dataclass(frozen=True)
 class CuratePlatformSpec:
     platform: str
-    storage_cls: Type[StorageManager]
+    storage_cls: StorageManagerFactory
     binding: PlatformIdBinding
     record_noun: str
 

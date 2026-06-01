@@ -30,7 +30,7 @@ def _is_retryable_reddit_error(exc: BaseException) -> bool:
     if isinstance(exc, prawcore.exceptions.ServerError):
         return True
     if isinstance(exc, prawcore.exceptions.RequestException):
-        response = exc.response
+        response = getattr(exc, "response", None)
         if response is None:
             return True
         return response.status_code in {429, 500, 502, 503, 504}

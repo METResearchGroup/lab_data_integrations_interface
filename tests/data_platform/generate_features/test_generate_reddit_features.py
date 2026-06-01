@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import pytest
 
 from data_platform.generate_features.generate_features import generate_features
 from data_platform.generate_features.generate_reddit_features import (
@@ -22,7 +21,6 @@ from data_platform.generate_features.models import (
     FeatureSpec,
     FeatureStatus,
 )
-from data_platform.utils.storage import RedditStorageManager
 from tests.data_platform.constants import LABEL_TIMESTAMP, VALID_REDDIT_DATASET_ID
 from tests.data_platform.generate_features.conftest import DummyModel
 from tests.data_platform.ingestion.reddit_conftest import mock_comment_row
@@ -129,12 +127,6 @@ def test_generate_reddit_features_labels_pending_comments(
     records = _sample_preprocessed_comments(2)
     write_preprocessed_comments(data_root, records)
 
-    spec = FeatureSpec(
-        name="is_political",
-        model=DummyModel,  # type: ignore[arg-type]
-        engine_type="thread_pool",
-        generate_fn=lambda u, t: None,  # type: ignore[arg-type]
-    )
     mock_build_engine.label_records.return_value = BatchRunStats(labeled=2, failed_batches=0)
 
     written = generate_reddit_features(

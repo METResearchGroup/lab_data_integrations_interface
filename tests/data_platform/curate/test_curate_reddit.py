@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pandas as pd
 
-from data_platform.curate.apply_rules import apply_rules, load_rules_config
 from data_platform.curate.consolidate import ConsolidateConfig, build_wide_table
 from data_platform.curate.curate_reddit import (
     FEATURE_CSV_ID_COLUMN,
@@ -164,8 +163,7 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
             pd.DataFrame(rows).to_csv(path, index=False)
 
     config_path = (
-        Path(__file__).resolve().parents[3]
-        / "data_platform/curate/configs/reddit/mirrorview.yaml"
+        Path(__file__).resolve().parents[3] / "data_platform/curate/configs/reddit/mirrorview.yaml"
     )
     output_path = curate_mirrorview(config_path, dataset_id)
 
@@ -180,6 +178,7 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
     assert "body" in curated.columns
     assert metadata["row_counts"]["after_filters"] == 1
     assert len(metadata["filter_results"]) == 5
-    assert metadata["filter_results"][0]["records_before"] >= metadata["filter_results"][-1][
-        "records_passing"
-    ]
+    assert (
+        metadata["filter_results"][0]["records_before"]
+        >= metadata["filter_results"][-1]["records_passing"]
+    )

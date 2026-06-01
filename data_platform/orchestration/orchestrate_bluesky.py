@@ -14,8 +14,8 @@ from pathlib import Path
 from prefect import flow, task
 
 from data_platform.ingestion.sync_bluesky import _require_dataset_id, sync_records
-from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
 from data_platform.preprocessing.preprocess_bluesky import preprocess_records
+from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
 
 MIRRORVIEW_CONFIG = (
     Path(__file__).resolve().parents[1] / "ingestion/configs/bluesky/mirrorview.yaml"

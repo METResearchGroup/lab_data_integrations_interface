@@ -15,14 +15,19 @@ import pandas as pd
 import typer
 
 from data_platform.models.sync import SyncRedditCommentModel
-
 from data_platform.preprocessing.runner import (
     PreprocessPlatformSpec,
     RowValidator,
     TextValidator,
     filter_records,
+)
+from data_platform.preprocessing.runner import (
     passes_all_validators as _passes_all_validators,
+)
+from data_platform.preprocessing.runner import (
     passes_row_validators as _passes_row_validators,
+)
+from data_platform.preprocessing.runner import (
     preprocess_records as run_preprocess_records,
 )
 from data_platform.preprocessing.validators.reddit_validators import (
