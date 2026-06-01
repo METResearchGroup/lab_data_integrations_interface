@@ -115,6 +115,80 @@ def _effective_limit_per_keyword(fetch: dict[str, Any], remaining: int | None) -
     return max(0, min(per_keyword, remaining))
 
 
+def _stop_at_max_rows(
+    storage: TwitterStorageManager,
+    output_dir: Path,
+    metadata: dict[str, Any],
+    max_rows_int: int | None,
+) -> bool:
+    """Mark pending keywords skipped and flush when row cap is reached."""
+    if max_rows_int is None or metadata["row_count"] < max_rows_int:
+        return False
+    _mark_remaining_skipped(metadata)
+    _flush_metadata(storage, output_dir, metadata)
+    return True
+
+
+def _remaining_row_budget(metadata: dict[str, Any], max_rows_int: int | None) -> int | None:
+    if max_rows_int is None:
+        return None
+    return max_rows_int - metadata["row_count"]
+
+
+def _sync_one_keyword(
+    client: Any,
+    *,
+    item: FetchWorkItem,
+    entry: dict[str, Any],
+    fetch: dict[str, Any],
+    output_dir: Path,
+    storage: TwitterStorageManager,
+    metadata: dict[str, Any],
+    sync_timestamp: str,
+    csv_filename: str,
+    lang: str,
+    exclude: list[str],
+    remaining: int | None,
+) -> None:
+    entry["status"] = "in_progress"
+    entry["last_error"] = None
+    _flush_metadata(storage, output_dir, metadata)
+
+    limit = _effective_limit_per_keyword(fetch, remaining)
+    try:
+        rows, stats = fetch_posts_for_keyword(
+            client,
+            item.keyword,
+            limit=limit,
+            lang=lang,
+            exclude=exclude,
+            sync_timestamp=sync_timestamp,
+        )
+    except Exception as exc:  # noqa: BLE001 — record and continue
+        entry["status"] = "failed"
+        entry["last_error"] = str(exc)
+        _flush_metadata(storage, output_dir, metadata)
+        print(f"sync_records: {item.ledger_key} failed: {exc}")
+        return
+
+    seen_ids = storage.load_seen_tweet_ids(output_dir, filename=csv_filename)
+    new_rows = [row for row in rows if row["tweet_id"] not in seen_ids]
+    if new_rows:
+        storage.append_records(new_rows, output_dir, filename=csv_filename)
+
+    metadata["row_count"] = len(storage.load_seen_tweet_ids(output_dir, filename=csv_filename))
+    entry["status"] = "completed"
+    entry["pages_fetched"] = stats["pages_fetched"]
+    entry["rows_collected"] = stats["rows_collected"]
+    entry["last_error"] = None
+    _flush_metadata(storage, output_dir, metadata)
+
+    print(
+        f"sync_records: {item.ledger_key} -> {stats['rows_collected']} rows "
+        f"(appended {len(new_rows)}, pages={stats['pages_fetched']})"
+    )
+
+
 def run_keyword_sync_loop(
     client: Any,
     fetch: dict[str, Any],
@@ -137,65 +211,28 @@ def run_keyword_sync_loop(
         disable=not sys.stderr.isatty(),
     ):
         entry = metadata["keywords"][item.ledger_key]
-        status = entry["status"]
-        if status in ("completed", "skipped"):
+        if entry["status"] in ("completed", "skipped"):
             continue
 
-        if max_rows_int is not None and metadata["row_count"] >= max_rows_int:
-            _mark_remaining_skipped(metadata)
-            _flush_metadata(storage, output_dir, metadata)
+        if _stop_at_max_rows(storage, output_dir, metadata, max_rows_int):
             break
 
-        remaining = None
-        if max_rows_int is not None:
-            remaining = max_rows_int - metadata["row_count"]
-            if remaining <= 0:
-                _mark_remaining_skipped(metadata)
-                _flush_metadata(storage, output_dir, metadata)
-                break
-
-        entry["status"] = "in_progress"
-        entry["last_error"] = None
-        _flush_metadata(storage, output_dir, metadata)
-
-        limit = _effective_limit_per_keyword(fetch, remaining)
-
-        try:
-            rows, stats = fetch_posts_for_keyword(
-                client,
-                item.keyword,
-                limit=limit,
-                lang=lang,
-                exclude=exclude,
-                sync_timestamp=sync_timestamp,
-            )
-        except Exception as exc:  # noqa: BLE001 — record and continue
-            entry["status"] = "failed"
-            entry["last_error"] = str(exc)
-            _flush_metadata(storage, output_dir, metadata)
-            print(f"sync_records: {item.ledger_key} failed: {exc}")
-            continue
-
-        seen_ids = storage.load_seen_tweet_ids(output_dir, filename=csv_filename)
-        new_rows = [row for row in rows if row["tweet_id"] not in seen_ids]
-        if new_rows:
-            storage.append_records(new_rows, output_dir, filename=csv_filename)
-
-        metadata["row_count"] = len(storage.load_seen_tweet_ids(output_dir, filename=csv_filename))
-        entry["status"] = "completed"
-        entry["pages_fetched"] = stats["pages_fetched"]
-        entry["rows_collected"] = stats["rows_collected"]
-        entry["last_error"] = None
-        _flush_metadata(storage, output_dir, metadata)
-
-        print(
-            f"sync_records: {item.ledger_key} -> {stats['rows_collected']} rows "
-            f"(appended {len(new_rows)}, pages={stats['pages_fetched']})"
+        _sync_one_keyword(
+            client,
+            item=item,
+            entry=entry,
+            fetch=fetch,
+            output_dir=output_dir,
+            storage=storage,
+            metadata=metadata,
+            sync_timestamp=sync_timestamp,
+            csv_filename=csv_filename,
+            lang=lang,
+            exclude=exclude,
+            remaining=_remaining_row_budget(metadata, max_rows_int),
         )
 
-        if max_rows_int is not None and metadata["row_count"] >= max_rows_int:
-            _mark_remaining_skipped(metadata)
-            _flush_metadata(storage, output_dir, metadata)
+        if _stop_at_max_rows(storage, output_dir, metadata, max_rows_int):
             break
 
     metadata["sync_status"] = _sync_status_done(metadata)
