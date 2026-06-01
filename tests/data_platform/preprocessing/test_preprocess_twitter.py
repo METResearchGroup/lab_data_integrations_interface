@@ -68,6 +68,18 @@ def test_strip_tco_links_removes_tco_urls() -> None:
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
+        ("Hello https://t.co/abc", True),
+        ("Hello https://example.com", False),
+        ("no links " + "x" * 40, False),
+    ],
+)
+def test_has_tco_links(text: str, expected: bool) -> None:
+    assert twitter_validators.has_tco_links(text) is expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
         (_valid_text(), True),
         ("Bonjour tout le monde, ceci est un tweet en français assez long.", False),
     ],
@@ -122,3 +134,30 @@ def test_preprocess_records_writes_output(data_root) -> None:
     assert metadata["row_counts"]["input"] == 2
     assert metadata["row_counts"]["output"] == 1
     assert metadata["files"]["posts"] == "posts.csv"
+
+
+def test_preprocess_records_strips_tco_from_saved_text(data_root) -> None:
+    dataset_id = VALID_TWITTER_DATASET_ID
+    raw_storage = TwitterStorageManager("raw", dataset_id)
+    run_dir = raw_storage.create_new_run_dir("2026_05_31-11:00:00")
+    text_with_tco = _valid_text() + " https://t.co/abc123"
+    row = _tweet_row(tweet_id="1000000000000000001", text=text_with_tco)
+    raw_storage.write_records([row], run_dir)
+    raw_storage.write_run_metadata(
+        run_dir,
+        {
+            "sync_status": "completed",
+            "row_count": 1,
+        },
+    )
+
+    output_dir = preprocess_twitter.preprocess_records(dataset_id)
+
+    preprocessed_storage = TwitterStorageManager("preprocessed", dataset_id)
+    output = preprocessed_storage.load_records(output_dir)
+
+    assert len(output) == 1
+    assert not twitter_validators.has_tco_links(output.iloc[0]["text"])
+    assert "https://t.co/" not in output.iloc[0]["text"]
+    assert output.iloc[0]["tweet_id"] == row["tweet_id"]
+    assert output.iloc[0]["url"] == row["url"]
