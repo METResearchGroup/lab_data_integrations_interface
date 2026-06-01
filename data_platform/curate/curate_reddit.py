@@ -9,88 +9,31 @@ Run from the repo root:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import typer
 
-from data_platform.curate.apply_rules import apply_rules, load_rules_config
-from data_platform.curate.consolidate import ConsolidateConfig, build_wide_table
-from data_platform.utils.dataset import dataset_root, relative_run_path, validate_dataset_id
+from data_platform.curate.runner import CuratePlatformSpec, run_curation
+from data_platform.curate.utils import resolve_curate_config_path
+from data_platform.utils.platform_ids import REDDIT_BINDING
 from data_platform.utils.storage import RedditStorageManager
-from lib.timestamp_utils import get_current_timestamp
 
 CONFIGS_DIR = Path(__file__).resolve().parent / "configs" / "reddit"
-ID_COLUMN = "comment_fullname"
-FEATURE_CSV_ID_COLUMN = "uri"
 
 app = typer.Typer(add_completion=False)
 
+REDDIT_CURATE_SPEC = CuratePlatformSpec(
+    platform="reddit",
+    storage_cls=RedditStorageManager,
+    binding=REDDIT_BINDING,
+    record_noun="comments",
+)
 
-def resolve_config_path(config: Path) -> Path:
-    candidates = [config]
-    if config.suffix != ".yaml":
-        candidates.append(config.with_suffix(".yaml"))
-    if config.parent == Path("."):
-        candidates.extend(CONFIGS_DIR / candidate.name for candidate in list(candidates))
-
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate.resolve()
-
-    raise FileNotFoundError(f"Config not found: {config}")
+ID_COLUMN = REDDIT_BINDING.records_id_column
+FEATURE_CSV_ID_COLUMN = REDDIT_BINDING.feature_csv_id_column
 
 
 def curate_mirrorview(config_path: Path, dataset_id: str) -> Path:
-    dataset_id = validate_dataset_id(dataset_id)
-    root = dataset_root("reddit", dataset_id)
-    preprocessed_storage = RedditStorageManager("preprocessed", dataset_id)
-    curated_storage = RedditStorageManager("curated", dataset_id)
-    features_root = root / "features"
-
-    rules = load_rules_config(config_path)
-    preprocessed_run = preprocessed_storage.latest_run_dir()
-    if preprocessed_run is None:
-        raise FileNotFoundError(f"No preprocessed runs found for dataset {dataset_id}")
-
-    comments_csv = preprocessed_run / preprocessed_storage.records_filename
-    wide_df = build_wide_table(
-        ConsolidateConfig(
-            posts_csv=comments_csv,
-            features_root=features_root,
-            id_column=ID_COLUMN,
-            feature_csv_id_column=FEATURE_CSV_ID_COLUMN,
-        )
-    )
-    rules_result = apply_rules(wide_df, rules)
-    filtered_df = rules_result.dataframe
-
-    run_dir = curated_storage.create_new_run_dir(get_current_timestamp())
-    output_path = run_dir / rules.output.filename
-    filtered_df.to_csv(output_path, index=False)
-
-    metadata: dict[str, Any] = {
-        "dataset_id": dataset_id,
-        "name": rules.name,
-        "source_preprocessed_run": relative_run_path(root, preprocessed_run),
-        "row_counts": {
-            "preprocessed": len(wide_df),
-            "wide": len(wide_df),
-            "after_filters": len(filtered_df),
-        },
-        "filter_results": [
-            {
-                **step.rule.model_dump(),
-                "records_before": step.records_before,
-                "records_passing": step.records_passing,
-            }
-            for step in rules_result.steps
-        ],
-        "files": {"export": rules.output.filename},
-    }
-    curated_storage.write_run_metadata(run_dir, metadata)
-
-    print(f"curate_mirrorview: kept {len(filtered_df)} of {len(wide_df)} comments -> {run_dir}")
-    return output_path
+    return run_curation(config_path, dataset_id, REDDIT_CURATE_SPEC)
 
 
 @app.command()
@@ -107,7 +50,7 @@ def main(
         help="Curate config under data_platform/curate/configs/reddit/",
     ),
 ) -> None:
-    config_path = resolve_config_path(config)
+    config_path = resolve_curate_config_path(config, CONFIGS_DIR)
     curate_mirrorview(config_path, dataset_id)
 
 

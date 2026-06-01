@@ -13,29 +13,19 @@ from pathlib import Path
 import pandas as pd
 import typer
 
-from data_platform.generate_features.generate_features import (
-    FeatureGenerationConfig,
-    generate_features,
-)
+from data_platform.generate_features.generate_features import FeatureGenerationConfig
 from data_platform.generate_features.models import FeatureRunConfig
+from data_platform.generate_features.platform_cli import (
+    features_from_cli,
+    generate_feature_subset,
+    run_feature_generation,
+)
 from data_platform.generate_features.registry import FEATURE_REGISTRY
 from data_platform.models.sync import SyncBlueskyPostModel
 from data_platform.utils.dataset import dataset_root, validate_dataset_id
 from data_platform.utils.feature_labels import FeatureLabelQuery
+from data_platform.utils.platform_ids import BLUESKY_BINDING
 from data_platform.utils.storage import BlueskyStorageManager
-
-URI_COLUMN = "uri"
-TEXT_COLUMN = "text"
-
-
-def generate_feature_subset(features: list[str] | None) -> tuple[str, ...] | None:
-    """Validate feature names and return a registry subset, or None to run all features."""
-    if not features:
-        return None
-    unknown = set(features) - set(FEATURE_REGISTRY)
-    if unknown:
-        raise ValueError(f"Unknown features: {sorted(unknown)}")
-    return tuple(features)
 
 
 def bluesky_feature_config(
@@ -52,16 +42,17 @@ def bluesky_feature_config(
         registry = {name: FEATURE_REGISTRY[name] for name in features_subset}
 
     features_dir = dataset_root("bluesky", dataset_id) / "features"
+    binding = BLUESKY_BINDING
     return FeatureGenerationConfig(
         platform="bluesky",
-        id_column=URI_COLUMN,
-        text_column=TEXT_COLUMN,
+        id_column=binding.records_id_column,
+        text_column=binding.text_column,
         feature_registry=registry,
         input_storage=BlueskyStorageManager("preprocessed", dataset_id),
         features_dir=features_dir,
         feature_label_query=FeatureLabelQuery(
             features_root=features_dir,
-            id_column=URI_COLUMN,
+            id_column=binding.records_id_column,
         ),
         run_config=run_config,
         preprocessed_run=preprocessed_run,
@@ -104,25 +95,17 @@ def generate_bluesky_features(
         opik_enabled=not no_opik,
     )
     posts = load_posts(dataset_id, preprocessed_run)
-    if posts.empty:
-        print("generate_bluesky_features: no preprocessed posts found")
-        return {}
-
     config = bluesky_feature_config(
         dataset_id,
         run_config=run_config,
         preprocessed_run=preprocessed_run,
         features_subset=features_subset,
     )
-    return generate_features(posts, config)
-
-
-def _features_from_cli(raw: list[str] | None) -> list[str] | None:
-    """Normalize Typer --features values into a list of feature names."""
-    if raw is None:
-        return None
-    names = [part.strip() for item in raw for part in item.split(",") if part.strip()]
-    return names or None
+    return run_feature_generation(
+        posts,
+        config,
+        empty_message="generate_bluesky_features: no preprocessed posts found",
+    )
 
 
 def main(
@@ -152,7 +135,7 @@ def main(
         max_concurrency=max_concurrency,
         no_opik=no_opik,
         preprocessed_run=preprocessed_run,
-        feature_subset=_features_from_cli(features),
+        feature_subset=features_from_cli(features),
     )
 
 
