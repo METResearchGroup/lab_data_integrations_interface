@@ -80,6 +80,61 @@ def _users_by_id(response: Any) -> dict[str, str]:
     return users
 
 
+def _search_recent_tweets_kwargs(
+    query: str,
+    max_results: int,
+    next_token: str | None,
+) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {
+        "query": query,
+        "max_results": max_results,
+        "tweet_fields": ["created_at", "public_metrics", "author_id"],
+        "expansions": ["author_id"],
+        "user_fields": ["username"],
+    }
+    if next_token is not None:
+        kwargs["next_token"] = next_token
+    return kwargs
+
+
+def _search_recent_tweets(client: tweepy.Client, keyword: str, **kwargs: Any) -> Any:
+    try:
+        return client.search_recent_tweets(**kwargs)
+    except tweepy.TooManyRequests:
+        logger.exception("Rate limited while fetching keyword %r", keyword)
+        raise
+
+
+def _append_tweets_from_response(
+    response: Any,
+    rows: list[dict[str, object]],
+    *,
+    limit: int,
+    keyword: str,
+    sync_timestamp: str,
+) -> str | None:
+    if not response or not response.data:
+        return None
+
+    users = _users_by_id(response)
+    for tweet in response.data:
+        if len(rows) >= limit:
+            break
+        author_id = str(tweet.author_id) if tweet.author_id else ""
+        username = users.get(author_id, "")
+        rows.append(
+            tweet_to_row(
+                tweet,
+                username=username,
+                keyword=keyword,
+                sync_timestamp=sync_timestamp,
+            )
+        )
+
+    meta = getattr(response, "meta", None) or {}
+    return meta.get("next_token")
+
+
 def fetch_posts_for_keyword(
     client: tweepy.Client,
     keyword: str,
@@ -94,42 +149,15 @@ def fetch_posts_for_keyword(
 
     while len(rows) < limit:
         max_results = max(10, min(100, limit - len(rows)))
-        kwargs: dict[str, Any] = {
-            "query": query,
-            "max_results": max_results,
-            "tweet_fields": ["created_at", "public_metrics", "author_id"],
-            "expansions": ["author_id"],
-            "user_fields": ["username"],
-        }
-        if next_token is not None:
-            kwargs["next_token"] = next_token
-
-        try:
-            response = client.search_recent_tweets(**kwargs)
-        except tweepy.TooManyRequests:
-            logger.exception("Rate limited while fetching keyword %r", keyword)
-            raise
-
-        if not response or not response.data:
-            break
-
-        users = _users_by_id(response)
-        for tweet in response.data:
-            if len(rows) >= limit:
-                break
-            author_id = str(tweet.author_id) if tweet.author_id else ""
-            username = users.get(author_id, "")
-            rows.append(
-                tweet_to_row(
-                    tweet,
-                    username=username,
-                    keyword=keyword,
-                    sync_timestamp=sync_timestamp,
-                )
-            )
-
-        meta = getattr(response, "meta", None) or {}
-        next_token = meta.get("next_token")
+        kwargs = _search_recent_tweets_kwargs(query, max_results, next_token)
+        response = _search_recent_tweets(client, keyword, **kwargs)
+        next_token = _append_tweets_from_response(
+            response,
+            rows,
+            limit=limit,
+            keyword=keyword,
+            sync_timestamp=sync_timestamp,
+        )
         if not next_token:
             break
 

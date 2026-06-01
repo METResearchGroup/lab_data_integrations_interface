@@ -12,10 +12,7 @@ from experiments.x_fetch_data_2026_06_01.x_client import (
 
 
 def test_build_query_quotes_multiword() -> None:
-    assert (
-        build_query("gun control")
-        == '"gun control" lang:en -is:reply -is:retweet -is:quote'
-    )
+    assert build_query("gun control") == '"gun control" lang:en -is:reply -is:retweet -is:quote'
 
 
 def test_build_query_single_word() -> None:
