@@ -1,0 +1,44 @@
+{
+  "sync_timestamp": "2026_06_01-14:32:18",
+  "api": "x_api_v2",
+  "endpoint": "/2/tweets/search/recent",
+  "total_post_cap": 100,
+  "posts_per_keyword_target": 10,
+  "total_posts": 100,
+  "filters": {
+    "original_posts_only": true,
+    "exclude": [
+      "reply",
+      "retweet",
+      "quote"
+    ],
+    "lang": "en"
+  },
+  "keywords": [
+    "gun control",
+    "climate change",
+    "abortion",
+    "immigration",
+    "second amendment",
+    "reproductive rights",
+    "border security",
+    "renewable energy",
+    "pro-life",
+    "DACA"
+  ],
+  "counts_by_keyword": {
+    "gun control": 10,
+    "climate change": 10,
+    "abortion": 10,
+    "immigration": 10,
+    "second amendment": 10,
+    "reproductive rights": 10,
+    "border security": 10,
+    "renewable energy": 10,
+    "pro-life": 10,
+    "DACA": 10
+  },
+  "files": {
+    "posts": "posts.csv"
+  }
+}
