@@ -1,0 +1,185 @@
+from __future__ import annotations
+
+import csv
+import json
+from pathlib import Path
+from typing import Any, Literal
+
+import pandas as pd
+from pydantic import BaseModel
+
+from data_platform.models.sync import SyncBlueskyPostModel
+from data_platform.utils.dataset import validate_dataset_id
+from lib.timestamp_utils import get_current_timestamp
+
+DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
+METADATA_FILENAME = "metadata.json"
+Stage = Literal["raw", "preprocessed", "features", "curated"]
+
+
+def _write_csv(rows: list[dict[str, Any]], output_path: Path, fieldnames: list[str]) -> None:
+    with output_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _append_csv(rows: list[dict[str, Any]], output_path: Path, fieldnames: list[str]) -> None:
+    file_exists = output_path.exists()
+    mode = "a" if file_exists else "w"
+    with output_path.open(mode, newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerows(rows)
+
+
+class StorageManager:
+    platform: str
+    stage: Stage
+    model: type[BaseModel]
+    records_filename: str
+    dataset_id: str
+
+    def __init__(
+        self,
+        platform: str,
+        stage: Stage,
+        model: type[BaseModel],
+        dataset_id: str,
+        *,
+        records_filename: str,
+    ) -> None:
+        self.platform = platform
+        self.stage = stage
+        self.model = model
+        self.dataset_id = validate_dataset_id(dataset_id)
+        self.records_filename = records_filename
+
+    @property
+    def root_dir(self) -> Path:
+        return DATA_ROOT / self.platform / self.dataset_id / self.stage
+
+    def create_new_run_dir(self, timestamp: str | None = None) -> Path:
+        run_dir = self.root_dir / (timestamp or get_current_timestamp())
+        run_dir.mkdir(parents=True, exist_ok=True)
+        return run_dir
+
+    def latest_run_dir(self) -> Path | None:
+        if not self.root_dir.exists():
+            return None
+        run_dirs = [path for path in self.root_dir.iterdir() if path.is_dir()]
+        if not run_dirs:
+            return None
+        return max(run_dirs, key=lambda path: path.name)
+
+    def _resolve_run_dir(
+        self,
+        run_dir: Path | None,
+        *,
+        latest: bool,
+    ) -> Path:
+        if run_dir is not None:
+            return run_dir
+        if latest:
+            resolved = self.latest_run_dir()
+            if resolved is None:
+                raise FileNotFoundError(f"No {self.stage} runs found under {self.root_dir}")
+            return resolved
+        raise ValueError("Either run_dir must be provided or latest=True")
+
+    def write_records(
+        self,
+        rows: list[dict[str, Any]],
+        run_dir: Path,
+        *,
+        filename: str | None = None,
+    ) -> Path:
+        csv_path = run_dir / (filename or self.records_filename)
+        fieldnames = list(self.model.model_fields.keys())
+        _write_csv(rows, csv_path, fieldnames)
+        return csv_path
+
+    def append_records(
+        self,
+        rows: list[dict[str, Any]],
+        run_dir: Path,
+        *,
+        filename: str | None = None,
+    ) -> Path:
+        validated = [self.model.model_validate(row).model_dump() for row in rows]
+        csv_path = run_dir / (filename or self.records_filename)
+        fieldnames = list(self.model.model_fields.keys())
+        _append_csv(validated, csv_path, fieldnames)
+        return csv_path
+
+    def load_seen_uris(
+        self,
+        run_dir: Path,
+        *,
+        filename: str | None = None,
+    ) -> set[str]:
+        csv_path = run_dir / (filename or self.records_filename)
+        if not csv_path.exists():
+            return set()
+        with csv_path.open(newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            return {row["uri"] for row in reader if row.get("uri")}
+
+    def load_records(
+        self,
+        run_dir: Path | None = None,
+        *,
+        latest: bool = False,
+        filename: str | None = None,
+    ) -> pd.DataFrame:
+        resolved_run_dir = self._resolve_run_dir(run_dir, latest=latest)
+        csv_path = resolved_run_dir / (filename or self.records_filename)
+        if not csv_path.exists():
+            raise FileNotFoundError(f"Records file not found: {csv_path}")
+
+        return pd.read_csv(csv_path, keep_default_na=False)
+
+    def write_run_metadata(self, run_dir: Path, metadata: dict[str, Any]) -> Path:
+        metadata_path = run_dir / METADATA_FILENAME
+        with metadata_path.open("w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2)
+        return metadata_path
+
+    def write_run_metadata_atomic(self, run_dir: Path, metadata: dict[str, Any]) -> Path:
+        metadata_path = run_dir / METADATA_FILENAME
+        tmp_path = run_dir / f"{METADATA_FILENAME}.tmp"
+        with tmp_path.open("w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2)
+        tmp_path.replace(metadata_path)
+        return metadata_path
+
+    def load_run_metadata(
+        self,
+        run_dir: Path | None = None,
+        *,
+        latest: bool = False,
+    ) -> dict[str, Any]:
+        resolved_run_dir = self._resolve_run_dir(run_dir, latest=latest)
+        metadata_path = resolved_run_dir / METADATA_FILENAME
+        if not metadata_path.exists():
+            raise FileNotFoundError(f"Metadata file not found: {metadata_path}")
+        with metadata_path.open(encoding="utf-8") as f:
+            return json.load(f)
+
+
+class BlueskyStorageManager(StorageManager):
+    def __init__(
+        self,
+        stage: Stage = "raw",
+        dataset_id: str = "",
+        *,
+        records_filename: str = "posts.csv",
+    ) -> None:
+        super().__init__(
+            "bluesky",
+            stage,
+            SyncBlueskyPostModel,
+            dataset_id,
+            records_filename=records_filename,
+        )

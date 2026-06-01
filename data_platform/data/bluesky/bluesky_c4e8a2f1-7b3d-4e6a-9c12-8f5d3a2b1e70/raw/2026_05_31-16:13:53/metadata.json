@@ -1,0 +1,680 @@
+{
+  "sync_status": "completed",
+  "dataset_id": "bluesky_c4e8a2f1-7b3d-4e6a-9c12-8f5d3a2b1e70",
+  "name": "mirrorview_scale",
+  "description": "Mirrorview scale collection \u2014 individual keyword queries, 500 posts each",
+  "date": "2026-05-30",
+  "sync_timestamp": "2026_05_31-16:13:53",
+  "ingestion_config": "mirrorview_scale.yaml",
+  "record_types": [
+    "app.bsky.feed.post"
+  ],
+  "fetch": {
+    "limit": 700,
+    "sort": "latest",
+    "query_batch_size": 1,
+    "max_rows": 20000,
+    "keyword": [
+      "gun control",
+      "gun rights",
+      "second amendment",
+      "gun violence",
+      "gun safety",
+      "firearm",
+      "gun laws",
+      "gun reform",
+      "background checks",
+      "assault weapon",
+      "mass shooting",
+      "NRA",
+      "gun ban",
+      "open carry",
+      "concealed carry",
+      "red flag laws",
+      "climate change",
+      "global warming",
+      "climate crisis",
+      "climate action",
+      "carbon emissions",
+      "greenhouse gases",
+      "fossil fuels",
+      "renewable energy",
+      "climate policy",
+      "Paris agreement",
+      "carbon tax",
+      "green new deal",
+      "climate science",
+      "global temperature",
+      "sea level rise",
+      "carbon footprint",
+      "clean energy",
+      "climate denial",
+      "abortion",
+      "reproductive rights",
+      "pro-choice",
+      "pro-life",
+      "roe v wade",
+      "planned parenthood",
+      "abortion rights",
+      "abortion ban",
+      "abortion access",
+      "reproductive health",
+      "fetal rights",
+      "women's rights",
+      "abortion clinic",
+      "late term abortion",
+      "abortion pill",
+      "heartbeat bill",
+      "abortion law",
+      "reproductive freedom",
+      "right to choose",
+      "immigration",
+      "border security",
+      "illegal immigration",
+      "immigration reform",
+      "deportation",
+      "ICE",
+      "border wall",
+      "asylum",
+      "refugees",
+      "DACA",
+      "green card",
+      "citizenship",
+      "immigration policy",
+      "border patrol",
+      "undocumented immigrants",
+      "visa",
+      "sanctuary cities",
+      "border crisis",
+      "migrant",
+      "immigration detention"
+    ]
+  },
+  "row_count": 20422,
+  "keywords": {
+    "gun control": {
+      "status": "completed",
+      "batch_label": "posts_batch_1",
+      "pages_fetched": 9,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "gun rights": {
+      "status": "completed",
+      "batch_label": "posts_batch_2",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "second amendment": {
+      "status": "completed",
+      "batch_label": "posts_batch_3",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "gun violence": {
+      "status": "completed",
+      "batch_label": "posts_batch_4",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "gun safety": {
+      "status": "completed",
+      "batch_label": "posts_batch_5",
+      "pages_fetched": 13,
+      "rows_collected": 699,
+      "hits_total": null,
+      "last_error": null
+    },
+    "firearm": {
+      "status": "completed",
+      "batch_label": "posts_batch_6",
+      "pages_fetched": 10,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "gun laws": {
+      "status": "completed",
+      "batch_label": "posts_batch_7",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "gun reform": {
+      "status": "completed",
+      "batch_label": "posts_batch_8",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "background checks": {
+      "status": "completed",
+      "batch_label": "posts_batch_9",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "assault weapon": {
+      "status": "completed",
+      "batch_label": "posts_batch_10",
+      "pages_fetched": 10,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "mass shooting": {
+      "status": "completed",
+      "batch_label": "posts_batch_11",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "NRA": {
+      "status": "completed",
+      "batch_label": "posts_batch_12",
+      "pages_fetched": 9,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "gun ban": {
+      "status": "completed",
+      "batch_label": "posts_batch_13",
+      "pages_fetched": 9,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "open carry": {
+      "status": "completed",
+      "batch_label": "posts_batch_14",
+      "pages_fetched": 9,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "concealed carry": {
+      "status": "completed",
+      "batch_label": "posts_batch_15",
+      "pages_fetched": 9,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "red flag laws": {
+      "status": "completed",
+      "batch_label": "posts_batch_16",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "climate change": {
+      "status": "completed",
+      "batch_label": "posts_batch_17",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "global warming": {
+      "status": "completed",
+      "batch_label": "posts_batch_18",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "climate crisis": {
+      "status": "completed",
+      "batch_label": "posts_batch_19",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "climate action": {
+      "status": "completed",
+      "batch_label": "posts_batch_20",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "carbon emissions": {
+      "status": "completed",
+      "batch_label": "posts_batch_21",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "greenhouse gases": {
+      "status": "completed",
+      "batch_label": "posts_batch_22",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "fossil fuels": {
+      "status": "completed",
+      "batch_label": "posts_batch_23",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "renewable energy": {
+      "status": "completed",
+      "batch_label": "posts_batch_24",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "climate policy": {
+      "status": "completed",
+      "batch_label": "posts_batch_25",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "Paris agreement": {
+      "status": "completed",
+      "batch_label": "posts_batch_26",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "carbon tax": {
+      "status": "completed",
+      "batch_label": "posts_batch_27",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "green new deal": {
+      "status": "completed",
+      "batch_label": "posts_batch_28",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "climate science": {
+      "status": "completed",
+      "batch_label": "posts_batch_29",
+      "pages_fetched": 8,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "global temperature": {
+      "status": "completed",
+      "batch_label": "posts_batch_30",
+      "pages_fetched": 9,
+      "rows_collected": 700,
+      "hits_total": null,
+      "last_error": null
+    },
+    "sea level rise": {
+      "status": "skipped",
+      "batch_label": "posts_batch_31",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "carbon footprint": {
+      "status": "skipped",
+      "batch_label": "posts_batch_32",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "clean energy": {
+      "status": "skipped",
+      "batch_label": "posts_batch_33",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "climate denial": {
+      "status": "skipped",
+      "batch_label": "posts_batch_34",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "abortion": {
+      "status": "skipped",
+      "batch_label": "posts_batch_35",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "reproductive rights": {
+      "status": "skipped",
+      "batch_label": "posts_batch_36",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "pro-choice": {
+      "status": "skipped",
+      "batch_label": "posts_batch_37",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "pro-life": {
+      "status": "skipped",
+      "batch_label": "posts_batch_38",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "roe v wade": {
+      "status": "skipped",
+      "batch_label": "posts_batch_39",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "planned parenthood": {
+      "status": "skipped",
+      "batch_label": "posts_batch_40",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "abortion rights": {
+      "status": "skipped",
+      "batch_label": "posts_batch_41",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "abortion ban": {
+      "status": "skipped",
+      "batch_label": "posts_batch_42",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "abortion access": {
+      "status": "skipped",
+      "batch_label": "posts_batch_43",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "reproductive health": {
+      "status": "skipped",
+      "batch_label": "posts_batch_44",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "fetal rights": {
+      "status": "skipped",
+      "batch_label": "posts_batch_45",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "women's rights": {
+      "status": "skipped",
+      "batch_label": "posts_batch_46",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "abortion clinic": {
+      "status": "skipped",
+      "batch_label": "posts_batch_47",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "late term abortion": {
+      "status": "skipped",
+      "batch_label": "posts_batch_48",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "abortion pill": {
+      "status": "skipped",
+      "batch_label": "posts_batch_49",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "heartbeat bill": {
+      "status": "skipped",
+      "batch_label": "posts_batch_50",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "abortion law": {
+      "status": "skipped",
+      "batch_label": "posts_batch_51",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "reproductive freedom": {
+      "status": "skipped",
+      "batch_label": "posts_batch_52",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "right to choose": {
+      "status": "skipped",
+      "batch_label": "posts_batch_53",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "immigration": {
+      "status": "skipped",
+      "batch_label": "posts_batch_54",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "border security": {
+      "status": "skipped",
+      "batch_label": "posts_batch_55",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "illegal immigration": {
+      "status": "skipped",
+      "batch_label": "posts_batch_56",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "immigration reform": {
+      "status": "skipped",
+      "batch_label": "posts_batch_57",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "deportation": {
+      "status": "skipped",
+      "batch_label": "posts_batch_58",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "ICE": {
+      "status": "skipped",
+      "batch_label": "posts_batch_59",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "border wall": {
+      "status": "skipped",
+      "batch_label": "posts_batch_60",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "asylum": {
+      "status": "skipped",
+      "batch_label": "posts_batch_61",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "refugees": {
+      "status": "skipped",
+      "batch_label": "posts_batch_62",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "DACA": {
+      "status": "skipped",
+      "batch_label": "posts_batch_63",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "green card": {
+      "status": "skipped",
+      "batch_label": "posts_batch_64",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "citizenship": {
+      "status": "skipped",
+      "batch_label": "posts_batch_65",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "immigration policy": {
+      "status": "skipped",
+      "batch_label": "posts_batch_66",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "border patrol": {
+      "status": "skipped",
+      "batch_label": "posts_batch_67",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "undocumented immigrants": {
+      "status": "skipped",
+      "batch_label": "posts_batch_68",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "visa": {
+      "status": "skipped",
+      "batch_label": "posts_batch_69",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "sanctuary cities": {
+      "status": "skipped",
+      "batch_label": "posts_batch_70",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "border crisis": {
+      "status": "skipped",
+      "batch_label": "posts_batch_71",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "migrant": {
+      "status": "skipped",
+      "batch_label": "posts_batch_72",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    },
+    "immigration detention": {
+      "status": "skipped",
+      "batch_label": "posts_batch_73",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "hits_total": null,
+      "last_error": null
+    }
+  }
+}

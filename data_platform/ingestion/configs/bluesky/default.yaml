@@ -1,0 +1,13 @@
+# Set dataset_id before running sync (required).
+dataset_id: bluesky_00000000-0000-4000-8000-000000000099
+name: bluesky-default
+description: Posts from a handle matching a keyword
+date: "2026-05-29"
+record_types:
+  - app.bsky.feed.post
+fetch:
+  handle: user.bsky.social
+  keyword: example
+  limit: 50
+  max_rows: 200
+  sort: latest
