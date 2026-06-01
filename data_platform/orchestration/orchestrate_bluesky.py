@@ -13,12 +13,8 @@ from pathlib import Path
 
 from prefect import flow, task
 
-from data_platform.ingestion.sync_bluesky import (
-    _require_dataset_id,
-    load_config,
-    resolve_config_path,
-    sync_records,
-)
+from data_platform.ingestion.sync_bluesky import _require_dataset_id, sync_records
+from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
 from data_platform.preprocessing.preprocess_bluesky import preprocess_records
 
 MIRRORVIEW_CONFIG = (
@@ -33,7 +29,7 @@ def sync_task() -> None:
 
 @task(name="preprocess-bluesky")
 def preprocess_task() -> None:
-    config = load_config(resolve_config_path(MIRRORVIEW_CONFIG))
+    config = load_yaml_config(resolve_config_path(MIRRORVIEW_CONFIG, MIRRORVIEW_CONFIG.parent))
     preprocess_records(_require_dataset_id(config))
 
 

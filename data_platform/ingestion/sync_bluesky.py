@@ -27,11 +27,11 @@ from pathlib import Path
 from typing import Any, Literal
 
 import typer
-import yaml
 from atproto import Client
 from tqdm import tqdm
 
 from data_platform.ingestion.bluesky_retry import retry_bluesky_request
+from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
 from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
 from data_platform.utils.storage import BlueskyStorageManager
 from lib.load_env_vars import EnvVarsContainer
@@ -383,23 +383,7 @@ def merge_work_items_with_metadata(
     return work_items
 
 
-def load_config(config_path: Path) -> dict[str, Any]:
-    with config_path.open(encoding="utf-8") as f:
-        return yaml.safe_load(f)
-
-
-def resolve_config_path(config: Path) -> Path:
-    candidates = [config]
-    if config.suffix != ".yaml":
-        candidates.append(config.with_suffix(".yaml"))
-    if config.parent == Path("."):
-        candidates.extend(CONFIGS_DIR / candidate.name for candidate in list(candidates))
-
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate.resolve()
-
-    raise FileNotFoundError(f"Config not found: {config}")
+load_config = load_yaml_config
 
 
 def _require_dataset_id(config: dict[str, Any]) -> str:
@@ -500,7 +484,7 @@ def main(
         help="Raw run timestamp directory name (requires --resume)",
     ),
 ) -> None:
-    config_path = resolve_config_path(config)
+    config_path = resolve_config_path(config, CONFIGS_DIR)
     sync_records(config_path, resume=resume, run_dir_name=run_dir)
 
 
