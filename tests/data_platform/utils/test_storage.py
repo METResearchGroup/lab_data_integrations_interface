@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 
+from data_platform.utils.storage import RedditStorageManager
 from tests.data_platform.conftest import make_ingestion_row
-from tests.data_platform.constants import VALID_DATASET_ID
+from tests.data_platform.constants import VALID_DATASET_ID, VALID_REDDIT_DATASET_ID
+from tests.data_platform.ingestion.reddit_conftest import mock_comment_row
 
 
 def test_bluesky_storage_root_includes_dataset_id(data_root, bluesky_storage) -> None:
@@ -41,6 +43,36 @@ def test_load_seen_uris(bluesky_storage) -> None:
     bluesky_storage.append_records([row], run_dir)
 
     assert bluesky_storage.load_seen_uris(run_dir) == {row["uri"]}
+
+
+def test_load_seen_ids_from_prior_runs(data_root) -> None:
+    comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
+    prior_run_a = comment_storage.create_new_run_dir("2026_05_29-10:00:00")
+    prior_run_b = comment_storage.create_new_run_dir("2026_05_29-11:00:00")
+    current_run = comment_storage.create_new_run_dir("2026_05_30-10:00:00")
+
+    comment_storage.append_records(
+        [mock_comment_row("t1_comment_a")],
+        prior_run_a,
+        filename="comments.csv",
+    )
+    comment_storage.append_records(
+        [mock_comment_row("t1_comment_b")],
+        prior_run_b,
+        filename="comments.csv",
+    )
+    comment_storage.append_records(
+        [mock_comment_row("t1_comment_current")],
+        current_run,
+        filename="comments.csv",
+    )
+
+    seen = comment_storage.load_seen_ids_from_prior_runs(
+        current_run,
+        "comment_fullname",
+        filename="comments.csv",
+    )
+    assert seen == {"t1_comment_a", "t1_comment_b"}
 
 
 def test_write_run_metadata_atomic(bluesky_storage) -> None:

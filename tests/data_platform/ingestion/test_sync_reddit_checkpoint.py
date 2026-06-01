@@ -99,6 +99,74 @@ def test_run_subreddit_sync_loop_appends_per_subreddit(
     assert len(comment_storage.load_seen_ids(run_dir, "comment_fullname")) == 2
 
 
+def test_run_subreddit_sync_loop_skips_prior_run_comments(
+    data_root,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = minimal_reddit_sync_config()
+    fetch = config["fetch"]
+    fetch["dedupe_comments_from_prior_raw_runs"] = True
+    work_items = sync_reddit.iter_fetch_work_items(fetch)
+    comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
+    post_storage = comment_storage.post_storage()
+
+    prior_run = comment_storage.create_new_run_dir("2026_05_29-10:00:00")
+    comment_storage.append_records(
+        [mock_comment_row("t1_comment_old", subreddit="alphasub")],
+        prior_run,
+    )
+
+    run_dir = comment_storage.create_new_run_dir("2026_05_30-10:00:00")
+    metadata = sync_reddit.init_sync_metadata(
+        config,
+        Path("test.yaml"),
+        "2026_05_30-10:00:00",
+        work_items,
+    )
+
+    def fake_fetch(
+        reddit: Any,
+        fetch_cfg: dict[str, Any],
+        subreddit: str,
+        *,
+        sync_timestamp: str,
+        include_posts: bool,
+        include_comments: bool,
+    ):
+        return (
+            [mock_post_row("t3_post_a1", subreddit="alphasub")],
+            [
+                mock_comment_row("t1_comment_old", subreddit="alphasub"),
+                mock_comment_row("t1_comment_new", subreddit="alphasub"),
+            ],
+            {
+                "subreddit": subreddit,
+                "listing": fetch_cfg.get("listing", "hot"),
+                "limit_per_subreddit": fetch_cfg["limit_per_subreddit"],
+                "posts_collected": 1,
+                "comments_collected": 2,
+            },
+        )
+
+    monkeypatch.setattr(sync_reddit, "fetch_records_for_subreddit", fake_fetch)
+
+    sync_reddit.run_subreddit_sync_loop(
+        MagicMock(),
+        fetch,
+        run_dir,
+        comment_storage,
+        post_storage,
+        metadata,
+        work_items[:1],
+        include_comments=True,
+        include_posts=True,
+    )
+
+    seen = comment_storage.load_seen_ids(run_dir, "comment_fullname")
+    assert seen == {"t1_comment_new"}
+    assert metadata["comments_skipped_as_duplicates"] == 1
+
+
 def test_resume_skips_completed_subreddits(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
