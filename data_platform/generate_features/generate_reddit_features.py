@@ -1,0 +1,162 @@
+"""Generate features for preprocessed Reddit comments.
+
+Run from the repo root:
+
+    PYTHONPATH=. uv run python data_platform/generate_features/generate_reddit_features.py \\
+        --dataset-id reddit_<uuid> --batch-size 64 --no-opik
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pandas as pd
+import typer
+
+from data_platform.generate_features.generate_features import (
+    FeatureGenerationConfig,
+    generate_features,
+)
+from data_platform.generate_features.models import FeatureRunConfig
+from data_platform.generate_features.registry import FEATURE_REGISTRY
+from data_platform.models.sync import SyncRedditCommentModel
+from data_platform.utils.dataset import dataset_root, validate_dataset_id
+from data_platform.utils.feature_labels import FeatureLabelQuery
+from data_platform.utils.storage import RedditStorageManager
+
+ID_COLUMN = "comment_fullname"
+TEXT_COLUMN = "body"
+FEATURE_CSV_ID_COLUMN = "uri"
+
+
+def generate_feature_subset(features: list[str] | None) -> tuple[str, ...] | None:
+    """Validate feature names and return a registry subset, or None to run all features."""
+    if not features:
+        return None
+    unknown = set(features) - set(FEATURE_REGISTRY)
+    if unknown:
+        raise ValueError(f"Unknown features: {sorted(unknown)}")
+    return tuple(features)
+
+
+def reddit_feature_config(
+    dataset_id: str,
+    *,
+    run_config: FeatureRunConfig,
+    preprocessed_run: str | None = None,
+    features_subset: tuple[str, ...] | None = None,
+) -> FeatureGenerationConfig:
+    """Build a FeatureGenerationConfig for Reddit flat feature CSV output."""
+    dataset_id = validate_dataset_id(dataset_id)
+    registry = FEATURE_REGISTRY
+    if features_subset:
+        registry = {name: FEATURE_REGISTRY[name] for name in features_subset}
+
+    features_dir = dataset_root("reddit", dataset_id) / "features"
+    return FeatureGenerationConfig(
+        platform="reddit",
+        id_column=ID_COLUMN,
+        text_column=TEXT_COLUMN,
+        feature_registry=registry,
+        input_storage=RedditStorageManager("preprocessed", dataset_id),
+        features_dir=features_dir,
+        feature_label_query=FeatureLabelQuery(
+            features_root=features_dir,
+            id_column=ID_COLUMN,
+            feature_csv_id_column=FEATURE_CSV_ID_COLUMN,
+        ),
+        run_config=run_config,
+        preprocessed_run=preprocessed_run,
+    )
+
+
+def load_comments(dataset_id: str, preprocessed_run: str | None = None) -> pd.DataFrame:
+    """Load preprocessed comments from the latest or a pinned preprocessing run."""
+    storage = RedditStorageManager("preprocessed", dataset_id)
+    if preprocessed_run:
+        run_dir = dataset_root("reddit", dataset_id) / preprocessed_run
+        comments = storage.load_records(run_dir)
+    else:
+        comments = storage.load_records(latest=True)
+    if comments.empty:
+        return comments.copy()
+
+    return pd.DataFrame(
+        SyncRedditCommentModel.model_validate(row).model_dump()
+        for row in comments.to_dict(orient="records")
+    )
+
+
+def generate_reddit_features(
+    dataset_id: str,
+    *,
+    batch_size: int = 64,
+    max_concurrency: int = 80,
+    no_opik: bool = False,
+    preprocessed_run: str | None = None,
+    feature_subset: list[str] | None = None,
+) -> dict[str, Path]:
+    """Load Reddit comments and generate the requested feature labels."""
+    dataset_id = validate_dataset_id(dataset_id)
+    features_subset = generate_feature_subset(feature_subset)
+
+    run_config = FeatureRunConfig(
+        batch_size=batch_size,
+        max_concurrency=max_concurrency,
+        opik_enabled=not no_opik,
+    )
+    comments = load_comments(dataset_id, preprocessed_run)
+    if comments.empty:
+        print("generate_reddit_features: no preprocessed comments found")
+        return {}
+
+    config = reddit_feature_config(
+        dataset_id,
+        run_config=run_config,
+        preprocessed_run=preprocessed_run,
+        features_subset=features_subset,
+    )
+    return generate_features(comments, config)
+
+
+def _features_from_cli(raw: list[str] | None) -> list[str] | None:
+    """Normalize Typer --features values into a list of feature names."""
+    if raw is None:
+        return None
+    names = [part.strip() for item in raw for part in item.split(",") if part.strip()]
+    return names or None
+
+
+def main(
+    dataset_id: str = typer.Option(
+        ...,
+        "--dataset-id",
+        help="Dataset identifier from ingestion YAML (reddit_<uuid>)",
+    ),
+    batch_size: int = typer.Option(64, "--batch-size"),
+    max_concurrency: int = typer.Option(80, "--max-concurrency"),
+    no_opik: bool = typer.Option(False, "--no-opik"),
+    preprocessed_run: str | None = typer.Option(
+        None,
+        "--preprocessed-run",
+        help="Pin preprocessed run path, e.g. preprocessed/2026_05_29-20:14:22",
+    ),
+    features: list[str] | None = typer.Option(
+        None,
+        "--features",
+        help="Feature name(s); repeat the flag per feature, e.g. --features is_political",
+    ),
+) -> None:
+    """CLI entrypoint for resumable Reddit feature generation."""
+    generate_reddit_features(
+        dataset_id,
+        batch_size=batch_size,
+        max_concurrency=max_concurrency,
+        no_opik=no_opik,
+        preprocessed_run=preprocessed_run,
+        feature_subset=_features_from_cli(features),
+    )
+
+
+if __name__ == "__main__":
+    typer.run(main)
