@@ -89,7 +89,7 @@ def generate_bluesky_features(
     dataset_id: str,
     *,
     batch_size: int = 64,
-    max_concurrency: int = 20,
+    max_concurrency: int = 80,
     no_opik: bool = False,
     preprocessed_run: str | None = None,
     feature_subset: list[str] | None = None,
@@ -104,7 +104,6 @@ def generate_bluesky_features(
         opik_enabled=not no_opik,
     )
     posts = load_posts(dataset_id, preprocessed_run)
-    posts = posts.head(200) # TODO: keep for now until verified.
     if posts.empty:
         print("generate_bluesky_features: no preprocessed posts found")
         return {}
@@ -133,7 +132,7 @@ def main(
         help="Dataset identifier from ingestion YAML (bluesky_<uuid>)",
     ),
     batch_size: int = typer.Option(64, "--batch-size"),
-    max_concurrency: int = typer.Option(20, "--max-concurrency"),
+    max_concurrency: int = typer.Option(80, "--max-concurrency"),
     no_opik: bool = typer.Option(False, "--no-opik"),
     preprocessed_run: str | None = typer.Option(
         None,

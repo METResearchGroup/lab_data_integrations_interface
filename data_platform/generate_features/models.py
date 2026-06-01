@@ -24,7 +24,7 @@ class LabelTask:
 @dataclass(frozen=True)
 class FeatureRunConfig:
     batch_size: int = 64
-    max_concurrency: int = 20
+    max_concurrency: int = 80
     opik_enabled: bool = True
     max_label_retries: int = 3
 
@@ -81,7 +81,7 @@ class FeatureRunMetadata:
         config_raw = data.get("config", {})
         config = FeatureRunConfig(
             batch_size=config_raw.get("batch_size", 64),
-            max_concurrency=config_raw.get("max_concurrency", 20),
+            max_concurrency=config_raw.get("max_concurrency", 80),
             opik_enabled=config_raw.get("opik_enabled", True),
             max_label_retries=config_raw.get("max_label_retries", 3),
         )
