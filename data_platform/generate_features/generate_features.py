@@ -124,10 +124,7 @@ def _process_one_feature(
     # Resume with new posts: a past batch of posts may have been done and
     # we marked the metadata as done, but we have new posts.
     if feature_status and feature_status.status == "completed":
-        print(
-            f"generate_features: {feature_name} was completed; "
-            f"labeling {len(tasks)} new posts"
-        )
+        print(f"generate_features: {feature_name} was completed; labeling {len(tasks)} new posts")
 
     # Pending posts remain — run batch labeling and append to {feature}.csv.
     stats = _run_feature_labeling(feature_name, spec, tasks, config, metadata)
