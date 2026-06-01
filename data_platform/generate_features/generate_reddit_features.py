@@ -75,6 +75,10 @@ def load_comments(dataset_id: str, preprocessed_run: str | None = None) -> pd.Da
     if comments.empty:
         return comments.copy()
 
+    # NOTE to future users: for the MirrorView study, we limited it to the
+    # first 15,000 comments.
+    # comments = comments.head(15000)
+
     return pd.DataFrame(
         SyncRedditCommentModel.model_validate(row).model_dump()
         for row in comments.to_dict(orient="records")

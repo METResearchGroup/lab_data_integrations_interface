@@ -5,32 +5,32 @@
   "features": {
     "is_news_or_opinion": {
       "status": "completed",
-      "labeled": 10663,
+      "labeled": 25663,
       "failed_batches": 0
     },
     "is_political": {
       "status": "completed",
-      "labeled": 10663,
+      "labeled": 25663,
       "failed_batches": 0
     },
     "is_self_contained": {
       "status": "completed",
-      "labeled": 10663,
+      "labeled": 25663,
       "failed_batches": 0
     },
     "is_structurally_complete": {
       "status": "completed",
-      "labeled": 10663,
+      "labeled": 25663,
       "failed_batches": 0
     },
     "is_toxic_tiered": {
       "status": "completed",
-      "labeled": 10663,
+      "labeled": 25663,
       "failed_batches": 0
     },
     "political_stance": {
       "status": "completed",
-      "labeled": 10663,
+      "labeled": 25663,
       "failed_batches": 0
     }
   },
@@ -40,5 +40,5 @@
     "opik_enabled": false,
     "max_label_retries": 3
   },
-  "updated_at": "2026_06_01-04:53:18"
+  "updated_at": "2026_06_01-18:01:18"
 }
