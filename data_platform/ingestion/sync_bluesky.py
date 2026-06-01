@@ -31,6 +31,10 @@ from atproto import Client
 from tqdm import tqdm
 
 from data_platform.ingestion.bluesky_retry import retry_bluesky_request
+from data_platform.ingestion.sync_checkpoint import (
+    find_resume_run_dir,
+    merge_work_items_with_metadata,
+)
 from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
 from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
 from data_platform.utils.storage import BlueskyStorageManager
@@ -334,55 +338,6 @@ def run_keyword_sync_loop(
     _flush_metadata(storage, output_dir, metadata)
 
 
-def find_resume_run_dir(
-    storage: BlueskyStorageManager,
-    *,
-    run_dir_name: str | None,
-) -> Path:
-    if run_dir_name is not None:
-        run_dir = storage.root_dir / run_dir_name
-        if not run_dir.is_dir():
-            raise FileNotFoundError(f"Run directory not found: {run_dir}")
-        return run_dir
-
-    if not storage.root_dir.exists():
-        raise FileNotFoundError(f"No raw runs found under {storage.root_dir}")
-
-    candidates: list[tuple[str, Path]] = []
-    for path in storage.root_dir.iterdir():
-        if not path.is_dir():
-            continue
-        metadata_path = path / "metadata.json"
-        if not metadata_path.exists():
-            continue
-        metadata = storage.load_run_metadata(path)
-        if metadata.get("sync_status") == "in_progress":
-            candidates.append((path.name, path))
-
-    if not candidates:
-        raise FileNotFoundError(
-            f"No in-progress raw run found under {storage.root_dir}. "
-            "Start a new sync or pass --run-dir."
-        )
-    return max(candidates, key=lambda item: item[0])[1]
-
-
-def merge_work_items_with_metadata(
-    work_items: list[FetchWorkItem],
-    metadata: dict[str, Any],
-) -> list[FetchWorkItem]:
-    ledger_keys = {item.ledger_key for item in work_items}
-    metadata_keys = set(metadata.get("keywords", {}))
-    missing = ledger_keys - metadata_keys
-    extra = metadata_keys - ledger_keys
-    if missing or extra:
-        raise ValueError(
-            "Config keywords do not match resume metadata "
-            f"(missing in metadata: {sorted(missing)}, extra in metadata: {sorted(extra)})"
-        )
-    return work_items
-
-
 load_config = load_yaml_config
 
 
@@ -441,7 +396,12 @@ def sync_records(
         if metadata.get("sync_status") != "in_progress":
             metadata["sync_status"] = "in_progress"
             _flush_metadata(storage, output_dir, metadata)
-        work_items = merge_work_items_with_metadata(work_items, metadata)
+        work_items = merge_work_items_with_metadata(
+            work_items,
+            metadata,
+            ledger_key="keywords",
+            entity_label="keywords",
+        )
         print(f"sync_records: resuming {output_dir}")
     else:
         sync_timestamp = get_current_timestamp()
