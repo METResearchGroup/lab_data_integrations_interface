@@ -8,6 +8,11 @@ filters:
   - column: is_political
     op: eq
     value: true
+  - column: political_stance
+    op: in
+    value:
+      - left
+      - right
   - column: is_self_contained
     op: eq
     value: true

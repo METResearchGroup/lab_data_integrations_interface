@@ -89,6 +89,29 @@ filters:
     assert len(rules.filters) == 1
 
 
+def test_apply_rules_political_stance_in_left_or_right() -> None:
+    df = pd.DataFrame(
+        [
+            {"uri": "1", "political_stance": "left"},
+            {"uri": "2", "political_stance": "right"},
+            {"uri": "3", "political_stance": "neutral"},
+            {"uri": "4", "political_stance": "unclear"},
+            {"uri": "5", "political_stance": pd.NA},
+        ]
+    )
+    result = apply_rules(
+        df,
+        CurateRulesConfig(
+            name="stance_filter",
+            filters=[
+                FilterRule(column="political_stance", op="in", value=["left", "right"]),
+            ],
+        ),
+    )
+    assert len(result.dataframe) == 2
+    assert set(result.dataframe["uri"]) == {"1", "2"}
+
+
 def test_apply_rules_missing_column_raises() -> None:
     df = pd.DataFrame([{"uri": "1"}])
     with pytest.raises(KeyError, match="missing_col"):
