@@ -26,3 +26,10 @@ REDDIT_BINDING = PlatformIdBinding(
     feature_csv_id_column="uri",
     records_file_key="comments",
 )
+
+TWITTER_BINDING = PlatformIdBinding(
+    records_id_column="tweet_id",
+    text_column="text",
+    feature_csv_id_column="uri",
+    records_file_key="posts",
+)

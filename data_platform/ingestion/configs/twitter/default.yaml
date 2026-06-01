@@ -1,0 +1,16 @@
+# Set dataset_id before running sync (required).
+dataset_id: twitter_00000000-0000-4000-8000-000000000099
+name: twitter-default
+description: Recent English tweets matching a single keyword
+date: "2026-06-01"
+record_types:
+  - twitter.tweet
+fetch:
+  max_rows: 50
+  limit_per_keyword: 25
+  lang: en
+  exclude:
+    - reply
+    - retweet
+    - quote
+  keyword: example

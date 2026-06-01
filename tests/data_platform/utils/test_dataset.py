@@ -20,11 +20,16 @@ def test_validate_dataset_id_accepts_reddit_format() -> None:
     assert validate_dataset_id(reddit_id) == reddit_id
 
 
+def test_validate_dataset_id_accepts_twitter_format() -> None:
+    twitter_id = "twitter_00000000-0000-4000-8000-000000000001"
+    assert validate_dataset_id(twitter_id) == twitter_id
+
+
 @pytest.mark.parametrize(
     "invalid",
     [
         "bluesky_not-a-uuid",
-        "twitter_00000000-0000-4000-8000-000000000001",
+        "twitter_not-a-uuid",
         "bluesky_00000000-0000-4000-8000-000000000001-extra",
     ],
 )

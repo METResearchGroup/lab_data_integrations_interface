@@ -36,6 +36,23 @@ class SyncRedditPostModel(BaseModel):
     sync_timestamp: str
 
 
+class SyncTwitterPostModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tweet_id: str
+    text: str
+    author_id: str
+    username: str
+    created_at: str
+    like_count: int
+    retweet_count: int
+    reply_count: int
+    quote_count: int
+    url: str
+    keyword: str
+    sync_timestamp: str
+
+
 class SyncRedditCommentModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

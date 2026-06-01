@@ -1,0 +1,611 @@
+{
+  "sync_status": "completed",
+  "dataset_id": "twitter_f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "name": "mirrorview",
+  "description": "Mirrorview topic keyword collection across Twitter",
+  "date": "2026-06-01",
+  "sync_timestamp": "2026_06_01-15:01:56",
+  "ingestion_config": "mirrorview.yaml",
+  "record_types": [
+    "twitter.tweet"
+  ],
+  "fetch": {
+    "max_rows": 1000,
+    "limit_per_keyword": 25,
+    "lang": "en",
+    "exclude": [
+      "reply",
+      "retweet",
+      "quote"
+    ],
+    "keyword": [
+      "gun control",
+      "gun rights",
+      "second amendment",
+      "gun violence",
+      "gun safety",
+      "firearm",
+      "gun laws",
+      "gun reform",
+      "background checks",
+      "assault weapon",
+      "mass shooting",
+      "NRA",
+      "gun ban",
+      "open carry",
+      "concealed carry",
+      "red flag laws",
+      "climate change",
+      "global warming",
+      "climate crisis",
+      "climate action",
+      "carbon emissions",
+      "greenhouse gases",
+      "fossil fuels",
+      "renewable energy",
+      "climate policy",
+      "Paris agreement",
+      "carbon tax",
+      "green new deal",
+      "climate science",
+      "global temperature",
+      "sea level rise",
+      "carbon footprint",
+      "clean energy",
+      "climate denial",
+      "abortion",
+      "reproductive rights",
+      "pro-choice",
+      "pro-life",
+      "roe v wade",
+      "planned parenthood",
+      "abortion rights",
+      "abortion ban",
+      "abortion access",
+      "reproductive health",
+      "fetal rights",
+      "women's rights",
+      "abortion clinic",
+      "late term abortion",
+      "abortion pill",
+      "heartbeat bill",
+      "abortion law",
+      "reproductive freedom",
+      "right to choose",
+      "immigration",
+      "border security",
+      "illegal immigration",
+      "immigration reform",
+      "deportation",
+      "ICE",
+      "border wall",
+      "asylum",
+      "refugees",
+      "DACA",
+      "green card",
+      "citizenship",
+      "immigration policy",
+      "border patrol",
+      "undocumented immigrants",
+      "visa",
+      "sanctuary cities",
+      "border crisis",
+      "migrant",
+      "immigration detention"
+    ]
+  },
+  "row_count": 1001,
+  "keywords": {
+    "gun control": {
+      "status": "completed",
+      "keyword": "gun control",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "gun rights": {
+      "status": "completed",
+      "keyword": "gun rights",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "second amendment": {
+      "status": "completed",
+      "keyword": "second amendment",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "gun violence": {
+      "status": "completed",
+      "keyword": "gun violence",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "gun safety": {
+      "status": "completed",
+      "keyword": "gun safety",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "firearm": {
+      "status": "completed",
+      "keyword": "firearm",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "gun laws": {
+      "status": "completed",
+      "keyword": "gun laws",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "gun reform": {
+      "status": "completed",
+      "keyword": "gun reform",
+      "pages_fetched": 1,
+      "rows_collected": 12,
+      "last_error": null
+    },
+    "background checks": {
+      "status": "completed",
+      "keyword": "background checks",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "assault weapon": {
+      "status": "completed",
+      "keyword": "assault weapon",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "mass shooting": {
+      "status": "completed",
+      "keyword": "mass shooting",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "NRA": {
+      "status": "completed",
+      "keyword": "NRA",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "gun ban": {
+      "status": "completed",
+      "keyword": "gun ban",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "open carry": {
+      "status": "completed",
+      "keyword": "open carry",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "concealed carry": {
+      "status": "completed",
+      "keyword": "concealed carry",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "red flag laws": {
+      "status": "completed",
+      "keyword": "red flag laws",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "climate change": {
+      "status": "completed",
+      "keyword": "climate change",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "global warming": {
+      "status": "completed",
+      "keyword": "global warming",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "climate crisis": {
+      "status": "completed",
+      "keyword": "climate crisis",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "climate action": {
+      "status": "completed",
+      "keyword": "climate action",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "carbon emissions": {
+      "status": "completed",
+      "keyword": "carbon emissions",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "greenhouse gases": {
+      "status": "completed",
+      "keyword": "greenhouse gases",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "fossil fuels": {
+      "status": "completed",
+      "keyword": "fossil fuels",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "renewable energy": {
+      "status": "completed",
+      "keyword": "renewable energy",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "climate policy": {
+      "status": "completed",
+      "keyword": "climate policy",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "Paris agreement": {
+      "status": "completed",
+      "keyword": "Paris agreement",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "carbon tax": {
+      "status": "completed",
+      "keyword": "carbon tax",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "green new deal": {
+      "status": "completed",
+      "keyword": "green new deal",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "climate science": {
+      "status": "completed",
+      "keyword": "climate science",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "global temperature": {
+      "status": "completed",
+      "keyword": "global temperature",
+      "pages_fetched": 2,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "sea level rise": {
+      "status": "completed",
+      "keyword": "sea level rise",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "carbon footprint": {
+      "status": "completed",
+      "keyword": "carbon footprint",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "clean energy": {
+      "status": "completed",
+      "keyword": "clean energy",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "climate denial": {
+      "status": "completed",
+      "keyword": "climate denial",
+      "pages_fetched": 2,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "abortion": {
+      "status": "completed",
+      "keyword": "abortion",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "reproductive rights": {
+      "status": "completed",
+      "keyword": "reproductive rights",
+      "pages_fetched": 2,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "pro-choice": {
+      "status": "completed",
+      "keyword": "pro-choice",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "pro-life": {
+      "status": "completed",
+      "keyword": "pro-life",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "roe v wade": {
+      "status": "completed",
+      "keyword": "roe v wade",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "planned parenthood": {
+      "status": "completed",
+      "keyword": "planned parenthood",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "abortion rights": {
+      "status": "completed",
+      "keyword": "abortion rights",
+      "pages_fetched": 1,
+      "rows_collected": 25,
+      "last_error": null
+    },
+    "abortion ban": {
+      "status": "completed",
+      "keyword": "abortion ban",
+      "pages_fetched": 1,
+      "rows_collected": 22,
+      "last_error": null
+    },
+    "abortion access": {
+      "status": "completed",
+      "keyword": "abortion access",
+      "pages_fetched": 1,
+      "rows_collected": 1,
+      "last_error": null
+    },
+    "reproductive health": {
+      "status": "skipped",
+      "keyword": "reproductive health",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "fetal rights": {
+      "status": "skipped",
+      "keyword": "fetal rights",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "women's rights": {
+      "status": "skipped",
+      "keyword": "women's rights",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "abortion clinic": {
+      "status": "skipped",
+      "keyword": "abortion clinic",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "late term abortion": {
+      "status": "skipped",
+      "keyword": "late term abortion",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "abortion pill": {
+      "status": "skipped",
+      "keyword": "abortion pill",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "heartbeat bill": {
+      "status": "skipped",
+      "keyword": "heartbeat bill",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "abortion law": {
+      "status": "skipped",
+      "keyword": "abortion law",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "reproductive freedom": {
+      "status": "skipped",
+      "keyword": "reproductive freedom",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "right to choose": {
+      "status": "skipped",
+      "keyword": "right to choose",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "immigration": {
+      "status": "skipped",
+      "keyword": "immigration",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "border security": {
+      "status": "skipped",
+      "keyword": "border security",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "illegal immigration": {
+      "status": "skipped",
+      "keyword": "illegal immigration",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "immigration reform": {
+      "status": "skipped",
+      "keyword": "immigration reform",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "deportation": {
+      "status": "skipped",
+      "keyword": "deportation",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "ICE": {
+      "status": "skipped",
+      "keyword": "ICE",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "border wall": {
+      "status": "skipped",
+      "keyword": "border wall",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "asylum": {
+      "status": "skipped",
+      "keyword": "asylum",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "refugees": {
+      "status": "skipped",
+      "keyword": "refugees",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "DACA": {
+      "status": "skipped",
+      "keyword": "DACA",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "green card": {
+      "status": "skipped",
+      "keyword": "green card",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "citizenship": {
+      "status": "skipped",
+      "keyword": "citizenship",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "immigration policy": {
+      "status": "skipped",
+      "keyword": "immigration policy",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "border patrol": {
+      "status": "skipped",
+      "keyword": "border patrol",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "undocumented immigrants": {
+      "status": "skipped",
+      "keyword": "undocumented immigrants",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "visa": {
+      "status": "skipped",
+      "keyword": "visa",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "sanctuary cities": {
+      "status": "skipped",
+      "keyword": "sanctuary cities",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "border crisis": {
+      "status": "skipped",
+      "keyword": "border crisis",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "migrant": {
+      "status": "skipped",
+      "keyword": "migrant",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    },
+    "immigration detention": {
+      "status": "skipped",
+      "keyword": "immigration detention",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    }
+  }
+}

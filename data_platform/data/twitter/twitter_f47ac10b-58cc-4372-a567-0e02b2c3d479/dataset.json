@@ -1,0 +1,7 @@
+{
+  "dataset_id": "twitter_f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "platform": "twitter",
+  "name": "mirrorview",
+  "created_at": "2026-06-01T15:01:56.877573+00:00",
+  "ingestion_config": "data_platform/ingestion/configs/twitter/mirrorview.yaml"
+}
