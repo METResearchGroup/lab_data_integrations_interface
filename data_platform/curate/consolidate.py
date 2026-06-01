@@ -52,11 +52,7 @@ def _feature_cte_sql(
     )
     outer_cols = ", ".join(alias for _, alias in column_pairs)
     cte_name = f"feat_{feature_name}"
-    feature_id_expr = (
-        f"CAST({feature_csv_id_column} AS VARCHAR) AS {id_column}"
-        if feature_csv_id_column != id_column
-        else f"CAST({feature_csv_id_column} AS VARCHAR)"
-    )
+    feature_id_expr = f"CAST({feature_csv_id_column} AS VARCHAR) AS {id_column}"
     partition_id = f"CAST({feature_csv_id_column} AS VARCHAR)"
     return f"""
 {cte_name} AS (

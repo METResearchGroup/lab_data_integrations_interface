@@ -163,8 +163,7 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
             pd.DataFrame(rows).to_csv(path, index=False)
 
     config_path = (
-        Path(__file__).resolve().parents[3]
-        / "data_platform/curate/configs/twitter/mirrorview.yaml"
+        Path(__file__).resolve().parents[3] / "data_platform/curate/configs/twitter/mirrorview.yaml"
     )
     output_path = curate_mirrorview(config_path, dataset_id)
 
