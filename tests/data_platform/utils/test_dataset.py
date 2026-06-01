@@ -15,6 +15,11 @@ def test_validate_dataset_id_accepts_valid_format() -> None:
     assert validate_dataset_id(VALID_DATASET_ID) == VALID_DATASET_ID
 
 
+def test_validate_dataset_id_accepts_reddit_format() -> None:
+    reddit_id = "reddit_00000000-0000-4000-8000-000000000001"
+    assert validate_dataset_id(reddit_id) == reddit_id
+
+
 @pytest.mark.parametrize(
     "invalid",
     [
