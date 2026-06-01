@@ -21,9 +21,7 @@ _EXCLUDE_CLAUSES: dict[str, str] = {
 
 def init_twitter_client() -> tweepy.Client:
     """Build a Tweepy Client using app-only Bearer Token auth."""
-    bearer_token = EnvVarsContainer.get_env_var("TWITTER_BEARER_TOKEN")
-    if not bearer_token.strip():
-        bearer_token = EnvVarsContainer.get_env_var("X_BEARER_TOKEN", required=True)
+    bearer_token = EnvVarsContainer.get_env_var("X_BEARER_TOKEN", required=True)
     return tweepy.Client(bearer_token=bearer_token, wait_on_rate_limit=True)
 
 
