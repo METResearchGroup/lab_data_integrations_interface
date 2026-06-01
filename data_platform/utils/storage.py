@@ -8,7 +8,11 @@ from typing import Any, Literal
 import pandas as pd
 from pydantic import BaseModel
 
-from data_platform.models.sync import SyncBlueskyPostModel
+from data_platform.models.sync import (
+    SyncBlueskyPostModel,
+    SyncRedditCommentModel,
+    SyncRedditPostModel,
+)
 from data_platform.utils.dataset import validate_dataset_id
 from lib.timestamp_utils import get_current_timestamp
 
@@ -113,9 +117,10 @@ class StorageManager:
         _append_csv(validated, csv_path, fieldnames)
         return csv_path
 
-    def load_seen_uris(
+    def load_seen_ids(
         self,
         run_dir: Path,
+        id_column: str,
         *,
         filename: str | None = None,
     ) -> set[str]:
@@ -124,7 +129,15 @@ class StorageManager:
             return set()
         with csv_path.open(newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            return {row["uri"] for row in reader if row.get("uri")}
+            return {row[id_column] for row in reader if row.get(id_column)}
+
+    def load_seen_uris(
+        self,
+        run_dir: Path,
+        *,
+        filename: str | None = None,
+    ) -> set[str]:
+        return self.load_seen_ids(run_dir, "uri", filename=filename)
 
     def load_records(
         self,
@@ -182,4 +195,38 @@ class BlueskyStorageManager(StorageManager):
             SyncBlueskyPostModel,
             dataset_id,
             records_filename=records_filename,
+        )
+
+
+class RedditStorageManager(StorageManager):
+    def __init__(
+        self,
+        stage: Stage = "raw",
+        dataset_id: str = "",
+        *,
+        records_filename: str = "comments.csv",
+        model: type[BaseModel] | None = None,
+    ) -> None:
+        super().__init__(
+            "reddit",
+            stage,
+            model or SyncRedditCommentModel,
+            dataset_id,
+            records_filename=records_filename,
+        )
+
+    def comment_storage(self) -> RedditStorageManager:
+        return RedditStorageManager(
+            self.stage,
+            self.dataset_id,
+            records_filename="comments.csv",
+            model=SyncRedditCommentModel,
+        )
+
+    def post_storage(self) -> RedditStorageManager:
+        return RedditStorageManager(
+            self.stage,
+            self.dataset_id,
+            records_filename="posts.csv",
+            model=SyncRedditPostModel,
         )

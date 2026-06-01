@@ -1,0 +1,19 @@
+dataset_id: reddit_f47ac10b-58cc-4372-a567-0e02b2c3d479
+name: mirrorview
+description: Mirrorview topic collection across Reddit political subreddits
+date: "2026-05-31"
+record_types:
+  - reddit.comment
+  - reddit.post
+fetch:
+  subreddits:
+    - Conservative
+    - Republican
+    - AskConservatives
+    - politics
+    - liberal
+    - democrats
+  listing: hot
+  limit_per_subreddit: 50
+  comments_per_post: 200
+  min_comment_body_length: 30
