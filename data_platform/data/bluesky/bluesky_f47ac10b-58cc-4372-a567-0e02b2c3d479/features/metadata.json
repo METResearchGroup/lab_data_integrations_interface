@@ -1,0 +1,46 @@
+{
+  "dataset_id": "bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "source_preprocessed_run": "preprocessed/2026_05_29-20:14:22",
+  "sync_status": "completed",
+  "features": {
+    "is_news_or_opinion": {
+      "status": "completed",
+      "labeled": 785,
+      "failed_batches": 0
+    },
+    "is_political": {
+      "status": "completed",
+      "labeled": 785,
+      "failed_batches": 0
+    },
+    "is_self_contained": {
+      "status": "completed",
+      "labeled": 785,
+      "failed_batches": 0
+    },
+    "is_structurally_complete": {
+      "status": "completed",
+      "labeled": 785,
+      "failed_batches": 0
+    },
+    "is_toxic_tiered": {
+      "status": "completed",
+      "labeled": 785,
+      "failed_batches": 0
+    },
+    "political_stance": {
+      "status": "completed",
+      "labeled": 785,
+      "failed_batches": 0
+    }
+  },
+  "config": {
+    "batch_size": 64,
+    "max_concurrency": 20,
+    "opik_enabled": false,
+    "max_label_retries": 3
+  },
+  "migrated_from": "flatten_bluesky_features.py",
+  "migrated_at": "2026-05-31T20:06:43.770931+00:00",
+  "updated_at": "2026-05-31T20:06:43.770931+00:00"
+}

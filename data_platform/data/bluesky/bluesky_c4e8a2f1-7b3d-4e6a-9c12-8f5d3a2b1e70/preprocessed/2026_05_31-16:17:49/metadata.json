@@ -1,0 +1,12 @@
+{
+  "dataset_id": "bluesky_c4e8a2f1-7b3d-4e6a-9c12-8f5d3a2b1e70",
+  "source_raw_run": "raw/2026_05_31-16:13:53",
+  "preprocess_timestamp": "2026_05_31-16:17:49",
+  "row_counts": {
+    "input": 20422,
+    "output": 11903
+  },
+  "files": {
+    "posts": "posts.csv"
+  }
+}
