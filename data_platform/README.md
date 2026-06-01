@@ -1,21 +1,25 @@
 # Data platform
 
-Batch pipeline for Bluesky data:
+Batch pipeline per platform:
 
 ```text
 ingestion → preprocessing → generate_features → curate
 ```
 
-Each logical collection is identified by **`dataset_id`** (`bluesky_<uuid>`), pinned in ingestion YAML (e.g. `mirrorview.yaml`) and recorded in `data/bluesky/{dataset_id}/dataset.json`. Downstream CLIs require `--dataset-id`; curate YAML is filter-only.
+Each logical collection is identified by **`dataset_id`** (`{platform}_<uuid>`), pinned in ingestion YAML (e.g. `mirrorview.yaml`) and recorded under `data_platform/data/{platform}/{dataset_id}/`. Downstream CLIs require `--dataset-id`; curate YAML is filter-only.
 
 ## Stages
 
-| Stage | Module | Output |
-|-------|--------|--------|
-| Ingestion | `data_platform/ingestion/` | `data/bluesky/{dataset_id}/raw/{timestamp}/` |
-| Preprocessing | `data_platform/preprocessing/` | `data/bluesky/{dataset_id}/preprocessed/{timestamp}/posts.csv` |
-| Features | `data_platform/generate_features/` | `data/bluesky/{dataset_id}/features/{feature}.csv`, `metadata.json` |
-| Curate | `data_platform/curate/` | `data/bluesky/{dataset_id}/curated/{timestamp}/` |
+| Platform | Stage | Module | Output |
+|----------|-------|--------|--------|
+| bluesky | Ingestion | `data_platform/ingestion/` | `data/bluesky/{dataset_id}/raw/{timestamp}/` |
+| bluesky | Preprocessing | `data_platform/preprocessing/` | `.../preprocessed/{timestamp}/posts.csv` |
+| bluesky | Features | `data_platform/generate_features/` | `.../features/{feature}.csv`, `metadata.json` |
+| bluesky | Curate | `data_platform/curate/` | `.../curated/{timestamp}/` |
+| twitter | Ingestion | `data_platform/ingestion/` | `data/twitter/{dataset_id}/raw/{timestamp}/posts.csv` |
+| twitter | Preprocessing | `data_platform/preprocessing/` | `.../preprocessed/{timestamp}/posts.csv` |
+| twitter | Features | `data_platform/generate_features/` | `.../features/{feature}.csv`, `metadata.json` |
+| twitter | Curate | `data_platform/curate/` | `.../curated/{timestamp}/mirrorview.csv` |
 
 ## Commands
 
@@ -54,6 +58,27 @@ PYTHONPATH=. uv run python data_platform/curate/curate_bluesky.py \
   --dataset-id bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479 \
   --config mirrorview.yaml
 ```
+
+### Twitter (preprocess, features, curate)
+
+Example `dataset_id`: `twitter_f47ac10b-58cc-4372-a567-0e02b2c3d479` (from ingestion YAML).
+
+```bash
+PYTHONPATH=. uv run python data_platform/preprocessing/preprocess_twitter.py \
+  --dataset-id twitter_f47ac10b-58cc-4372-a567-0e02b2c3d479
+
+PYTHONPATH=. uv run python data_platform/generate_features/generate_twitter_features.py \
+  --dataset-id twitter_f47ac10b-58cc-4372-a567-0e02b2c3d479 \
+  --batch-size 64 --no-opik
+
+PYTHONPATH=. uv run python data_platform/curate/curate_twitter.py \
+  --dataset-id twitter_f47ac10b-58cc-4372-a567-0e02b2c3d479 \
+  --config mirrorview.yaml
+```
+
+Mirrorview config: `data_platform/curate/configs/twitter/mirrorview.yaml` (same filter chain as Bluesky/Reddit).
+
+See [docs/plans/2026-06-01_twitter_preprocess_features_curate_482913/plan.md](../docs/plans/2026-06-01_twitter_preprocess_features_curate_482913/plan.md).
 
 One-time migration from the legacy flat layout:
 

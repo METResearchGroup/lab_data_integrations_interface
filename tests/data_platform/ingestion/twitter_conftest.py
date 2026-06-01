@@ -4,9 +4,7 @@ from typing import Any
 
 from data_platform.models.sync import SyncTwitterPostModel
 
-_DEFAULT_TWEET_TEXT = (
-    "This is a valid sample tweet for unit tests with enough characters."
-)
+_DEFAULT_TWEET_TEXT = "This is a valid sample tweet for unit tests with enough characters."
 
 
 def mock_tweet_row(tweet_id: str, **overrides: Any) -> dict[str, Any]:

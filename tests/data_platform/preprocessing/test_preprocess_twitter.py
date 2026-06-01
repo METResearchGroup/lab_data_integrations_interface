@@ -13,9 +13,7 @@ from tests.data_platform.ingestion.twitter_conftest import mock_tweet_row
 
 
 def _valid_text() -> str:
-    return (
-        "This is a valid English tweet for preprocessing tests without external URLs."
-    )
+    return "This is a valid English tweet for preprocessing tests without external URLs."
 
 
 def _tweet_row(**overrides: Any) -> dict[str, Any]:
@@ -59,9 +57,7 @@ def test_check_if_valid_twitter_post_length(text: str, expected: bool) -> None:
     ],
 )
 def test_check_if_twitter_text_has_no_external_urls(text: str, expected: bool) -> None:
-    assert (
-        twitter_validators.check_if_twitter_text_has_no_external_urls(text) is expected
-    )
+    assert twitter_validators.check_if_twitter_text_has_no_external_urls(text) is expected
 
 
 def test_strip_tco_links_removes_tco_urls() -> None:

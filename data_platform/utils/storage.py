@@ -234,8 +234,6 @@ class RedditStorageManager(StorageManager):
 
 
 class TwitterStorageManager(StorageManager):
-    _STRING_ID_COLUMNS = {"tweet_id": str, "author_id": str}
-
     def __init__(
         self,
         stage: Stage = "raw",
@@ -266,7 +264,7 @@ class TwitterStorageManager(StorageManager):
         return pd.read_csv(
             csv_path,
             keep_default_na=False,
-            dtype=self._STRING_ID_COLUMNS,
+            dtype={"tweet_id": "string", "author_id": "string"},
         )
 
     def load_seen_tweet_ids(
