@@ -1,0 +1,44 @@
+{
+  "dataset_id": "twitter_f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "source_preprocessed_run": "preprocessed/2026_06_01-18:10:03",
+  "sync_status": "completed",
+  "features": {
+    "is_news_or_opinion": {
+      "status": "completed",
+      "labeled": 745,
+      "failed_batches": 0
+    },
+    "is_political": {
+      "status": "completed",
+      "labeled": 745,
+      "failed_batches": 0
+    },
+    "is_self_contained": {
+      "status": "completed",
+      "labeled": 745,
+      "failed_batches": 0
+    },
+    "is_structurally_complete": {
+      "status": "completed",
+      "labeled": 745,
+      "failed_batches": 0
+    },
+    "is_toxic_tiered": {
+      "status": "completed",
+      "labeled": 745,
+      "failed_batches": 0
+    },
+    "political_stance": {
+      "status": "completed",
+      "labeled": 745,
+      "failed_batches": 0
+    }
+  },
+  "config": {
+    "batch_size": 64,
+    "max_concurrency": 80,
+    "opik_enabled": false,
+    "max_label_retries": 3
+  },
+  "updated_at": "2026_06_01-18:14:56"
+}

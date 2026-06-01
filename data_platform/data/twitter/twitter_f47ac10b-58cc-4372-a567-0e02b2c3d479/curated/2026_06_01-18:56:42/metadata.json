@@ -1,0 +1,53 @@
+{
+  "dataset_id": "twitter_f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "name": "mirrorview",
+  "source_preprocessed_run": "preprocessed/2026_06_01-18:10:03",
+  "row_counts": {
+    "preprocessed": 745,
+    "wide": 745,
+    "after_filters": 142
+  },
+  "filter_results": [
+    {
+      "column": "news_or_opinion_category",
+      "op": "eq",
+      "value": "opinion",
+      "records_before": 745,
+      "records_passing": 402
+    },
+    {
+      "column": "is_political",
+      "op": "eq",
+      "value": true,
+      "records_before": 402,
+      "records_passing": 340
+    },
+    {
+      "column": "political_stance",
+      "op": "in",
+      "value": [
+        "left",
+        "right"
+      ],
+      "records_before": 340,
+      "records_passing": 256
+    },
+    {
+      "column": "is_self_contained",
+      "op": "eq",
+      "value": true,
+      "records_before": 256,
+      "records_passing": 159
+    },
+    {
+      "column": "is_structurally_complete",
+      "op": "eq",
+      "value": true,
+      "records_before": 159,
+      "records_passing": 142
+    }
+  ],
+  "files": {
+    "export": "mirrorview.csv"
+  }
+}

@@ -52,12 +52,8 @@ def _feature_cte_sql(
     )
     outer_cols = ", ".join(alias for _, alias in column_pairs)
     cte_name = f"feat_{feature_name}"
-    feature_id_expr = (
-        f"{feature_csv_id_column} AS {id_column}"
-        if feature_csv_id_column != id_column
-        else feature_csv_id_column
-    )
-    partition_id = feature_csv_id_column
+    feature_id_expr = f"CAST({feature_csv_id_column} AS VARCHAR) AS {id_column}"
+    partition_id = f"CAST({feature_csv_id_column} AS VARCHAR)"
     return f"""
 {cte_name} AS (
     SELECT {id_column}, {outer_cols}
@@ -96,7 +92,11 @@ def _build_consolidate_sql(config: ConsolidateConfig) -> str:
             wide_cols.append(f"feat_{feature_name}.{alias}")
 
     ctes_sql = ",\n".join(
-        [f"posts AS (SELECT * FROM read_csv('{posts_path}', union_by_name = true))"] + feature_ctes
+        [
+            f"posts AS (SELECT * REPLACE (CAST({id_column} AS VARCHAR) AS {id_column}) "
+            f"FROM read_csv('{posts_path}', union_by_name = true))"
+        ]
+        + feature_ctes
     )
     select_cols = ["posts.*"] + wide_cols
     return f"""
