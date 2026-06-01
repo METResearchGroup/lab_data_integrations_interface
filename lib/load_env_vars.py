@@ -29,6 +29,9 @@ ENV_VAR_TYPES: Final[dict[str, type[str]]] = {
     "BLUESKY_PASSWORD": str,
     "OPIK_WORKSPACE": str,
     "GOOGLE_API_KEY": str,
+    "X_CONSUMER_KEY": str,
+    "X_SECRET_KEY": str,
+    "X_BEARER_TOKEN": str,
 }
 
 
