@@ -144,9 +144,7 @@ def save_preprocessed(
     source_raw_run = source_raw_runs[-1] if source_raw_runs else None
     metadata: dict[str, Any] = {
         "dataset_id": dataset_id,
-        "source_raw_run": (
-            source_raw_run
-        ),
+        "source_raw_run": (source_raw_run),
         "source_raw_runs": source_raw_runs,
         "preprocess_timestamp": output_dir.name,
         "row_counts": {
