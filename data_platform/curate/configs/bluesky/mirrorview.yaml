@@ -8,6 +8,9 @@ filters:
   - column: is_political
     op: eq
     value: true
+  - column: is_likely_spam
+    op: eq
+    value: false
   - column: political_stance
     op: in
     value:

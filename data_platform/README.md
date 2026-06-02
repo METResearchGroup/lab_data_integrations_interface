@@ -93,5 +93,6 @@ Joins the latest preprocessed posts with all feature label CSVs (DuckDB), then a
 
 Mirrorview config: `data_platform/curate/configs/bluesky/mirrorview.yaml`
 
-- Filters: `news_or_opinion_category == opinion`, `is_political`, `political_stance in [left, right]`, `is_self_contained`, `is_structurally_complete` all true.
+- Filters: `news_or_opinion_category == opinion`, `is_political`, `is_likely_spam == false`, `political_stance in [left, right]`, `is_self_contained`, `is_structurally_complete` all true.
 - `is_news_or_opinion.category` is exposed as **`news_or_opinion_category`** in the wide table and export CSV.
+- `is_likely_spam.is_likely_spam` is exposed as **`is_likely_spam`** in the wide table and export CSV.

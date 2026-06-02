@@ -63,6 +63,22 @@ def test_build_wide_table_joins_twitter_posts_on_tweet_id(tmp_path: Path) -> Non
             },
         ],
     )
+    _write_twitter_feature_csv(
+        features_root,
+        "is_likely_spam",
+        [
+            {
+                FEATURE_CSV_ID_COLUMN: post_a["tweet_id"],
+                "label_timestamp": LABEL_TIMESTAMP,
+                "is_likely_spam": False,
+            },
+            {
+                FEATURE_CSV_ID_COLUMN: post_b["tweet_id"],
+                "label_timestamp": LABEL_TIMESTAMP,
+                "is_likely_spam": True,
+            },
+        ],
+    )
 
     wide = build_wide_table(
         ConsolidateConfig(
@@ -118,6 +134,14 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
                     FEATURE_CSV_ID_COLUMN: post["tweet_id"],
                     "label_timestamp": LABEL_TIMESTAMP,
                     "category": category,
+                },
+            ),
+            (
+                "is_likely_spam",
+                {
+                    FEATURE_CSV_ID_COLUMN: post["tweet_id"],
+                    "label_timestamp": LABEL_TIMESTAMP,
+                    "is_likely_spam": post is post_drop,
                 },
             ),
             (
@@ -177,7 +201,7 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
     assert str(curated.iloc[0][ID_COLUMN]) == post_keep["tweet_id"]
     assert "text" in curated.columns
     assert metadata["row_counts"]["after_filters"] == 1
-    assert len(metadata["filter_results"]) == 5
+    assert len(metadata["filter_results"]) == 6
     stance_step = next(
         step for step in metadata["filter_results"] if step["column"] == "political_stance"
     )

@@ -20,6 +20,13 @@ from data_platform.generate_features.is_political.generate_feature import (
 from data_platform.generate_features.is_political.generate_feature import (
     generate_feature as generate_is_political,
 )
+from data_platform.generate_features.is_likely_spam.generate_feature import (
+    IsLikelySpamModel,
+    LlmIsLikelySpamModel,
+)
+from data_platform.generate_features.is_likely_spam.generate_feature import (
+    generate_feature as generate_is_likely_spam,
+)
 from data_platform.generate_features.is_self_contained.generate_feature import (
     SYSTEM_PROMPT as IS_SELF_CONTAINED_SYSTEM_PROMPT,
 )
@@ -74,6 +81,14 @@ FEATURE_REGISTRY: dict[str, FeatureSpec] = {
         generate_fn=generate_is_political,
         system_prompt=IS_POLITICAL_SYSTEM_PROMPT,
         llm_output_schema=LlmIsPoliticalModel,
+    ),
+    "is_likely_spam": FeatureSpec(
+        name="is_likely_spam",
+        model=IsLikelySpamModel,
+        engine_type="langchain",
+        generate_fn=generate_is_likely_spam,
+        system_prompt=None,
+        llm_output_schema=LlmIsLikelySpamModel,
     ),
     "is_self_contained": FeatureSpec(
         name="is_self_contained",

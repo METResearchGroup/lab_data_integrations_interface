@@ -21,6 +21,7 @@ def _mirrorview_rules() -> CurateRulesConfig:
         filters=[
             FilterRule(column="news_or_opinion_category", op="eq", value="news"),
             FilterRule(column="is_political", op="eq", value=True),
+            FilterRule(column="is_likely_spam", op="eq", value=False),
             FilterRule(column="is_self_contained", op="eq", value=True),
             FilterRule(column="is_structurally_complete", op="eq", value=True),
         ],
@@ -34,6 +35,7 @@ def test_apply_rules_mirrorview_filters() -> None:
                 "uri": "1",
                 "news_or_opinion_category": "news",
                 "is_political": "True",
+                "is_likely_spam": "False",
                 "is_self_contained": "True",
                 "is_structurally_complete": "True",
             },
@@ -41,6 +43,7 @@ def test_apply_rules_mirrorview_filters() -> None:
                 "uri": "2",
                 "news_or_opinion_category": "opinion",
                 "is_political": "True",
+                "is_likely_spam": "False",
                 "is_self_contained": "True",
                 "is_structurally_complete": "True",
             },
@@ -48,6 +51,7 @@ def test_apply_rules_mirrorview_filters() -> None:
                 "uri": "3",
                 "news_or_opinion_category": "news",
                 "is_political": "False",
+                "is_likely_spam": "False",
                 "is_self_contained": "True",
                 "is_structurally_complete": "True",
             },
@@ -55,6 +59,7 @@ def test_apply_rules_mirrorview_filters() -> None:
                 "uri": "4",
                 "news_or_opinion_category": "news",
                 "is_political": "True",
+                "is_likely_spam": "True",
                 "is_self_contained": "False",
                 "is_structurally_complete": "True",
             },
@@ -63,7 +68,7 @@ def test_apply_rules_mirrorview_filters() -> None:
     result = apply_rules(df, _mirrorview_rules())
     assert len(result.dataframe) == 1
     assert result.dataframe.iloc[0]["uri"] == "1"
-    assert len(result.steps) == 4
+    assert len(result.steps) == 5
     assert result.steps[0].records_before == 4
     assert result.steps[0].records_passing == 3
     assert result.steps[-1].records_passing == 1
