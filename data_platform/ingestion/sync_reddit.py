@@ -63,7 +63,6 @@ DEFAULT_LISTING = "hot"
 VALID_LISTING_TIME_FILTERS = frozenset({"all", "day", "hour", "month", "week", "year"})
 
 SubredditStatus = Literal["pending", "in_progress", "completed", "failed", "skipped"]
-SyncStatus = Literal["in_progress", "completed"]
 
 logger = logging.getLogger(__name__)
 

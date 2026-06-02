@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
+from data_platform.ingestion.constants import SyncStatus
 from data_platform.utils.storage import StorageManager
 
 
@@ -83,7 +84,7 @@ def mark_remaining_skipped(metadata: dict[str, Any], *, metadata_bucket: str) ->
             entry["status"] = "skipped"
 
 
-def sync_status_done(metadata: dict[str, Any], *, metadata_bucket: str) -> str:
+def sync_status_done(metadata: dict[str, Any], *, metadata_bucket: str) -> SyncStatus:
     """Return completed only when all items are completed or skipped."""
     statuses = {entry["status"] for entry in metadata[metadata_bucket].values()}
     unfinished = statuses - {"completed", "skipped"}

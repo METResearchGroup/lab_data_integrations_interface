@@ -24,7 +24,7 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import typer
 from atproto import Client
@@ -52,9 +52,6 @@ API_MAX_LIMIT = 100
 POSTS_RECORD_TYPE = "app.bsky.feed.post"
 POSTS_CSV = "posts.csv"
 DEFAULT_QUERY_BATCH_SIZE = 5
-
-KeywordStatus = Literal["pending", "in_progress", "completed", "failed", "skipped"]
-SyncStatus = Literal["in_progress", "completed"]
 
 
 @dataclass(frozen=True)

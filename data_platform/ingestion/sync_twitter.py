@@ -24,7 +24,7 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import typer
 from tqdm import tqdm
@@ -46,9 +46,6 @@ from lib.timestamp_utils import get_current_timestamp
 CONFIGS_DIR = Path(__file__).resolve().parent / "configs/twitter"
 DEFAULT_CONFIG = CONFIGS_DIR / "default.yaml"
 POSTS_CSV = "posts.csv"
-
-KeywordStatus = Literal["pending", "in_progress", "completed", "failed", "skipped"]
-SyncStatus = Literal["in_progress", "completed"]
 
 
 @dataclass(frozen=True)
