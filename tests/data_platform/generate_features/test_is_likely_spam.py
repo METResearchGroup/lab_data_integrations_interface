@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from data_platform.generate_features.is_likely_spam.generate_feature import (
     IsLikelySpamModel,
-)
-from data_platform.generate_features.is_likely_spam.generate_feature import (
     generate_feature,
 )
 from data_platform.generate_features.registry import FEATURE_REGISTRY

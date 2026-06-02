@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+from data_platform.generate_features.is_likely_spam.generate_feature import (
+    IsLikelySpamModel,
+    LlmIsLikelySpamModel,
+)
+from data_platform.generate_features.is_likely_spam.generate_feature import (
+    generate_feature as generate_is_likely_spam,
+)
 from data_platform.generate_features.is_news_or_opinion.generate_feature import (
     SYSTEM_PROMPT as IS_NEWS_OR_OPINION_SYSTEM_PROMPT,
 )
@@ -19,13 +26,6 @@ from data_platform.generate_features.is_political.generate_feature import (
 )
 from data_platform.generate_features.is_political.generate_feature import (
     generate_feature as generate_is_political,
-)
-from data_platform.generate_features.is_likely_spam.generate_feature import (
-    IsLikelySpamModel,
-    LlmIsLikelySpamModel,
-)
-from data_platform.generate_features.is_likely_spam.generate_feature import (
-    generate_feature as generate_is_likely_spam,
 )
 from data_platform.generate_features.is_self_contained.generate_feature import (
     SYSTEM_PROMPT as IS_SELF_CONTAINED_SYSTEM_PROMPT,
@@ -47,9 +47,7 @@ from data_platform.generate_features.is_structurally_complete.generate_feature i
 from data_platform.generate_features.is_structurally_complete.generate_feature import (
     generate_feature as generate_is_structurally_complete,
 )
-from data_platform.generate_features.is_toxic_tiered.generate_feature import (
-    IsToxicTieredModel,
-)
+from data_platform.generate_features.is_toxic_tiered.generate_feature import IsToxicTieredModel
 from data_platform.generate_features.is_toxic_tiered.generate_feature import (
     generate_feature as generate_is_toxic_tiered,
 )
