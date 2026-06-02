@@ -14,13 +14,13 @@ fetch:
     - quote
   dedupe_tweets_from_prior_raw_runs: true
   keyword:
-    # - Trump
-    # - Iran
-    # - Israel
-    # - Inflation
-    # - Mamdani
-    # - Affordability
-    # - Economy
+    - Trump
+    - Iran
+    - Israel
+    - Inflation
+    - Mamdani
+    - Affordability
+    - Economy
     - Taxes
     - Reshoring
     - Manufacturing
