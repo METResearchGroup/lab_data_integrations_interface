@@ -436,6 +436,8 @@ def sync_records(
     client = setup_client()
 
     if resume:
+        otel.push({"id": "<id>", "metadata": {}})
+        otel.start_tracking()
         output_dir = find_resume_run_dir(storage, run_dir_name=run_dir_name)
         metadata = storage.load_run_metadata(output_dir)
         if metadata.get("sync_status") != "in_progress":

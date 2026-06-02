@@ -1,0 +1,109 @@
+{
+  "sync_status": "completed",
+  "dataset_id": "twitter_3b46b8f9-7e73-4e44-8f6a-3d0e67cfe921",
+  "name": "keyword_politics_econ_7000",
+  "description": "Politics+economy keyword run (10 terms) \u2014 7k cap, dedupe enabled",
+  "date": "2026-06-02",
+  "sync_timestamp": "2026_06_02-15:13:59",
+  "ingestion_config": "keyword_politics_econ_7000.yaml",
+  "record_types": [
+    "twitter.tweet"
+  ],
+  "fetch": {
+    "max_rows": 7000,
+    "limit_per_keyword": 1000,
+    "lang": "en",
+    "exclude": [
+      "reply",
+      "retweet",
+      "quote"
+    ],
+    "dedupe_tweets_from_prior_raw_runs": true,
+    "keyword": [
+      "Trump",
+      "Iran",
+      "Israel",
+      "Inflation",
+      "Mamdani",
+      "Affordability",
+      "Economy",
+      "Taxes",
+      "Reshoring",
+      "Manufacturing"
+    ]
+  },
+  "row_count": 7000,
+  "keywords": {
+    "Trump": {
+      "status": "completed",
+      "keyword": "Trump",
+      "pages_fetched": 11,
+      "rows_collected": 1000,
+      "last_error": null
+    },
+    "Iran": {
+      "status": "completed",
+      "keyword": "Iran",
+      "pages_fetched": 11,
+      "rows_collected": 1000,
+      "last_error": null
+    },
+    "Israel": {
+      "status": "completed",
+      "keyword": "Israel",
+      "pages_fetched": 11,
+      "rows_collected": 1000,
+      "last_error": null
+    },
+    "Inflation": {
+      "status": "completed",
+      "keyword": "Inflation",
+      "pages_fetched": 11,
+      "rows_collected": 1000,
+      "last_error": null
+    },
+    "Mamdani": {
+      "status": "completed",
+      "keyword": "Mamdani",
+      "pages_fetched": 10,
+      "rows_collected": 1000,
+      "last_error": null
+    },
+    "Affordability": {
+      "status": "completed",
+      "keyword": "Affordability",
+      "pages_fetched": 11,
+      "rows_collected": 1000,
+      "last_error": null
+    },
+    "Economy": {
+      "status": "completed",
+      "keyword": "Economy",
+      "pages_fetched": 10,
+      "rows_collected": 1000,
+      "last_error": null
+    },
+    "Taxes": {
+      "status": "completed",
+      "keyword": "Taxes",
+      "pages_fetched": 4,
+      "rows_collected": 372,
+      "last_error": null
+    },
+    "Reshoring": {
+      "status": "completed",
+      "keyword": "Reshoring",
+      "pages_fetched": 1,
+      "rows_collected": 23,
+      "last_error": null
+    },
+    "Manufacturing": {
+      "status": "skipped",
+      "keyword": "Manufacturing",
+      "pages_fetched": 0,
+      "rows_collected": 0,
+      "last_error": null
+    }
+  },
+  "tweets_skipped_as_duplicates": 330
+}

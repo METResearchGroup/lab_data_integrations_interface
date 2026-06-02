@@ -1,0 +1,7 @@
+{
+  "dataset_id": "twitter_3b46b8f9-7e73-4e44-8f6a-3d0e67cfe921",
+  "platform": "twitter",
+  "name": "keyword_politics_econ_7000",
+  "created_at": "2026-06-02T15:13:59.648186+00:00",
+  "ingestion_config": "data_platform/ingestion/configs/twitter/keyword_politics_econ_7000.yaml"
+}

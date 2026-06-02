@@ -1,0 +1,28 @@
+dataset_id: twitter_3b46b8f9-7e73-4e44-8f6a-3d0e67cfe921
+name: keyword_politics_econ_7000
+description: Politics+economy keywords
+date: "2026-06-02"
+record_types:
+  - twitter.tweet
+fetch:
+  max_rows: 10000 # changed from 7,000 originally.
+  limit_per_keyword: 1000
+  lang: en
+  exclude:
+    - reply
+    - retweet
+    - quote
+  dedupe_tweets_from_prior_raw_runs: true
+  keyword:
+    # - Trump
+    # - Iran
+    # - Israel
+    # - Inflation
+    # - Mamdani
+    # - Affordability
+    # - Economy
+    - Taxes
+    - Reshoring
+    - Manufacturing
+    - Corruption
+    - Crime
