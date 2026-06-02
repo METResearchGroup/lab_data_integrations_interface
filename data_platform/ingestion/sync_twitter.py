@@ -149,6 +149,7 @@ def _sync_one_keyword(
     lang: str,
     exclude: list[str],
     remaining: int | None,
+    prior_tweet_ids: set[str],
 ) -> None:
     entry["status"] = "in_progress"
     entry["last_error"] = None
@@ -171,8 +172,12 @@ def _sync_one_keyword(
         print(f"sync_records: {item.ledger_key} failed: {exc}")
         return
 
-    seen_ids = storage.load_seen_tweet_ids(output_dir, filename=csv_filename)
+    seen_ids = prior_tweet_ids | storage.load_seen_tweet_ids(output_dir, filename=csv_filename)
     new_rows = [row for row in rows if row["tweet_id"] not in seen_ids]
+    tweets_skipped = len(rows) - len(new_rows)
+    metadata["tweets_skipped_as_duplicates"] = (
+        int(metadata.get("tweets_skipped_as_duplicates", 0)) + tweets_skipped
+    )
     if new_rows:
         storage.append_records(new_rows, output_dir, filename=csv_filename)
 
@@ -204,6 +209,11 @@ def run_keyword_sync_loop(
     max_rows_int = int(max_rows) if max_rows is not None else None
     lang = str(fetch.get("lang", "en"))
     exclude = list(fetch.get("exclude", ["reply", "retweet", "quote"]))
+    prior_tweet_ids: set[str] = set()
+    if fetch.get("dedupe_tweets_from_prior_raw_runs"):
+        prior_tweet_ids = storage.load_seen_ids_from_prior_runs(
+            output_dir, "tweet_id", filename=csv_filename
+        )
 
     for item in tqdm(
         work_items,
@@ -230,6 +240,7 @@ def run_keyword_sync_loop(
             lang=lang,
             exclude=exclude,
             remaining=_remaining_row_budget(metadata, max_rows_int),
+            prior_tweet_ids=prior_tweet_ids,
         )
 
         if _stop_at_max_rows(storage, output_dir, metadata, max_rows_int):
