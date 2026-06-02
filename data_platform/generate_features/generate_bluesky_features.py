@@ -3,7 +3,7 @@
 Run from the repo root:
 
     PYTHONPATH=. uv run python data_platform/generate_features/generate_bluesky_features.py \\
-        --dataset-id bluesky_<uuid> --batch-size 64 --no-opik
+        --dataset-id bluesky_<uuid> --batch-size 64
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ def generate_bluesky_features(
     *,
     batch_size: int = 64,
     max_concurrency: int = 80,
-    no_opik: bool = False,
+    opik_enabled: bool = False,
     preprocessed_run: str | None = None,
     feature_subset: list[str] | None = None,
 ) -> dict[str, Path]:
@@ -92,7 +92,7 @@ def generate_bluesky_features(
     run_config = FeatureRunConfig(
         batch_size=batch_size,
         max_concurrency=max_concurrency,
-        opik_enabled=not no_opik,
+        opik_enabled=opik_enabled,
     )
     posts = load_posts(dataset_id, preprocessed_run)
     config = bluesky_feature_config(
@@ -116,7 +116,7 @@ def main(
     ),
     batch_size: int = typer.Option(64, "--batch-size"),
     max_concurrency: int = typer.Option(80, "--max-concurrency"),
-    no_opik: bool = typer.Option(False, "--no-opik"),
+    opik_enabled: bool = typer.Option(False, "--opik", help="Enable Opik telemetry"),
     preprocessed_run: str | None = typer.Option(
         None,
         "--preprocessed-run",
@@ -133,7 +133,7 @@ def main(
         dataset_id,
         batch_size=batch_size,
         max_concurrency=max_concurrency,
-        no_opik=no_opik,
+        opik_enabled=opik_enabled,
         preprocessed_run=preprocessed_run,
         feature_subset=features_from_cli(features),
     )

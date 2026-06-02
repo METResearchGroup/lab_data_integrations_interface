@@ -13,6 +13,7 @@ from data_platform.utils.duckdb_features import feature_glob
 FEATURE_WIDE_COLUMNS: dict[str, list[tuple[str, str]]] = {
     "is_news_or_opinion": [("category", "news_or_opinion_category")],
     "is_political": [("is_political", "is_political")],
+    "is_likely_spam": [("is_likely_spam", "is_likely_spam")],
     "is_self_contained": [("is_self_contained", "is_self_contained")],
     "is_structurally_complete": [("is_structurally_complete", "is_structurally_complete")],
     "is_toxic_tiered": [

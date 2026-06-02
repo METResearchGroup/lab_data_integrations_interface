@@ -125,7 +125,7 @@ def test_generate_twitter_features_skips_completed_feature(
         name="is_political",
         model=DummyModel,  # type: ignore[arg-type]
         engine_type="thread_pool",
-        generate_fn=lambda u, t: None,  # type: ignore[arg-type]
+        generate_fn=lambda _u, _t: None,  # type: ignore[arg-type]
     )
     config = make_twitter_feature_generation_config(feature_registry={"is_political": spec})
     metadata = load_or_init_metadata(config, feature_names=("is_political",))
@@ -157,8 +157,29 @@ def test_generate_twitter_features_labels_pending_posts(
 
     written = generate_twitter_features(
         VALID_TWITTER_DATASET_ID,
-        no_opik=True,
         feature_subset=["is_political"],
     )
     assert "is_political" in written
     mock_build_engine.label_records.assert_called_once()
+
+
+def test_generate_twitter_features_defaults_to_opik_disabled(monkeypatch) -> None:
+    captured = {}
+
+    def fake_run_feature_generation(records, config, *, empty_message):
+        captured["opik_enabled"] = config.run_config.opik_enabled
+        return {}
+
+    monkeypatch.setattr(
+        "data_platform.generate_features.generate_twitter_features.run_feature_generation",
+        fake_run_feature_generation,
+    )
+    monkeypatch.setattr(
+        "data_platform.generate_features.generate_twitter_features.load_posts",
+        lambda dataset_id, preprocessed_run=None: pd.DataFrame(
+            [{ID_COLUMN: "1", TEXT_COLUMN: "hello"}]
+        ),
+    )
+
+    generate_twitter_features(VALID_TWITTER_DATASET_ID)
+    assert captured["opik_enabled"] is False
