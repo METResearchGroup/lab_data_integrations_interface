@@ -36,7 +36,11 @@ from tqdm import tqdm
 from data_platform.ingestion.reddit_retry import retry_reddit_request
 from data_platform.ingestion.sync_checkpoint import (
     find_resume_run_dir,
+    flush_sync_metadata,
+    init_sync_metadata_base,
+    mark_remaining_skipped,
     merge_work_items_with_metadata,
+    sync_status_done,
 )
 from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
 from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
@@ -67,7 +71,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class FetchWorkItem:
     subreddit: str
-    ledger_key: str
+    work_item_key: str
 
 
 def _record_type_to_filename(record_type: str) -> str:
@@ -92,8 +96,8 @@ def iter_fetch_work_items(fetch: dict[str, Any]) -> list[FetchWorkItem]:
     for subreddit in subreddits:
         if not isinstance(subreddit, str) or not subreddit.strip():
             raise ValueError("fetch.subreddits entries must be non-empty strings")
-        ledger_key = _normalize_subreddit_key(subreddit)
-        items.append(FetchWorkItem(subreddit=subreddit.strip(), ledger_key=ledger_key))
+        work_item_key = _normalize_subreddit_key(subreddit)
+        items.append(FetchWorkItem(subreddit=subreddit.strip(), work_item_key=work_item_key))
     return items
 
 
@@ -232,36 +236,15 @@ def init_sync_metadata(
     work_items: list[FetchWorkItem],
 ) -> dict[str, Any]:
     dataset_id = _require_dataset_id(config)
-    return {
-        "sync_status": "in_progress",
-        "dataset_id": dataset_id,
-        "name": config["name"],
-        "description": config["description"],
-        "date": config["date"],
-        "sync_timestamp": sync_timestamp,
-        "ingestion_config": config_path.name,
-        "record_types": config["record_types"],
-        "fetch": config["fetch"],
-        "row_count": 0,
-        "post_row_count": 0,
-        "subreddits": {item.ledger_key: _subreddit_entry(item) for item in work_items},
-    }
-
-
-def _flush_metadata(storage: RedditStorageManager, run_dir: Path, metadata: dict[str, Any]) -> None:
-    storage.write_run_metadata_atomic(run_dir, metadata)
-
-
-def _mark_remaining_skipped(metadata: dict[str, Any]) -> None:
-    for entry in metadata["subreddits"].values():
-        if entry["status"] == "pending":
-            entry["status"] = "skipped"
-
-
-def _sync_status_done(metadata: dict[str, Any]) -> SyncStatus:
-    statuses = {entry["status"] for entry in metadata["subreddits"].values()}
-    unfinished = statuses - {"completed", "skipped"}
-    return "completed" if not unfinished else "in_progress"
+    return init_sync_metadata_base(
+        config,
+        config_path,
+        sync_timestamp,
+        dataset_id=dataset_id,
+        metadata_bucket="subreddits",
+        entries={item.work_item_key: _subreddit_entry(item) for item in work_items},
+        extra={"post_row_count": 0},
+    )
 
 
 def _count_seen_rows(
@@ -321,8 +304,8 @@ def _stop_if_at_max_rows(
     output_dir: Path,
 ) -> bool:
     if max_rows_int is not None and metadata["row_count"] >= max_rows_int:
-        _mark_remaining_skipped(metadata)
-        _flush_metadata(storage, output_dir, metadata)
+        mark_remaining_skipped(metadata, metadata_bucket="subreddits")
+        flush_sync_metadata(storage, output_dir, metadata)
         return True
     return False
 
@@ -354,7 +337,7 @@ def run_subreddit_sync_loop(
         desc="Syncing subreddits",
         disable=not sys.stderr.isatty(),
     ):
-        entry = metadata["subreddits"][item.ledger_key]
+        entry = metadata["subreddits"][item.work_item_key]
         status = entry["status"]
         if status in ("completed", "skipped"):
             continue
@@ -364,7 +347,7 @@ def run_subreddit_sync_loop(
 
         entry["status"] = "in_progress"
         entry["last_error"] = None
-        _flush_metadata(comment_storage, output_dir, metadata)
+        flush_sync_metadata(comment_storage, output_dir, metadata)
 
         try:
             post_rows, comment_rows, stats = fetch_records_for_subreddit(
@@ -378,8 +361,8 @@ def run_subreddit_sync_loop(
         except Exception as exc:  # noqa: BLE001 — record and continue
             entry["status"] = "failed"
             entry["last_error"] = str(exc)
-            _flush_metadata(comment_storage, output_dir, metadata)
-            print(f"sync_records: {item.ledger_key} failed: {exc}")
+            flush_sync_metadata(comment_storage, output_dir, metadata)
+            print(f"sync_records: {item.work_item_key} failed: {exc}")
             continue
 
         comments_skipped += _append_fetched_subreddit_rows(
@@ -407,10 +390,10 @@ def run_subreddit_sync_loop(
         entry["posts_collected"] = stats["posts_collected"]
         entry["comments_collected"] = stats["comments_collected"]
         entry["last_error"] = None
-        _flush_metadata(comment_storage, output_dir, metadata)
+        flush_sync_metadata(comment_storage, output_dir, metadata)
 
         print(
-            f"sync_records: {item.ledger_key} -> "
+            f"sync_records: {item.work_item_key} -> "
             f"{stats['comments_collected']} comments, {stats['posts_collected']} posts "
             f"(total comments={comment_count}, total posts={post_count})"
         )
@@ -418,8 +401,8 @@ def run_subreddit_sync_loop(
         if _stop_if_at_max_rows(max_rows_int, metadata, comment_storage, output_dir):
             break
 
-    metadata["sync_status"] = _sync_status_done(metadata)
-    _flush_metadata(comment_storage, output_dir, metadata)
+    metadata["sync_status"] = sync_status_done(metadata, metadata_bucket="subreddits")
+    flush_sync_metadata(comment_storage, output_dir, metadata)
 
 
 load_config = load_yaml_config
@@ -472,11 +455,11 @@ def sync_records(
         metadata = comment_storage.load_run_metadata(output_dir)
         if metadata.get("sync_status") != "in_progress":
             metadata["sync_status"] = "in_progress"
-            _flush_metadata(comment_storage, output_dir, metadata)
+            flush_sync_metadata(comment_storage, output_dir, metadata)
         work_items = merge_work_items_with_metadata(
             work_items,
             metadata,
-            ledger_key="subreddits",
+            metadata_bucket="subreddits",
             entity_label="subreddits",
         )
         print(f"sync_records: resuming {output_dir}")
@@ -484,7 +467,7 @@ def sync_records(
         sync_timestamp = get_current_timestamp()
         output_dir = comment_storage.create_new_run_dir(sync_timestamp)
         metadata = init_sync_metadata(config, config_path, sync_timestamp, work_items)
-        _flush_metadata(comment_storage, output_dir, metadata)
+        flush_sync_metadata(comment_storage, output_dir, metadata)
         print(f"sync_records: started new run {output_dir}")
 
     run_subreddit_sync_loop(

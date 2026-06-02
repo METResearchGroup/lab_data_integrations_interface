@@ -31,7 +31,11 @@ from tqdm import tqdm
 
 from data_platform.ingestion.sync_checkpoint import (
     find_resume_run_dir,
+    flush_sync_metadata,
+    init_sync_metadata_base,
+    mark_remaining_skipped,
     merge_work_items_with_metadata,
+    sync_status_done,
 )
 from data_platform.ingestion.twitter_client import fetch_posts_for_keyword, init_twitter_client
 from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
@@ -49,16 +53,16 @@ SyncStatus = Literal["in_progress", "completed"]
 
 @dataclass(frozen=True)
 class FetchWorkItem:
-    ledger_key: str
+    work_item_key: str
     keyword: str
 
 
 def iter_fetch_work_items(fetch: dict[str, Any]) -> list[FetchWorkItem]:
     keyword = fetch.get("keyword")
     if isinstance(keyword, list) and keyword:
-        return [FetchWorkItem(ledger_key=str(k), keyword=str(k)) for k in keyword]
+        return [FetchWorkItem(work_item_key=str(k), keyword=str(k)) for k in keyword]
     if isinstance(keyword, str) and keyword:
-        return [FetchWorkItem(ledger_key=keyword, keyword=keyword)]
+        return [FetchWorkItem(work_item_key=keyword, keyword=keyword)]
     raise ValueError("fetch config must include 'keyword' as a string or list of strings")
 
 
@@ -79,37 +83,14 @@ def init_sync_metadata(
     work_items: list[FetchWorkItem],
 ) -> dict[str, Any]:
     dataset_id = _require_dataset_id(config)
-    return {
-        "sync_status": "in_progress",
-        "dataset_id": dataset_id,
-        "name": config["name"],
-        "description": config["description"],
-        "date": config["date"],
-        "sync_timestamp": sync_timestamp,
-        "ingestion_config": config_path.name,
-        "record_types": config["record_types"],
-        "fetch": config["fetch"],
-        "row_count": 0,
-        "keywords": {item.ledger_key: _keyword_entry(item) for item in work_items},
-    }
-
-
-def _flush_metadata(
-    storage: TwitterStorageManager, run_dir: Path, metadata: dict[str, Any]
-) -> None:
-    storage.write_run_metadata_atomic(run_dir, metadata)
-
-
-def _mark_remaining_skipped(metadata: dict[str, Any]) -> None:
-    for entry in metadata["keywords"].values():
-        if entry["status"] == "pending":
-            entry["status"] = "skipped"
-
-
-def _sync_status_done(metadata: dict[str, Any]) -> SyncStatus:
-    statuses = {entry["status"] for entry in metadata["keywords"].values()}
-    unfinished = statuses - {"completed", "skipped"}
-    return "completed" if not unfinished else "in_progress"
+    return init_sync_metadata_base(
+        config,
+        config_path,
+        sync_timestamp,
+        dataset_id=dataset_id,
+        metadata_bucket="keywords",
+        entries={item.work_item_key: _keyword_entry(item) for item in work_items},
+    )
 
 
 def _effective_limit_per_keyword(fetch: dict[str, Any], remaining: int | None) -> int:
@@ -128,8 +109,8 @@ def _stop_at_max_rows(
     """Mark pending keywords skipped and flush when row cap is reached."""
     if max_rows_int is None or metadata["row_count"] < max_rows_int:
         return False
-    _mark_remaining_skipped(metadata)
-    _flush_metadata(storage, output_dir, metadata)
+    mark_remaining_skipped(metadata, metadata_bucket="keywords")
+    flush_sync_metadata(storage, output_dir, metadata)
     return True
 
 
@@ -156,7 +137,7 @@ def _sync_one_keyword(
 ) -> None:
     entry["status"] = "in_progress"
     entry["last_error"] = None
-    _flush_metadata(storage, output_dir, metadata)
+    flush_sync_metadata(storage, output_dir, metadata)
 
     limit = _effective_limit_per_keyword(fetch, remaining)
     try:
@@ -171,8 +152,8 @@ def _sync_one_keyword(
     except Exception as exc:  # noqa: BLE001 — record and continue
         entry["status"] = "failed"
         entry["last_error"] = str(exc)
-        _flush_metadata(storage, output_dir, metadata)
-        print(f"sync_records: {item.ledger_key} failed: {exc}")
+        flush_sync_metadata(storage, output_dir, metadata)
+        print(f"sync_records: {item.work_item_key} failed: {exc}")
         return
 
     seen_ids = storage.load_seen_tweet_ids(output_dir, filename=csv_filename)
@@ -185,10 +166,10 @@ def _sync_one_keyword(
     entry["pages_fetched"] = stats["pages_fetched"]
     entry["rows_collected"] = stats["rows_collected"]
     entry["last_error"] = None
-    _flush_metadata(storage, output_dir, metadata)
+    flush_sync_metadata(storage, output_dir, metadata)
 
     print(
-        f"sync_records: {item.ledger_key} -> {stats['rows_collected']} rows "
+        f"sync_records: {item.work_item_key} -> {stats['rows_collected']} rows "
         f"(appended {len(new_rows)}, pages={stats['pages_fetched']})"
     )
 
@@ -214,7 +195,7 @@ def run_keyword_sync_loop(
         desc="Syncing keywords",
         disable=not sys.stderr.isatty(),
     ):
-        entry = metadata["keywords"][item.ledger_key]
+        entry = metadata["keywords"][item.work_item_key]
         if entry["status"] in ("completed", "skipped"):
             continue
 
@@ -239,8 +220,8 @@ def run_keyword_sync_loop(
         if _stop_at_max_rows(storage, output_dir, metadata, max_rows_int):
             break
 
-    metadata["sync_status"] = _sync_status_done(metadata)
-    _flush_metadata(storage, output_dir, metadata)
+    metadata["sync_status"] = sync_status_done(metadata, metadata_bucket="keywords")
+    flush_sync_metadata(storage, output_dir, metadata)
 
 
 load_config = load_yaml_config
@@ -285,11 +266,11 @@ def sync_records(
         metadata = storage.load_run_metadata(output_dir)
         if metadata.get("sync_status") != "in_progress":
             metadata["sync_status"] = "in_progress"
-            _flush_metadata(storage, output_dir, metadata)
+            flush_sync_metadata(storage, output_dir, metadata)
         work_items = merge_work_items_with_metadata(
             work_items,
             metadata,
-            ledger_key="keywords",
+            metadata_bucket="keywords",
             entity_label="keywords",
         )
         sync_timestamp = str(metadata["sync_timestamp"])
@@ -298,7 +279,7 @@ def sync_records(
         sync_timestamp = get_current_timestamp()
         output_dir = storage.create_new_run_dir(sync_timestamp)
         metadata = init_sync_metadata(config, config_path, sync_timestamp, work_items)
-        _flush_metadata(storage, output_dir, metadata)
+        flush_sync_metadata(storage, output_dir, metadata)
         print(f"sync_records: started new run {output_dir}")
 
     run_keyword_sync_loop(
