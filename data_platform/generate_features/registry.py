@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from data_platform.generate_features.is_likely_spam.generate_feature import (
+    SYSTEM_PROMPT as IS_LIKELY_SPAM_SYSTEM_PROMPT,
     IsLikelySpamModel,
     LlmIsLikelySpamModel,
 )
@@ -85,7 +86,7 @@ FEATURE_REGISTRY: dict[str, FeatureSpec] = {
         model=IsLikelySpamModel,
         engine_type="langchain",
         generate_fn=generate_is_likely_spam,
-        system_prompt=None,
+        system_prompt=IS_LIKELY_SPAM_SYSTEM_PROMPT,
         llm_output_schema=LlmIsLikelySpamModel,
     ),
     "is_self_contained": FeatureSpec(
