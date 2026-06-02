@@ -1,0 +1,12 @@
+{
+  "dataset_id": "twitter_a8f3c22d-6b14-4e9a-9d2f-1c7e5a9b3d48",
+  "source_raw_run": "raw/2026_06_02-13:45:18",
+  "preprocess_timestamp": "2026_06_02-13:54:39",
+  "row_counts": {
+    "input": 6712,
+    "output": 5019
+  },
+  "files": {
+    "posts": "posts.csv"
+  }
+}
