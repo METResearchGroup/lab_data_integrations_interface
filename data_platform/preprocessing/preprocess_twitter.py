@@ -76,8 +76,8 @@ def filter_posts(
     return filter_records(posts, spec)
 
 
-def preprocess_records(dataset_id: str) -> Path:
-    return run_preprocess_records(dataset_id, TWITTER_SPEC)
+def preprocess_records(dataset_id: str, *, latest_only: bool = False) -> Path:
+    return run_preprocess_records(dataset_id, TWITTER_SPEC, latest_only=latest_only)
 
 
 def main(
@@ -86,8 +86,13 @@ def main(
         "--dataset-id",
         help="Dataset identifier from ingestion YAML (twitter_<uuid>)",
     ),
+    latest_only: bool = typer.Option(
+        False,
+        "--latest-only",
+        help="Load raw posts from only the latest raw run",
+    ),
 ) -> None:
-    preprocess_records(dataset_id)
+    preprocess_records(dataset_id, latest_only=latest_only)
 
 
 if __name__ == "__main__":

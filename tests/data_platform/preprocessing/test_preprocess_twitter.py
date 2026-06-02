@@ -161,3 +161,53 @@ def test_preprocess_records_strips_tco_from_saved_text(data_root) -> None:
     assert "https://t.co/" not in output.iloc[0]["text"]
     assert output.iloc[0]["tweet_id"] == row["tweet_id"]
     assert output.iloc[0]["url"] == row["url"]
+
+
+def test_preprocess_records_merges_all_raw_runs_and_sets_source_raw_runs(data_root) -> None:
+    dataset_id = VALID_TWITTER_DATASET_ID
+    raw_storage = TwitterStorageManager("raw", dataset_id)
+
+    older_run = raw_storage.create_new_run_dir("2026_05_31-11:00:00")
+    newer_run = raw_storage.create_new_run_dir("2026_05_31-12:00:00")
+
+    shared_tweet_id = "1000000000000000001"
+    older_text = _valid_text() + " (older run)"
+    newer_text = _valid_text() + " (newer run)"
+
+    raw_storage.write_records(
+        [_tweet_row(tweet_id=shared_tweet_id, text=older_text)],
+        older_run,
+    )
+    raw_storage.write_run_metadata(
+        older_run,
+        {
+            "sync_status": "completed",
+            "row_count": 1,
+        },
+    )
+
+    raw_storage.write_records(
+        [_tweet_row(tweet_id=shared_tweet_id, text=newer_text)],
+        newer_run,
+    )
+    raw_storage.write_run_metadata(
+        newer_run,
+        {
+            "sync_status": "completed",
+            "row_count": 1,
+        },
+    )
+
+    output_dir = preprocess_twitter.preprocess_records(dataset_id)
+    preprocessed_storage = TwitterStorageManager("preprocessed", dataset_id)
+    output_df = preprocessed_storage.load_records(output_dir)
+    metadata = preprocessed_storage.load_run_metadata(output_dir)
+
+    assert len(output_df) == 1
+    assert output_df.iloc[0]["tweet_id"] == shared_tweet_id
+    # Newest wins: we keep the row from the newer run after deduping.
+    assert output_df.iloc[0]["text"] == newer_text
+
+    assert "source_raw_runs" in metadata
+    assert len(metadata["source_raw_runs"]) == 2
+    assert metadata["source_raw_runs"][-1] == metadata["source_raw_run"]
