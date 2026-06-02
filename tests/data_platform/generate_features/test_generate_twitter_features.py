@@ -157,8 +157,29 @@ def test_generate_twitter_features_labels_pending_posts(
 
     written = generate_twitter_features(
         VALID_TWITTER_DATASET_ID,
-        no_opik=True,
         feature_subset=["is_political"],
     )
     assert "is_political" in written
     mock_build_engine.label_records.assert_called_once()
+
+
+def test_generate_twitter_features_defaults_to_opik_disabled(monkeypatch) -> None:
+    captured = {}
+
+    def fake_run_feature_generation(records, config, *, empty_message):
+        captured["opik_enabled"] = config.run_config.opik_enabled
+        return {}
+
+    monkeypatch.setattr(
+        "data_platform.generate_features.generate_twitter_features.run_feature_generation",
+        fake_run_feature_generation,
+    )
+    monkeypatch.setattr(
+        "data_platform.generate_features.generate_twitter_features.load_posts",
+        lambda dataset_id, preprocessed_run=None: pd.DataFrame(
+            [{ID_COLUMN: "1", TEXT_COLUMN: "hello"}]
+        ),
+    )
+
+    generate_twitter_features(VALID_TWITTER_DATASET_ID)
+    assert captured["opik_enabled"] is False

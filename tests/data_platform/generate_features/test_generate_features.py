@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from data_platform.generate_features.generate_features import generate_features
+from data_platform.generate_features.generate_bluesky_features import generate_bluesky_features
 from data_platform.generate_features.metadata import flush_metadata, load_or_init_metadata
 from data_platform.generate_features.models import (
     BatchRunStats,
@@ -10,7 +11,7 @@ from data_platform.generate_features.models import (
     FeatureSpec,
     FeatureStatus,
 )
-from tests.data_platform.constants import LABEL_TIMESTAMP, URI_POST_A, URI_POST_B
+from tests.data_platform.constants import FEATURES_DATASET_ID, LABEL_TIMESTAMP, URI_POST_A, URI_POST_B
 from tests.data_platform.generate_features.conftest import (
     DummyModel,
     make_feature_generation_config,
@@ -112,3 +113,29 @@ def test_orchestrator_calls_label_records(
     )
     generate_features(records, config)
     mock_build_engine.label_records.assert_called_once()
+
+
+def test_default_feature_run_config_disables_opik() -> None:
+    assert FeatureRunConfig().opik_enabled is False
+
+
+def test_generate_bluesky_features_defaults_to_opik_disabled(monkeypatch, data_root) -> None:
+    captured = {}
+
+    def fake_run_feature_generation(records, config, *, empty_message):
+        captured["opik_enabled"] = config.run_config.opik_enabled
+        return {}
+
+    monkeypatch.setattr(
+        "data_platform.generate_features.generate_bluesky_features.run_feature_generation",
+        fake_run_feature_generation,
+    )
+    monkeypatch.setattr(
+        "data_platform.generate_features.generate_bluesky_features.load_posts",
+        lambda dataset_id, preprocessed_run=None: pd.DataFrame(
+            [{"uri": "1", "text": "hello"}]
+        ),
+    )
+
+    generate_bluesky_features(FEATURES_DATASET_ID)
+    assert captured["opik_enabled"] is False

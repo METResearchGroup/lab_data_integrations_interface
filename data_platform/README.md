@@ -52,7 +52,7 @@ PYTHONPATH=. uv run python data_platform/preprocessing/preprocess_bluesky.py \
 
 PYTHONPATH=. uv run python data_platform/generate_features/generate_bluesky_features.py \
   --dataset-id bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479 \
-  --batch-size 64 --no-opik
+  --batch-size 64
 
 PYTHONPATH=. uv run python data_platform/curate/curate_bluesky.py \
   --dataset-id bluesky_f47ac10b-58cc-4372-a567-0e02b2c3d479 \
@@ -69,7 +69,7 @@ PYTHONPATH=. uv run python data_platform/preprocessing/preprocess_twitter.py \
 
 PYTHONPATH=. uv run python data_platform/generate_features/generate_twitter_features.py \
   --dataset-id twitter_f47ac10b-58cc-4372-a567-0e02b2c3d479 \
-  --batch-size 64 --no-opik
+  --batch-size 64
 
 PYTHONPATH=. uv run python data_platform/curate/curate_twitter.py \
   --dataset-id twitter_f47ac10b-58cc-4372-a567-0e02b2c3d479 \
@@ -79,6 +79,19 @@ PYTHONPATH=. uv run python data_platform/curate/curate_twitter.py \
 Mirrorview config: `data_platform/curate/configs/twitter/mirrorview.yaml` (same filter chain as Bluesky/Reddit).
 
 See [docs/plans/2026-06-01_twitter_preprocess_features_curate_482913/plan.md](../docs/plans/2026-06-01_twitter_preprocess_features_curate_482913/plan.md).
+
+### Reddit (preprocess, features)
+
+Example `dataset_id`: `reddit_f47ac10b-58cc-4372-a567-0e02b2c3d479` (from ingestion YAML).
+
+```bash
+PYTHONPATH=. uv run python data_platform/preprocessing/preprocess_reddit.py \
+  --dataset-id reddit_f47ac10b-58cc-4372-a567-0e02b2c3d479
+
+PYTHONPATH=. uv run python data_platform/generate_features/generate_reddit_features.py \
+  --dataset-id reddit_f47ac10b-58cc-4372-a567-0e02b2c3d479 \
+  --batch-size 64
+```
 
 One-time migration from the legacy flat layout:
 
