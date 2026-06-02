@@ -131,8 +131,29 @@ def test_generate_reddit_features_labels_pending_comments(
 
     written = generate_reddit_features(
         VALID_REDDIT_DATASET_ID,
-        no_opik=True,
         feature_subset=["is_political"],
     )
     assert "is_political" in written
     mock_build_engine.label_records.assert_called_once()
+
+
+def test_generate_reddit_features_defaults_to_opik_disabled(monkeypatch) -> None:
+    captured = {}
+
+    def fake_run_feature_generation(records, config, *, empty_message):
+        captured["opik_enabled"] = config.run_config.opik_enabled
+        return {}
+
+    monkeypatch.setattr(
+        "data_platform.generate_features.generate_reddit_features.run_feature_generation",
+        fake_run_feature_generation,
+    )
+    monkeypatch.setattr(
+        "data_platform.generate_features.generate_reddit_features.load_comments",
+        lambda dataset_id, preprocessed_run=None: pd.DataFrame(
+            [{ID_COLUMN: "1", TEXT_COLUMN: "hello"}]
+        ),
+    )
+
+    generate_reddit_features(VALID_REDDIT_DATASET_ID)
+    assert captured["opik_enabled"] is False
