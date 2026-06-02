@@ -72,3 +72,8 @@ typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
 exclude = ["tests", "experiments"]
+
+[tool.vulture]
+exclude = ["*venv*"]
+min_confidence = 80
+paths = ["."]
