@@ -19,3 +19,16 @@ repos:
     hooks:
       - id: complexipy
         types_or: [python, pyi]
+
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: v2.14
+    hooks:
+      - id: vulture
+        pass_filenames: false
+
+  - repo: https://github.com/biomejs/pre-commit
+    rev: v1.8.3
+    hooks:
+      - id: biome-check
+        additional_dependencies: ["@biomejs/biome@1.8.3"]
+        files: ^ui/

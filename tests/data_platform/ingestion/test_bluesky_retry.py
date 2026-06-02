@@ -11,7 +11,7 @@ from data_platform.ingestion.bluesky_retry import _is_retryable_bluesky_error, r
 def no_retry_delay(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         "data_platform.ingestion.bluesky_retry.wait_exponential_jitter",
-        lambda **kwargs: lambda retry_state: 0,
+        lambda **kwargs: lambda _retry_state: 0,
     )
 
 
@@ -25,7 +25,8 @@ def test_is_not_retryable_on_401() -> None:
     assert _is_retryable_bluesky_error(UnauthorizedError(response)) is False
 
 
-def test_retry_bluesky_request_retries_then_succeeds(no_retry_delay) -> None:
+@pytest.mark.usefixtures("no_retry_delay")
+def test_retry_bluesky_request_retries_then_succeeds() -> None:
     attempts = {"count": 0}
 
     @retry_bluesky_request(max_attempts=4, initial_delay=0.01, max_delay=0.02)
@@ -40,7 +41,8 @@ def test_retry_bluesky_request_retries_then_succeeds(no_retry_delay) -> None:
     assert attempts["count"] == 3
 
 
-def test_retry_bluesky_request_does_not_retry_401(no_retry_delay) -> None:
+@pytest.mark.usefixtures("no_retry_delay")
+def test_retry_bluesky_request_does_not_retry_401() -> None:
     attempts = {"count": 0}
 
     @retry_bluesky_request(max_attempts=4, initial_delay=0.01, max_delay=0.02)

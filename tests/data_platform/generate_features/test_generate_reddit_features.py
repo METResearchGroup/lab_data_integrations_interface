@@ -99,7 +99,7 @@ def test_generate_reddit_features_skips_completed_feature(
         name="is_political",
         model=DummyModel,  # type: ignore[arg-type]
         engine_type="thread_pool",
-        generate_fn=lambda u, t: None,  # type: ignore[arg-type]
+        generate_fn=lambda _u, _t: None,  # type: ignore[arg-type]
     )
     config = make_reddit_feature_generation_config(feature_registry={"is_political": spec})
     metadata = load_or_init_metadata(config, feature_names=("is_political",))

@@ -38,7 +38,7 @@ def test_skips_completed_features(
         name="feat_a",
         model=DummyModel,  # type: ignore[arg-type]
         engine_type="thread_pool",
-        generate_fn=lambda u, t: None,  # type: ignore[arg-type]
+        generate_fn=lambda _u, _t: None,  # type: ignore[arg-type]
     )
     config = make_feature_generation_config(
         features_dir,
@@ -67,7 +67,7 @@ def test_reopens_completed_feature_with_new_posts(
         name="feat_a",
         model=DummyModel,  # type: ignore[arg-type]
         engine_type="thread_pool",
-        generate_fn=lambda u, t: None,  # type: ignore[arg-type]
+        generate_fn=lambda _u, _t: None,  # type: ignore[arg-type]
     )
     config = make_feature_generation_config(
         features_dir,
@@ -103,7 +103,7 @@ def test_orchestrator_calls_label_records(
         name="feat_a",
         model=DummyModel,  # type: ignore[arg-type]
         engine_type="thread_pool",
-        generate_fn=lambda u, t: None,  # type: ignore[arg-type]
+        generate_fn=lambda _u, _t: None,  # type: ignore[arg-type]
     )
     mock_build_engine.label_records.return_value = BatchRunStats(labeled=2, failed_batches=0)
 
