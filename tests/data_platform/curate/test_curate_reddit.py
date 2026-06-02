@@ -63,6 +63,22 @@ def test_build_wide_table_joins_reddit_comments_on_comment_fullname(tmp_path: Pa
             },
         ],
     )
+    _write_reddit_feature_csv(
+        features_root,
+        "is_likely_spam",
+        [
+            {
+                FEATURE_CSV_ID_COLUMN: comment_a["comment_fullname"],
+                "label_timestamp": LABEL_TIMESTAMP,
+                "is_likely_spam": False,
+            },
+            {
+                FEATURE_CSV_ID_COLUMN: comment_b["comment_fullname"],
+                "label_timestamp": LABEL_TIMESTAMP,
+                "is_likely_spam": True,
+            },
+        ],
+    )
 
     wide = build_wide_table(
         ConsolidateConfig(
@@ -118,6 +134,14 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
                     FEATURE_CSV_ID_COLUMN: comment["comment_fullname"],
                     "label_timestamp": LABEL_TIMESTAMP,
                     "category": category,
+                },
+            ),
+            (
+                "is_likely_spam",
+                {
+                    FEATURE_CSV_ID_COLUMN: comment["comment_fullname"],
+                    "label_timestamp": LABEL_TIMESTAMP,
+                    "is_likely_spam": comment is comment_drop,
                 },
             ),
             (
@@ -177,7 +201,7 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
     assert curated.iloc[0][ID_COLUMN] == comment_keep["comment_fullname"]
     assert "body" in curated.columns
     assert metadata["row_counts"]["after_filters"] == 1
-    assert len(metadata["filter_results"]) == 5
+    assert len(metadata["filter_results"]) == 6
     assert (
         metadata["filter_results"][0]["records_before"]
         >= metadata["filter_results"][-1]["records_passing"]
