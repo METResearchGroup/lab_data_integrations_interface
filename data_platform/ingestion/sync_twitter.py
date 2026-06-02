@@ -24,24 +24,27 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import typer
 from tqdm import tqdm
 
 from data_platform.ingestion.sync_checkpoint import (
-    find_resume_run_dir,
     flush_sync_metadata,
     init_sync_metadata_base,
     mark_remaining_skipped,
-    merge_work_items_with_metadata,
     sync_status_done,
 )
+from data_platform.ingestion.sync_runner import (
+    PreparedSyncRun,
+    SyncPlatformSpec,
+    make_sync_main,
+    require_dataset_id,
+    run_sync_from_config,
+)
 from data_platform.ingestion.twitter_client import fetch_posts_for_keyword, init_twitter_client
-from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
-from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
+from data_platform.utils.config_paths import load_yaml_config
 from data_platform.utils.storage import TwitterStorageManager
-from lib.timestamp_utils import get_current_timestamp
 
 CONFIGS_DIR = Path(__file__).resolve().parent / "configs/twitter"
 DEFAULT_CONFIG = CONFIGS_DIR / "default.yaml"
@@ -79,7 +82,7 @@ def init_sync_metadata(
     sync_timestamp: str,
     work_items: list[FetchWorkItem],
 ) -> dict[str, Any]:
-    dataset_id = _require_dataset_id(config)
+    dataset_id = require_dataset_id(config, hint="twitter_<uuid>")
     return init_sync_metadata_base(
         config,
         config_path,
@@ -224,11 +227,31 @@ def run_keyword_sync_loop(
 load_config = load_yaml_config
 
 
-def _require_dataset_id(config: dict[str, Any]) -> str:
-    raw = config.get("dataset_id")
-    if not raw:
-        raise ValueError("ingestion config must include dataset_id (twitter_<uuid>)")
-    return validate_dataset_id(str(raw))
+def _run_twitter_sync_loop(prepared: PreparedSyncRun) -> None:
+    client = init_twitter_client()
+    storage = cast(TwitterStorageManager, prepared.storage)
+    run_keyword_sync_loop(
+        client,
+        prepared.fetch,
+        prepared.output_dir,
+        storage,
+        prepared.metadata,
+        prepared.work_items,
+        sync_timestamp=prepared.sync_timestamp,
+        csv_filename=POSTS_CSV,
+    )
+
+
+_TWITTER_SYNC_SPEC = SyncPlatformSpec(
+    platform="twitter",
+    dataset_id_hint="twitter_<uuid>",
+    metadata_bucket="keywords",
+    entity_label="keywords",
+    create_storage=lambda dataset_id: TwitterStorageManager("raw", dataset_id),
+    iter_work_items=iter_fetch_work_items,
+    init_sync_metadata=init_sync_metadata,
+    run_loop=_run_twitter_sync_loop,
+)
 
 
 def sync_records(
@@ -238,84 +261,20 @@ def sync_records(
     run_dir_name: str | None = None,
 ) -> Path:
     """Fetch Twitter records per config and write raw CSV + metadata."""
-    if run_dir_name is not None and not resume:
-        raise ValueError("--run-dir requires --resume")
-
-    config = load_config(config_path)
-    dataset_id = _require_dataset_id(config)
-    storage = TwitterStorageManager("raw", dataset_id)
-
-    manifest_path = storage.root_dir.parent / "dataset.json"
-    if not manifest_path.exists():
-        write_dataset_manifest(
-            "twitter",
-            dataset_id,
-            name=str(config["name"]),
-            ingestion_config=str(config_path.relative_to(Path(__file__).resolve().parents[2])),
-        )
-
-    fetch = config["fetch"]
-    work_items = iter_fetch_work_items(fetch)
-    client = init_twitter_client()
-
-    if resume:
-        output_dir = find_resume_run_dir(storage, run_dir_name=run_dir_name)
-        metadata = storage.load_run_metadata(output_dir)
-        if metadata.get("sync_status") != "in_progress":
-            metadata["sync_status"] = "in_progress"
-            flush_sync_metadata(storage, output_dir, metadata)
-        work_items = merge_work_items_with_metadata(
-            work_items,
-            metadata,
-            metadata_bucket="keywords",
-            entity_label="keywords",
-        )
-        sync_timestamp = str(metadata["sync_timestamp"])
-        print(f"sync_records: resuming {output_dir}")
-    else:
-        sync_timestamp = get_current_timestamp()
-        output_dir = storage.create_new_run_dir(sync_timestamp)
-        metadata = init_sync_metadata(config, config_path, sync_timestamp, work_items)
-        flush_sync_metadata(storage, output_dir, metadata)
-        print(f"sync_records: started new run {output_dir}")
-
-    run_keyword_sync_loop(
-        client,
-        fetch,
-        output_dir,
-        storage,
-        metadata,
-        work_items,
-        sync_timestamp=sync_timestamp,
-        csv_filename=POSTS_CSV,
+    return run_sync_from_config(
+        config_path,
+        resume=resume,
+        run_dir_name=run_dir_name,
+        spec=_TWITTER_SYNC_SPEC,
     )
 
-    total_rows = metadata["row_count"]
-    print(
-        f"sync_records: wrote {total_rows} rows to {output_dir} (status={metadata['sync_status']})"
-    )
-    return output_dir
 
-
-def main(
-    config: Path = typer.Option(
-        DEFAULT_CONFIG,
-        "--config",
-        help="YAML config path or filename under configs/twitter/ (e.g. mirrorview.yaml)",
-    ),
-    resume: bool = typer.Option(
-        False,
-        "--resume",
-        help="Resume the latest in-progress raw run for this dataset",
-    ),
-    run_dir: str | None = typer.Option(
-        None,
-        "--run-dir",
-        help="Raw run timestamp directory name (requires --resume)",
-    ),
-) -> None:
-    config_path = resolve_config_path(config, CONFIGS_DIR)
-    sync_records(config_path, resume=resume, run_dir_name=run_dir)
+main = make_sync_main(
+    sync_records=sync_records,
+    configs_dir=CONFIGS_DIR,
+    default_config=DEFAULT_CONFIG,
+    config_help_subdir="twitter",
+)
 
 
 if __name__ == "__main__":

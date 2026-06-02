@@ -35,22 +35,25 @@ from tqdm import tqdm
 
 from data_platform.ingestion.reddit_retry import retry_reddit_request
 from data_platform.ingestion.sync_checkpoint import (
-    find_resume_run_dir,
     flush_sync_metadata,
     init_sync_metadata_base,
     mark_remaining_skipped,
-    merge_work_items_with_metadata,
     sync_status_done,
 )
-from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
-from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
+from data_platform.ingestion.sync_runner import (
+    ensure_dataset_manifest,
+    make_sync_main,
+    prepare_sync_run,
+    require_dataset_id,
+    validate_run_dir_option,
+)
+from data_platform.utils.config_paths import load_yaml_config
 from data_platform.utils.storage import RedditStorageManager
 from experiments.reddit_fetch_data_2026_05_23.reddit_client import (
     fetch_post_comments,
     init_reddit,
     submission_to_row,
 )
-from lib.timestamp_utils import get_current_timestamp
 
 CONFIGS_DIR = Path(__file__).resolve().parent / "configs/reddit"
 DEFAULT_CONFIG = CONFIGS_DIR / "default.yaml"
@@ -234,7 +237,7 @@ def init_sync_metadata(
     sync_timestamp: str,
     work_items: list[FetchWorkItem],
 ) -> dict[str, Any]:
-    dataset_id = _require_dataset_id(config)
+    dataset_id = require_dataset_id(config, hint="reddit_<uuid>")
     return init_sync_metadata_base(
         config,
         config_path,
@@ -407,13 +410,6 @@ def run_subreddit_sync_loop(
 load_config = load_yaml_config
 
 
-def _require_dataset_id(config: dict[str, Any]) -> str:
-    raw = config.get("dataset_id")
-    if not raw:
-        raise ValueError("ingestion config must include dataset_id (reddit_<uuid>)")
-    return validate_dataset_id(str(raw))
-
-
 def sync_records(
     config_path: Path = DEFAULT_CONFIG,
     *,
@@ -421,25 +417,15 @@ def sync_records(
     run_dir_name: str | None = None,
 ) -> Path:
     """Fetch Reddit records per config and write raw CSV + metadata."""
-    if run_dir_name is not None and not resume:
-        raise ValueError("--run-dir requires --resume")
+    validate_run_dir_option(run_dir_name, resume=resume)
 
     config = load_config(config_path)
-    dataset_id = _require_dataset_id(config)
+    dataset_id = require_dataset_id(config, hint="reddit_<uuid>")
     comment_storage = RedditStorageManager("raw", dataset_id)
     post_storage = comment_storage.post_storage()
+    ensure_dataset_manifest("reddit", comment_storage, config, config_path)
 
-    manifest_path = comment_storage.root_dir.parent / "dataset.json"
-    if not manifest_path.exists():
-        write_dataset_manifest(
-            "reddit",
-            dataset_id,
-            name=str(config["name"]),
-            ingestion_config=str(config_path.relative_to(Path(__file__).resolve().parents[2])),
-        )
-
-    fetch = config["fetch"]
-    work_items = iter_fetch_work_items(fetch)
+    work_items = iter_fetch_work_items(config["fetch"])
     record_types: list[str] = config["record_types"]
     include_comments = COMMENTS_RECORD_TYPE in record_types
     include_posts = POSTS_RECORD_TYPE in record_types
@@ -447,67 +433,44 @@ def sync_records(
     if not include_comments and not include_posts:
         raise ValueError(f"Unsupported record types for checkpoint sync: {record_types}")
 
-    reddit = init_reddit()
-
-    if resume:
-        output_dir = find_resume_run_dir(comment_storage, run_dir_name=run_dir_name)
-        metadata = comment_storage.load_run_metadata(output_dir)
-        if metadata.get("sync_status") != "in_progress":
-            metadata["sync_status"] = "in_progress"
-            flush_sync_metadata(comment_storage, output_dir, metadata)
-        work_items = merge_work_items_with_metadata(
-            work_items,
-            metadata,
-            metadata_bucket="subreddits",
-            entity_label="subreddits",
-        )
-        print(f"sync_records: resuming {output_dir}")
-    else:
-        sync_timestamp = get_current_timestamp()
-        output_dir = comment_storage.create_new_run_dir(sync_timestamp)
-        metadata = init_sync_metadata(config, config_path, sync_timestamp, work_items)
-        flush_sync_metadata(comment_storage, output_dir, metadata)
-        print(f"sync_records: started new run {output_dir}")
+    prepared = prepare_sync_run(
+        comment_storage,
+        config,
+        config_path,
+        work_items,
+        resume=resume,
+        run_dir_name=run_dir_name,
+        metadata_bucket="subreddits",
+        entity_label="subreddits",
+        init_sync_metadata=init_sync_metadata,
+    )
 
     run_subreddit_sync_loop(
-        reddit,
-        fetch,
-        output_dir,
+        init_reddit(),
+        prepared.fetch,
+        prepared.output_dir,
         comment_storage,
         post_storage,
-        metadata,
-        work_items,
+        prepared.metadata,
+        prepared.work_items,
         include_comments=include_comments,
         include_posts=include_posts,
     )
 
     print(
-        f"sync_records: wrote {metadata['row_count']} comments and "
-        f"{metadata['post_row_count']} posts to {output_dir} "
-        f"(status={metadata['sync_status']})"
+        f"sync_records: wrote {prepared.metadata['row_count']} comments and "
+        f"{prepared.metadata['post_row_count']} posts to {prepared.output_dir} "
+        f"(status={prepared.metadata['sync_status']})"
     )
-    return output_dir
+    return prepared.output_dir
 
 
-def main(
-    config: Path = typer.Option(
-        DEFAULT_CONFIG,
-        "--config",
-        help="YAML config path or filename under configs/reddit/ (e.g. mirrorview.yaml)",
-    ),
-    resume: bool = typer.Option(
-        False,
-        "--resume",
-        help="Resume the latest in-progress raw run for this dataset",
-    ),
-    run_dir: str | None = typer.Option(
-        None,
-        "--run-dir",
-        help="Raw run timestamp directory name (requires --resume)",
-    ),
-) -> None:
-    config_path = resolve_config_path(config, CONFIGS_DIR)
-    sync_records(config_path, resume=resume, run_dir_name=run_dir)
+main = make_sync_main(
+    sync_records=sync_records,
+    configs_dir=CONFIGS_DIR,
+    default_config=DEFAULT_CONFIG,
+    config_help_subdir="reddit",
+)
 
 
 if __name__ == "__main__":
