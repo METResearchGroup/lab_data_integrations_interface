@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
@@ -9,7 +10,8 @@ from data_platform.utils.storage import StorageManager
 
 
 class HasLedgerKey(Protocol):
-    ledger_key: str
+    @property
+    def ledger_key(self) -> str: ...
 
 
 T = TypeVar("T", bound=HasLedgerKey)
@@ -49,7 +51,7 @@ def find_resume_run_dir(
 
 
 def merge_work_items_with_metadata(
-    work_items: list[T],
+    work_items: Sequence[T],
     metadata: dict[str, Any],
     *,
     ledger_key: str,
@@ -64,4 +66,4 @@ def merge_work_items_with_metadata(
             f"Config {entity_label} do not match resume metadata "
             f"(missing in metadata: {sorted(missing)}, extra in metadata: {sorted(extra)})"
         )
-    return work_items
+    return list(work_items)
