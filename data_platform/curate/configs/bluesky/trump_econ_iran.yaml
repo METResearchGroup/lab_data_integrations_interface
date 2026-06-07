@@ -1,6 +1,6 @@
 name: trump_econ_iran
 output:
-  filename: trump_econ_iran.csv
+  stem: trump_econ_iran
 filters:
   - column: news_or_opinion_category
     op: eq

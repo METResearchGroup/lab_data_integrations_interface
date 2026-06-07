@@ -84,8 +84,7 @@ def run_curation(config_path: Path, dataset_id: str, spec: CuratePlatformSpec) -
     filtered_df = rules_result.dataframe
 
     run_dir = curated_storage.create_new_run_dir(get_current_timestamp())
-    output_stem = Path(rules.output.filename).stem
-    output_filename = f"{output_stem}.{curated_storage.format}"
+    output_filename = f"{rules.output.stem}.{curated_storage.format}"
     output_path = curated_storage.write_dataframe(filtered_df, run_dir, filename=output_filename)
 
     metadata = build_curate_metadata(
