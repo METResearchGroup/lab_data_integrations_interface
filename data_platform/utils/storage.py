@@ -60,7 +60,8 @@ class StorageManager:
         self.model = model
         self.dataset_id = validate_dataset_id(dataset_id)
         self.format: Literal["csv", "parquet"] = load_dataset_format(platform, dataset_id)
-        self.records_filename = records_filename
+        stem = Path(records_filename).stem
+        self.records_filename = f"{stem}.{self.format}"
 
     @property
     def root_dir(self) -> Path:
