@@ -71,7 +71,7 @@ def test_run_keyword_sync_loop_appends_per_keyword(
         storage,
         metadata,
         work_items,
-        csv_filename="posts.csv",
+        records_filename="posts.csv",
     )
 
     assert metadata["keywords"]["alpha"]["status"] == "completed"
@@ -135,7 +135,7 @@ def test_resume_skips_completed_keywords(
         storage,
         resumed_metadata,
         work_items,
-        csv_filename="posts.csv",
+        records_filename="posts.csv",
     )
 
     assert calls == ["beta"]
