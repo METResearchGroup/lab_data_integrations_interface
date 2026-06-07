@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import csv
 import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
-from pydantic import BaseModel
 from tqdm import tqdm
 
 from collector.retry import retry_llm_completion
@@ -18,7 +18,6 @@ from data_platform.generate_features.models import (
     FeatureSpec,
     LabelTask,
 )
-from data_platform.utils.storage import StorageManager
 from lib.timestamp_utils import get_current_timestamp
 
 
@@ -36,7 +35,6 @@ class BatchExecutionEngine(Protocol):
         *,
         feature_name: str,
         features_dir: Path,
-        dataset_id: str,
     ) -> None: ...
 
     def label_records(
@@ -45,7 +43,6 @@ class BatchExecutionEngine(Protocol):
         *,
         feature_name: str,
         features_dir: Path,
-        dataset_id: str,
         batch_size: int,
         on_batch_complete: Callable[[int, int], None],
     ) -> BatchRunStats: ...
@@ -54,27 +51,23 @@ class BatchExecutionEngine(Protocol):
 def load_seen_uris_from_features_dir(
     features_dir: Path,
     feature_name: str,
-    dataset_id: str,
 ) -> set[str]:
     """Return URIs already present in the feature CSV under features_dir."""
-    storage = StorageManager(
-        "bluesky",
-        "features",
-        BaseModel,
-        dataset_id,
-        records_filename=f"{feature_name}.csv",
-    )
-    return storage.load_seen_uris(features_dir, filename=f"{feature_name}.csv")
+    csv_path = features_dir / f"{feature_name}.csv"
+    if not csv_path.exists():
+        return set()
+    with csv_path.open(newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return {row["uri"] for row in reader if row.get("uri")}
 
 
 def filter_seen_tasks(
     tasks: list[LabelTask],
     features_dir: Path,
     feature_name: str,
-    dataset_id: str,
 ) -> list[LabelTask]:
     """Drop tasks whose URI is already labeled in the on-disk feature CSV."""
-    seen = load_seen_uris_from_features_dir(features_dir, feature_name, dataset_id)
+    seen = load_seen_uris_from_features_dir(features_dir, feature_name)
     if not seen:
         return tasks
     return [task for task in tasks if task.uri not in seen]
@@ -102,19 +95,22 @@ class BaseBatchExecutionEngine:
         *,
         feature_name: str,
         features_dir: Path,
-        dataset_id: str,
     ) -> None:
         """Validate and append label rows to features_dir/{feature_name}.csv."""
         if not labels:
             return
-        storage = StorageManager(
-            "bluesky",
-            "features",
-            self.spec.model,
-            dataset_id,
-            records_filename=f"{feature_name}.csv",
-        )
-        storage.append_records(labels, features_dir, filename=f"{feature_name}.csv")
+        csv_path = features_dir / f"{feature_name}.csv"
+        fieldnames = list(self.spec.model.model_fields.keys())
+        validated: list[dict[str, Any]] = [
+            self.spec.model.model_validate(row).model_dump() for row in labels
+        ]
+        file_exists = csv_path.exists()
+        mode = "a" if file_exists else "w"
+        with csv_path.open(mode, newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            if not file_exists:
+                writer.writeheader()
+            writer.writerows(validated)
 
     def label_records(
         self,
@@ -122,7 +118,6 @@ class BaseBatchExecutionEngine:
         *,
         feature_name: str,
         features_dir: Path,
-        dataset_id: str,
         batch_size: int,
         on_batch_complete: Callable[[int, int], None],
     ) -> BatchRunStats:
@@ -147,7 +142,7 @@ class BaseBatchExecutionEngine:
         )
         try:
             for batch_index, chunk in enumerate(batched(tasks, batch_size)):
-                pending = filter_seen_tasks(chunk, features_dir, feature_name, dataset_id)
+                pending = filter_seen_tasks(chunk, features_dir, feature_name)
                 if not pending:
                     continue
 
@@ -178,7 +173,6 @@ class BaseBatchExecutionEngine:
                     labels,
                     feature_name=feature_name,
                     features_dir=features_dir,
-                    dataset_id=dataset_id,
                 )
                 stats.labeled += len(labels)
                 pbar.update(len(labels))

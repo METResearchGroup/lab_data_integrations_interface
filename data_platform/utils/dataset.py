@@ -4,7 +4,7 @@ import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 _DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 
@@ -40,12 +40,25 @@ def load_dataset_manifest(platform: str, dataset_id: str) -> dict[str, Any]:
         return json.load(f)
 
 
+def load_dataset_format(platform: str, dataset_id: str) -> Literal["csv", "parquet"]:
+    """Read the output format from dataset.json, defaulting to csv for existing datasets."""
+    try:
+        manifest = load_dataset_manifest(platform, dataset_id)
+    except FileNotFoundError:
+        return "csv"
+    fmt = manifest.get("format", "csv")
+    if fmt not in ("csv", "parquet"):
+        raise ValueError(f"Invalid format in dataset manifest: {fmt!r}")
+    return fmt  # type: ignore[return-value]
+
+
 def write_dataset_manifest(
     platform: str,
     dataset_id: str,
     *,
     name: str,
     ingestion_config: str,
+    format: Literal["csv", "parquet"] = "csv",
     created_at: str | None = None,
 ) -> Path:
     root = dataset_root(platform, dataset_id)
@@ -56,6 +69,7 @@ def write_dataset_manifest(
         "name": name,
         "created_at": created_at or datetime.now(UTC).isoformat(),
         "ingestion_config": ingestion_config,
+        "format": format,
     }
     path = root / MANIFEST_FILENAME
     with path.open("w", encoding="utf-8") as f:
