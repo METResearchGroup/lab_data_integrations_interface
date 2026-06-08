@@ -80,7 +80,7 @@ def test_load_rules_config_from_yaml(tmp_path: Path) -> None:
         """
 name: mirrorview
 output:
-  filename: mirrorview.csv
+  stem: mirrorview
 filters:
   - column: news_or_opinion_category
     op: eq
@@ -90,7 +90,7 @@ filters:
     )
     rules = load_rules_config(config_path)
     assert rules.name == "mirrorview"
-    assert rules.output.filename == "mirrorview.csv"
+    assert rules.output.stem == "mirrorview"
     assert len(rules.filters) == 1
 
 
