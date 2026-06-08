@@ -1,0 +1,8 @@
+{
+  "dataset_id": "bluesky_8ce4cf1f-8ab9-4373-a739-2a2ff2de400f",
+  "platform": "bluesky",
+  "name": "trump_econ_iran",
+  "created_at": "2026-06-07T21:52:39.202405+00:00",
+  "ingestion_config": "data_platform/ingestion/configs/bluesky/trump_econ_iran.yaml",
+  "format": "parquet"
+}
