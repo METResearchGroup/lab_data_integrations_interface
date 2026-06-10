@@ -33,15 +33,7 @@ The fetch-specific fields (keywords, subreddits, limits, etc.) differ per platfo
 - **`stem`** — base name for the output file. The extension (`.parquet` or `.csv`) is appended automatically based on `output_format` from the ingestion YAML.
 - **`filters`** — rows are kept only if they pass all conditions. Each filter specifies a `column`, an `op` (`eq`, `neq`, `in`, `gt`, `lt`), and a `value`.
 
-The curate config is identical in structure across all platforms. The available filter columns come from the 7 features defined in [`data_platform/generate_features/registry.py`](../../data_platform/generate_features/registry.py). The exact column names and possible values for each feature are in the output model (`*Model` class) inside each feature's `generate_feature.py`:
-
-- [`data_platform/generate_features/is_news_or_opinion/generate_feature.py`](../../data_platform/generate_features/is_news_or_opinion/generate_feature.py)
-- [`data_platform/generate_features/is_political/generate_feature.py`](../../data_platform/generate_features/is_political/generate_feature.py)
-- [`data_platform/generate_features/is_likely_spam/generate_feature.py`](../../data_platform/generate_features/is_likely_spam/generate_feature.py)
-- [`data_platform/generate_features/is_self_contained/generate_feature.py`](../../data_platform/generate_features/is_self_contained/generate_feature.py)
-- [`data_platform/generate_features/is_structurally_complete/generate_feature.py`](../../data_platform/generate_features/is_structurally_complete/generate_feature.py)
-- [`data_platform/generate_features/is_toxic_tiered/generate_feature.py`](../../data_platform/generate_features/is_toxic_tiered/generate_feature.py)
-- [`data_platform/generate_features/political_stance/generate_feature.py`](../../data_platform/generate_features/political_stance/generate_feature.py)
+The curate config is identical in structure across all platforms. The available filter columns come from the features defined in [`data_platform/generate_features/registry.py`](../../data_platform/generate_features/registry.py). The exact column names and possible values for each feature are in the output model (`*Model` class) inside each feature's `generate_feature.py`
 
 ---
 
@@ -57,10 +49,10 @@ PYTHONPATH=. uv run python data_platform/orchestration/orchestrate_bluesky.py \
 
 The pipeline runs 4 stages in sequence:
 
-1. **Ingestion** (~10s) — fetches posts from the platform API, writes raw records under `data/<platform>/<dataset_id>/raw/<timestamp>/`
-2. **Preprocessing** (~1s) — filters out non-English posts, URLs, phone numbers, and too-short posts
-3. **Feature generation** (~5–15 min) — calls OpenAI (6 features) and Google Perspective API (toxicity) to label all posts; writes one CSV per feature under `features/`
-4. **Curation** (~1s) — joins all feature CSVs with preprocessed posts, applies your filters, writes final output under `curated/<timestamp>/`
+1. **Ingestion** — fetches posts from the platform API, writes raw records under `data/<platform>/<dataset_id>/raw/<timestamp>/`
+2. **Preprocessing** — filters out non-English posts, URLs, phone numbers, and too-short posts
+3. **Feature generation** — calls OpenAI (6 features) and Google Perspective API (toxicity) to label all posts; writes one CSV per feature under `features/`
+4. **Curation** — joins all feature CSVs with preprocessed posts, applies your filters, writes final output under `curated/<timestamp>/`
 
 ---
 
