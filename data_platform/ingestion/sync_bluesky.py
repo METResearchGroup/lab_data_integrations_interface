@@ -31,6 +31,7 @@ from atproto import Client
 from tqdm import tqdm
 
 from data_platform.ingestion.bluesky_retry import retry_bluesky_request
+from data_platform.ingestion.dedupe import load_prior_seen_ids
 from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
 from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
 from data_platform.utils.storage import BlueskyStorageManager
@@ -273,6 +274,15 @@ def run_keyword_sync_loop(
 ) -> None:
     max_rows = fetch.get("max_rows")
     max_rows_int = int(max_rows) if max_rows is not None else None
+    prior_uris = load_prior_seen_ids(
+        storage,
+        output_dir,
+        fetch,
+        "uri",
+        filename=csv_filename,
+        same_dataset_flag="dedupe_posts_from_prior_raw_runs",
+    )
+    posts_skipped = int(metadata.get("posts_skipped_as_duplicates", 0))
 
     for item in tqdm(
         work_items,
@@ -307,8 +317,10 @@ def run_keyword_sync_loop(
             print(f"sync_records: {item.ledger_key} failed: {exc}")
             continue
 
-        seen_uris = storage.load_seen_uris(output_dir, filename=csv_filename)
+        seen_uris = prior_uris | storage.load_seen_uris(output_dir, filename=csv_filename)
         new_rows = [row for row in rows if row["uri"] not in seen_uris]
+        posts_skipped += len(rows) - len(new_rows)
+        metadata["posts_skipped_as_duplicates"] = posts_skipped
         if new_rows:
             storage.append_records(new_rows, output_dir, filename=csv_filename)
 
@@ -436,8 +448,6 @@ def sync_records(
     client = setup_client()
 
     if resume:
-        otel.push({"id": "<id>", "metadata": {}})
-        otel.start_tracking()
         output_dir = find_resume_run_dir(storage, run_dir_name=run_dir_name)
         metadata = storage.load_run_metadata(output_dir)
         if metadata.get("sync_status") != "in_progress":

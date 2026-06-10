@@ -75,6 +75,34 @@ def test_load_seen_ids_from_prior_runs(data_root) -> None:
     assert seen == {"t1_comment_a", "t1_comment_b"}
 
 
+def test_load_seen_ids_from_platform_raw_runs(data_root) -> None:
+    dataset_a = "reddit_00000000-0000-4000-8000-000000000001"
+    dataset_b = "reddit_00000000-0000-4000-8000-000000000002"
+    storage_a = RedditStorageManager("raw", dataset_a)
+    storage_b = RedditStorageManager("raw", dataset_b)
+
+    prior_run_a = storage_a.create_new_run_dir("2026_05_29-10:00:00")
+    current_run_b = storage_b.create_new_run_dir("2026_05_30-10:00:00")
+
+    storage_a.append_records(
+        [mock_comment_row("t1_comment_a")],
+        prior_run_a,
+        filename="comments.csv",
+    )
+    storage_b.append_records(
+        [mock_comment_row("t1_comment_b")],
+        current_run_b,
+        filename="comments.csv",
+    )
+
+    seen = storage_b.load_seen_ids_from_platform_raw_runs(
+        current_run_b,
+        "comment_fullname",
+        filename="comments.csv",
+    )
+    assert seen == {"t1_comment_a"}
+
+
 def test_write_run_metadata_atomic(bluesky_storage) -> None:
     run_dir = bluesky_storage.create_new_run_dir("2026_05_30-10:00:00")
     payload = {"sync_status": "in_progress", "row_count": 0}

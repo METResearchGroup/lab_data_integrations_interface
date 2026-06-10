@@ -33,6 +33,7 @@ import prawcore.exceptions
 import typer
 from tqdm import tqdm
 
+from data_platform.ingestion.dedupe import load_prior_seen_ids
 from data_platform.ingestion.reddit_retry import retry_reddit_request
 from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
 from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
@@ -291,11 +292,16 @@ def _append_fetched_subreddit_rows(
     include_comments: bool,
     include_posts: bool,
     prior_comment_ids: set[str] | None = None,
-) -> int:
+    prior_post_ids: set[str] | None = None,
+) -> tuple[int, int]:
     comments_skipped = 0
+    posts_skipped = 0
     if include_posts and post_rows:
-        seen_posts = post_storage.load_seen_ids(output_dir, "reddit_fullname", filename=POSTS_CSV)
+        seen_posts = (prior_post_ids or set()) | post_storage.load_seen_ids(
+            output_dir, "reddit_fullname", filename=POSTS_CSV
+        )
         new_posts = [row for row in post_rows if row["reddit_fullname"] not in seen_posts]
+        posts_skipped = len(post_rows) - len(new_posts)
         if new_posts:
             post_storage.append_records(new_posts, output_dir, filename=POSTS_CSV)
 
@@ -307,7 +313,7 @@ def _append_fetched_subreddit_rows(
         comments_skipped = len(comment_rows) - len(new_comments)
         if new_comments:
             comment_storage.append_records(new_comments, output_dir, filename=COMMENTS_CSV)
-    return comments_skipped
+    return comments_skipped, posts_skipped
 
 
 def _stop_if_at_max_rows(
@@ -339,11 +345,32 @@ def run_subreddit_sync_loop(
     max_rows_int = int(max_rows) if max_rows is not None else None
     sync_timestamp = str(metadata["sync_timestamp"])
     prior_comment_ids: set[str] = set()
-    if include_comments and fetch.get("dedupe_comments_from_prior_raw_runs"):
-        prior_comment_ids = comment_storage.load_seen_ids_from_prior_runs(
-            output_dir, "comment_fullname", filename=COMMENTS_CSV
+    prior_post_ids: set[str] = set()
+    if include_comments:
+        prior_comment_ids = load_prior_seen_ids(
+            comment_storage,
+            output_dir,
+            fetch,
+            "comment_fullname",
+            filename=COMMENTS_CSV,
+            same_dataset_flag="dedupe_comments_from_prior_raw_runs",
+        )
+    if include_posts:
+        prior_post_ids = load_prior_seen_ids(
+            post_storage,
+            output_dir,
+            fetch,
+            "reddit_fullname",
+            filename=POSTS_CSV,
+            same_dataset_flag="dedupe_comments_from_prior_raw_runs",
+        )
+    if prior_comment_ids or prior_post_ids:
+        print(
+            f"sync_records: loaded {len(prior_comment_ids)} prior comment IDs, "
+            f"{len(prior_post_ids)} prior post IDs for dedupe"
         )
     comments_skipped = int(metadata.get("comments_skipped_as_duplicates", 0))
+    posts_skipped = int(metadata.get("posts_skipped_as_duplicates", 0))
 
     for item in tqdm(
         work_items,
@@ -378,7 +405,7 @@ def run_subreddit_sync_loop(
             print(f"sync_records: {item.ledger_key} failed: {exc}")
             continue
 
-        comments_skipped += _append_fetched_subreddit_rows(
+        comments_skipped_delta, posts_skipped_delta = _append_fetched_subreddit_rows(
             comment_storage,
             post_storage,
             output_dir,
@@ -387,8 +414,12 @@ def run_subreddit_sync_loop(
             include_comments=include_comments,
             include_posts=include_posts,
             prior_comment_ids=prior_comment_ids,
+            prior_post_ids=prior_post_ids,
         )
+        comments_skipped += comments_skipped_delta
+        posts_skipped += posts_skipped_delta
         metadata["comments_skipped_as_duplicates"] = comments_skipped
+        metadata["posts_skipped_as_duplicates"] = posts_skipped
 
         comment_count, post_count = _count_seen_rows(
             comment_storage,

@@ -62,6 +62,10 @@ class StorageManager:
         self.records_filename = records_filename
 
     @property
+    def platform_data_root(self) -> Path:
+        return DATA_ROOT / self.platform
+
+    @property
     def root_dir(self) -> Path:
         return DATA_ROOT / self.platform / self.dataset_id / self.stage
 
@@ -146,6 +150,29 @@ class StorageManager:
             if not run_dir.is_dir() or run_dir.resolve() == exclude_run_dir.resolve():
                 continue
             seen.update(self.load_seen_ids(run_dir, id_column, filename=filename))
+        return seen
+
+    def load_seen_ids_from_platform_raw_runs(
+        self,
+        exclude_run_dir: Path,
+        id_column: str,
+        *,
+        filename: str | None = None,
+    ) -> set[str]:
+        seen: set[str] = set()
+        platform_root = self.platform_data_root
+        if not platform_root.exists():
+            return seen
+        for dataset_dir in platform_root.iterdir():
+            if not dataset_dir.is_dir():
+                continue
+            raw_dir = dataset_dir / "raw"
+            if not raw_dir.exists():
+                continue
+            for run_dir in raw_dir.iterdir():
+                if not run_dir.is_dir() or run_dir.resolve() == exclude_run_dir.resolve():
+                    continue
+                seen.update(self.load_seen_ids(run_dir, id_column, filename=filename))
         return seen
 
     def load_seen_uris(

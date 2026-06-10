@@ -81,6 +81,169 @@ def test_run_keyword_sync_loop_appends_per_keyword(
     assert len(storage.load_seen_uris(run_dir)) == 2
 
 
+def test_run_keyword_sync_loop_skips_ids_from_other_dataset(
+    data_root,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    other_dataset_id = "bluesky_00000000-0000-4000-8000-000000000002"
+    config = minimal_sync_config()
+    fetch = config["fetch"]
+    work_items = sync_bluesky.iter_fetch_work_items(fetch)
+    other_storage = BlueskyStorageManager("raw", other_dataset_id)
+    other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
+    other_storage.append_records(
+        [
+            make_ingestion_row(
+                uri="at://did:plc:ex/app.bsky.feed.post/old",
+                url="https://bsky.app/profile/user/post/old",
+                author_handle="user",
+                text="old",
+            )
+        ],
+        other_run,
+    )
+
+    storage = BlueskyStorageManager("raw", VALID_DATASET_ID)
+    run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
+    metadata = sync_bluesky.init_sync_metadata(
+        config,
+        Path("test.yaml"),
+        "2026_05_30-10:00:00",
+        work_items,
+    )
+
+    def fake_search(
+        client: Any,
+        fetch_cfg: dict[str, Any],
+        query: str,
+        *,
+        page_limit: int,
+        cursor: str | None = None,
+    ):
+        return mock_search_response(
+            [
+                mock_post("at://did:plc:ex/app.bsky.feed.post/old"),
+                mock_post("at://did:plc:ex/app.bsky.feed.post/new"),
+            ]
+        )
+
+    monkeypatch.setattr(sync_bluesky, "_search_posts_page", fake_search)
+
+    sync_bluesky.run_keyword_sync_loop(
+        MagicMock(),
+        fetch,
+        run_dir,
+        storage,
+        metadata,
+        work_items[:1],
+        csv_filename="posts.csv",
+    )
+
+    assert storage.load_seen_uris(run_dir) == {"at://did:plc:ex/app.bsky.feed.post/new"}
+    assert metadata["posts_skipped_as_duplicates"] == 1
+
+
+def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
+    data_root,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    other_dataset_id = "bluesky_00000000-0000-4000-8000-000000000002"
+    config = minimal_sync_config()
+    fetch = config["fetch"]
+    fetch["dedupe_across_datasets"] = False
+    work_items = sync_bluesky.iter_fetch_work_items(fetch)
+    other_storage = BlueskyStorageManager("raw", other_dataset_id)
+    other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
+    other_storage.append_records(
+        [
+            make_ingestion_row(
+                uri="at://did:plc:ex/app.bsky.feed.post/old",
+                url="https://bsky.app/profile/user/post/old",
+                author_handle="user",
+                text="old",
+            )
+        ],
+        other_run,
+    )
+
+    storage = BlueskyStorageManager("raw", VALID_DATASET_ID)
+    run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
+    metadata = sync_bluesky.init_sync_metadata(
+        config,
+        Path("test.yaml"),
+        "2026_05_30-10:00:00",
+        work_items,
+    )
+
+    def fake_search(
+        client: Any,
+        fetch_cfg: dict[str, Any],
+        query: str,
+        *,
+        page_limit: int,
+        cursor: str | None = None,
+    ):
+        return mock_search_response([mock_post("at://did:plc:ex/app.bsky.feed.post/old")])
+
+    monkeypatch.setattr(sync_bluesky, "_search_posts_page", fake_search)
+
+    sync_bluesky.run_keyword_sync_loop(
+        MagicMock(),
+        fetch,
+        run_dir,
+        storage,
+        metadata,
+        work_items[:1],
+        csv_filename="posts.csv",
+    )
+
+    assert storage.load_seen_uris(run_dir) == {"at://did:plc:ex/app.bsky.feed.post/old"}
+    assert metadata.get("posts_skipped_as_duplicates", 0) == 0
+
+
+def test_run_keyword_sync_loop_dedupes_within_run(
+    data_root,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = minimal_sync_config()
+    fetch = config["fetch"]
+    work_items = sync_bluesky.iter_fetch_work_items(fetch)
+    storage = BlueskyStorageManager("raw", VALID_DATASET_ID)
+    run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
+    metadata = sync_bluesky.init_sync_metadata(
+        config,
+        Path("test.yaml"),
+        "2026_05_30-10:00:00",
+        work_items,
+    )
+    duplicate_uri = "at://did:plc:ex/app.bsky.feed.post/dup"
+
+    def fake_search(
+        client: Any,
+        fetch_cfg: dict[str, Any],
+        query: str,
+        *,
+        page_limit: int,
+        cursor: str | None = None,
+    ):
+        return mock_search_response([mock_post(duplicate_uri)])
+
+    monkeypatch.setattr(sync_bluesky, "_search_posts_page", fake_search)
+
+    sync_bluesky.run_keyword_sync_loop(
+        MagicMock(),
+        fetch,
+        run_dir,
+        storage,
+        metadata,
+        work_items,
+        csv_filename="posts.csv",
+    )
+
+    assert storage.load_seen_uris(run_dir) == {duplicate_uri}
+    assert metadata["row_count"] == 1
+
+
 def test_resume_skips_completed_keywords(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
