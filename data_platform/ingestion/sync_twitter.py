@@ -29,6 +29,7 @@ from typing import Any, Literal
 import typer
 from tqdm import tqdm
 
+from data_platform.ingestion.dedupe import load_prior_seen_ids
 from data_platform.ingestion.twitter_client import fetch_posts_for_keyword, init_twitter_client
 from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
 from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
@@ -209,11 +210,14 @@ def run_keyword_sync_loop(
     max_rows_int = int(max_rows) if max_rows is not None else None
     lang = str(fetch.get("lang", "en"))
     exclude = list(fetch.get("exclude", ["reply", "retweet", "quote"]))
-    prior_tweet_ids: set[str] = set()
-    if fetch.get("dedupe_tweets_from_prior_raw_runs"):
-        prior_tweet_ids = storage.load_seen_ids_from_prior_runs(
-            output_dir, "tweet_id", filename=csv_filename
-        )
+    prior_tweet_ids = load_prior_seen_ids(
+        storage,
+        output_dir,
+        fetch,
+        "tweet_id",
+        filename=csv_filename,
+        same_dataset_flag="dedupe_tweets_from_prior_raw_runs",
+    )
 
     for item in tqdm(
         work_items,

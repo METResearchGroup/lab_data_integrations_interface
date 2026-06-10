@@ -7,6 +7,7 @@ record_types:
   - reddit.comment
   - reddit.post
 fetch:
+  dedupe_across_datasets: true
   subreddits:
     - politics
   listing: hot

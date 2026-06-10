@@ -6,6 +6,7 @@ date: "2026-05-29"
 record_types:
   - app.bsky.feed.post
 fetch:
+  dedupe_across_datasets: true
   handle: user.bsky.social
   keyword: example
   limit: 50

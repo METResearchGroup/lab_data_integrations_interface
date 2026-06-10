@@ -6,6 +6,7 @@ date: "2026-06-01"
 record_types:
   - twitter.tweet
 fetch:
+  dedupe_across_datasets: true
   max_rows: 50
   limit_per_keyword: 25
   lang: en
