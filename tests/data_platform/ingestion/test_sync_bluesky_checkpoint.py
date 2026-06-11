@@ -136,7 +136,7 @@ def test_run_keyword_sync_loop_skips_ids_from_other_dataset(
         storage,
         metadata,
         work_items[:1],
-        csv_filename="posts.csv",
+        records_filename="posts.csv",
     )
 
     assert storage.load_seen_uris(run_dir) == {"at://did:plc:ex/app.bsky.feed.post/new"}
@@ -194,7 +194,7 @@ def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
         storage,
         metadata,
         work_items[:1],
-        csv_filename="posts.csv",
+        records_filename="posts.csv",
     )
 
     assert storage.load_seen_uris(run_dir) == {"at://did:plc:ex/app.bsky.feed.post/old"}
@@ -237,7 +237,7 @@ def test_run_keyword_sync_loop_dedupes_within_run(
         storage,
         metadata,
         work_items,
-        csv_filename="posts.csv",
+        records_filename="posts.csv",
     )
 
     assert storage.load_seen_uris(run_dir) == {duplicate_uri}
