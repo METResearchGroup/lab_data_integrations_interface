@@ -32,7 +32,11 @@ from tqdm import tqdm
 
 from data_platform.ingestion.bluesky_retry import retry_bluesky_request
 from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
-from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
+from data_platform.utils.dataset import (
+    ValidDataFormats,
+    validate_dataset_id,
+    write_dataset_manifest,
+)
 from data_platform.utils.storage import BlueskyStorageManager
 from lib.load_env_vars import EnvVarsContainer
 from lib.timestamp_utils import get_current_timestamp
@@ -407,7 +411,7 @@ def sync_records(
 
     config = load_config(config_path)
     dataset_id = _require_dataset_id(config)
-    output_format = str(config.get("output_format", "csv"))
+    output_format = ValidDataFormats(config.get("output_format", "csv"))
 
     manifest_path = (
         Path(__file__).resolve().parents[2] / "data" / "bluesky" / dataset_id / "dataset.json"
@@ -418,7 +422,7 @@ def sync_records(
             dataset_id,
             name=str(config["name"]),
             ingestion_config=str(config_path.relative_to(Path(__file__).resolve().parents[2])),
-            format=output_format,  # type: ignore[arg-type]
+            format=output_format,
         )
 
     storage = BlueskyStorageManager("raw", dataset_id)

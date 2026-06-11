@@ -14,7 +14,7 @@ from data_platform.models.sync import (
     SyncRedditPostModel,
     SyncTwitterPostModel,
 )
-from data_platform.utils.dataset import load_dataset_format, validate_dataset_id
+from data_platform.utils.dataset import ValidDataFormats, load_dataset_format, validate_dataset_id
 from lib.timestamp_utils import get_current_timestamp
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
@@ -59,9 +59,9 @@ class StorageManager:
         self.stage = stage
         self.model = model
         self.dataset_id = validate_dataset_id(dataset_id)
-        self.format: Literal["csv", "parquet"] = load_dataset_format(platform, dataset_id)
+        self.format: ValidDataFormats = load_dataset_format(platform, dataset_id)
         stem = Path(records_filename).stem
-        self.records_filename = f"{stem}.{self.format}"
+        self.records_filename = f"{stem}.{self.format.value}"
 
     @property
     def root_dir(self) -> Path:
@@ -217,7 +217,7 @@ class StorageManager:
 
     def filename_for(self, stem: str) -> str:
         """Return the format-correct filename for a given stem."""
-        return f"{stem}.{self.format}"
+        return f"{stem}.{self.format.value}"
 
     def load_run_metadata(
         self,
