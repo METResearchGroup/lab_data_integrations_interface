@@ -122,7 +122,14 @@ class StorageManager:
         if self.format == "parquet":
             if out_path.exists():
                 existing = pd.read_parquet(out_path)
-                combined = pd.concat([existing, pd.DataFrame(validated)], ignore_index=True)
+                new_df = pd.DataFrame(validated)
+                if set(existing.columns) != set(new_df.columns):
+                    raise ValueError(
+                        f"""
+                        Schema mismatch: existing={set(existing.columns)}, new={set(new_df.columns)}
+                        """
+                    )
+                combined = pd.concat([existing, new_df], ignore_index=True)
             else:
                 combined = pd.DataFrame(validated)
             combined.to_parquet(out_path, index=False)
