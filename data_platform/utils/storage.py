@@ -215,6 +215,10 @@ class StorageManager:
         tmp_path.replace(metadata_path)
         return metadata_path
 
+    def filename_for(self, stem: str) -> str:
+        """Return the format-correct filename for a given stem."""
+        return f"{stem}.{self.format}"
+
     def load_run_metadata(
         self,
         run_dir: Path | None = None,
