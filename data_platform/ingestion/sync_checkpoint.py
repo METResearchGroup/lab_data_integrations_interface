@@ -307,13 +307,12 @@ def prepare_sync_run(
 
 def run_sync_cli(
     *,
-    default_config: Path,
     sync_records_fn: Callable[..., Path],
     config_help: str,
 ) -> None:
     def main(
         config: Path = typer.Option(
-            default_config,
+            ...,
             "--config",
             help=config_help,
         ),

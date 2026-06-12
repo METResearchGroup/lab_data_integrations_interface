@@ -3,9 +3,6 @@
 Run from the repo root:
 
     PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py \\
-        --config data_platform/ingestion/configs/bluesky/default.yaml
-
-    PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py \\
         --config data_platform/ingestion/configs/bluesky/mirrorview.yaml
 
 Resume the latest in-progress run for a dataset:
@@ -344,7 +341,6 @@ def sync_records(
 def main() -> None:
     """CLI entrypoint for sync_bluesky.py (--config, --resume, --run-dir)."""
     run_sync_cli(
-        default_config=Path("data_platform/ingestion/configs/bluesky/default.yaml"),
         sync_records_fn=sync_records,
         config_help=(
             "Ingestion YAML path relative to the repo root "
