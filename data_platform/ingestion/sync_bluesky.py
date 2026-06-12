@@ -21,37 +21,38 @@ Ingestion YAML must include `dataset_id` (e.g. bluesky_<uuid>).
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import typer
 from atproto import Client
-from tqdm import tqdm
 
 from data_platform.ingestion.bluesky_retry import retry_bluesky_request
-from data_platform.ingestion.dedupe import load_prior_seen_ids
+from data_platform.ingestion.dedupe import append_deduped_rows, load_prior_seen_ids
 from data_platform.ingestion.sync_checkpoint import (
-    SyncStatus,
     TaskStatus,
-    get_task_progress,
-    mark_remaining_tasks_skipped,
-    sync_status_from_tasks,
-    validate_tasks_for_resume,
+    build_base_sync_metadata,
+    ensure_dataset_manifest,
+    flush_run_metadata,
+    mark_task_failed,
+    mark_task_in_progress,
+    parse_max_rows,
+    prepare_sync_run,
+    record_type_to_filename,
+    require_dataset_id,
+    run_checkpointed_sync,
+    run_sync_cli,
 )
-from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
-from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
+from data_platform.utils.config_paths import load_yaml_config
 from data_platform.utils.storage import BlueskyStorageManager
 from lib.load_env_vars import EnvVarsContainer
-from lib.timestamp_utils import get_current_timestamp
 
 CONFIGS_DIR = Path(__file__).resolve().parent / "configs/bluesky"
 DEFAULT_CONFIG = CONFIGS_DIR / "default.yaml"
+REPO_ROOT = Path(__file__).resolve().parents[2]
 API_MAX_LIMIT = 100
 
 POSTS_RECORD_TYPE = "app.bsky.feed.post"
-POSTS_CSV = "posts.csv"
 DEFAULT_QUERY_BATCH_SIZE = 5
 
 
@@ -60,12 +61,6 @@ class BlueskyTask:
     task_id: str
     query: str
     source_keywords: list[str] | None = None
-
-
-def _record_type_to_filename(record_type: str, output_stem: str = "posts") -> str:
-    if record_type == POSTS_RECORD_TYPE:
-        return f"{output_stem}.csv"
-    return f"{record_type.rsplit('.', 1)[-1]}.csv"
 
 
 def _quote_query_term(keyword: str) -> str:
@@ -219,26 +214,13 @@ def init_sync_metadata(
     sync_timestamp: str,
     sync_tasks: list[BlueskyTask],
 ) -> dict[str, Any]:
-    dataset_id = _require_dataset_id(config)
-    return {
-        "sync_status": SyncStatus.IN_PROGRESS.value,
-        "dataset_id": dataset_id,
-        "name": config["name"],
-        "description": config["description"],
-        "date": config["date"],
-        "sync_timestamp": sync_timestamp,
-        "ingestion_config": config_path.name,
-        "record_types": config["record_types"],
-        "ingestion_params": config["ingestion_params"],
-        "row_count": 0,
-        "tasks": {task.task_id: _initial_task_progress(task) for task in sync_tasks},
-    }
-
-
-def _flush_metadata(
-    storage: BlueskyStorageManager, run_dir: Path, metadata: dict[str, Any]
-) -> None:
-    storage.write_run_metadata_atomic(run_dir, metadata)
+    return build_base_sync_metadata(
+        config,
+        config_path,
+        sync_timestamp,
+        sync_tasks,
+        task_progress_builder=_initial_task_progress,
+    )
 
 
 def run_sync_tasks(
@@ -251,8 +233,7 @@ def run_sync_tasks(
     *,
     csv_filename: str,
 ) -> None:
-    max_rows = ingestion_params.get("max_rows")
-    max_rows_int = int(max_rows) if max_rows is not None else None
+    max_rows_int = parse_max_rows(ingestion_params)
     prior_uris = load_prior_seen_ids(
         storage,
         output_dir,
@@ -262,26 +243,11 @@ def run_sync_tasks(
         same_dataset_flag="dedupe_posts_from_prior_raw_runs",
     )
     posts_skipped = int(metadata.get("posts_skipped_as_duplicates", 0))
-    progress = get_task_progress(metadata)
 
-    for task in tqdm(
-        sync_tasks,
-        desc="Syncing keywords",
-        disable=not sys.stderr.isatty(),
-    ):
-        entry = progress[task.task_id]
-        status = entry["status"]
-        if status in (TaskStatus.COMPLETED.value, TaskStatus.SKIPPED.value):
-            continue
+    def process_task(task: BlueskyTask, entry: dict[str, Any]) -> None:
+        nonlocal posts_skipped
 
-        if max_rows_int is not None and metadata["row_count"] >= max_rows_int:
-            mark_remaining_tasks_skipped(progress)
-            _flush_metadata(storage, output_dir, metadata)
-            break
-
-        entry["status"] = TaskStatus.IN_PROGRESS.value
-        entry["last_error"] = None
-        _flush_metadata(storage, output_dir, metadata)
+        mark_task_in_progress(entry, storage, output_dir, metadata)
 
         try:
             rows, stats = fetch_posts_for_keyword(
@@ -291,82 +257,44 @@ def run_sync_tasks(
                 task_id=task.task_id,
             )
         except Exception as exc:  # noqa: BLE001 — record and continue
-            entry["status"] = TaskStatus.FAILED.value
-            entry["last_error"] = str(exc)
-            _flush_metadata(storage, output_dir, metadata)
-            print(f"sync_records: {task.task_id} failed: {exc}")
-            continue
+            mark_task_failed(entry, exc, task.task_id, storage, output_dir, metadata)
+            return
 
-        seen_uris = prior_uris | storage.load_seen_uris(output_dir, filename=csv_filename)
-        new_rows = [row for row in rows if row["uri"] not in seen_uris]
-        posts_skipped += len(rows) - len(new_rows)
+        new_rows, skipped = append_deduped_rows(
+            storage,
+            output_dir,
+            rows,
+            "uri",
+            prior_ids=prior_uris,
+            filename=csv_filename,
+        )
+        posts_skipped += skipped
         metadata["posts_skipped_as_duplicates"] = posts_skipped
-        if new_rows:
-            storage.append_records(new_rows, output_dir, filename=csv_filename)
-
-        metadata["row_count"] = len(storage.load_seen_uris(output_dir, filename=csv_filename))
+        metadata["row_count"] = len(storage.load_seen_ids(output_dir, "uri", filename=csv_filename))
         entry["status"] = TaskStatus.COMPLETED.value
         entry["pages_fetched"] = stats["pages_fetched"]
         entry["rows_collected"] = stats["rows_collected"]
         entry["hits_total"] = stats["hits_total"]
         entry["last_error"] = None
-        _flush_metadata(storage, output_dir, metadata)
+        flush_run_metadata(storage, output_dir, metadata)
 
         print(
             f"sync_records: {task.task_id} -> {stats['rows_collected']} rows "
             f"(appended {len(new_rows)}, pages={stats['pages_fetched']})"
         )
 
-        if max_rows_int is not None and metadata["row_count"] >= max_rows_int:
-            mark_remaining_tasks_skipped(progress)
-            _flush_metadata(storage, output_dir, metadata)
-            break
-
-    metadata["sync_status"] = sync_status_from_tasks(progress).value
-    _flush_metadata(storage, output_dir, metadata)
-
-
-def find_resume_run_dir(
-    storage: BlueskyStorageManager,
-    *,
-    run_dir_name: str | None,
-) -> Path:
-    if run_dir_name is not None:
-        run_dir = storage.root_dir / run_dir_name
-        if not run_dir.is_dir():
-            raise FileNotFoundError(f"Run directory not found: {run_dir}")
-        return run_dir
-
-    if not storage.root_dir.exists():
-        raise FileNotFoundError(f"No raw runs found under {storage.root_dir}")
-
-    candidates: list[tuple[str, Path]] = []
-    for path in storage.root_dir.iterdir():
-        if not path.is_dir():
-            continue
-        metadata_path = path / "metadata.json"
-        if not metadata_path.exists():
-            continue
-        metadata = storage.load_run_metadata(path)
-        if metadata.get("sync_status") == SyncStatus.IN_PROGRESS.value:
-            candidates.append((path.name, path))
-
-    if not candidates:
-        raise FileNotFoundError(
-            f"No in-progress raw run found under {storage.root_dir}. "
-            "Start a new sync or pass --run-dir."
-        )
-    return max(candidates, key=lambda item: item[0])[1]
+    run_checkpointed_sync(
+        sync_tasks,
+        metadata,
+        storage,
+        output_dir,
+        max_rows_int=max_rows_int,
+        tqdm_desc="Syncing keywords",
+        process_task=process_task,
+    )
 
 
 load_config = load_yaml_config
-
-
-def _require_dataset_id(config: dict[str, Any]) -> str:
-    raw = config.get("dataset_id")
-    if not raw:
-        raise ValueError("ingestion config must include dataset_id (bluesky_<uuid>)")
-    return validate_dataset_id(str(raw))
 
 
 def setup_client() -> Client:
@@ -385,21 +313,18 @@ def sync_records(
     run_dir_name: str | None = None,
 ) -> Path:
     """Fetch Bluesky records per config and write raw CSV + metadata."""
-    if run_dir_name is not None and not resume:
-        raise ValueError("--run-dir requires --resume")
-
     config = load_config(config_path)
-    dataset_id = _require_dataset_id(config)
+    dataset_id = require_dataset_id(config, platform="bluesky")
     storage = BlueskyStorageManager("raw", dataset_id)
 
-    manifest_path = storage.root_dir.parent / "dataset.json"
-    if not manifest_path.exists():
-        write_dataset_manifest(
-            "bluesky",
-            dataset_id,
-            name=str(config["name"]),
-            ingestion_config=str(config_path.relative_to(Path(__file__).resolve().parents[2])),
-        )
+    ensure_dataset_manifest(
+        storage,
+        "bluesky",
+        dataset_id,
+        config,
+        config_path,
+        repo_root=REPO_ROOT,
+    )
 
     ingestion_params = config["ingestion_params"]
     sync_tasks = build_sync_tasks(ingestion_params)
@@ -408,23 +333,17 @@ def sync_records(
     if POSTS_RECORD_TYPE not in record_types:
         raise ValueError(f"Unsupported record types for checkpoint sync: {record_types}")
 
-    csv_filename = _record_type_to_filename(POSTS_RECORD_TYPE, "posts")
+    csv_filename = record_type_to_filename(POSTS_RECORD_TYPE)
     client = setup_client()
 
-    if resume:
-        output_dir = find_resume_run_dir(storage, run_dir_name=run_dir_name)
-        metadata = storage.load_run_metadata(output_dir)
-        if metadata.get("sync_status") != SyncStatus.IN_PROGRESS.value:
-            metadata["sync_status"] = SyncStatus.IN_PROGRESS.value
-            _flush_metadata(storage, output_dir, metadata)
-        validate_tasks_for_resume(sync_tasks, metadata, entity_label="keywords")
-        print(f"sync_records: resuming {output_dir}")
-    else:
-        sync_timestamp = get_current_timestamp()
-        output_dir = storage.create_new_run_dir(sync_timestamp)
-        metadata = init_sync_metadata(config, config_path, sync_timestamp, sync_tasks)
-        _flush_metadata(storage, output_dir, metadata)
-        print(f"sync_records: started new run {output_dir}")
+    output_dir, metadata = prepare_sync_run(
+        storage,
+        sync_tasks,
+        resume=resume,
+        run_dir_name=run_dir_name,
+        init_metadata_fn=lambda ts: init_sync_metadata(config, config_path, ts, sync_tasks),
+        entity_label="keywords",
+    )
 
     run_sync_tasks(
         client,
@@ -443,26 +362,14 @@ def sync_records(
     return output_dir
 
 
-def main(
-    config: Path = typer.Option(
-        DEFAULT_CONFIG,
-        "--config",
-        help="YAML config path or filename under configs/bluesky/ (e.g. mirrorview.yaml)",
-    ),
-    resume: bool = typer.Option(
-        False,
-        "--resume",
-        help="Resume the latest in-progress raw run for this dataset",
-    ),
-    run_dir: str | None = typer.Option(
-        None,
-        "--run-dir",
-        help="Raw run timestamp directory name (requires --resume)",
-    ),
-) -> None:
-    config_path = resolve_config_path(config, CONFIGS_DIR)
-    sync_records(config_path, resume=resume, run_dir_name=run_dir)
+def main() -> None:
+    run_sync_cli(
+        configs_dir=CONFIGS_DIR,
+        default_config=DEFAULT_CONFIG,
+        sync_records_fn=sync_records,
+        config_help="YAML config path or filename under configs/bluesky/ (e.g. mirrorview.yaml)",
+    )
 
 
 if __name__ == "__main__":
-    typer.run(main)
+    main()
