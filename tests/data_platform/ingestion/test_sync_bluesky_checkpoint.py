@@ -159,14 +159,14 @@ def test_run_sync_tasks_skips_ids_from_other_dataset(
     assert metadata["posts_skipped_as_duplicates"] == 1
 
 
-def test_run_sync_tasks_respects_dedupe_across_datasets_false(
+def test_run_sync_tasks_respects_current_run_only_policy(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     other_dataset_id = "bluesky_00000000-0000-4000-8000-000000000002"
     config = minimal_sync_config()
     ingestion_params = config["ingestion_params"]
-    ingestion_params["dedupe_across_datasets"] = False
+    ingestion_params["dedupe_policy"] = ["current_run"]
     sync_tasks = sync_bluesky.build_sync_tasks(ingestion_params)
     other_storage = BlueskyStorageManager(StorageStage.RAW, other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")

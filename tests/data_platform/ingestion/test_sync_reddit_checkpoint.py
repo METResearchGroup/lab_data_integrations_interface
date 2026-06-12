@@ -97,7 +97,7 @@ def test_run_sync_tasks_appends_per_subreddit(
     assert metadata["row_count"] == 2
     assert metadata["post_row_count"] == 2
     assert metadata["sync_status"] == "completed"
-    assert len(comment_storage.load_seen_ids(run_dir, "comment_fullname")) == 2
+    assert len(comment_storage.load_ids_from_csv(run_dir, "comment_fullname")) == 2
 
 
 def test_run_sync_tasks_skips_prior_run_comments(
@@ -106,8 +106,7 @@ def test_run_sync_tasks_skips_prior_run_comments(
 ) -> None:
     config = minimal_reddit_sync_config()
     ingestion_params = config["ingestion_params"]
-    ingestion_params["dedupe_comments_from_prior_raw_runs"] = True
-    ingestion_params["dedupe_across_datasets"] = False
+    ingestion_params["comments_dedupe_policy"] = ["current_run", "prior_runs_same_dataset"]
     sync_tasks = sync_reddit.build_sync_tasks(ingestion_params)
     comment_storage = RedditStorageManager(StorageStage.RAW, VALID_REDDIT_DATASET_ID)
     post_storage = comment_storage.post_storage()
@@ -164,7 +163,7 @@ def test_run_sync_tasks_skips_prior_run_comments(
         include_posts=True,
     )
 
-    seen = comment_storage.load_seen_ids(run_dir, "comment_fullname")
+    seen = comment_storage.load_ids_from_csv(run_dir, "comment_fullname")
     assert seen == {"t1_comment_new"}
     assert metadata["comments_skipped_as_duplicates"] == 1
 
@@ -232,19 +231,19 @@ def test_run_sync_tasks_skips_ids_from_other_dataset(
         include_posts=True,
     )
 
-    seen = comment_storage.load_seen_ids(run_dir, "comment_fullname")
+    seen = comment_storage.load_ids_from_csv(run_dir, "comment_fullname")
     assert seen == {"t1_comment_new"}
     assert metadata["comments_skipped_as_duplicates"] == 1
 
 
-def test_run_sync_tasks_respects_dedupe_across_datasets_false(
+def test_run_sync_tasks_respects_current_run_only_policy(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     other_dataset_id = "reddit_00000000-0000-4000-8000-000000000002"
     config = minimal_reddit_sync_config()
     ingestion_params = config["ingestion_params"]
-    ingestion_params["dedupe_across_datasets"] = False
+    ingestion_params["comments_dedupe_policy"] = ["current_run"]
     sync_tasks = sync_reddit.build_sync_tasks(ingestion_params)
     other_storage = RedditStorageManager(StorageStage.RAW, other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
@@ -298,7 +297,7 @@ def test_run_sync_tasks_respects_dedupe_across_datasets_false(
         include_posts=True,
     )
 
-    seen = comment_storage.load_seen_ids(run_dir, "comment_fullname")
+    seen = comment_storage.load_ids_from_csv(run_dir, "comment_fullname")
     assert seen == {"t1_comment_old"}
     assert metadata.get("comments_skipped_as_duplicates", 0) == 0
 

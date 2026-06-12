@@ -7,7 +7,12 @@ record_types:
   - reddit.comment
   - reddit.post
 ingestion_params:
-  dedupe_across_datasets: true
+  comments_dedupe_policy:
+    - current_run
+    - prior_runs_all_datasets
+  posts_dedupe_policy:
+    - current_run
+    - prior_runs_all_datasets
   subreddits:
     - politics
   listing: hot

@@ -25,7 +25,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from data_platform.ingestion.dedupe import load_prior_seen_ids, persist_deduped_rows
 from data_platform.ingestion.sync_checkpoint import (
     TaskStatus,
     build_base_sync_metadata,
@@ -42,6 +41,7 @@ from data_platform.ingestion.sync_checkpoint import (
 from data_platform.ingestion.sync_clients import init_twitter_client
 from data_platform.ingestion.twitter_client import fetch_posts_for_keyword
 from data_platform.utils.config_paths import load_yaml_config
+from data_platform.utils.deduplication import DedupeConfig
 from data_platform.utils.storage import StorageStage, TwitterStorageManager
 
 POSTS_CSV = "posts.csv"
@@ -115,13 +115,13 @@ def run_sync_tasks(
     max_rows_int = parse_max_rows(ingestion_params)
     lang = str(ingestion_params.get("lang", "en"))
     exclude = list(ingestion_params.get("exclude", ["reply", "retweet", "quote"]))
-    prior_tweet_ids = load_prior_seen_ids(
-        storage,
+    dedupe = storage.open_dedupe_session(
         output_dir,
-        ingestion_params,
-        "tweet_id",
-        filename=csv_filename,
-        same_dataset_flag="dedupe_tweets_from_prior_raw_runs",
+        DedupeConfig.from_ingestion_params(
+            ingestion_params,
+            "tweet_id",
+            filename=csv_filename,
+        ),
     )
 
     def process_task(task: TwitterTask, entry: dict[str, Any]) -> None:
@@ -144,16 +144,16 @@ def run_sync_tasks(
             mark_task_failed(entry, exc, task.task_id, storage, output_dir, metadata)
             return
 
-        new_rows = persist_deduped_rows(
-            storage,
-            output_dir,
+        result = storage.append_deduped_records(
             rows,
-            "tweet_id",
-            metadata,
-            prior_ids=prior_tweet_ids,
+            output_dir,
+            session=dedupe,
             filename=csv_filename,
-            skipped_key="tweets_skipped_as_duplicates",
         )
+        metadata["tweets_skipped_as_duplicates"] = (
+            int(metadata.get("tweets_skipped_as_duplicates", 0)) + result.skipped
+        )
+        metadata["row_count"] = len(dedupe.seen_ids)
         mark_task_completed(
             entry,
             storage,
@@ -167,7 +167,7 @@ def run_sync_tasks(
 
         print(
             f"sync_records: {task.task_id} -> {stats['rows_collected']} rows "
-            f"(appended {len(new_rows)}, pages={stats['pages_fetched']})"
+            f"(appended {result.kept}, pages={stats['pages_fetched']})"
         )
 
     run_checkpointed_sync(

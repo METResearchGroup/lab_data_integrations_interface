@@ -20,6 +20,7 @@ def _minimal_twitter_sync_config() -> dict[str, Any]:
         "date": "2026-05-31",
         "record_types": ["twitter.tweet"],
         "ingestion_params": {
+            "dedupe_policy": ["current_run", "prior_runs_all_datasets"],
             "keyword": ["alpha", "beta"],
             "limit_per_keyword": 2,
             "lang": "en",
@@ -108,8 +109,7 @@ def test_run_sync_tasks_skips_prior_run_tweets_when_enabled(
 ) -> None:
     config = _minimal_twitter_sync_config()
     ingestion_params = config["ingestion_params"]
-    ingestion_params["dedupe_tweets_from_prior_raw_runs"] = True
-    ingestion_params["dedupe_across_datasets"] = False
+    ingestion_params["dedupe_policy"] = ["current_run", "prior_runs_same_dataset"]
     sync_tasks = sync_twitter.build_sync_tasks(ingestion_params)
     storage = TwitterStorageManager(StorageStage.RAW, VALID_TWITTER_DATASET_ID)
 
@@ -167,7 +167,7 @@ def test_run_sync_tasks_does_not_skip_prior_runs_when_disabled(
 ) -> None:
     config = _minimal_twitter_sync_config()
     ingestion_params = config["ingestion_params"]
-    ingestion_params["dedupe_across_datasets"] = False
+    ingestion_params["dedupe_policy"] = ["current_run"]
     sync_tasks = sync_twitter.build_sync_tasks(ingestion_params)
     storage = TwitterStorageManager(StorageStage.RAW, VALID_TWITTER_DATASET_ID)
 
@@ -280,14 +280,14 @@ def test_run_sync_tasks_skips_ids_from_other_dataset(
     assert metadata["tweets_skipped_as_duplicates"] == 1
 
 
-def test_run_sync_tasks_respects_dedupe_across_datasets_false(
+def test_run_sync_tasks_respects_current_run_only_policy(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     other_dataset_id = "twitter_00000000-0000-4000-8000-000000000002"
     config = _minimal_twitter_sync_config()
     ingestion_params = config["ingestion_params"]
-    ingestion_params["dedupe_across_datasets"] = False
+    ingestion_params["dedupe_policy"] = ["current_run"]
     sync_tasks = sync_twitter.build_sync_tasks(ingestion_params)
     other_storage = TwitterStorageManager(StorageStage.RAW, other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")

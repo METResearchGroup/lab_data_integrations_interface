@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from data_platform.ingestion.dedupe import append_deduped_rows
 from data_platform.ingestion.sync_checkpoint import (
     SyncStatus,
     TaskStatus,
@@ -22,6 +21,7 @@ from data_platform.ingestion.sync_checkpoint import (
     sync_status_from_tasks,
     validate_tasks_for_resume,
 )
+from data_platform.utils.deduplication import DedupeConfig, DedupePolicy
 from data_platform.utils.storage import StorageStage, TwitterStorageManager
 from tests.data_platform.constants import VALID_TWITTER_DATASET_ID
 from tests.data_platform.ingestion.twitter_conftest import mock_tweet_row
@@ -161,7 +161,9 @@ def test_mark_task_completed_updates_entry_and_metadata(data_root) -> None:
     assert entry["last_error"] is None
     assert entry["pages_fetched"] == 2
     assert metadata["row_count"] == 5
-    assert storage.load_run_metadata(run_dir)["tasks"]["alpha"]["status"] == TaskStatus.COMPLETED.value
+    assert (
+        storage.load_run_metadata(run_dir)["tasks"]["alpha"]["status"] == TaskStatus.COMPLETED.value
+    )
 
 
 def test_stop_at_max_rows_marks_pending_skipped(data_root) -> None:
@@ -178,19 +180,15 @@ def test_stop_at_max_rows_marks_pending_skipped(data_root) -> None:
     assert metadata["tasks"]["a"]["status"] == TaskStatus.SKIPPED.value
 
 
-def test_append_deduped_rows_skips_seen_ids(data_root) -> None:
+def test_append_deduped_records_skips_seen_ids(data_root) -> None:
     storage = TwitterStorageManager(StorageStage.RAW, VALID_TWITTER_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     existing = [mock_tweet_row("1")]
     storage.append_records(existing, run_dir)
+    config = DedupeConfig(policies=[DedupePolicy.CURRENT_RUN], id_column="tweet_id")
+    session = storage.open_dedupe_session(run_dir, config)
     incoming = [mock_tweet_row("1"), mock_tweet_row("2")]
-    new_rows, skipped = append_deduped_rows(
-        storage,
-        run_dir,
-        incoming,
-        "tweet_id",
-        prior_ids=set(),
-    )
-    assert skipped == 1
-    assert len(new_rows) == 1
-    assert new_rows[0]["tweet_id"] == "2"
+    result = storage.append_deduped_records(incoming, run_dir, session=session)
+    assert result.skipped == 1
+    assert result.kept == 1
+    assert storage.load_seen_tweet_ids(run_dir) == {"1", "2"}

@@ -26,7 +26,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from data_platform.ingestion.bluesky_retry import retry_bluesky_request
-from data_platform.ingestion.dedupe import load_prior_seen_ids, persist_deduped_rows
 from data_platform.ingestion.sync_checkpoint import (
     TaskStatus,
     build_base_sync_metadata,
@@ -43,6 +42,7 @@ from data_platform.ingestion.sync_checkpoint import (
 )
 from data_platform.ingestion.sync_clients import init_bluesky_client
 from data_platform.utils.config_paths import load_yaml_config
+from data_platform.utils.deduplication import DedupeConfig
 from data_platform.utils.storage import BlueskyStorageManager, StorageStage
 
 if TYPE_CHECKING:
@@ -137,9 +137,9 @@ def fetch_posts_for_keyword(
     *,
     task_id: str,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Paginate searchPosts until ingestion_params.limit rows are collected or results are exhausted.
+    """Paginate searchPosts until limit rows are collected or results are exhausted.
 
-    Returns the row list and per-task stats (pages fetched, hits_total from the first page, etc.).
+    Returns rows and per-task stats (pages fetched, hits_total from the first page, etc.).
     """
     target = int(ingestion_params["limit"])
     rows: list[dict[str, Any]] = []
@@ -149,7 +149,9 @@ def fetch_posts_for_keyword(
 
     while len(rows) < target:
         page_limit = min(target - len(rows), API_MAX_LIMIT)
-        response = _search_posts_page(client, ingestion_params, query, page_limit=page_limit, cursor=cursor)
+        response = _search_posts_page(
+            client, ingestion_params, query, page_limit=page_limit, cursor=cursor
+        )
         if pages_fetched == 0:
             hits_total = response.hits_total
         page_rows = _posts_to_rows(response)
@@ -218,13 +220,13 @@ def run_sync_tasks(
     without aborting the full run.
     """
     max_rows_int = parse_max_rows(ingestion_params)
-    prior_uris = load_prior_seen_ids(
-        storage,
+    dedupe = storage.open_dedupe_session(
         output_dir,
-        ingestion_params,
-        "uri",
-        filename=csv_filename,
-        same_dataset_flag="dedupe_posts_from_prior_raw_runs",
+        DedupeConfig.from_ingestion_params(
+            ingestion_params,
+            "uri",
+            filename=csv_filename,
+        ),
     )
 
     def process_task(task: BlueskyTask, entry: dict[str, Any]) -> None:
@@ -242,16 +244,16 @@ def run_sync_tasks(
             mark_task_failed(entry, exc, task.task_id, storage, output_dir, metadata)
             return
 
-        new_rows = persist_deduped_rows(
-            storage,
-            output_dir,
+        result = storage.append_deduped_records(
             rows,
-            "uri",
-            metadata,
-            prior_ids=prior_uris,
+            output_dir,
+            session=dedupe,
             filename=csv_filename,
-            skipped_key="posts_skipped_as_duplicates",
         )
+        metadata["posts_skipped_as_duplicates"] = (
+            int(metadata.get("posts_skipped_as_duplicates", 0)) + result.skipped
+        )
+        metadata["row_count"] = len(dedupe.seen_ids)
         mark_task_completed(
             entry,
             storage,
@@ -266,7 +268,7 @@ def run_sync_tasks(
 
         print(
             f"sync_records: {task.task_id} -> {stats['rows_collected']} rows "
-            f"(appended {len(new_rows)}, pages={stats['pages_fetched']})"
+            f"(appended {result.kept}, pages={stats['pages_fetched']})"
         )
 
     run_checkpointed_sync(
