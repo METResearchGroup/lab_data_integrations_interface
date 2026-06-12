@@ -83,11 +83,17 @@ def test_load_posts_reads_latest_preprocessed_run(data_root) -> None:
     assert TEXT_COLUMN in posts.columns
 
 
-def test_filter_unlabeled_matches_tweet_id_to_feature_uri_column(tmp_path) -> None:
-    features_root = tmp_path / "features"
-    features_root.mkdir()
+def test_filter_unlabeled_matches_tweet_id_to_feature_uri_column(data_root) -> None:
+    from pydantic import BaseModel
+
+    from data_platform.utils.storage import StorageManager
+
     tweet_keep = "1000000000000000001"
     tweet_labeled = "1000000000000000002"
+    feature_storage = StorageManager(
+        "twitter", "features", BaseModel, VALID_TWITTER_DATASET_ID, records_filename="features"
+    )
+    feature_storage.root_dir.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(
         [
             {
@@ -96,7 +102,7 @@ def test_filter_unlabeled_matches_tweet_id_to_feature_uri_column(tmp_path) -> No
                 "is_political": True,
             }
         ],
-    ).to_csv(features_root / "is_political.csv", index=False)
+    ).to_csv(feature_storage.root_dir / "is_political.csv", index=False)
 
     records = pd.DataFrame(
         [
@@ -105,7 +111,7 @@ def test_filter_unlabeled_matches_tweet_id_to_feature_uri_column(tmp_path) -> No
         ]
     )
     query = FeatureLabelQuery(
-        features_root=features_root,
+        feature_storage=feature_storage,
         id_column=ID_COLUMN,
         feature_csv_id_column=FEATURE_CSV_ID_COLUMN,
     )

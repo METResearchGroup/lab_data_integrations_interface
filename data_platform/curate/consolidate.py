@@ -70,6 +70,10 @@ def _feature_cte_sql(
 def _build_consolidate_sql(config: ConsolidateConfig) -> str:
     id_column = config.id_column
     posts_path = config.posts_csv.as_posix()
+    if config.posts_csv.suffix == ".parquet":
+        posts_from = f"read_parquet('{posts_path}')"
+    else:
+        posts_from = f"read_csv('{posts_path}', union_by_name = true)"
     feature_ctes = [
         _feature_cte_sql(
             feature_name,
@@ -95,7 +99,7 @@ def _build_consolidate_sql(config: ConsolidateConfig) -> str:
     ctes_sql = ",\n".join(
         [
             f"posts AS (SELECT * REPLACE (CAST({id_column} AS VARCHAR) AS {id_column}) "
-            f"FROM read_csv('{posts_path}', union_by_name = true))"
+            f"FROM {posts_from})"
         ]
         + feature_ctes
     )

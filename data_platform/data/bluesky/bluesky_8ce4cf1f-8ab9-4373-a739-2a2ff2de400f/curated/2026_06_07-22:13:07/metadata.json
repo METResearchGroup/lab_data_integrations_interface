@@ -1,0 +1,60 @@
+{
+  "dataset_id": "bluesky_8ce4cf1f-8ab9-4373-a739-2a2ff2de400f",
+  "name": "trump_econ_iran",
+  "source_preprocessed_run": "preprocessed/2026_06_07-21:52:49",
+  "row_counts": {
+    "preprocessed": 511,
+    "wide": 511,
+    "after_filters": 114
+  },
+  "filter_results": [
+    {
+      "column": "news_or_opinion_category",
+      "op": "eq",
+      "value": "opinion",
+      "records_before": 511,
+      "records_passing": 350
+    },
+    {
+      "column": "is_political",
+      "op": "eq",
+      "value": true,
+      "records_before": 350,
+      "records_passing": 320
+    },
+    {
+      "column": "is_likely_spam",
+      "op": "eq",
+      "value": false,
+      "records_before": 320,
+      "records_passing": 320
+    },
+    {
+      "column": "political_stance",
+      "op": "in",
+      "value": [
+        "left",
+        "right"
+      ],
+      "records_before": 320,
+      "records_passing": 156
+    },
+    {
+      "column": "is_self_contained",
+      "op": "eq",
+      "value": true,
+      "records_before": 156,
+      "records_passing": 116
+    },
+    {
+      "column": "is_structurally_complete",
+      "op": "eq",
+      "value": true,
+      "records_before": 116,
+      "records_passing": 114
+    }
+  ],
+  "files": {
+    "export": "trump_econ_iran.parquet"
+  }
+}

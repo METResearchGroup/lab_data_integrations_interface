@@ -1,0 +1,49 @@
+{
+  "sync_status": "completed",
+  "dataset_id": "bluesky_8ce4cf1f-8ab9-4373-a739-2a2ff2de400f",
+  "name": "trump_econ_iran",
+  "description": "Bluesky posts on Trump, economy, and Iran \u2014 ~334 posts per keyword",
+  "date": "2026-06-07",
+  "sync_timestamp": "2026_06_07-16:38:03",
+  "ingestion_config": "trump_econ_iran.yaml",
+  "record_types": [
+    "app.bsky.feed.post"
+  ],
+  "fetch": {
+    "limit": 334,
+    "sort": "latest",
+    "query_batch_size": 1,
+    "keyword": [
+      "trump",
+      "economy",
+      "iran"
+    ]
+  },
+  "row_count": 985,
+  "keywords": {
+    "trump": {
+      "status": "completed",
+      "batch_label": "posts_batch_1",
+      "pages_fetched": 5,
+      "rows_collected": 334,
+      "hits_total": null,
+      "last_error": null
+    },
+    "economy": {
+      "status": "completed",
+      "batch_label": "posts_batch_2",
+      "pages_fetched": 5,
+      "rows_collected": 334,
+      "hits_total": null,
+      "last_error": null
+    },
+    "iran": {
+      "status": "completed",
+      "batch_label": "posts_batch_3",
+      "pages_fetched": 4,
+      "rows_collected": 334,
+      "hits_total": null,
+      "last_error": null
+    }
+  }
+}

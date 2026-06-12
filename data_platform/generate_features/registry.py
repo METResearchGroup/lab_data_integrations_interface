@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from data_platform.generate_features.is_likely_spam.generate_feature import (
     SYSTEM_PROMPT as IS_LIKELY_SPAM_SYSTEM_PROMPT,
+)
+from data_platform.generate_features.is_likely_spam.generate_feature import (
     IsLikelySpamModel,
     LlmIsLikelySpamModel,
 )

@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable, Iterator
-from pathlib import Path
 from typing import Protocol
 
-from pydantic import BaseModel
 from tqdm import tqdm
 
 from collector.retry import retry_llm_completion
@@ -23,7 +21,7 @@ from lib.timestamp_utils import get_current_timestamp
 
 
 class BatchExecutionEngine(Protocol):
-    """Protocol for labeling tasks in atomic batches with CSV append."""
+    """Protocol for labeling tasks in atomic batches."""
 
     spec: FeatureSpec
     run_config: FeatureRunConfig
@@ -34,9 +32,7 @@ class BatchExecutionEngine(Protocol):
         self,
         labels: list[dict],
         *,
-        feature_name: str,
-        features_dir: Path,
-        dataset_id: str,
+        feature_storage: StorageManager,
     ) -> None: ...
 
     def label_records(
@@ -44,37 +40,23 @@ class BatchExecutionEngine(Protocol):
         tasks: list[LabelTask],
         *,
         feature_name: str,
-        features_dir: Path,
-        dataset_id: str,
+        feature_storage: StorageManager,
         batch_size: int,
         on_batch_complete: Callable[[int, int], None],
     ) -> BatchRunStats: ...
 
 
-def load_seen_uris_from_features_dir(
-    features_dir: Path,
-    feature_name: str,
-    dataset_id: str,
-) -> set[str]:
-    """Return URIs already present in the feature CSV under features_dir."""
-    storage = StorageManager(
-        "bluesky",
-        "features",
-        BaseModel,
-        dataset_id,
-        records_filename=f"{feature_name}.csv",
-    )
-    return storage.load_seen_uris(features_dir, filename=f"{feature_name}.csv")
+def load_seen_uris_from_features_dir(feature_storage: StorageManager) -> set[str]:
+    """Return URIs already present in the feature file under the features dir."""
+    return feature_storage.load_seen_uris(feature_storage.root_dir)
 
 
 def filter_seen_tasks(
     tasks: list[LabelTask],
-    features_dir: Path,
-    feature_name: str,
-    dataset_id: str,
+    feature_storage: StorageManager,
 ) -> list[LabelTask]:
-    """Drop tasks whose URI is already labeled in the on-disk feature CSV."""
-    seen = load_seen_uris_from_features_dir(features_dir, feature_name, dataset_id)
+    """Drop tasks whose URI is already labeled in the on-disk feature file."""
+    seen = load_seen_uris_from_features_dir(feature_storage)
     if not seen:
         return tasks
     return [task for task in tasks if task.uri not in seen]
@@ -87,7 +69,9 @@ def batched(tasks: list[LabelTask], batch_size: int) -> Iterator[list[LabelTask]
 
 
 class BaseBatchExecutionEngine:
-    """Shared batch loop: retry labeling, append CSV rows, or record deadletter batches."""
+    """
+    Shared batch loop: retry labeling, append rows via StorageManager,
+    or record deadletter batches."""
 
     def __init__(self, spec: FeatureSpec, run_config: FeatureRunConfig) -> None:
         self.spec = spec
@@ -100,29 +84,19 @@ class BaseBatchExecutionEngine:
         self,
         labels: list[dict],
         *,
-        feature_name: str,
-        features_dir: Path,
-        dataset_id: str,
+        feature_storage: StorageManager,
     ) -> None:
-        """Validate and append label rows to features_dir/{feature_name}.csv."""
+        """Validate and append label rows via StorageManager."""
         if not labels:
             return
-        storage = StorageManager(
-            "bluesky",
-            "features",
-            self.spec.model,
-            dataset_id,
-            records_filename=f"{feature_name}.csv",
-        )
-        storage.append_records(labels, features_dir, filename=f"{feature_name}.csv")
+        feature_storage.append_records(labels, feature_storage.root_dir)
 
     def label_records(
         self,
         tasks: list[LabelTask],
         *,
         feature_name: str,
-        features_dir: Path,
-        dataset_id: str,
+        feature_storage: StorageManager,
         batch_size: int,
         on_batch_complete: Callable[[int, int], None],
     ) -> BatchRunStats:
@@ -147,7 +121,7 @@ class BaseBatchExecutionEngine:
         )
         try:
             for batch_index, chunk in enumerate(batched(tasks, batch_size)):
-                pending = filter_seen_tasks(chunk, features_dir, feature_name, dataset_id)
+                pending = filter_seen_tasks(chunk, feature_storage)
                 if not pending:
                     continue
 
@@ -158,7 +132,7 @@ class BaseBatchExecutionEngine:
                     labels = _batch_with_retry(pending)
                 except Exception as exc:
                     append_deadletter_batch(
-                        features_dir,
+                        feature_storage.root_dir,
                         feature=feature_name,
                         uris=uris,
                         error=f"{type(exc).__name__}: {exc}",
@@ -174,12 +148,7 @@ class BaseBatchExecutionEngine:
                     continue
 
                 # Step 2: Write labeled records.
-                self.batch_write_records(
-                    labels,
-                    feature_name=feature_name,
-                    features_dir=features_dir,
-                    dataset_id=dataset_id,
-                )
+                self.batch_write_records(labels, feature_storage=feature_storage)
                 stats.labeled += len(labels)
                 pbar.update(len(labels))
                 on_batch_complete(len(labels), 0)

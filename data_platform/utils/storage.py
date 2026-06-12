@@ -14,7 +14,7 @@ from data_platform.models.sync import (
     SyncRedditPostModel,
     SyncTwitterPostModel,
 )
-from data_platform.utils.dataset import validate_dataset_id
+from data_platform.utils.dataset import ValidDataFormats, load_dataset_format, validate_dataset_id
 from lib.timestamp_utils import get_current_timestamp
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
@@ -59,7 +59,9 @@ class StorageManager:
         self.stage = stage
         self.model = model
         self.dataset_id = validate_dataset_id(dataset_id)
-        self.records_filename = records_filename
+        self.format: ValidDataFormats = load_dataset_format(platform, dataset_id)
+        stem = Path(records_filename).stem
+        self.records_filename = f"{stem}.{self.format.value}"
 
     @property
     def platform_data_root(self) -> Path:
@@ -104,10 +106,13 @@ class StorageManager:
         *,
         filename: str | None = None,
     ) -> Path:
-        csv_path = run_dir / (filename or self.records_filename)
-        fieldnames = list(self.model.model_fields.keys())
-        _write_csv(rows, csv_path, fieldnames)
-        return csv_path
+        out_path = run_dir / (filename or self.records_filename)
+        if self.format == "parquet":
+            pd.DataFrame(rows).to_parquet(out_path, index=False)
+        else:
+            fieldnames = list(self.model.model_fields.keys())
+            _write_csv(rows, out_path, fieldnames)
+        return out_path
 
     def append_records(
         self,
@@ -117,10 +122,25 @@ class StorageManager:
         filename: str | None = None,
     ) -> Path:
         validated = [self.model.model_validate(row).model_dump() for row in rows]
-        csv_path = run_dir / (filename or self.records_filename)
-        fieldnames = list(self.model.model_fields.keys())
-        _append_csv(validated, csv_path, fieldnames)
-        return csv_path
+        out_path = run_dir / (filename or self.records_filename)
+        if self.format == "parquet":
+            if out_path.exists():
+                existing = pd.read_parquet(out_path)
+                new_df = pd.DataFrame(validated)
+                if set(existing.columns) != set(new_df.columns):
+                    raise ValueError(
+                        f"""
+                        Schema mismatch: existing={set(existing.columns)}, new={set(new_df.columns)}
+                        """
+                    )
+                combined = pd.concat([existing, new_df], ignore_index=True)
+            else:
+                combined = pd.DataFrame(validated)
+            combined.to_parquet(out_path, index=False)
+        else:
+            fieldnames = list(self.model.model_fields.keys())
+            _append_csv(validated, out_path, fieldnames)
+        return out_path
 
     def load_seen_ids(
         self,
@@ -129,10 +149,13 @@ class StorageManager:
         *,
         filename: str | None = None,
     ) -> set[str]:
-        csv_path = run_dir / (filename or self.records_filename)
-        if not csv_path.exists():
+        out_path = run_dir / (filename or self.records_filename)
+        if not out_path.exists():
             return set()
-        with csv_path.open(newline="", encoding="utf-8") as f:
+        if self.format == "parquet":
+            df = pd.read_parquet(out_path, columns=[id_column])
+            return {str(v) for v in df[id_column] if v}
+        with out_path.open(newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             return {row[id_column] for row in reader if row.get(id_column)}
 
@@ -191,11 +214,26 @@ class StorageManager:
         filename: str | None = None,
     ) -> pd.DataFrame:
         resolved_run_dir = self._resolve_run_dir(run_dir, latest=latest)
-        csv_path = resolved_run_dir / (filename or self.records_filename)
-        if not csv_path.exists():
-            raise FileNotFoundError(f"Records file not found: {csv_path}")
+        out_path = resolved_run_dir / (filename or self.records_filename)
+        if not out_path.exists():
+            raise FileNotFoundError(f"Records file not found: {out_path}")
+        if self.format == "parquet":
+            return pd.read_parquet(out_path)
+        return pd.read_csv(out_path, keep_default_na=False)
 
-        return pd.read_csv(csv_path, keep_default_na=False)
+    def write_dataframe(
+        self,
+        df: pd.DataFrame,
+        run_dir: Path,
+        *,
+        filename: str | None = None,
+    ) -> Path:
+        out_path = run_dir / (filename or self.records_filename)
+        if self.format == "parquet":
+            df.to_parquet(out_path, index=False)
+        else:
+            df.to_csv(out_path, index=False)
+        return out_path
 
     def write_run_metadata(self, run_dir: Path, metadata: dict[str, Any]) -> Path:
         metadata_path = run_dir / METADATA_FILENAME
@@ -210,6 +248,10 @@ class StorageManager:
             json.dump(metadata, f, indent=2)
         tmp_path.replace(metadata_path)
         return metadata_path
+
+    def filename_for(self, stem: str) -> str:
+        """Return the format-correct filename for a given stem."""
+        return f"{stem}.{self.format.value}"
 
     def load_run_metadata(
         self,

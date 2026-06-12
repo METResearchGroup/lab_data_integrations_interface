@@ -1,6 +1,6 @@
 name: mirrorview
 output:
-  filename: mirrorview.csv
+  stem: mirrorview
 filters:
   - column: news_or_opinion_category
     op: eq

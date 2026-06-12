@@ -20,7 +20,7 @@ class FilterRule(BaseModel):
 
 
 class OutputConfig(BaseModel):
-    filename: str = "dataset.csv"
+    stem: str = "dataset"
 
 
 class CurateRulesConfig(BaseModel):

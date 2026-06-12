@@ -33,7 +33,11 @@ from tqdm import tqdm
 from data_platform.ingestion.bluesky_retry import retry_bluesky_request
 from data_platform.ingestion.dedupe import load_prior_seen_ids
 from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
-from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
+from data_platform.utils.dataset import (
+    ValidDataFormats,
+    validate_dataset_id,
+    write_dataset_manifest,
+)
 from data_platform.utils.storage import BlueskyStorageManager
 from lib.load_env_vars import EnvVarsContainer
 from lib.timestamp_utils import get_current_timestamp
@@ -43,7 +47,6 @@ DEFAULT_CONFIG = CONFIGS_DIR / "default.yaml"
 API_MAX_LIMIT = 100
 
 POSTS_RECORD_TYPE = "app.bsky.feed.post"
-POSTS_CSV = "posts.csv"
 DEFAULT_QUERY_BATCH_SIZE = 5
 
 KeywordStatus = Literal["pending", "in_progress", "completed", "failed", "skipped"]
@@ -56,12 +59,6 @@ class FetchWorkItem:
     query: str
     ledger_key: str
     keywords_in_batch: list[str] | None = None
-
-
-def _record_type_to_filename(record_type: str, output_stem: str = "posts") -> str:
-    if record_type == POSTS_RECORD_TYPE:
-        return f"{output_stem}.csv"
-    return f"{record_type.rsplit('.', 1)[-1]}.csv"
 
 
 def _quote_query_term(keyword: str) -> str:
@@ -270,7 +267,7 @@ def run_keyword_sync_loop(
     metadata: dict[str, Any],
     work_items: list[FetchWorkItem],
     *,
-    csv_filename: str,
+    records_filename: str,
 ) -> None:
     max_rows = fetch.get("max_rows")
     max_rows_int = int(max_rows) if max_rows is not None else None
@@ -279,7 +276,7 @@ def run_keyword_sync_loop(
         output_dir,
         fetch,
         "uri",
-        filename=csv_filename,
+        filename=records_filename,
         same_dataset_flag="dedupe_posts_from_prior_raw_runs",
     )
     posts_skipped = int(metadata.get("posts_skipped_as_duplicates", 0))
@@ -317,14 +314,14 @@ def run_keyword_sync_loop(
             print(f"sync_records: {item.ledger_key} failed: {exc}")
             continue
 
-        seen_uris = prior_uris | storage.load_seen_uris(output_dir, filename=csv_filename)
+        seen_uris = prior_uris | storage.load_seen_uris(output_dir, filename=records_filename)
         new_rows = [row for row in rows if row["uri"] not in seen_uris]
         posts_skipped += len(rows) - len(new_rows)
         metadata["posts_skipped_as_duplicates"] = posts_skipped
         if new_rows:
-            storage.append_records(new_rows, output_dir, filename=csv_filename)
+            storage.append_records(new_rows, output_dir, filename=records_filename)
 
-        metadata["row_count"] = len(storage.load_seen_uris(output_dir, filename=csv_filename))
+        metadata["row_count"] = len(storage.load_seen_uris(output_dir, filename=records_filename))
         entry["status"] = "completed"
         entry["pages_fetched"] = stats["pages_fetched"]
         entry["rows_collected"] = stats["rows_collected"]
@@ -426,16 +423,21 @@ def sync_records(
 
     config = load_config(config_path)
     dataset_id = _require_dataset_id(config)
-    storage = BlueskyStorageManager("raw", dataset_id)
+    output_format = ValidDataFormats(config.get("output_format", "csv"))
 
-    manifest_path = storage.root_dir.parent / "dataset.json"
+    manifest_path = (
+        Path(__file__).resolve().parents[2] / "data" / "bluesky" / dataset_id / "dataset.json"
+    )
     if not manifest_path.exists():
         write_dataset_manifest(
             "bluesky",
             dataset_id,
             name=str(config["name"]),
             ingestion_config=str(config_path.relative_to(Path(__file__).resolve().parents[2])),
+            format=output_format,
         )
+
+    storage = BlueskyStorageManager("raw", dataset_id)
 
     fetch = config["fetch"]
     work_items = iter_fetch_work_items(fetch)
@@ -444,7 +446,7 @@ def sync_records(
     if POSTS_RECORD_TYPE not in record_types:
         raise ValueError(f"Unsupported record types for checkpoint sync: {record_types}")
 
-    csv_filename = _record_type_to_filename(POSTS_RECORD_TYPE, "posts")
+    records_filename = storage.records_filename
     client = setup_client()
 
     if resume:
@@ -469,7 +471,7 @@ def sync_records(
         storage,
         metadata,
         work_items,
-        csv_filename=csv_filename,
+        records_filename=records_filename,
     )
 
     total_rows = metadata["row_count"]

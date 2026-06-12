@@ -1,45 +1,27 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
-import duckdb
 import pandas as pd
 
-from data_platform.utils.duckdb_features import feature_csv_path
+from data_platform.utils.storage import StorageManager
 
 
 @dataclass(frozen=True)
 class FeatureLabelQuery:
-    """Query labeled record ids from feature CSVs at the features root."""
+    """Query labeled record ids from feature files at the features root."""
 
-    features_root: Path
+    feature_storage: StorageManager
     id_column: str = "uri"
     feature_csv_id_column: str = "uri"
 
-    def _feature_csv_path(self, feature_name: str) -> Path:
-        """Resolve the on-disk CSV path for a feature under features_root."""
-        return feature_csv_path(self.features_root, feature_name)
-
     def labeled_ids(self, feature_name: str) -> set[str]:
-        """Return ids labeled for feature_name in the feature CSV."""
-        csv_path = self._feature_csv_path(feature_name)
-        if not csv_path.exists():
-            return set()
-
-        conn = duckdb.connect()
-        try:
-            rows = conn.execute(
-                f"""
-                SELECT DISTINCT {self.feature_csv_id_column}
-                FROM read_csv(?, union_by_name = true)
-                """,
-                [csv_path.as_posix()],
-            ).fetchall()
-        finally:
-            conn.close()
-
-        return {str(row[0]) for row in rows}
+        """Return ids labeled for feature_name in the feature file."""
+        return self.feature_storage.load_seen_ids(
+            self.feature_storage.root_dir,
+            self.feature_csv_id_column,
+            filename=self.feature_storage.filename_for(feature_name),
+        )
 
     def filter_unlabeled(
         self,
