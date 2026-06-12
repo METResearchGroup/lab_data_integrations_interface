@@ -12,9 +12,9 @@ import typer
 from tqdm import tqdm
 
 from data_platform.utils.config_paths import resolve_config_path
-from lib.constants import REPO_ROOT
 from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
 from data_platform.utils.storage import StorageManager
+from lib.constants import REPO_ROOT
 from lib.timestamp_utils import get_current_timestamp
 
 RECORD_TYPE_FILENAMES: dict[str, str] = {

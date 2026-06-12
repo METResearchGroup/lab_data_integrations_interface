@@ -8,8 +8,8 @@ from lib.load_env_vars import EnvVarsContainer
 
 if TYPE_CHECKING:
     import praw
-    from atproto import Client
     import tweepy
+    from atproto import Client
 
 
 def init_reddit_client() -> praw.Reddit:

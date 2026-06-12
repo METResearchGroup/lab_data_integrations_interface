@@ -25,7 +25,7 @@ from data_platform.models.sync import SyncRedditCommentModel
 from data_platform.utils.dataset import dataset_root, validate_dataset_id
 from data_platform.utils.feature_labels import FeatureLabelQuery
 from data_platform.utils.platform_ids import REDDIT_BINDING
-from data_platform.utils.storage import RedditStorageManager
+from data_platform.utils.storage import RedditStorageManager, StorageStage
 
 ID_COLUMN = REDDIT_BINDING.records_id_column
 TEXT_COLUMN = REDDIT_BINDING.text_column
@@ -52,7 +52,7 @@ def reddit_feature_config(
         id_column=binding.records_id_column,
         text_column=binding.text_column,
         feature_registry=registry,
-        input_storage=RedditStorageManager("preprocessed", dataset_id),
+        input_storage=RedditStorageManager(StorageStage.PREPROCESSED, dataset_id),
         features_dir=features_dir,
         feature_label_query=FeatureLabelQuery(
             features_root=features_dir,
@@ -66,7 +66,7 @@ def reddit_feature_config(
 
 def load_comments(dataset_id: str, preprocessed_run: str | None = None) -> pd.DataFrame:
     """Load preprocessed comments from the latest or a pinned preprocessing run."""
-    storage = RedditStorageManager("preprocessed", dataset_id)
+    storage = RedditStorageManager(StorageStage.PREPROCESSED, dataset_id)
     if preprocessed_run:
         run_dir = dataset_root("reddit", dataset_id) / preprocessed_run
         comments = storage.load_records(run_dir)

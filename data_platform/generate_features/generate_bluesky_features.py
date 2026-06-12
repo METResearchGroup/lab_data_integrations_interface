@@ -25,7 +25,7 @@ from data_platform.models.sync import SyncBlueskyPostModel
 from data_platform.utils.dataset import dataset_root, validate_dataset_id
 from data_platform.utils.feature_labels import FeatureLabelQuery
 from data_platform.utils.platform_ids import BLUESKY_BINDING
-from data_platform.utils.storage import BlueskyStorageManager
+from data_platform.utils.storage import BlueskyStorageManager, StorageStage
 
 
 def bluesky_feature_config(
@@ -48,7 +48,7 @@ def bluesky_feature_config(
         id_column=binding.records_id_column,
         text_column=binding.text_column,
         feature_registry=registry,
-        input_storage=BlueskyStorageManager("preprocessed", dataset_id),
+        input_storage=BlueskyStorageManager(StorageStage.PREPROCESSED, dataset_id),
         features_dir=features_dir,
         feature_label_query=FeatureLabelQuery(
             features_root=features_dir,
@@ -61,7 +61,7 @@ def bluesky_feature_config(
 
 def load_posts(dataset_id: str, preprocessed_run: str | None = None) -> pd.DataFrame:
     """Load preprocessed posts from the latest or a pinned preprocessing run."""
-    storage = BlueskyStorageManager("preprocessed", dataset_id)
+    storage = BlueskyStorageManager(StorageStage.PREPROCESSED, dataset_id)
     if preprocessed_run:
         run_dir = dataset_root("bluesky", dataset_id) / preprocessed_run
         posts = storage.load_records(run_dir)

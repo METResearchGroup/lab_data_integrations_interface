@@ -18,7 +18,7 @@ from data_platform.generate_features.models import (
     FeatureSpec,
     LabelTask,
 )
-from data_platform.utils.storage import StorageManager
+from data_platform.utils.storage import StorageManager, StorageStage
 from lib.timestamp_utils import get_current_timestamp
 
 
@@ -59,7 +59,7 @@ def load_seen_uris_from_features_dir(
     """Return URIs already present in the feature CSV under features_dir."""
     storage = StorageManager(
         "bluesky",
-        "features",
+        StorageStage.FEATURES,
         BaseModel,
         dataset_id,
         records_filename=f"{feature_name}.csv",
@@ -109,7 +109,7 @@ class BaseBatchExecutionEngine:
             return
         storage = StorageManager(
             "bluesky",
-            "features",
+            StorageStage.FEATURES,
             self.spec.model,
             dataset_id,
             records_filename=f"{feature_name}.csv",

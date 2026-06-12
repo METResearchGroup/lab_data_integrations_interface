@@ -13,8 +13,8 @@ from pathlib import Path
 
 from prefect import flow, task
 
-from data_platform.ingestion.sync_checkpoint import require_dataset_id
 from data_platform.ingestion.sync_bluesky import sync_records
+from data_platform.ingestion.sync_checkpoint import require_dataset_id
 from data_platform.preprocessing.preprocess_bluesky import preprocess_records
 from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
 from lib.constants import REPO_ROOT

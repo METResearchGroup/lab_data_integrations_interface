@@ -476,9 +476,7 @@ def run_sync_tasks(
         posts_csv=posts_csv,
     )
     if comment_dedupe_session or post_dedupe_session:
-        prior_comment_count = (
-            len(comment_dedupe_session.seen_ids) if comment_dedupe_session else 0
-        )
+        prior_comment_count = len(comment_dedupe_session.seen_ids) if comment_dedupe_session else 0
         prior_post_count = len(post_dedupe_session.seen_ids) if post_dedupe_session else 0
         print(
             f"sync_records: loaded {prior_comment_count} prior comment IDs, "

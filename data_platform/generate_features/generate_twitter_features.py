@@ -25,7 +25,7 @@ from data_platform.models.sync import SyncTwitterPostModel
 from data_platform.utils.dataset import dataset_root, validate_dataset_id
 from data_platform.utils.feature_labels import FeatureLabelQuery
 from data_platform.utils.platform_ids import TWITTER_BINDING
-from data_platform.utils.storage import TwitterStorageManager
+from data_platform.utils.storage import StorageStage, TwitterStorageManager
 
 ID_COLUMN = TWITTER_BINDING.records_id_column
 TEXT_COLUMN = TWITTER_BINDING.text_column
@@ -52,7 +52,7 @@ def twitter_feature_config(
         id_column=binding.records_id_column,
         text_column=binding.text_column,
         feature_registry=registry,
-        input_storage=TwitterStorageManager("preprocessed", dataset_id),
+        input_storage=TwitterStorageManager(StorageStage.PREPROCESSED, dataset_id),
         features_dir=features_dir,
         feature_label_query=FeatureLabelQuery(
             features_root=features_dir,
@@ -66,7 +66,7 @@ def twitter_feature_config(
 
 def load_posts(dataset_id: str, preprocessed_run: str | None = None) -> pd.DataFrame:
     """Load preprocessed posts from the latest or a pinned preprocessing run."""
-    storage = TwitterStorageManager("preprocessed", dataset_id)
+    storage = TwitterStorageManager(StorageStage.PREPROCESSED, dataset_id)
     if preprocessed_run:
         run_dir = dataset_root("twitter", dataset_id) / preprocessed_run
         posts = storage.load_records(run_dir)
