@@ -19,7 +19,7 @@ def _minimal_twitter_sync_config() -> dict[str, Any]:
         "description": "test",
         "date": "2026-05-31",
         "record_types": ["twitter.tweet"],
-        "fetch": {
+        "ingestion_params": {
             "keyword": ["alpha", "beta"],
             "limit_per_keyword": 2,
             "lang": "en",
@@ -30,7 +30,7 @@ def _minimal_twitter_sync_config() -> dict[str, Any]:
 
 def test_init_sync_metadata_keyword_ledger() -> None:
     config = _minimal_twitter_sync_config()
-    work_items = sync_twitter.iter_fetch_work_items(config["fetch"])
+    work_items = sync_twitter.iter_fetch_work_items(config["ingestion_params"])
     metadata = sync_twitter.init_sync_metadata(
         config,
         Path("test.yaml"),
@@ -47,8 +47,8 @@ def test_run_keyword_sync_loop_appends_per_keyword(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = _minimal_twitter_sync_config()
-    fetch = config["fetch"]
-    work_items = sync_twitter.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    work_items = sync_twitter.iter_fetch_work_items(ingestion_params)
     storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_twitter.init_sync_metadata(
@@ -82,7 +82,7 @@ def test_run_keyword_sync_loop_appends_per_keyword(
 
     sync_twitter.run_keyword_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         storage,
         metadata,
@@ -106,10 +106,10 @@ def test_run_keyword_sync_loop_skips_prior_run_tweets_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = _minimal_twitter_sync_config()
-    fetch = config["fetch"]
-    fetch["dedupe_tweets_from_prior_raw_runs"] = True
-    fetch["dedupe_across_datasets"] = False
-    work_items = sync_twitter.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    ingestion_params["dedupe_tweets_from_prior_raw_runs"] = True
+    ingestion_params["dedupe_across_datasets"] = False
+    work_items = sync_twitter.iter_fetch_work_items(ingestion_params)
     storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
 
     prior_run = storage.create_new_run_dir("2026_05_29-10:00:00")
@@ -147,7 +147,7 @@ def test_run_keyword_sync_loop_skips_prior_run_tweets_when_enabled(
 
     sync_twitter.run_keyword_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         storage,
         metadata,
@@ -165,9 +165,9 @@ def test_run_keyword_sync_loop_does_not_skip_prior_runs_when_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = _minimal_twitter_sync_config()
-    fetch = config["fetch"]
-    fetch["dedupe_across_datasets"] = False
-    work_items = sync_twitter.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    ingestion_params["dedupe_across_datasets"] = False
+    work_items = sync_twitter.iter_fetch_work_items(ingestion_params)
     storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
 
     prior_run = storage.create_new_run_dir("2026_05_29-10:00:00")
@@ -205,7 +205,7 @@ def test_run_keyword_sync_loop_does_not_skip_prior_runs_when_disabled(
 
     sync_twitter.run_keyword_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         storage,
         metadata,
@@ -227,8 +227,8 @@ def test_run_keyword_sync_loop_skips_ids_from_other_dataset(
 ) -> None:
     other_dataset_id = "twitter_00000000-0000-4000-8000-000000000002"
     config = _minimal_twitter_sync_config()
-    fetch = config["fetch"]
-    work_items = sync_twitter.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    work_items = sync_twitter.iter_fetch_work_items(ingestion_params)
     other_storage = TwitterStorageManager("raw", other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
@@ -266,7 +266,7 @@ def test_run_keyword_sync_loop_skips_ids_from_other_dataset(
 
     sync_twitter.run_keyword_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         storage,
         metadata,
@@ -285,9 +285,9 @@ def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
 ) -> None:
     other_dataset_id = "twitter_00000000-0000-4000-8000-000000000002"
     config = _minimal_twitter_sync_config()
-    fetch = config["fetch"]
-    fetch["dedupe_across_datasets"] = False
-    work_items = sync_twitter.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    ingestion_params["dedupe_across_datasets"] = False
+    work_items = sync_twitter.iter_fetch_work_items(ingestion_params)
     other_storage = TwitterStorageManager("raw", other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
@@ -322,7 +322,7 @@ def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
 
     sync_twitter.run_keyword_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         storage,
         metadata,
@@ -340,8 +340,8 @@ def test_resume_skips_completed_keywords(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = _minimal_twitter_sync_config()
-    fetch = config["fetch"]
-    work_items = sync_twitter.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    work_items = sync_twitter.iter_fetch_work_items(ingestion_params)
     storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_twitter.init_sync_metadata(
@@ -381,7 +381,7 @@ def test_resume_skips_completed_keywords(
     resumed_metadata = storage.load_run_metadata(run_dir)
     sync_twitter.run_keyword_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         storage,
         resumed_metadata,

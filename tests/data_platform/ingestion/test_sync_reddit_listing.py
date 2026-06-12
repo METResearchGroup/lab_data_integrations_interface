@@ -22,12 +22,12 @@ def test_get_subreddit_listing_top_passes_time_filter() -> None:
 
 
 def test_resolve_listing_time_filter_rejects_non_top_listing() -> None:
-    fetch = {"listing_time_filter": "month"}
+    ingestion_params = {"listing_time_filter": "month"}
     with pytest.raises(ValueError, match="only valid when listing is 'top'"):
-        sync_reddit._resolve_listing_time_filter(fetch, "hot")
+        sync_reddit._resolve_listing_time_filter(ingestion_params, "hot")
 
 
 def test_resolve_listing_time_filter_rejects_invalid_value() -> None:
-    fetch = {"listing_time_filter": "fortnight"}
-    with pytest.raises(ValueError, match="Unsupported fetch.listing_time_filter"):
-        sync_reddit._resolve_listing_time_filter(fetch, "top")
+    ingestion_params = {"listing_time_filter": "fortnight"}
+    with pytest.raises(ValueError, match="Unsupported ingestion_params.listing_time_filter"):
+        sync_reddit._resolve_listing_time_filter(ingestion_params, "top")

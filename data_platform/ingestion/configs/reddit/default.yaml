@@ -6,7 +6,7 @@ date: "2026-05-31"
 record_types:
   - reddit.comment
   - reddit.post
-fetch:
+ingestion_params:
   dedupe_across_datasets: true
   subreddits:
     - politics

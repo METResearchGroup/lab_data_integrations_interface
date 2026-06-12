@@ -5,7 +5,7 @@ description: Posts from a handle matching a keyword
 date: "2026-05-29"
 record_types:
   - app.bsky.feed.post
-fetch:
+ingestion_params:
   dedupe_across_datasets: true
   handle: user.bsky.social
   keyword: example

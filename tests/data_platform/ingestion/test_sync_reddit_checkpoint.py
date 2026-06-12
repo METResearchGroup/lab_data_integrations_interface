@@ -18,7 +18,7 @@ from tests.data_platform.ingestion.reddit_conftest import (
 
 def test_init_sync_metadata_subreddit_ledger() -> None:
     config = minimal_reddit_sync_config()
-    work_items = sync_reddit.iter_fetch_work_items(config["fetch"])
+    work_items = sync_reddit.iter_fetch_work_items(config["ingestion_params"])
     metadata = sync_reddit.init_sync_metadata(
         config,
         Path("test.yaml"),
@@ -35,8 +35,8 @@ def test_run_subreddit_sync_loop_appends_per_subreddit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = minimal_reddit_sync_config()
-    fetch = config["fetch"]
-    work_items = sync_reddit.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    work_items = sync_reddit.iter_fetch_work_items(ingestion_params)
     comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
     post_storage = comment_storage.post_storage()
     run_dir = comment_storage.create_new_run_dir("2026_05_30-10:00:00")
@@ -81,7 +81,7 @@ def test_run_subreddit_sync_loop_appends_per_subreddit(
 
     sync_reddit.run_subreddit_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         comment_storage,
         post_storage,
@@ -104,10 +104,10 @@ def test_run_subreddit_sync_loop_skips_prior_run_comments(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = minimal_reddit_sync_config()
-    fetch = config["fetch"]
-    fetch["dedupe_comments_from_prior_raw_runs"] = True
-    fetch["dedupe_across_datasets"] = False
-    work_items = sync_reddit.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    ingestion_params["dedupe_comments_from_prior_raw_runs"] = True
+    ingestion_params["dedupe_across_datasets"] = False
+    work_items = sync_reddit.iter_fetch_work_items(ingestion_params)
     comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
     post_storage = comment_storage.post_storage()
 
@@ -153,7 +153,7 @@ def test_run_subreddit_sync_loop_skips_prior_run_comments(
 
     sync_reddit.run_subreddit_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         comment_storage,
         post_storage,
@@ -174,8 +174,8 @@ def test_run_subreddit_sync_loop_skips_ids_from_other_dataset(
 ) -> None:
     other_dataset_id = "reddit_00000000-0000-4000-8000-000000000002"
     config = minimal_reddit_sync_config()
-    fetch = config["fetch"]
-    work_items = sync_reddit.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    work_items = sync_reddit.iter_fetch_work_items(ingestion_params)
     other_storage = RedditStorageManager("raw", other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
@@ -221,7 +221,7 @@ def test_run_subreddit_sync_loop_skips_ids_from_other_dataset(
 
     sync_reddit.run_subreddit_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         comment_storage,
         post_storage,
@@ -242,9 +242,9 @@ def test_run_subreddit_sync_loop_respects_dedupe_across_datasets_false(
 ) -> None:
     other_dataset_id = "reddit_00000000-0000-4000-8000-000000000002"
     config = minimal_reddit_sync_config()
-    fetch = config["fetch"]
-    fetch["dedupe_across_datasets"] = False
-    work_items = sync_reddit.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    ingestion_params["dedupe_across_datasets"] = False
+    work_items = sync_reddit.iter_fetch_work_items(ingestion_params)
     other_storage = RedditStorageManager("raw", other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
@@ -287,7 +287,7 @@ def test_run_subreddit_sync_loop_respects_dedupe_across_datasets_false(
 
     sync_reddit.run_subreddit_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         comment_storage,
         post_storage,
@@ -307,8 +307,8 @@ def test_resume_skips_completed_subreddits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = minimal_reddit_sync_config()
-    fetch = config["fetch"]
-    work_items = sync_reddit.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    work_items = sync_reddit.iter_fetch_work_items(ingestion_params)
     comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
     post_storage = comment_storage.post_storage()
     run_dir = comment_storage.create_new_run_dir("2026_05_30-10:00:00")
@@ -356,7 +356,7 @@ def test_resume_skips_completed_subreddits(
     resumed_metadata = comment_storage.load_run_metadata(run_dir)
     sync_reddit.run_subreddit_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         comment_storage,
         post_storage,

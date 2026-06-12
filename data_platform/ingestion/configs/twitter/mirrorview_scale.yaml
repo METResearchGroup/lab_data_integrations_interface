@@ -6,7 +6,7 @@ description: Mirrorview scale collection — individual keyword queries, 200 pos
 date: "2026-06-01"
 record_types:
   - twitter.tweet
-fetch:
+ingestion_params:
   max_rows: 10000
   limit_per_keyword: 200
   lang: en

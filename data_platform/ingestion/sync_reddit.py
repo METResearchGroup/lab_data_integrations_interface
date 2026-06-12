@@ -79,30 +79,30 @@ def _normalize_subreddit_key(subreddit: str) -> str:
     return subreddit.removeprefix("r/").lower()
 
 
-def iter_fetch_work_items(fetch: dict[str, Any]) -> list[FetchWorkItem]:
+def iter_fetch_work_items(ingestion_params: dict[str, Any]) -> list[FetchWorkItem]:
     """Return work items keyed by subreddit for checkpointing."""
-    subreddits = fetch.get("subreddits")
+    subreddits = ingestion_params.get("subreddits")
     if not isinstance(subreddits, list) or not subreddits:
-        raise ValueError("fetch config must include 'subreddits' as a non-empty list")
+        raise ValueError("ingestion_params must include 'subreddits' as a non-empty list")
 
     items: list[FetchWorkItem] = []
     for subreddit in subreddits:
         if not isinstance(subreddit, str) or not subreddit.strip():
-            raise ValueError("fetch.subreddits entries must be non-empty strings")
+            raise ValueError("ingestion_params.subreddits entries must be non-empty strings")
         ledger_key = _normalize_subreddit_key(subreddit)
         items.append(FetchWorkItem(subreddit=subreddit.strip(), ledger_key=ledger_key))
     return items
 
 
-def _resolve_listing_time_filter(fetch: dict[str, Any], listing: str) -> str | None:
-    raw = fetch.get("listing_time_filter")
+def _resolve_listing_time_filter(ingestion_params: dict[str, Any], listing: str) -> str | None:
+    raw = ingestion_params.get("listing_time_filter")
     if raw is None:
         return None
     if listing != "top":
-        raise ValueError("fetch.listing_time_filter is only valid when listing is 'top'")
+        raise ValueError("ingestion_params.listing_time_filter is only valid when listing is 'top'")
     time_filter = str(raw)
     if time_filter not in VALID_LISTING_TIME_FILTERS:
-        raise ValueError(f"Unsupported fetch.listing_time_filter value: {time_filter!r}")
+        raise ValueError(f"Unsupported ingestion_params.listing_time_filter value: {time_filter!r}")
     return time_filter
 
 
@@ -123,7 +123,7 @@ def _get_subreddit_listing(
     if listing == "rising":
         return list(subreddit_obj.rising(limit=limit))
     if listing != "hot":
-        raise ValueError(f"Unsupported fetch.listing value: {listing!r}")
+        raise ValueError(f"Unsupported ingestion_params.listing value: {listing!r}")
     return list(subreddit_obj.hot(limit=limit))
 
 
@@ -143,7 +143,7 @@ def _fetch_subreddit_page(
 
 def fetch_records_for_subreddit(
     reddit: praw.Reddit,
-    fetch: dict[str, Any],
+    ingestion_params: dict[str, Any],
     subreddit: str,
     *,
     sync_timestamp: str,
@@ -151,11 +151,11 @@ def fetch_records_for_subreddit(
     include_comments: bool,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     """Fetch posts and/or comments for a single subreddit."""
-    limit = int(fetch["limit_per_subreddit"])
-    listing = str(fetch.get("listing", DEFAULT_LISTING))
-    listing_time_filter = _resolve_listing_time_filter(fetch, listing)
-    comments_per_post = int(fetch.get("comments_per_post", 100))
-    min_comment_body_length = int(fetch.get("min_comment_body_length", 30))
+    limit = int(ingestion_params["limit_per_subreddit"])
+    listing = str(ingestion_params.get("listing", DEFAULT_LISTING))
+    listing_time_filter = _resolve_listing_time_filter(ingestion_params, listing)
+    comments_per_post = int(ingestion_params.get("comments_per_post", 100))
+    min_comment_body_length = int(ingestion_params.get("min_comment_body_length", 30))
 
     try:
         submissions = _fetch_subreddit_page(
@@ -238,7 +238,7 @@ def init_sync_metadata(
         "sync_timestamp": sync_timestamp,
         "ingestion_config": config_path.name,
         "record_types": config["record_types"],
-        "fetch": config["fetch"],
+        "ingestion_params": config["ingestion_params"],
         "row_count": 0,
         "post_row_count": 0,
         "subreddits": {item.ledger_key: _subreddit_entry(item) for item in work_items},
@@ -331,7 +331,7 @@ def _stop_if_at_max_rows(
 
 def run_subreddit_sync_loop(
     reddit: praw.Reddit,
-    fetch: dict[str, Any],
+    ingestion_params: dict[str, Any],
     output_dir: Path,
     comment_storage: RedditStorageManager,
     post_storage: RedditStorageManager,
@@ -341,7 +341,7 @@ def run_subreddit_sync_loop(
     include_comments: bool,
     include_posts: bool,
 ) -> None:
-    max_rows = fetch.get("max_rows")
+    max_rows = ingestion_params.get("max_rows")
     max_rows_int = int(max_rows) if max_rows is not None else None
     sync_timestamp = str(metadata["sync_timestamp"])
     prior_comment_ids: set[str] = set()
@@ -350,7 +350,7 @@ def run_subreddit_sync_loop(
         prior_comment_ids = load_prior_seen_ids(
             comment_storage,
             output_dir,
-            fetch,
+            ingestion_params,
             "comment_fullname",
             filename=COMMENTS_CSV,
             same_dataset_flag="dedupe_comments_from_prior_raw_runs",
@@ -359,7 +359,7 @@ def run_subreddit_sync_loop(
         prior_post_ids = load_prior_seen_ids(
             post_storage,
             output_dir,
-            fetch,
+            ingestion_params,
             "reddit_fullname",
             filename=POSTS_CSV,
             same_dataset_flag="dedupe_comments_from_prior_raw_runs",
@@ -392,7 +392,7 @@ def run_subreddit_sync_loop(
         try:
             post_rows, comment_rows, stats = fetch_records_for_subreddit(
                 reddit,
-                fetch,
+                ingestion_params,
                 item.subreddit,
                 sync_timestamp=sync_timestamp,
                 include_posts=include_posts,
@@ -532,8 +532,8 @@ def sync_records(
             ingestion_config=str(config_path.relative_to(Path(__file__).resolve().parents[2])),
         )
 
-    fetch = config["fetch"]
-    work_items = iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    work_items = iter_fetch_work_items(ingestion_params)
     record_types: list[str] = config["record_types"]
     include_comments = COMMENTS_RECORD_TYPE in record_types
     include_posts = POSTS_RECORD_TYPE in record_types
@@ -560,7 +560,7 @@ def sync_records(
 
     run_subreddit_sync_loop(
         reddit,
-        fetch,
+        ingestion_params,
         output_dir,
         comment_storage,
         post_storage,

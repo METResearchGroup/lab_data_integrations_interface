@@ -4,7 +4,7 @@ description: Mirrorview topic keyword collection across Bluesky
 date: "2026-05-29"
 record_types:
   - app.bsky.feed.post
-fetch:
+ingestion_params:
   limit: 100
   sort: latest
   keyword:

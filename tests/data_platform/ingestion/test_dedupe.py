@@ -18,12 +18,12 @@ def storage() -> MagicMock:
 
 def test_load_prior_seen_ids_defaults_to_platform_scan(storage: MagicMock) -> None:
     output_dir = Path("/tmp/run")
-    fetch: dict[str, str] = {}
+    ingestion_params: dict[str, str] = {}
 
     seen = load_prior_seen_ids(
         storage,
         output_dir,
-        fetch,
+        ingestion_params,
         "comment_fullname",
         filename="comments.csv",
         same_dataset_flag="dedupe_comments_from_prior_raw_runs",
@@ -38,7 +38,7 @@ def test_load_prior_seen_ids_defaults_to_platform_scan(storage: MagicMock) -> No
 
 def test_load_prior_seen_ids_same_dataset_when_opted_out(storage: MagicMock) -> None:
     output_dir = Path("/tmp/run")
-    fetch = {
+    ingestion_params = {
         "dedupe_across_datasets": False,
         "dedupe_comments_from_prior_raw_runs": True,
     }
@@ -46,7 +46,7 @@ def test_load_prior_seen_ids_same_dataset_when_opted_out(storage: MagicMock) -> 
     seen = load_prior_seen_ids(
         storage,
         output_dir,
-        fetch,
+        ingestion_params,
         "comment_fullname",
         filename="comments.csv",
         same_dataset_flag="dedupe_comments_from_prior_raw_runs",
@@ -61,7 +61,7 @@ def test_load_prior_seen_ids_same_dataset_when_opted_out(storage: MagicMock) -> 
 
 def test_load_prior_seen_ids_empty_when_both_disabled(storage: MagicMock) -> None:
     output_dir = Path("/tmp/run")
-    fetch = {
+    ingestion_params = {
         "dedupe_across_datasets": False,
         "dedupe_comments_from_prior_raw_runs": False,
     }
@@ -69,7 +69,7 @@ def test_load_prior_seen_ids_empty_when_both_disabled(storage: MagicMock) -> Non
     seen = load_prior_seen_ids(
         storage,
         output_dir,
-        fetch,
+        ingestion_params,
         "comment_fullname",
         filename="comments.csv",
         same_dataset_flag="dedupe_comments_from_prior_raw_runs",

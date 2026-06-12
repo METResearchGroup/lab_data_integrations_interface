@@ -13,7 +13,7 @@ def minimal_reddit_sync_config() -> dict[str, Any]:
         "description": "test",
         "date": "2026-05-31",
         "record_types": [sync_reddit.COMMENTS_RECORD_TYPE, sync_reddit.POSTS_RECORD_TYPE],
-        "fetch": {
+        "ingestion_params": {
             "subreddits": ["AlphaSub", "BetaSub"],
             "listing": "hot",
             "limit_per_subreddit": 2,

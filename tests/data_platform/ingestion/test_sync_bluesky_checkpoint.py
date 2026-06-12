@@ -19,7 +19,7 @@ from tests.data_platform.ingestion.conftest import (
 
 def test_init_sync_metadata_keyword_ledger() -> None:
     config = minimal_sync_config()
-    work_items = sync_bluesky.iter_fetch_work_items(config["fetch"])
+    work_items = sync_bluesky.iter_fetch_work_items(config["ingestion_params"])
     metadata = sync_bluesky.init_sync_metadata(
         config,
         Path("test.yaml"),
@@ -36,8 +36,8 @@ def test_run_keyword_sync_loop_appends_per_keyword(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = minimal_sync_config()
-    fetch = config["fetch"]
-    work_items = sync_bluesky.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    work_items = sync_bluesky.iter_fetch_work_items(ingestion_params)
     storage = BlueskyStorageManager("raw", VALID_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_bluesky.init_sync_metadata(
@@ -66,7 +66,7 @@ def test_run_keyword_sync_loop_appends_per_keyword(
 
     sync_bluesky.run_keyword_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         storage,
         metadata,
@@ -87,8 +87,8 @@ def test_run_keyword_sync_loop_skips_ids_from_other_dataset(
 ) -> None:
     other_dataset_id = "bluesky_00000000-0000-4000-8000-000000000002"
     config = minimal_sync_config()
-    fetch = config["fetch"]
-    work_items = sync_bluesky.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    work_items = sync_bluesky.iter_fetch_work_items(ingestion_params)
     other_storage = BlueskyStorageManager("raw", other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
@@ -131,7 +131,7 @@ def test_run_keyword_sync_loop_skips_ids_from_other_dataset(
 
     sync_bluesky.run_keyword_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         storage,
         metadata,
@@ -149,9 +149,9 @@ def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
 ) -> None:
     other_dataset_id = "bluesky_00000000-0000-4000-8000-000000000002"
     config = minimal_sync_config()
-    fetch = config["fetch"]
-    fetch["dedupe_across_datasets"] = False
-    work_items = sync_bluesky.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    ingestion_params["dedupe_across_datasets"] = False
+    work_items = sync_bluesky.iter_fetch_work_items(ingestion_params)
     other_storage = BlueskyStorageManager("raw", other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
@@ -189,7 +189,7 @@ def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
 
     sync_bluesky.run_keyword_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         storage,
         metadata,
@@ -206,8 +206,8 @@ def test_run_keyword_sync_loop_dedupes_within_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = minimal_sync_config()
-    fetch = config["fetch"]
-    work_items = sync_bluesky.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    work_items = sync_bluesky.iter_fetch_work_items(ingestion_params)
     storage = BlueskyStorageManager("raw", VALID_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_bluesky.init_sync_metadata(
@@ -232,7 +232,7 @@ def test_run_keyword_sync_loop_dedupes_within_run(
 
     sync_bluesky.run_keyword_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         storage,
         metadata,
@@ -249,8 +249,8 @@ def test_resume_skips_completed_keywords(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = minimal_sync_config()
-    fetch = config["fetch"]
-    work_items = sync_bluesky.iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    work_items = sync_bluesky.iter_fetch_work_items(ingestion_params)
     storage = BlueskyStorageManager("raw", VALID_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_bluesky.init_sync_metadata(
@@ -293,7 +293,7 @@ def test_resume_skips_completed_keywords(
     resumed_metadata = storage.load_run_metadata(run_dir)
     sync_bluesky.run_keyword_sync_loop(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         storage,
         resumed_metadata,

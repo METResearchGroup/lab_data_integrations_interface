@@ -4,7 +4,7 @@ description: Mirrorview topic keyword collection across Twitter
 date: "2026-06-01"
 record_types:
   - twitter.tweet
-fetch:
+ingestion_params:
   max_rows: 1000
   limit_per_keyword: 25
   lang: en

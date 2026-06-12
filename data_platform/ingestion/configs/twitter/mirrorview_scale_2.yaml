@@ -6,7 +6,7 @@ description: Mirrorview scale pass 2 — 300 posts per keyword, 15k cap, prior-r
 date: "2026-06-02"
 record_types:
   - twitter.tweet
-fetch:
+ingestion_params:
   max_rows: 15000
   limit_per_keyword: 300
   lang: en

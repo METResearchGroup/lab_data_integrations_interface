@@ -46,6 +46,7 @@ POSTS_RECORD_TYPE = "app.bsky.feed.post"
 POSTS_CSV = "posts.csv"
 DEFAULT_QUERY_BATCH_SIZE = 5
 
+# TODO: should really be enums
 KeywordStatus = Literal["pending", "in_progress", "completed", "failed", "skipped"]
 SyncStatus = Literal["in_progress", "completed"]
 
@@ -76,18 +77,18 @@ def build_or_query(keywords: list[str]) -> str:
     return " | ".join(_quote_query_term(keyword) for keyword in keywords)
 
 
-def _query_batch_size(fetch: dict[str, Any]) -> int:
-    return int(fetch.get("query_batch_size", DEFAULT_QUERY_BATCH_SIZE))
+def _query_batch_size(ingestion_params: dict[str, Any]) -> int:
+    return int(ingestion_params.get("query_batch_size", DEFAULT_QUERY_BATCH_SIZE))
 
 
 def _chunk_keywords(keywords: list[str], batch_size: int) -> list[list[str]]:
     return [keywords[i : i + batch_size] for i in range(0, len(keywords), batch_size)]
 
 
-def iter_fetch_work_items(fetch: dict[str, Any]) -> list[FetchWorkItem]:
+def iter_fetch_work_items(ingestion_params: dict[str, Any]) -> list[FetchWorkItem]:
     """Return work items as (batch_label, query, ledger_key) for checkpointing."""
-    keyword = fetch.get("keyword")
-    batch_size = _query_batch_size(fetch)
+    keyword = ingestion_params.get("keyword")
+    batch_size = _query_batch_size(ingestion_params)
     if isinstance(keyword, list):
         items: list[FetchWorkItem] = []
         for index, chunk in enumerate(_chunk_keywords(keyword, batch_size)):
@@ -117,11 +118,11 @@ def iter_fetch_work_items(fetch: dict[str, Any]) -> list[FetchWorkItem]:
             )
         ]
 
-    raise ValueError("fetch config must include 'keyword' as a string or list of strings")
+    raise ValueError("ingestion_params must include 'keyword' as a string or list of strings")
 
 
-def _iter_fetch_queries(fetch: dict[str, Any]) -> list[tuple[str, str]]:
-    return [(item.batch_label, item.query) for item in iter_fetch_work_items(fetch)]
+def _iter_fetch_queries(ingestion_params: dict[str, Any]) -> list[tuple[str, str]]:
+    return [(item.batch_label, item.query) for item in iter_fetch_work_items(ingestion_params)]
 
 
 def _posts_to_rows(response: Any) -> list[dict[str, Any]]:
@@ -147,7 +148,7 @@ def _posts_to_rows(response: Any) -> list[dict[str, Any]]:
 @retry_bluesky_request()
 def _search_posts_page(
     client: Client,
-    fetch: dict[str, Any],
+    ingestion_params: dict[str, Any],
     query: str,
     *,
     page_limit: int,
@@ -156,11 +157,11 @@ def _search_posts_page(
     base_params = {
         "q": query,
         "limit": page_limit,
-        "sort": fetch.get("sort", "latest"),
+        "sort": ingestion_params.get("sort", "latest"),
     }
     if cursor:
         base_params["cursor"] = cursor
-    handle = fetch.get("handle")
+    handle = ingestion_params.get("handle")
     if handle:
         return client.app.bsky.feed.search_posts(
             params={**base_params, "author": handle},  # type: ignore[arg-type]
@@ -170,13 +171,13 @@ def _search_posts_page(
 
 def fetch_posts_for_keyword(
     client: Client,
-    fetch: dict[str, Any],
+    ingestion_params: dict[str, Any],
     query: str,
     *,
     batch_label: str,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Fetch up to fetch.limit posts for a single query, paginating with cursor."""
-    target = int(fetch["limit"])
+    """Fetch up to ingestion_params.limit posts for a single query, paginating with cursor."""
+    target = int(ingestion_params["limit"])
     rows: list[dict[str, Any]] = []
     cursor: str | None = None
     pages_fetched = 0
@@ -184,7 +185,7 @@ def fetch_posts_for_keyword(
 
     while len(rows) < target:
         page_limit = min(target - len(rows), API_MAX_LIMIT)
-        response = _search_posts_page(client, fetch, query, page_limit=page_limit, cursor=cursor)
+        response = _search_posts_page(client, ingestion_params, query, page_limit=page_limit, cursor=cursor)
         if pages_fetched == 0:
             hits_total = response.hits_total
         page_rows = _posts_to_rows(response)
@@ -238,7 +239,7 @@ def init_sync_metadata(
         "sync_timestamp": sync_timestamp,
         "ingestion_config": config_path.name,
         "record_types": config["record_types"],
-        "fetch": config["fetch"],
+        "ingestion_params": config["ingestion_params"],
         "row_count": 0,
         "keywords": {item.ledger_key: _keyword_entry(item) for item in work_items},
     }
@@ -264,7 +265,7 @@ def _sync_status_done(metadata: dict[str, Any]) -> SyncStatus:
 
 def run_keyword_sync_loop(
     client: Client,
-    fetch: dict[str, Any],
+    ingestion_params: dict[str, Any],
     output_dir: Path,
     storage: BlueskyStorageManager,
     metadata: dict[str, Any],
@@ -272,12 +273,12 @@ def run_keyword_sync_loop(
     *,
     csv_filename: str,
 ) -> None:
-    max_rows = fetch.get("max_rows")
+    max_rows = ingestion_params.get("max_rows")
     max_rows_int = int(max_rows) if max_rows is not None else None
     prior_uris = load_prior_seen_ids(
         storage,
         output_dir,
-        fetch,
+        ingestion_params,
         "uri",
         filename=csv_filename,
         same_dataset_flag="dedupe_posts_from_prior_raw_runs",
@@ -306,7 +307,7 @@ def run_keyword_sync_loop(
         try:
             rows, stats = fetch_posts_for_keyword(
                 client,
-                fetch,
+                ingestion_params,
                 item.query,
                 batch_label=item.batch_label,
             )
@@ -437,8 +438,8 @@ def sync_records(
             ingestion_config=str(config_path.relative_to(Path(__file__).resolve().parents[2])),
         )
 
-    fetch = config["fetch"]
-    work_items = iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    work_items = iter_fetch_work_items(ingestion_params)
     record_types: list[str] = config["record_types"]
 
     if POSTS_RECORD_TYPE not in record_types:
@@ -464,7 +465,7 @@ def sync_records(
 
     run_keyword_sync_loop(
         client,
-        fetch,
+        ingestion_params,
         output_dir,
         storage,
         metadata,

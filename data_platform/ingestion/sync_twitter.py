@@ -50,13 +50,13 @@ class FetchWorkItem:
     keyword: str
 
 
-def iter_fetch_work_items(fetch: dict[str, Any]) -> list[FetchWorkItem]:
-    keyword = fetch.get("keyword")
+def iter_fetch_work_items(ingestion_params: dict[str, Any]) -> list[FetchWorkItem]:
+    keyword = ingestion_params.get("keyword")
     if isinstance(keyword, list) and keyword:
         return [FetchWorkItem(ledger_key=str(k), keyword=str(k)) for k in keyword]
     if isinstance(keyword, str) and keyword:
         return [FetchWorkItem(ledger_key=keyword, keyword=keyword)]
-    raise ValueError("fetch config must include 'keyword' as a string or list of strings")
+    raise ValueError("ingestion_params must include 'keyword' as a string or list of strings")
 
 
 def _keyword_entry(item: FetchWorkItem) -> dict[str, Any]:
@@ -85,7 +85,7 @@ def init_sync_metadata(
         "sync_timestamp": sync_timestamp,
         "ingestion_config": config_path.name,
         "record_types": config["record_types"],
-        "fetch": config["fetch"],
+        "ingestion_params": config["ingestion_params"],
         "row_count": 0,
         "keywords": {item.ledger_key: _keyword_entry(item) for item in work_items},
     }
@@ -109,8 +109,8 @@ def _sync_status_done(metadata: dict[str, Any]) -> SyncStatus:
     return "completed" if not unfinished else "in_progress"
 
 
-def _effective_limit_per_keyword(fetch: dict[str, Any], remaining: int | None) -> int:
-    per_keyword = int(fetch.get("limit_per_keyword", 25))
+def _effective_limit_per_keyword(ingestion_params: dict[str, Any], remaining: int | None) -> int:
+    per_keyword = int(ingestion_params.get("limit_per_keyword", 25))
     if remaining is None:
         return per_keyword
     return max(0, min(per_keyword, remaining))
@@ -141,7 +141,7 @@ def _sync_one_keyword(
     *,
     item: FetchWorkItem,
     entry: dict[str, Any],
-    fetch: dict[str, Any],
+    ingestion_params: dict[str, Any],
     output_dir: Path,
     storage: TwitterStorageManager,
     metadata: dict[str, Any],
@@ -156,7 +156,7 @@ def _sync_one_keyword(
     entry["last_error"] = None
     _flush_metadata(storage, output_dir, metadata)
 
-    limit = _effective_limit_per_keyword(fetch, remaining)
+    limit = _effective_limit_per_keyword(ingestion_params, remaining)
     try:
         rows, stats = fetch_posts_for_keyword(
             client,
@@ -197,7 +197,7 @@ def _sync_one_keyword(
 
 def run_keyword_sync_loop(
     client: Any,
-    fetch: dict[str, Any],
+    ingestion_params: dict[str, Any],
     output_dir: Path,
     storage: TwitterStorageManager,
     metadata: dict[str, Any],
@@ -206,14 +206,14 @@ def run_keyword_sync_loop(
     sync_timestamp: str,
     csv_filename: str,
 ) -> None:
-    max_rows = fetch.get("max_rows")
+    max_rows = ingestion_params.get("max_rows")
     max_rows_int = int(max_rows) if max_rows is not None else None
-    lang = str(fetch.get("lang", "en"))
-    exclude = list(fetch.get("exclude", ["reply", "retweet", "quote"]))
+    lang = str(ingestion_params.get("lang", "en"))
+    exclude = list(ingestion_params.get("exclude", ["reply", "retweet", "quote"]))
     prior_tweet_ids = load_prior_seen_ids(
         storage,
         output_dir,
-        fetch,
+        ingestion_params,
         "tweet_id",
         filename=csv_filename,
         same_dataset_flag="dedupe_tweets_from_prior_raw_runs",
@@ -235,7 +235,7 @@ def run_keyword_sync_loop(
             client,
             item=item,
             entry=entry,
-            fetch=fetch,
+            ingestion_params=ingestion_params,
             output_dir=output_dir,
             storage=storage,
             metadata=metadata,
@@ -336,8 +336,8 @@ def sync_records(
             ingestion_config=str(config_path.relative_to(Path(__file__).resolve().parents[2])),
         )
 
-    fetch = config["fetch"]
-    work_items = iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    work_items = iter_fetch_work_items(ingestion_params)
     client = init_twitter_client()
 
     if resume:
@@ -358,7 +358,7 @@ def sync_records(
 
     run_keyword_sync_loop(
         client,
-        fetch,
+        ingestion_params,
         output_dir,
         storage,
         metadata,

@@ -6,7 +6,7 @@ description: Mirrorview scale collection — individual keyword queries, 500 pos
 date: "2026-05-30"
 record_types:
   - app.bsky.feed.post
-fetch:
+ingestion_params:
   limit: 700
   sort: latest
   query_batch_size: 1
