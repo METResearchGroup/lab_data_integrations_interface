@@ -39,7 +39,8 @@ from data_platform.ingestion.sync_checkpoint import (
     run_checkpointed_sync,
     run_sync_cli,
 )
-from data_platform.ingestion.twitter_client import fetch_posts_for_keyword, init_twitter_client
+from data_platform.ingestion.sync_clients import init_twitter_client
+from data_platform.ingestion.twitter_client import fetch_posts_for_keyword
 from data_platform.utils.config_paths import load_yaml_config
 from data_platform.utils.storage import TwitterStorageManager
 

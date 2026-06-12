@@ -23,9 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
-
-from atproto import Client
+from typing import TYPE_CHECKING, Any
 
 from data_platform.ingestion.bluesky_retry import retry_bluesky_request
 from data_platform.ingestion.dedupe import load_prior_seen_ids, persist_deduped_rows
@@ -43,9 +41,12 @@ from data_platform.ingestion.sync_checkpoint import (
     run_checkpointed_sync,
     run_sync_cli,
 )
+from data_platform.ingestion.sync_clients import init_bluesky_client
 from data_platform.utils.config_paths import load_yaml_config
 from data_platform.utils.storage import BlueskyStorageManager
-from lib.load_env_vars import EnvVarsContainer
+
+if TYPE_CHECKING:
+    from atproto import Client
 
 CONFIGS_DIR = Path(__file__).resolve().parent / "configs/bluesky"
 DEFAULT_CONFIG = CONFIGS_DIR / "default.yaml"
@@ -57,11 +58,14 @@ POSTS_RECORD_TYPE = "app.bsky.feed.post"
 
 @dataclass(frozen=True)
 class BlueskyTask:
+    """One checkpointed search unit: a stable task ID and the API query string."""
+
     task_id: str
     query: str
 
 
 def _quote_query_term(keyword: str) -> str:
+    """Wrap a keyword in quotes when it contains whitespace or search-syntax characters."""
     if any(ch.isspace() for ch in keyword) or any(ch in keyword for ch in ('"', ":", "(", ")")):
         escaped = keyword.replace('"', '\\"')
         return f'"{escaped}"'
@@ -69,7 +73,7 @@ def _quote_query_term(keyword: str) -> str:
 
 
 def build_sync_tasks(ingestion_params: dict[str, Any]) -> list[BlueskyTask]:
-    """Return one sync task per keyword for checkpointing."""
+    """Build one checkpoint task per entry in ingestion_params.keywords."""
     keywords = ingestion_params.get("keywords")
     if not isinstance(keywords, list) or not keywords:
         raise ValueError("ingestion_params must include 'keywords' as a non-empty list of strings")
@@ -84,6 +88,7 @@ def build_sync_tasks(ingestion_params: dict[str, Any]) -> list[BlueskyTask]:
 
 
 def _posts_to_rows(response: Any) -> list[dict[str, Any]]:
+    """Map a searchPosts API response to flat dict rows for CSV storage."""
     rows: list[dict[str, Any]] = []
     for post in response.posts:
         rkey = post.uri.split("/")[-1]
@@ -112,6 +117,7 @@ def _search_posts_page(
     page_limit: int,
     cursor: str | None = None,
 ) -> Any:
+    """Fetch one page of searchPosts results, optionally scoped to a single author handle."""
     base_params = {
         "q": query,
         "limit": page_limit,
@@ -134,7 +140,10 @@ def fetch_posts_for_keyword(
     *,
     task_id: str,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Fetch up to ingestion_params.limit posts for a single query, paginating with cursor."""
+    """Paginate searchPosts until ingestion_params.limit rows are collected or results are exhausted.
+
+    Returns the row list and per-task stats (pages fetched, hits_total from the first page, etc.).
+    """
     target = int(ingestion_params["limit"])
     rows: list[dict[str, Any]] = []
     cursor: str | None = None
@@ -168,6 +177,7 @@ def fetch_posts_for_keyword(
 
 
 def _initial_task_progress(task: BlueskyTask) -> dict[str, Any]:
+    """Return the pending task-ledger entry written into run metadata at sync start."""
     return {
         "status": TaskStatus.PENDING.value,
         "kind": "bluesky",
@@ -185,6 +195,7 @@ def init_sync_metadata(
     sync_timestamp: str,
     sync_tasks: list[BlueskyTask],
 ) -> dict[str, Any]:
+    """Build the initial metadata.json payload for a new raw run directory."""
     return build_base_sync_metadata(
         config,
         config_path,
@@ -204,6 +215,11 @@ def run_sync_tasks(
     *,
     csv_filename: str,
 ) -> None:
+    """Run the checkpointed keyword loop: fetch, dedupe-append, and flush metadata per task.
+
+    Skips completed tasks on resume, stops early when max_rows is reached, and records failures
+    without aborting the full run.
+    """
     max_rows_int = parse_max_rows(ingestion_params)
     prior_uris = load_prior_seen_ids(
         storage,
@@ -213,7 +229,9 @@ def run_sync_tasks(
         filename=csv_filename,
         same_dataset_flag="dedupe_posts_from_prior_raw_runs",
     )
+
     def process_task(task: BlueskyTask, entry: dict[str, Any]) -> None:
+        """Fetch one keyword, persist deduped rows, and update the task ledger entry."""
         mark_task_in_progress(entry, storage, output_dir, metadata)
 
         try:
@@ -265,22 +283,16 @@ def run_sync_tasks(
     )
 
 
-def setup_client() -> Client:
-    client = Client()
-    client.login(
-        EnvVarsContainer.get_env_var("BLUESKY_HANDLE", required=True),
-        EnvVarsContainer.get_env_var("BLUESKY_PASSWORD", required=True),
-    )
-    return client
-
-
 def sync_records(
     config_path: Path = DEFAULT_CONFIG,
     *,
     resume: bool = False,
     run_dir_name: str | None = None,
 ) -> Path:
-    """Fetch Bluesky records per config and write raw CSV + metadata."""
+    """Load config, prepare or resume a raw run, and sync all keyword tasks to posts.csv.
+
+    Creates the dataset manifest on first run and returns the output run directory path.
+    """
     config = load_yaml_config(config_path)
     dataset_id = require_dataset_id(config, platform="bluesky")
     storage = BlueskyStorageManager("raw", dataset_id)
@@ -302,7 +314,7 @@ def sync_records(
         raise ValueError(f"Unsupported record types for checkpoint sync: {record_types}")
 
     csv_filename = record_type_to_filename(POSTS_RECORD_TYPE)
-    client = setup_client()
+    client = init_bluesky_client()
 
     output_dir, metadata = prepare_sync_run(
         storage,
@@ -331,6 +343,7 @@ def sync_records(
 
 
 def main() -> None:
+    """CLI entrypoint for sync_bluesky.py (--config, --resume, --run-dir)."""
     run_sync_cli(
         configs_dir=CONFIGS_DIR,
         default_config=DEFAULT_CONFIG,
