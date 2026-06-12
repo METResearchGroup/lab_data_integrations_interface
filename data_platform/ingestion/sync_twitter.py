@@ -24,12 +24,20 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import typer
 from tqdm import tqdm
 
 from data_platform.ingestion.dedupe import load_prior_seen_ids
+from data_platform.ingestion.sync_checkpoint import (
+    SyncStatus,
+    TaskStatus,
+    get_task_progress,
+    mark_remaining_tasks_skipped,
+    sync_status_from_tasks,
+    validate_tasks_for_resume,
+)
 from data_platform.ingestion.twitter_client import fetch_posts_for_keyword, init_twitter_client
 from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
 from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
@@ -40,29 +48,27 @@ CONFIGS_DIR = Path(__file__).resolve().parent / "configs/twitter"
 DEFAULT_CONFIG = CONFIGS_DIR / "default.yaml"
 POSTS_CSV = "posts.csv"
 
-KeywordStatus = Literal["pending", "in_progress", "completed", "failed", "skipped"]
-SyncStatus = Literal["in_progress", "completed"]
-
 
 @dataclass(frozen=True)
-class FetchWorkItem:
-    ledger_key: str
+class TwitterTask:
+    task_id: str
     keyword: str
 
 
-def iter_fetch_work_items(ingestion_params: dict[str, Any]) -> list[FetchWorkItem]:
+def build_sync_tasks(ingestion_params: dict[str, Any]) -> list[TwitterTask]:
     keyword = ingestion_params.get("keyword")
     if isinstance(keyword, list) and keyword:
-        return [FetchWorkItem(ledger_key=str(k), keyword=str(k)) for k in keyword]
+        return [TwitterTask(task_id=str(k), keyword=str(k)) for k in keyword]
     if isinstance(keyword, str) and keyword:
-        return [FetchWorkItem(ledger_key=keyword, keyword=keyword)]
+        return [TwitterTask(task_id=keyword, keyword=keyword)]
     raise ValueError("ingestion_params must include 'keyword' as a string or list of strings")
 
 
-def _keyword_entry(item: FetchWorkItem) -> dict[str, Any]:
+def _initial_task_progress(task: TwitterTask) -> dict[str, Any]:
     return {
-        "status": "pending",
-        "keyword": item.keyword,
+        "status": TaskStatus.PENDING.value,
+        "kind": "twitter",
+        "keyword": task.keyword,
         "pages_fetched": 0,
         "rows_collected": 0,
         "last_error": None,
@@ -73,11 +79,11 @@ def init_sync_metadata(
     config: dict[str, Any],
     config_path: Path,
     sync_timestamp: str,
-    work_items: list[FetchWorkItem],
+    sync_tasks: list[TwitterTask],
 ) -> dict[str, Any]:
     dataset_id = _require_dataset_id(config)
     return {
-        "sync_status": "in_progress",
+        "sync_status": SyncStatus.IN_PROGRESS.value,
         "dataset_id": dataset_id,
         "name": config["name"],
         "description": config["description"],
@@ -87,7 +93,7 @@ def init_sync_metadata(
         "record_types": config["record_types"],
         "ingestion_params": config["ingestion_params"],
         "row_count": 0,
-        "keywords": {item.ledger_key: _keyword_entry(item) for item in work_items},
+        "tasks": {task.task_id: _initial_task_progress(task) for task in sync_tasks},
     }
 
 
@@ -95,18 +101,6 @@ def _flush_metadata(
     storage: TwitterStorageManager, run_dir: Path, metadata: dict[str, Any]
 ) -> None:
     storage.write_run_metadata_atomic(run_dir, metadata)
-
-
-def _mark_remaining_skipped(metadata: dict[str, Any]) -> None:
-    for entry in metadata["keywords"].values():
-        if entry["status"] == "pending":
-            entry["status"] = "skipped"
-
-
-def _sync_status_done(metadata: dict[str, Any]) -> SyncStatus:
-    statuses = {entry["status"] for entry in metadata["keywords"].values()}
-    unfinished = statuses - {"completed", "skipped"}
-    return "completed" if not unfinished else "in_progress"
 
 
 def _effective_limit_per_keyword(ingestion_params: dict[str, Any], remaining: int | None) -> int:
@@ -122,10 +116,10 @@ def _stop_at_max_rows(
     metadata: dict[str, Any],
     max_rows_int: int | None,
 ) -> bool:
-    """Mark pending keywords skipped and flush when row cap is reached."""
+    """Mark pending tasks skipped and flush when row cap is reached."""
     if max_rows_int is None or metadata["row_count"] < max_rows_int:
         return False
-    _mark_remaining_skipped(metadata)
+    mark_remaining_tasks_skipped(get_task_progress(metadata))
     _flush_metadata(storage, output_dir, metadata)
     return True
 
@@ -136,10 +130,10 @@ def _remaining_row_budget(metadata: dict[str, Any], max_rows_int: int | None) ->
     return max_rows_int - metadata["row_count"]
 
 
-def _sync_one_keyword(
+def _sync_one_task(
     client: Any,
     *,
-    item: FetchWorkItem,
+    task: TwitterTask,
     entry: dict[str, Any],
     ingestion_params: dict[str, Any],
     output_dir: Path,
@@ -152,7 +146,7 @@ def _sync_one_keyword(
     remaining: int | None,
     prior_tweet_ids: set[str],
 ) -> None:
-    entry["status"] = "in_progress"
+    entry["status"] = TaskStatus.IN_PROGRESS.value
     entry["last_error"] = None
     _flush_metadata(storage, output_dir, metadata)
 
@@ -160,17 +154,17 @@ def _sync_one_keyword(
     try:
         rows, stats = fetch_posts_for_keyword(
             client,
-            item.keyword,
+            task.keyword,
             limit=limit,
             lang=lang,
             exclude=exclude,
             sync_timestamp=sync_timestamp,
         )
     except Exception as exc:  # noqa: BLE001 — record and continue
-        entry["status"] = "failed"
+        entry["status"] = TaskStatus.FAILED.value
         entry["last_error"] = str(exc)
         _flush_metadata(storage, output_dir, metadata)
-        print(f"sync_records: {item.ledger_key} failed: {exc}")
+        print(f"sync_records: {task.task_id} failed: {exc}")
         return
 
     seen_ids = prior_tweet_ids | storage.load_seen_tweet_ids(output_dir, filename=csv_filename)
@@ -183,25 +177,25 @@ def _sync_one_keyword(
         storage.append_records(new_rows, output_dir, filename=csv_filename)
 
     metadata["row_count"] = len(storage.load_seen_tweet_ids(output_dir, filename=csv_filename))
-    entry["status"] = "completed"
+    entry["status"] = TaskStatus.COMPLETED.value
     entry["pages_fetched"] = stats["pages_fetched"]
     entry["rows_collected"] = stats["rows_collected"]
     entry["last_error"] = None
     _flush_metadata(storage, output_dir, metadata)
 
     print(
-        f"sync_records: {item.ledger_key} -> {stats['rows_collected']} rows "
+        f"sync_records: {task.task_id} -> {stats['rows_collected']} rows "
         f"(appended {len(new_rows)}, pages={stats['pages_fetched']})"
     )
 
 
-def run_keyword_sync_loop(
+def run_sync_tasks(
     client: Any,
     ingestion_params: dict[str, Any],
     output_dir: Path,
     storage: TwitterStorageManager,
     metadata: dict[str, Any],
-    work_items: list[FetchWorkItem],
+    sync_tasks: list[TwitterTask],
     *,
     sync_timestamp: str,
     csv_filename: str,
@@ -218,22 +212,23 @@ def run_keyword_sync_loop(
         filename=csv_filename,
         same_dataset_flag="dedupe_tweets_from_prior_raw_runs",
     )
+    progress = get_task_progress(metadata)
 
-    for item in tqdm(
-        work_items,
+    for task in tqdm(
+        sync_tasks,
         desc="Syncing keywords",
         disable=not sys.stderr.isatty(),
     ):
-        entry = metadata["keywords"][item.ledger_key]
-        if entry["status"] in ("completed", "skipped"):
+        entry = progress[task.task_id]
+        if entry["status"] in (TaskStatus.COMPLETED.value, TaskStatus.SKIPPED.value):
             continue
 
         if _stop_at_max_rows(storage, output_dir, metadata, max_rows_int):
             break
 
-        _sync_one_keyword(
+        _sync_one_task(
             client,
-            item=item,
+            task=task,
             entry=entry,
             ingestion_params=ingestion_params,
             output_dir=output_dir,
@@ -250,7 +245,7 @@ def run_keyword_sync_loop(
         if _stop_at_max_rows(storage, output_dir, metadata, max_rows_int):
             break
 
-    metadata["sync_status"] = _sync_status_done(metadata)
+    metadata["sync_status"] = sync_status_from_tasks(progress).value
     _flush_metadata(storage, output_dir, metadata)
 
 
@@ -276,7 +271,7 @@ def find_resume_run_dir(
         if not metadata_path.exists():
             continue
         metadata = storage.load_run_metadata(path)
-        if metadata.get("sync_status") == "in_progress":
+        if metadata.get("sync_status") == SyncStatus.IN_PROGRESS.value:
             candidates.append((path.name, path))
 
     if not candidates:
@@ -285,22 +280,6 @@ def find_resume_run_dir(
             "Start a new sync or pass --run-dir."
         )
     return max(candidates, key=lambda item: item[0])[1]
-
-
-def merge_work_items_with_metadata(
-    work_items: list[FetchWorkItem],
-    metadata: dict[str, Any],
-) -> list[FetchWorkItem]:
-    ledger_keys = {item.ledger_key for item in work_items}
-    metadata_keys = set(metadata.get("keywords", {}))
-    missing = ledger_keys - metadata_keys
-    extra = metadata_keys - ledger_keys
-    if missing or extra:
-        raise ValueError(
-            "Config keywords do not match resume metadata "
-            f"(missing in metadata: {sorted(missing)}, extra in metadata: {sorted(extra)})"
-        )
-    return work_items
 
 
 load_config = load_yaml_config
@@ -337,32 +316,32 @@ def sync_records(
         )
 
     ingestion_params = config["ingestion_params"]
-    work_items = iter_fetch_work_items(ingestion_params)
+    sync_tasks = build_sync_tasks(ingestion_params)
     client = init_twitter_client()
 
     if resume:
         output_dir = find_resume_run_dir(storage, run_dir_name=run_dir_name)
         metadata = storage.load_run_metadata(output_dir)
-        if metadata.get("sync_status") != "in_progress":
-            metadata["sync_status"] = "in_progress"
+        if metadata.get("sync_status") != SyncStatus.IN_PROGRESS.value:
+            metadata["sync_status"] = SyncStatus.IN_PROGRESS.value
             _flush_metadata(storage, output_dir, metadata)
-        work_items = merge_work_items_with_metadata(work_items, metadata)
+        validate_tasks_for_resume(sync_tasks, metadata, entity_label="keywords")
         sync_timestamp = str(metadata["sync_timestamp"])
         print(f"sync_records: resuming {output_dir}")
     else:
         sync_timestamp = get_current_timestamp()
         output_dir = storage.create_new_run_dir(sync_timestamp)
-        metadata = init_sync_metadata(config, config_path, sync_timestamp, work_items)
+        metadata = init_sync_metadata(config, config_path, sync_timestamp, sync_tasks)
         _flush_metadata(storage, output_dir, metadata)
         print(f"sync_records: started new run {output_dir}")
 
-    run_keyword_sync_loop(
+    run_sync_tasks(
         client,
         ingestion_params,
         output_dir,
         storage,
         metadata,
-        work_items,
+        sync_tasks,
         sync_timestamp=sync_timestamp,
         csv_filename=POSTS_CSV,
     )

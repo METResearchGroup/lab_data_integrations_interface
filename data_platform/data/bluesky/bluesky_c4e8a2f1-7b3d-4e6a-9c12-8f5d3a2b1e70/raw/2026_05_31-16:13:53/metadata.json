@@ -9,7 +9,8 @@
   "record_types": [
     "app.bsky.feed.post"
   ],
-  "fetch": {
+  "row_count": 20422,
+  "ingestion_params": {
     "limit": 700,
     "sort": "latest",
     "query_batch_size": 1,
@@ -90,11 +91,11 @@
       "immigration detention"
     ]
   },
-  "row_count": 20422,
-  "keywords": {
+  "tasks": {
     "gun control": {
       "status": "completed",
-      "batch_label": "posts_batch_1",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 9,
       "rows_collected": 700,
       "hits_total": null,
@@ -102,7 +103,8 @@
     },
     "gun rights": {
       "status": "completed",
-      "batch_label": "posts_batch_2",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -110,7 +112,8 @@
     },
     "second amendment": {
       "status": "completed",
-      "batch_label": "posts_batch_3",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -118,7 +121,8 @@
     },
     "gun violence": {
       "status": "completed",
-      "batch_label": "posts_batch_4",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -126,7 +130,8 @@
     },
     "gun safety": {
       "status": "completed",
-      "batch_label": "posts_batch_5",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 13,
       "rows_collected": 699,
       "hits_total": null,
@@ -134,7 +139,8 @@
     },
     "firearm": {
       "status": "completed",
-      "batch_label": "posts_batch_6",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 10,
       "rows_collected": 700,
       "hits_total": null,
@@ -142,7 +148,8 @@
     },
     "gun laws": {
       "status": "completed",
-      "batch_label": "posts_batch_7",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -150,7 +157,8 @@
     },
     "gun reform": {
       "status": "completed",
-      "batch_label": "posts_batch_8",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -158,7 +166,8 @@
     },
     "background checks": {
       "status": "completed",
-      "batch_label": "posts_batch_9",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -166,7 +175,8 @@
     },
     "assault weapon": {
       "status": "completed",
-      "batch_label": "posts_batch_10",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 10,
       "rows_collected": 700,
       "hits_total": null,
@@ -174,7 +184,8 @@
     },
     "mass shooting": {
       "status": "completed",
-      "batch_label": "posts_batch_11",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -182,7 +193,8 @@
     },
     "NRA": {
       "status": "completed",
-      "batch_label": "posts_batch_12",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 9,
       "rows_collected": 700,
       "hits_total": null,
@@ -190,7 +202,8 @@
     },
     "gun ban": {
       "status": "completed",
-      "batch_label": "posts_batch_13",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 9,
       "rows_collected": 700,
       "hits_total": null,
@@ -198,7 +211,8 @@
     },
     "open carry": {
       "status": "completed",
-      "batch_label": "posts_batch_14",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 9,
       "rows_collected": 700,
       "hits_total": null,
@@ -206,7 +220,8 @@
     },
     "concealed carry": {
       "status": "completed",
-      "batch_label": "posts_batch_15",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 9,
       "rows_collected": 700,
       "hits_total": null,
@@ -214,7 +229,8 @@
     },
     "red flag laws": {
       "status": "completed",
-      "batch_label": "posts_batch_16",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -222,7 +238,8 @@
     },
     "climate change": {
       "status": "completed",
-      "batch_label": "posts_batch_17",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -230,7 +247,8 @@
     },
     "global warming": {
       "status": "completed",
-      "batch_label": "posts_batch_18",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -238,7 +256,8 @@
     },
     "climate crisis": {
       "status": "completed",
-      "batch_label": "posts_batch_19",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -246,7 +265,8 @@
     },
     "climate action": {
       "status": "completed",
-      "batch_label": "posts_batch_20",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -254,7 +274,8 @@
     },
     "carbon emissions": {
       "status": "completed",
-      "batch_label": "posts_batch_21",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -262,7 +283,8 @@
     },
     "greenhouse gases": {
       "status": "completed",
-      "batch_label": "posts_batch_22",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -270,7 +292,8 @@
     },
     "fossil fuels": {
       "status": "completed",
-      "batch_label": "posts_batch_23",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -278,7 +301,8 @@
     },
     "renewable energy": {
       "status": "completed",
-      "batch_label": "posts_batch_24",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -286,7 +310,8 @@
     },
     "climate policy": {
       "status": "completed",
-      "batch_label": "posts_batch_25",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -294,7 +319,8 @@
     },
     "Paris agreement": {
       "status": "completed",
-      "batch_label": "posts_batch_26",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -302,7 +328,8 @@
     },
     "carbon tax": {
       "status": "completed",
-      "batch_label": "posts_batch_27",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -310,7 +337,8 @@
     },
     "green new deal": {
       "status": "completed",
-      "batch_label": "posts_batch_28",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -318,7 +346,8 @@
     },
     "climate science": {
       "status": "completed",
-      "batch_label": "posts_batch_29",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 8,
       "rows_collected": 700,
       "hits_total": null,
@@ -326,7 +355,8 @@
     },
     "global temperature": {
       "status": "completed",
-      "batch_label": "posts_batch_30",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 9,
       "rows_collected": 700,
       "hits_total": null,
@@ -334,7 +364,8 @@
     },
     "sea level rise": {
       "status": "skipped",
-      "batch_label": "posts_batch_31",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -342,7 +373,8 @@
     },
     "carbon footprint": {
       "status": "skipped",
-      "batch_label": "posts_batch_32",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -350,7 +382,8 @@
     },
     "clean energy": {
       "status": "skipped",
-      "batch_label": "posts_batch_33",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -358,7 +391,8 @@
     },
     "climate denial": {
       "status": "skipped",
-      "batch_label": "posts_batch_34",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -366,7 +400,8 @@
     },
     "abortion": {
       "status": "skipped",
-      "batch_label": "posts_batch_35",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -374,7 +409,8 @@
     },
     "reproductive rights": {
       "status": "skipped",
-      "batch_label": "posts_batch_36",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -382,7 +418,8 @@
     },
     "pro-choice": {
       "status": "skipped",
-      "batch_label": "posts_batch_37",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -390,7 +427,8 @@
     },
     "pro-life": {
       "status": "skipped",
-      "batch_label": "posts_batch_38",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -398,7 +436,8 @@
     },
     "roe v wade": {
       "status": "skipped",
-      "batch_label": "posts_batch_39",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -406,7 +445,8 @@
     },
     "planned parenthood": {
       "status": "skipped",
-      "batch_label": "posts_batch_40",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -414,7 +454,8 @@
     },
     "abortion rights": {
       "status": "skipped",
-      "batch_label": "posts_batch_41",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -422,7 +463,8 @@
     },
     "abortion ban": {
       "status": "skipped",
-      "batch_label": "posts_batch_42",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -430,7 +472,8 @@
     },
     "abortion access": {
       "status": "skipped",
-      "batch_label": "posts_batch_43",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -438,7 +481,8 @@
     },
     "reproductive health": {
       "status": "skipped",
-      "batch_label": "posts_batch_44",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -446,7 +490,8 @@
     },
     "fetal rights": {
       "status": "skipped",
-      "batch_label": "posts_batch_45",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -454,7 +499,8 @@
     },
     "women's rights": {
       "status": "skipped",
-      "batch_label": "posts_batch_46",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -462,7 +508,8 @@
     },
     "abortion clinic": {
       "status": "skipped",
-      "batch_label": "posts_batch_47",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -470,7 +517,8 @@
     },
     "late term abortion": {
       "status": "skipped",
-      "batch_label": "posts_batch_48",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -478,7 +526,8 @@
     },
     "abortion pill": {
       "status": "skipped",
-      "batch_label": "posts_batch_49",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -486,7 +535,8 @@
     },
     "heartbeat bill": {
       "status": "skipped",
-      "batch_label": "posts_batch_50",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -494,7 +544,8 @@
     },
     "abortion law": {
       "status": "skipped",
-      "batch_label": "posts_batch_51",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -502,7 +553,8 @@
     },
     "reproductive freedom": {
       "status": "skipped",
-      "batch_label": "posts_batch_52",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -510,7 +562,8 @@
     },
     "right to choose": {
       "status": "skipped",
-      "batch_label": "posts_batch_53",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -518,7 +571,8 @@
     },
     "immigration": {
       "status": "skipped",
-      "batch_label": "posts_batch_54",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -526,7 +580,8 @@
     },
     "border security": {
       "status": "skipped",
-      "batch_label": "posts_batch_55",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -534,7 +589,8 @@
     },
     "illegal immigration": {
       "status": "skipped",
-      "batch_label": "posts_batch_56",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -542,7 +598,8 @@
     },
     "immigration reform": {
       "status": "skipped",
-      "batch_label": "posts_batch_57",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -550,7 +607,8 @@
     },
     "deportation": {
       "status": "skipped",
-      "batch_label": "posts_batch_58",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -558,7 +616,8 @@
     },
     "ICE": {
       "status": "skipped",
-      "batch_label": "posts_batch_59",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -566,7 +625,8 @@
     },
     "border wall": {
       "status": "skipped",
-      "batch_label": "posts_batch_60",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -574,7 +634,8 @@
     },
     "asylum": {
       "status": "skipped",
-      "batch_label": "posts_batch_61",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -582,7 +643,8 @@
     },
     "refugees": {
       "status": "skipped",
-      "batch_label": "posts_batch_62",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -590,7 +652,8 @@
     },
     "DACA": {
       "status": "skipped",
-      "batch_label": "posts_batch_63",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -598,7 +661,8 @@
     },
     "green card": {
       "status": "skipped",
-      "batch_label": "posts_batch_64",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -606,7 +670,8 @@
     },
     "citizenship": {
       "status": "skipped",
-      "batch_label": "posts_batch_65",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -614,7 +679,8 @@
     },
     "immigration policy": {
       "status": "skipped",
-      "batch_label": "posts_batch_66",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -622,7 +688,8 @@
     },
     "border patrol": {
       "status": "skipped",
-      "batch_label": "posts_batch_67",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -630,7 +697,8 @@
     },
     "undocumented immigrants": {
       "status": "skipped",
-      "batch_label": "posts_batch_68",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -638,7 +706,8 @@
     },
     "visa": {
       "status": "skipped",
-      "batch_label": "posts_batch_69",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -646,7 +715,8 @@
     },
     "sanctuary cities": {
       "status": "skipped",
-      "batch_label": "posts_batch_70",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -654,7 +724,8 @@
     },
     "border crisis": {
       "status": "skipped",
-      "batch_label": "posts_batch_71",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -662,7 +733,8 @@
     },
     "migrant": {
       "status": "skipped",
-      "batch_label": "posts_batch_72",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,
@@ -670,7 +742,8 @@
     },
     "immigration detention": {
       "status": "skipped",
-      "batch_label": "posts_batch_73",
+      "kind": "bluesky",
+      "source_keywords": null,
       "pages_fetched": 0,
       "rows_collected": 0,
       "hits_total": null,

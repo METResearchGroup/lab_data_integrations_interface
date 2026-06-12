@@ -9,7 +9,9 @@
   "record_types": [
     "twitter.tweet"
   ],
-  "fetch": {
+  "row_count": 6657,
+  "tweets_skipped_as_duplicates": 8502,
+  "ingestion_params": {
     "max_rows": 15000,
     "limit_per_keyword": 300,
     "lang": "en",
@@ -95,10 +97,10 @@
       "immigration detention"
     ]
   },
-  "row_count": 6657,
-  "keywords": {
+  "tasks": {
     "gun control": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "gun control",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -106,6 +108,7 @@
     },
     "gun rights": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "gun rights",
       "pages_fetched": 3,
       "rows_collected": 238,
@@ -113,6 +116,7 @@
     },
     "second amendment": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "second amendment",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -120,6 +124,7 @@
     },
     "gun violence": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "gun violence",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -127,6 +132,7 @@
     },
     "gun safety": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "gun safety",
       "pages_fetched": 1,
       "rows_collected": 91,
@@ -134,6 +140,7 @@
     },
     "firearm": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "firearm",
       "pages_fetched": 3,
       "rows_collected": 300,
@@ -141,6 +148,7 @@
     },
     "gun laws": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "gun laws",
       "pages_fetched": 2,
       "rows_collected": 189,
@@ -148,6 +156,7 @@
     },
     "gun reform": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "gun reform",
       "pages_fetched": 1,
       "rows_collected": 12,
@@ -155,6 +164,7 @@
     },
     "background checks": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "background checks",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -162,6 +172,7 @@
     },
     "assault weapon": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "assault weapon",
       "pages_fetched": 1,
       "rows_collected": 53,
@@ -169,6 +180,7 @@
     },
     "mass shooting": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "mass shooting",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -176,6 +188,7 @@
     },
     "NRA": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "NRA",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -183,6 +196,7 @@
     },
     "gun ban": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "gun ban",
       "pages_fetched": 2,
       "rows_collected": 144,
@@ -190,6 +204,7 @@
     },
     "open carry": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "open carry",
       "pages_fetched": 1,
       "rows_collected": 88,
@@ -197,6 +212,7 @@
     },
     "concealed carry": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "concealed carry",
       "pages_fetched": 3,
       "rows_collected": 225,
@@ -204,6 +220,7 @@
     },
     "red flag laws": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "red flag laws",
       "pages_fetched": 1,
       "rows_collected": 48,
@@ -211,6 +228,7 @@
     },
     "climate change": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "climate change",
       "pages_fetched": 3,
       "rows_collected": 300,
@@ -218,6 +236,7 @@
     },
     "global warming": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "global warming",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -225,6 +244,7 @@
     },
     "climate crisis": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "climate crisis",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -232,6 +252,7 @@
     },
     "climate action": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "climate action",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -239,6 +260,7 @@
     },
     "carbon emissions": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "carbon emissions",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -246,6 +268,7 @@
     },
     "greenhouse gases": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "greenhouse gases",
       "pages_fetched": 1,
       "rows_collected": 96,
@@ -253,6 +276,7 @@
     },
     "fossil fuels": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "fossil fuels",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -260,6 +284,7 @@
     },
     "renewable energy": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "renewable energy",
       "pages_fetched": 3,
       "rows_collected": 300,
@@ -267,6 +292,7 @@
     },
     "climate policy": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "climate policy",
       "pages_fetched": 2,
       "rows_collected": 184,
@@ -274,6 +300,7 @@
     },
     "Paris agreement": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "Paris agreement",
       "pages_fetched": 1,
       "rows_collected": 55,
@@ -281,6 +308,7 @@
     },
     "carbon tax": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "carbon tax",
       "pages_fetched": 2,
       "rows_collected": 195,
@@ -288,6 +316,7 @@
     },
     "green new deal": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "green new deal",
       "pages_fetched": 1,
       "rows_collected": 81,
@@ -295,6 +324,7 @@
     },
     "climate science": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "climate science",
       "pages_fetched": 2,
       "rows_collected": 100,
@@ -302,6 +332,7 @@
     },
     "global temperature": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "global temperature",
       "pages_fetched": 1,
       "rows_collected": 64,
@@ -309,6 +340,7 @@
     },
     "sea level rise": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "sea level rise",
       "pages_fetched": 2,
       "rows_collected": 102,
@@ -316,6 +348,7 @@
     },
     "carbon footprint": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "carbon footprint",
       "pages_fetched": 5,
       "rows_collected": 300,
@@ -323,6 +356,7 @@
     },
     "clean energy": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "clean energy",
       "pages_fetched": 3,
       "rows_collected": 300,
@@ -330,6 +364,7 @@
     },
     "climate denial": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "climate denial",
       "pages_fetched": 1,
       "rows_collected": 25,
@@ -337,6 +372,7 @@
     },
     "abortion": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "abortion",
       "pages_fetched": 3,
       "rows_collected": 300,
@@ -344,6 +380,7 @@
     },
     "reproductive rights": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "reproductive rights",
       "pages_fetched": 2,
       "rows_collected": 163,
@@ -351,6 +388,7 @@
     },
     "pro-choice": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "pro-choice",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -358,6 +396,7 @@
     },
     "pro-life": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "pro-life",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -365,6 +404,7 @@
     },
     "roe v wade": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "roe v wade",
       "pages_fetched": 1,
       "rows_collected": 98,
@@ -372,6 +412,7 @@
     },
     "planned parenthood": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "planned parenthood",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -379,6 +420,7 @@
     },
     "abortion rights": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "abortion rights",
       "pages_fetched": 2,
       "rows_collected": 135,
@@ -386,6 +428,7 @@
     },
     "abortion ban": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "abortion ban",
       "pages_fetched": 2,
       "rows_collected": 117,
@@ -393,6 +436,7 @@
     },
     "abortion access": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "abortion access",
       "pages_fetched": 1,
       "rows_collected": 52,
@@ -400,6 +444,7 @@
     },
     "reproductive health": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "reproductive health",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -407,6 +452,7 @@
     },
     "fetal rights": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "fetal rights",
       "pages_fetched": 1,
       "rows_collected": 1,
@@ -414,6 +460,7 @@
     },
     "women's rights": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "women's rights",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -421,6 +468,7 @@
     },
     "abortion clinic": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "abortion clinic",
       "pages_fetched": 1,
       "rows_collected": 71,
@@ -428,6 +476,7 @@
     },
     "late term abortion": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "late term abortion",
       "pages_fetched": 1,
       "rows_collected": 23,
@@ -435,6 +484,7 @@
     },
     "abortion pill": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "abortion pill",
       "pages_fetched": 2,
       "rows_collected": 176,
@@ -442,6 +492,7 @@
     },
     "heartbeat bill": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "heartbeat bill",
       "pages_fetched": 1,
       "rows_collected": 5,
@@ -449,6 +500,7 @@
     },
     "abortion law": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "abortion law",
       "pages_fetched": 1,
       "rows_collected": 23,
@@ -456,6 +508,7 @@
     },
     "reproductive freedom": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "reproductive freedom",
       "pages_fetched": 1,
       "rows_collected": 58,
@@ -463,6 +516,7 @@
     },
     "right to choose": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "right to choose",
       "pages_fetched": 3,
       "rows_collected": 258,
@@ -470,6 +524,7 @@
     },
     "immigration": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "immigration",
       "pages_fetched": 3,
       "rows_collected": 300,
@@ -477,6 +532,7 @@
     },
     "border security": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "border security",
       "pages_fetched": 3,
       "rows_collected": 300,
@@ -484,6 +540,7 @@
     },
     "illegal immigration": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "illegal immigration",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -491,6 +548,7 @@
     },
     "immigration reform": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "immigration reform",
       "pages_fetched": 1,
       "rows_collected": 75,
@@ -498,6 +556,7 @@
     },
     "deportation": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "deportation",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -505,6 +564,7 @@
     },
     "ICE": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "ICE",
       "pages_fetched": 3,
       "rows_collected": 300,
@@ -512,6 +572,7 @@
     },
     "border wall": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "border wall",
       "pages_fetched": 3,
       "rows_collected": 207,
@@ -519,6 +580,7 @@
     },
     "asylum": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "asylum",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -526,6 +588,7 @@
     },
     "refugees": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "refugees",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -533,6 +596,7 @@
     },
     "DACA": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "DACA",
       "pages_fetched": 4,
       "rows_collected": 299,
@@ -540,6 +604,7 @@
     },
     "green card": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "green card",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -547,6 +612,7 @@
     },
     "citizenship": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "citizenship",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -554,6 +620,7 @@
     },
     "immigration policy": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "immigration policy",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -561,6 +628,7 @@
     },
     "border patrol": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "border patrol",
       "pages_fetched": 3,
       "rows_collected": 300,
@@ -568,6 +636,7 @@
     },
     "undocumented immigrants": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "undocumented immigrants",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -575,6 +644,7 @@
     },
     "visa": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "visa",
       "pages_fetched": 3,
       "rows_collected": 300,
@@ -582,6 +652,7 @@
     },
     "sanctuary cities": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "sanctuary cities",
       "pages_fetched": 4,
       "rows_collected": 300,
@@ -589,6 +660,7 @@
     },
     "border crisis": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "border crisis",
       "pages_fetched": 1,
       "rows_collected": 63,
@@ -596,6 +668,7 @@
     },
     "migrant": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "migrant",
       "pages_fetched": 3,
       "rows_collected": 300,
@@ -603,11 +676,11 @@
     },
     "immigration detention": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "immigration detention",
       "pages_fetched": 4,
       "rows_collected": 300,
       "last_error": null
     }
-  },
-  "tweets_skipped_as_duplicates": 8502
+  }
 }

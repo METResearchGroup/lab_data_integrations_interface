@@ -28,34 +28,35 @@ def _minimal_twitter_sync_config() -> dict[str, Any]:
     }
 
 
-def test_init_sync_metadata_keyword_ledger() -> None:
+def test_init_sync_metadata_task_ledger() -> None:
     config = _minimal_twitter_sync_config()
-    work_items = sync_twitter.iter_fetch_work_items(config["ingestion_params"])
+    sync_tasks = sync_twitter.build_sync_tasks(config["ingestion_params"])
     metadata = sync_twitter.init_sync_metadata(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
     assert metadata["sync_status"] == "in_progress"
-    assert set(metadata["keywords"]) == {"alpha", "beta"}
-    assert metadata["keywords"]["alpha"]["status"] == "pending"
+    assert set(metadata["tasks"]) == {"alpha", "beta"}
+    assert metadata["tasks"]["alpha"]["status"] == "pending"
+    assert metadata["tasks"]["alpha"]["kind"] == "twitter"
 
 
-def test_run_keyword_sync_loop_appends_per_keyword(
+def test_run_sync_tasks_appends_per_keyword(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = _minimal_twitter_sync_config()
     ingestion_params = config["ingestion_params"]
-    work_items = sync_twitter.iter_fetch_work_items(ingestion_params)
+    sync_tasks = sync_twitter.build_sync_tasks(ingestion_params)
     storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_twitter.init_sync_metadata(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
 
     rows_by_keyword = {
@@ -80,19 +81,19 @@ def test_run_keyword_sync_loop_appends_per_keyword(
 
     monkeypatch.setattr(sync_twitter, "fetch_posts_for_keyword", fake_fetch)
 
-    sync_twitter.run_keyword_sync_loop(
+    sync_twitter.run_sync_tasks(
         MagicMock(),
         ingestion_params,
         run_dir,
         storage,
         metadata,
-        work_items,
+        sync_tasks,
         sync_timestamp="2026_05_30-10:00:00",
         csv_filename=sync_twitter.POSTS_CSV,
     )
 
-    assert metadata["keywords"]["alpha"]["status"] == "completed"
-    assert metadata["keywords"]["beta"]["status"] == "completed"
+    assert metadata["tasks"]["alpha"]["status"] == "completed"
+    assert metadata["tasks"]["beta"]["status"] == "completed"
     assert metadata["row_count"] == 2
     assert metadata["sync_status"] == "completed"
     assert storage.load_seen_tweet_ids(run_dir) == {
@@ -101,7 +102,7 @@ def test_run_keyword_sync_loop_appends_per_keyword(
     }
 
 
-def test_run_keyword_sync_loop_skips_prior_run_tweets_when_enabled(
+def test_run_sync_tasks_skips_prior_run_tweets_when_enabled(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -109,7 +110,7 @@ def test_run_keyword_sync_loop_skips_prior_run_tweets_when_enabled(
     ingestion_params = config["ingestion_params"]
     ingestion_params["dedupe_tweets_from_prior_raw_runs"] = True
     ingestion_params["dedupe_across_datasets"] = False
-    work_items = sync_twitter.iter_fetch_work_items(ingestion_params)
+    sync_tasks = sync_twitter.build_sync_tasks(ingestion_params)
     storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
 
     prior_run = storage.create_new_run_dir("2026_05_29-10:00:00")
@@ -123,7 +124,7 @@ def test_run_keyword_sync_loop_skips_prior_run_tweets_when_enabled(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
 
     def fake_fetch(
@@ -145,13 +146,13 @@ def test_run_keyword_sync_loop_skips_prior_run_tweets_when_enabled(
 
     monkeypatch.setattr(sync_twitter, "fetch_posts_for_keyword", fake_fetch)
 
-    sync_twitter.run_keyword_sync_loop(
+    sync_twitter.run_sync_tasks(
         MagicMock(),
         ingestion_params,
         run_dir,
         storage,
         metadata,
-        work_items[:1],
+        sync_tasks[:1],
         sync_timestamp="2026_05_30-10:00:00",
         csv_filename=sync_twitter.POSTS_CSV,
     )
@@ -160,14 +161,14 @@ def test_run_keyword_sync_loop_skips_prior_run_tweets_when_enabled(
     assert metadata["tweets_skipped_as_duplicates"] == 1
 
 
-def test_run_keyword_sync_loop_does_not_skip_prior_runs_when_disabled(
+def test_run_sync_tasks_does_not_skip_prior_runs_when_disabled(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = _minimal_twitter_sync_config()
     ingestion_params = config["ingestion_params"]
     ingestion_params["dedupe_across_datasets"] = False
-    work_items = sync_twitter.iter_fetch_work_items(ingestion_params)
+    sync_tasks = sync_twitter.build_sync_tasks(ingestion_params)
     storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
 
     prior_run = storage.create_new_run_dir("2026_05_29-10:00:00")
@@ -181,7 +182,7 @@ def test_run_keyword_sync_loop_does_not_skip_prior_runs_when_disabled(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
 
     def fake_fetch(
@@ -203,13 +204,13 @@ def test_run_keyword_sync_loop_does_not_skip_prior_runs_when_disabled(
 
     monkeypatch.setattr(sync_twitter, "fetch_posts_for_keyword", fake_fetch)
 
-    sync_twitter.run_keyword_sync_loop(
+    sync_twitter.run_sync_tasks(
         MagicMock(),
         ingestion_params,
         run_dir,
         storage,
         metadata,
-        work_items[:1],
+        sync_tasks[:1],
         sync_timestamp="2026_05_30-10:00:00",
         csv_filename=sync_twitter.POSTS_CSV,
     )
@@ -221,14 +222,14 @@ def test_run_keyword_sync_loop_does_not_skip_prior_runs_when_disabled(
     assert metadata.get("tweets_skipped_as_duplicates", 0) == 0
 
 
-def test_run_keyword_sync_loop_skips_ids_from_other_dataset(
+def test_run_sync_tasks_skips_ids_from_other_dataset(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     other_dataset_id = "twitter_00000000-0000-4000-8000-000000000002"
     config = _minimal_twitter_sync_config()
     ingestion_params = config["ingestion_params"]
-    work_items = sync_twitter.iter_fetch_work_items(ingestion_params)
+    sync_tasks = sync_twitter.build_sync_tasks(ingestion_params)
     other_storage = TwitterStorageManager("raw", other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
@@ -242,7 +243,7 @@ def test_run_keyword_sync_loop_skips_ids_from_other_dataset(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
 
     def fake_fetch(
@@ -264,13 +265,13 @@ def test_run_keyword_sync_loop_skips_ids_from_other_dataset(
 
     monkeypatch.setattr(sync_twitter, "fetch_posts_for_keyword", fake_fetch)
 
-    sync_twitter.run_keyword_sync_loop(
+    sync_twitter.run_sync_tasks(
         MagicMock(),
         ingestion_params,
         run_dir,
         storage,
         metadata,
-        work_items[:1],
+        sync_tasks[:1],
         sync_timestamp="2026_05_30-10:00:00",
         csv_filename=sync_twitter.POSTS_CSV,
     )
@@ -279,7 +280,7 @@ def test_run_keyword_sync_loop_skips_ids_from_other_dataset(
     assert metadata["tweets_skipped_as_duplicates"] == 1
 
 
-def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
+def test_run_sync_tasks_respects_dedupe_across_datasets_false(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -287,7 +288,7 @@ def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
     config = _minimal_twitter_sync_config()
     ingestion_params = config["ingestion_params"]
     ingestion_params["dedupe_across_datasets"] = False
-    work_items = sync_twitter.iter_fetch_work_items(ingestion_params)
+    sync_tasks = sync_twitter.build_sync_tasks(ingestion_params)
     other_storage = TwitterStorageManager("raw", other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
@@ -301,7 +302,7 @@ def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
 
     def fake_fetch(
@@ -320,13 +321,13 @@ def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
 
     monkeypatch.setattr(sync_twitter, "fetch_posts_for_keyword", fake_fetch)
 
-    sync_twitter.run_keyword_sync_loop(
+    sync_twitter.run_sync_tasks(
         MagicMock(),
         ingestion_params,
         run_dir,
         storage,
         metadata,
-        work_items[:1],
+        sync_tasks[:1],
         sync_timestamp="2026_05_30-10:00:00",
         csv_filename=sync_twitter.POSTS_CSV,
     )
@@ -335,23 +336,23 @@ def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
     assert metadata.get("tweets_skipped_as_duplicates", 0) == 0
 
 
-def test_resume_skips_completed_keywords(
+def test_resume_skips_completed_tasks(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = _minimal_twitter_sync_config()
     ingestion_params = config["ingestion_params"]
-    work_items = sync_twitter.iter_fetch_work_items(ingestion_params)
+    sync_tasks = sync_twitter.build_sync_tasks(ingestion_params)
     storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_twitter.init_sync_metadata(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
-    metadata["keywords"]["alpha"]["status"] = "completed"
-    metadata["keywords"]["alpha"]["rows_collected"] = 1
+    metadata["tasks"]["alpha"]["status"] = "completed"
+    metadata["tasks"]["alpha"]["rows_collected"] = 1
     storage.append_records(
         [mock_tweet_row("1000000000000000001", keyword="alpha")],
         run_dir,
@@ -379,17 +380,17 @@ def test_resume_skips_completed_keywords(
     monkeypatch.setattr(sync_twitter, "fetch_posts_for_keyword", fake_fetch)
 
     resumed_metadata = storage.load_run_metadata(run_dir)
-    sync_twitter.run_keyword_sync_loop(
+    sync_twitter.run_sync_tasks(
         MagicMock(),
         ingestion_params,
         run_dir,
         storage,
         resumed_metadata,
-        work_items,
+        sync_tasks,
         sync_timestamp="2026_05_30-10:00:00",
         csv_filename=sync_twitter.POSTS_CSV,
     )
 
     assert calls == ["beta"]
-    assert resumed_metadata["keywords"]["beta"]["status"] == "completed"
+    assert resumed_metadata["tasks"]["beta"]["status"] == "completed"
     assert resumed_metadata["row_count"] == 2

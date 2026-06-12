@@ -25,7 +25,7 @@ import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import praw
 import praw.models
@@ -35,6 +35,14 @@ from tqdm import tqdm
 
 from data_platform.ingestion.dedupe import load_prior_seen_ids
 from data_platform.ingestion.reddit_retry import retry_reddit_request
+from data_platform.ingestion.sync_checkpoint import (
+    SyncStatus,
+    TaskStatus,
+    get_task_progress,
+    mark_remaining_tasks_skipped,
+    sync_status_from_tasks,
+    validate_tasks_for_resume,
+)
 from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
 from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
 from data_platform.utils.storage import RedditStorageManager
@@ -55,16 +63,13 @@ POSTS_CSV = "posts.csv"
 DEFAULT_LISTING = "hot"
 VALID_LISTING_TIME_FILTERS = frozenset({"all", "day", "hour", "month", "week", "year"})
 
-SubredditStatus = Literal["pending", "in_progress", "completed", "failed", "skipped"]
-SyncStatus = Literal["in_progress", "completed"]
-
 logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class FetchWorkItem:
+class RedditTask:
+    task_id: str
     subreddit: str
-    ledger_key: str
 
 
 def _record_type_to_filename(record_type: str) -> str:
@@ -79,18 +84,18 @@ def _normalize_subreddit_key(subreddit: str) -> str:
     return subreddit.removeprefix("r/").lower()
 
 
-def iter_fetch_work_items(ingestion_params: dict[str, Any]) -> list[FetchWorkItem]:
-    """Return work items keyed by subreddit for checkpointing."""
+def build_sync_tasks(ingestion_params: dict[str, Any]) -> list[RedditTask]:
+    """Return sync tasks keyed by subreddit for checkpointing."""
     subreddits = ingestion_params.get("subreddits")
     if not isinstance(subreddits, list) or not subreddits:
         raise ValueError("ingestion_params must include 'subreddits' as a non-empty list")
 
-    items: list[FetchWorkItem] = []
+    items: list[RedditTask] = []
     for subreddit in subreddits:
         if not isinstance(subreddit, str) or not subreddit.strip():
             raise ValueError("ingestion_params.subreddits entries must be non-empty strings")
-        ledger_key = _normalize_subreddit_key(subreddit)
-        items.append(FetchWorkItem(subreddit=subreddit.strip(), ledger_key=ledger_key))
+        task_id = _normalize_subreddit_key(subreddit)
+        items.append(RedditTask(task_id=task_id, subreddit=subreddit.strip()))
     return items
 
 
@@ -212,10 +217,11 @@ def fetch_records_for_subreddit(
     return post_rows, comment_rows, stats
 
 
-def _subreddit_entry(item: FetchWorkItem) -> dict[str, Any]:
+def _initial_task_progress(task: RedditTask) -> dict[str, Any]:
     return {
-        "status": "pending",
-        "subreddit": item.subreddit,
+        "status": TaskStatus.PENDING.value,
+        "kind": "reddit",
+        "subreddit": task.subreddit,
         "posts_collected": 0,
         "comments_collected": 0,
         "last_error": None,
@@ -226,11 +232,11 @@ def init_sync_metadata(
     config: dict[str, Any],
     config_path: Path,
     sync_timestamp: str,
-    work_items: list[FetchWorkItem],
+    sync_tasks: list[RedditTask],
 ) -> dict[str, Any]:
     dataset_id = _require_dataset_id(config)
     return {
-        "sync_status": "in_progress",
+        "sync_status": SyncStatus.IN_PROGRESS.value,
         "dataset_id": dataset_id,
         "name": config["name"],
         "description": config["description"],
@@ -241,24 +247,12 @@ def init_sync_metadata(
         "ingestion_params": config["ingestion_params"],
         "row_count": 0,
         "post_row_count": 0,
-        "subreddits": {item.ledger_key: _subreddit_entry(item) for item in work_items},
+        "tasks": {task.task_id: _initial_task_progress(task) for task in sync_tasks},
     }
 
 
 def _flush_metadata(storage: RedditStorageManager, run_dir: Path, metadata: dict[str, Any]) -> None:
     storage.write_run_metadata_atomic(run_dir, metadata)
-
-
-def _mark_remaining_skipped(metadata: dict[str, Any]) -> None:
-    for entry in metadata["subreddits"].values():
-        if entry["status"] == "pending":
-            entry["status"] = "skipped"
-
-
-def _sync_status_done(metadata: dict[str, Any]) -> SyncStatus:
-    statuses = {entry["status"] for entry in metadata["subreddits"].values()}
-    unfinished = statuses - {"completed", "skipped"}
-    return "completed" if not unfinished else "in_progress"
 
 
 def _count_seen_rows(
@@ -323,20 +317,20 @@ def _stop_if_at_max_rows(
     output_dir: Path,
 ) -> bool:
     if max_rows_int is not None and metadata["row_count"] >= max_rows_int:
-        _mark_remaining_skipped(metadata)
+        mark_remaining_tasks_skipped(get_task_progress(metadata))
         _flush_metadata(storage, output_dir, metadata)
         return True
     return False
 
 
-def run_subreddit_sync_loop(
+def run_sync_tasks(
     reddit: praw.Reddit,
     ingestion_params: dict[str, Any],
     output_dir: Path,
     comment_storage: RedditStorageManager,
     post_storage: RedditStorageManager,
     metadata: dict[str, Any],
-    work_items: list[FetchWorkItem],
+    sync_tasks: list[RedditTask],
     *,
     include_comments: bool,
     include_posts: bool,
@@ -371,21 +365,22 @@ def run_subreddit_sync_loop(
         )
     comments_skipped = int(metadata.get("comments_skipped_as_duplicates", 0))
     posts_skipped = int(metadata.get("posts_skipped_as_duplicates", 0))
+    progress = get_task_progress(metadata)
 
-    for item in tqdm(
-        work_items,
+    for task in tqdm(
+        sync_tasks,
         desc="Syncing subreddits",
         disable=not sys.stderr.isatty(),
     ):
-        entry = metadata["subreddits"][item.ledger_key]
+        entry = progress[task.task_id]
         status = entry["status"]
-        if status in ("completed", "skipped"):
+        if status in (TaskStatus.COMPLETED.value, TaskStatus.SKIPPED.value):
             continue
 
         if _stop_if_at_max_rows(max_rows_int, metadata, comment_storage, output_dir):
             break
 
-        entry["status"] = "in_progress"
+        entry["status"] = TaskStatus.IN_PROGRESS.value
         entry["last_error"] = None
         _flush_metadata(comment_storage, output_dir, metadata)
 
@@ -393,16 +388,16 @@ def run_subreddit_sync_loop(
             post_rows, comment_rows, stats = fetch_records_for_subreddit(
                 reddit,
                 ingestion_params,
-                item.subreddit,
+                task.subreddit,
                 sync_timestamp=sync_timestamp,
                 include_posts=include_posts,
                 include_comments=include_comments,
             )
         except Exception as exc:  # noqa: BLE001 — record and continue
-            entry["status"] = "failed"
+            entry["status"] = TaskStatus.FAILED.value
             entry["last_error"] = str(exc)
             _flush_metadata(comment_storage, output_dir, metadata)
-            print(f"sync_records: {item.ledger_key} failed: {exc}")
+            print(f"sync_records: {task.task_id} failed: {exc}")
             continue
 
         comments_skipped_delta, posts_skipped_delta = _append_fetched_subreddit_rows(
@@ -430,14 +425,14 @@ def run_subreddit_sync_loop(
         )
         metadata["row_count"] = comment_count
         metadata["post_row_count"] = post_count
-        entry["status"] = "completed"
+        entry["status"] = TaskStatus.COMPLETED.value
         entry["posts_collected"] = stats["posts_collected"]
         entry["comments_collected"] = stats["comments_collected"]
         entry["last_error"] = None
         _flush_metadata(comment_storage, output_dir, metadata)
 
         print(
-            f"sync_records: {item.ledger_key} -> "
+            f"sync_records: {task.task_id} -> "
             f"{stats['comments_collected']} comments, {stats['posts_collected']} posts "
             f"(total comments={comment_count}, total posts={post_count})"
         )
@@ -445,7 +440,7 @@ def run_subreddit_sync_loop(
         if _stop_if_at_max_rows(max_rows_int, metadata, comment_storage, output_dir):
             break
 
-    metadata["sync_status"] = _sync_status_done(metadata)
+    metadata["sync_status"] = sync_status_from_tasks(progress).value
     _flush_metadata(comment_storage, output_dir, metadata)
 
 
@@ -471,7 +466,7 @@ def find_resume_run_dir(
         if not metadata_path.exists():
             continue
         metadata = storage.load_run_metadata(path)
-        if metadata.get("sync_status") == "in_progress":
+        if metadata.get("sync_status") == SyncStatus.IN_PROGRESS.value:
             candidates.append((path.name, path))
 
     if not candidates:
@@ -480,22 +475,6 @@ def find_resume_run_dir(
             "Start a new sync or pass --run-dir."
         )
     return max(candidates, key=lambda item: item[0])[1]
-
-
-def merge_work_items_with_metadata(
-    work_items: list[FetchWorkItem],
-    metadata: dict[str, Any],
-) -> list[FetchWorkItem]:
-    ledger_keys = {item.ledger_key for item in work_items}
-    metadata_keys = set(metadata.get("subreddits", {}))
-    missing = ledger_keys - metadata_keys
-    extra = metadata_keys - ledger_keys
-    if missing or extra:
-        raise ValueError(
-            "Config subreddits do not match resume metadata "
-            f"(missing in metadata: {sorted(missing)}, extra in metadata: {sorted(extra)})"
-        )
-    return work_items
 
 
 load_config = load_yaml_config
@@ -533,7 +512,7 @@ def sync_records(
         )
 
     ingestion_params = config["ingestion_params"]
-    work_items = iter_fetch_work_items(ingestion_params)
+    sync_tasks = build_sync_tasks(ingestion_params)
     record_types: list[str] = config["record_types"]
     include_comments = COMMENTS_RECORD_TYPE in record_types
     include_posts = POSTS_RECORD_TYPE in record_types
@@ -546,26 +525,26 @@ def sync_records(
     if resume:
         output_dir = find_resume_run_dir(comment_storage, run_dir_name=run_dir_name)
         metadata = comment_storage.load_run_metadata(output_dir)
-        if metadata.get("sync_status") != "in_progress":
-            metadata["sync_status"] = "in_progress"
+        if metadata.get("sync_status") != SyncStatus.IN_PROGRESS.value:
+            metadata["sync_status"] = SyncStatus.IN_PROGRESS.value
             _flush_metadata(comment_storage, output_dir, metadata)
-        work_items = merge_work_items_with_metadata(work_items, metadata)
+        validate_tasks_for_resume(sync_tasks, metadata, entity_label="subreddits")
         print(f"sync_records: resuming {output_dir}")
     else:
         sync_timestamp = get_current_timestamp()
         output_dir = comment_storage.create_new_run_dir(sync_timestamp)
-        metadata = init_sync_metadata(config, config_path, sync_timestamp, work_items)
+        metadata = init_sync_metadata(config, config_path, sync_timestamp, sync_tasks)
         _flush_metadata(comment_storage, output_dir, metadata)
         print(f"sync_records: started new run {output_dir}")
 
-    run_subreddit_sync_loop(
+    run_sync_tasks(
         reddit,
         ingestion_params,
         output_dir,
         comment_storage,
         post_storage,
         metadata,
-        work_items,
+        sync_tasks,
         include_comments=include_comments,
         include_posts=include_posts,
     )

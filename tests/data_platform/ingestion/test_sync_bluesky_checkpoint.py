@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from data_platform.ingestion import sync_bluesky
+from data_platform.ingestion.sync_checkpoint import validate_tasks_for_resume
 from data_platform.utils.storage import BlueskyStorageManager
 from tests.data_platform.conftest import make_ingestion_row
 from tests.data_platform.constants import VALID_DATASET_ID
@@ -17,34 +18,35 @@ from tests.data_platform.ingestion.conftest import (
 )
 
 
-def test_init_sync_metadata_keyword_ledger() -> None:
+def test_init_sync_metadata_task_ledger() -> None:
     config = minimal_sync_config()
-    work_items = sync_bluesky.iter_fetch_work_items(config["ingestion_params"])
+    sync_tasks = sync_bluesky.build_sync_tasks(config["ingestion_params"])
     metadata = sync_bluesky.init_sync_metadata(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
     assert metadata["sync_status"] == "in_progress"
-    assert set(metadata["keywords"]) == {"alpha", "beta"}
-    assert metadata["keywords"]["alpha"]["status"] == "pending"
+    assert set(metadata["tasks"]) == {"alpha", "beta"}
+    assert metadata["tasks"]["alpha"]["status"] == "pending"
+    assert metadata["tasks"]["alpha"]["kind"] == "bluesky"
 
 
-def test_run_keyword_sync_loop_appends_per_keyword(
+def test_run_sync_tasks_appends_per_keyword(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = minimal_sync_config()
     ingestion_params = config["ingestion_params"]
-    work_items = sync_bluesky.iter_fetch_work_items(ingestion_params)
+    sync_tasks = sync_bluesky.build_sync_tasks(ingestion_params)
     storage = BlueskyStorageManager("raw", VALID_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_bluesky.init_sync_metadata(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
 
     posts_by_query = {
@@ -64,31 +66,31 @@ def test_run_keyword_sync_loop_appends_per_keyword(
 
     monkeypatch.setattr(sync_bluesky, "_search_posts_page", fake_search)
 
-    sync_bluesky.run_keyword_sync_loop(
+    sync_bluesky.run_sync_tasks(
         MagicMock(),
         ingestion_params,
         run_dir,
         storage,
         metadata,
-        work_items,
+        sync_tasks,
         csv_filename="posts.csv",
     )
 
-    assert metadata["keywords"]["alpha"]["status"] == "completed"
-    assert metadata["keywords"]["beta"]["status"] == "completed"
+    assert metadata["tasks"]["alpha"]["status"] == "completed"
+    assert metadata["tasks"]["beta"]["status"] == "completed"
     assert metadata["row_count"] == 2
     assert metadata["sync_status"] == "completed"
     assert len(storage.load_seen_uris(run_dir)) == 2
 
 
-def test_run_keyword_sync_loop_skips_ids_from_other_dataset(
+def test_run_sync_tasks_skips_ids_from_other_dataset(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     other_dataset_id = "bluesky_00000000-0000-4000-8000-000000000002"
     config = minimal_sync_config()
     ingestion_params = config["ingestion_params"]
-    work_items = sync_bluesky.iter_fetch_work_items(ingestion_params)
+    sync_tasks = sync_bluesky.build_sync_tasks(ingestion_params)
     other_storage = BlueskyStorageManager("raw", other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
@@ -109,7 +111,7 @@ def test_run_keyword_sync_loop_skips_ids_from_other_dataset(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
 
     def fake_search(
@@ -129,13 +131,13 @@ def test_run_keyword_sync_loop_skips_ids_from_other_dataset(
 
     monkeypatch.setattr(sync_bluesky, "_search_posts_page", fake_search)
 
-    sync_bluesky.run_keyword_sync_loop(
+    sync_bluesky.run_sync_tasks(
         MagicMock(),
         ingestion_params,
         run_dir,
         storage,
         metadata,
-        work_items[:1],
+        sync_tasks[:1],
         csv_filename="posts.csv",
     )
 
@@ -143,7 +145,7 @@ def test_run_keyword_sync_loop_skips_ids_from_other_dataset(
     assert metadata["posts_skipped_as_duplicates"] == 1
 
 
-def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
+def test_run_sync_tasks_respects_dedupe_across_datasets_false(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -151,7 +153,7 @@ def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
     config = minimal_sync_config()
     ingestion_params = config["ingestion_params"]
     ingestion_params["dedupe_across_datasets"] = False
-    work_items = sync_bluesky.iter_fetch_work_items(ingestion_params)
+    sync_tasks = sync_bluesky.build_sync_tasks(ingestion_params)
     other_storage = BlueskyStorageManager("raw", other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
@@ -172,7 +174,7 @@ def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
 
     def fake_search(
@@ -187,13 +189,13 @@ def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
 
     monkeypatch.setattr(sync_bluesky, "_search_posts_page", fake_search)
 
-    sync_bluesky.run_keyword_sync_loop(
+    sync_bluesky.run_sync_tasks(
         MagicMock(),
         ingestion_params,
         run_dir,
         storage,
         metadata,
-        work_items[:1],
+        sync_tasks[:1],
         csv_filename="posts.csv",
     )
 
@@ -201,20 +203,20 @@ def test_run_keyword_sync_loop_respects_dedupe_across_datasets_false(
     assert metadata.get("posts_skipped_as_duplicates", 0) == 0
 
 
-def test_run_keyword_sync_loop_dedupes_within_run(
+def test_run_sync_tasks_dedupes_within_run(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = minimal_sync_config()
     ingestion_params = config["ingestion_params"]
-    work_items = sync_bluesky.iter_fetch_work_items(ingestion_params)
+    sync_tasks = sync_bluesky.build_sync_tasks(ingestion_params)
     storage = BlueskyStorageManager("raw", VALID_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_bluesky.init_sync_metadata(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
     duplicate_uri = "at://did:plc:ex/app.bsky.feed.post/dup"
 
@@ -230,13 +232,13 @@ def test_run_keyword_sync_loop_dedupes_within_run(
 
     monkeypatch.setattr(sync_bluesky, "_search_posts_page", fake_search)
 
-    sync_bluesky.run_keyword_sync_loop(
+    sync_bluesky.run_sync_tasks(
         MagicMock(),
         ingestion_params,
         run_dir,
         storage,
         metadata,
-        work_items,
+        sync_tasks,
         csv_filename="posts.csv",
     )
 
@@ -244,23 +246,23 @@ def test_run_keyword_sync_loop_dedupes_within_run(
     assert metadata["row_count"] == 1
 
 
-def test_resume_skips_completed_keywords(
+def test_resume_skips_completed_tasks(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = minimal_sync_config()
     ingestion_params = config["ingestion_params"]
-    work_items = sync_bluesky.iter_fetch_work_items(ingestion_params)
+    sync_tasks = sync_bluesky.build_sync_tasks(ingestion_params)
     storage = BlueskyStorageManager("raw", VALID_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_bluesky.init_sync_metadata(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
-    metadata["keywords"]["alpha"]["status"] = "completed"
-    metadata["keywords"]["alpha"]["rows_collected"] = 1
+    metadata["tasks"]["alpha"]["status"] = "completed"
+    metadata["tasks"]["alpha"]["rows_collected"] = 1
     storage.append_records(
         [
             make_ingestion_row(
@@ -291,16 +293,27 @@ def test_resume_skips_completed_keywords(
     monkeypatch.setattr(sync_bluesky, "_search_posts_page", fake_search)
 
     resumed_metadata = storage.load_run_metadata(run_dir)
-    sync_bluesky.run_keyword_sync_loop(
+    sync_bluesky.run_sync_tasks(
         MagicMock(),
         ingestion_params,
         run_dir,
         storage,
         resumed_metadata,
-        work_items,
+        sync_tasks,
         csv_filename="posts.csv",
     )
 
     assert calls == ["beta"]
-    assert resumed_metadata["keywords"]["beta"]["status"] == "completed"
+    assert resumed_metadata["tasks"]["beta"]["status"] == "completed"
     assert resumed_metadata["row_count"] == 2
+
+
+def test_resume_legacy_keywords_metadata_raises_key_error() -> None:
+    config = minimal_sync_config()
+    sync_tasks = sync_bluesky.build_sync_tasks(config["ingestion_params"])
+    legacy_metadata = {
+        "sync_status": "in_progress",
+        "keywords": {"alpha": {"status": "pending"}},
+    }
+    with pytest.raises(KeyError):
+        validate_tasks_for_resume(sync_tasks, legacy_metadata, entity_label="keywords")
