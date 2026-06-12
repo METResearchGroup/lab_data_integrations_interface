@@ -371,10 +371,10 @@ def _open_reddit_dedupe_sessions(
     comments_csv: str,
     posts_csv: str,
 ) -> tuple[DedupeSession | None, DedupeSession | None]:
-    comment_dedupe = None
-    post_dedupe = None
+    comment_dedupe_session: DedupeSession | None = None
+    post_dedupe_session: DedupeSession | None = None
     if include_comments:
-        comment_dedupe = comment_storage.open_dedupe_session(
+        comment_dedupe_session = comment_storage.open_dedupe_session(
             output_dir,
             DedupeConfig.from_ingestion_params(
                 ingestion_params,
@@ -384,7 +384,7 @@ def _open_reddit_dedupe_sessions(
             ),
         )
     if include_posts:
-        post_dedupe = post_storage.open_dedupe_session(
+        post_dedupe_session = post_storage.open_dedupe_session(
             output_dir,
             DedupeConfig.from_ingestion_params(
                 ingestion_params,
@@ -393,7 +393,7 @@ def _open_reddit_dedupe_sessions(
                 policy_key="posts_dedupe_policy",
             ),
         )
-    return comment_dedupe, post_dedupe
+    return comment_dedupe_session, post_dedupe_session
 
 
 def _append_subreddit_deduped_rows(
@@ -406,27 +406,27 @@ def _append_subreddit_deduped_rows(
     *,
     include_comments: bool,
     include_posts: bool,
-    comment_dedupe: DedupeSession | None,
-    post_dedupe: DedupeSession | None,
+    comment_dedupe_session: DedupeSession | None,
+    post_dedupe_session: DedupeSession | None,
     comments_csv: str,
     posts_csv: str,
 ) -> tuple[int, int]:
-    if include_posts and post_rows and post_dedupe is not None:
+    if include_posts and post_rows and post_dedupe_session is not None:
         post_result = post_storage.append_deduped_records(
             post_rows,
             output_dir,
-            session=post_dedupe,
+            dedupe_session=post_dedupe_session,
             filename=posts_csv,
         )
         metadata["posts_skipped_as_duplicates"] = (
             int(metadata.get("posts_skipped_as_duplicates", 0)) + post_result.skipped
         )
 
-    if include_comments and comment_rows and comment_dedupe is not None:
+    if include_comments and comment_rows and comment_dedupe_session is not None:
         comment_result = comment_storage.append_deduped_records(
             comment_rows,
             output_dir,
-            session=comment_dedupe,
+            dedupe_session=comment_dedupe_session,
             filename=comments_csv,
         )
         metadata["comments_skipped_as_duplicates"] = (
@@ -434,9 +434,15 @@ def _append_subreddit_deduped_rows(
         )
 
     comment_count = (
-        len(comment_dedupe.seen_ids) if include_comments and comment_dedupe is not None else 0
+        len(comment_dedupe_session.seen_ids)
+        if include_comments and comment_dedupe_session is not None
+        else 0
     )
-    post_count = len(post_dedupe.seen_ids) if include_posts and post_dedupe is not None else 0
+    post_count = (
+        len(post_dedupe_session.seen_ids)
+        if include_posts and post_dedupe_session is not None
+        else 0
+    )
     metadata["row_count"] = comment_count
     metadata["post_row_count"] = post_count
     return comment_count, post_count
@@ -459,7 +465,7 @@ def run_sync_tasks(
     comments_csv = record_type_to_filename(COMMENTS_RECORD_TYPE)
     posts_csv = record_type_to_filename(POSTS_RECORD_TYPE)
 
-    comment_dedupe, post_dedupe = _open_reddit_dedupe_sessions(
+    comment_dedupe_session, post_dedupe_session = _open_reddit_dedupe_sessions(
         comment_storage,
         post_storage,
         output_dir,
@@ -469,9 +475,11 @@ def run_sync_tasks(
         comments_csv=comments_csv,
         posts_csv=posts_csv,
     )
-    if comment_dedupe or post_dedupe:
-        prior_comment_count = len(comment_dedupe.seen_ids) if comment_dedupe else 0
-        prior_post_count = len(post_dedupe.seen_ids) if post_dedupe else 0
+    if comment_dedupe_session or post_dedupe_session:
+        prior_comment_count = (
+            len(comment_dedupe_session.seen_ids) if comment_dedupe_session else 0
+        )
+        prior_post_count = len(post_dedupe_session.seen_ids) if post_dedupe_session else 0
         print(
             f"sync_records: loaded {prior_comment_count} prior comment IDs, "
             f"{prior_post_count} prior post IDs for dedupe"
@@ -502,8 +510,8 @@ def run_sync_tasks(
             comment_rows,
             include_comments=include_comments,
             include_posts=include_posts,
-            comment_dedupe=comment_dedupe,
-            post_dedupe=post_dedupe,
+            comment_dedupe_session=comment_dedupe_session,
+            post_dedupe_session=post_dedupe_session,
             comments_csv=comments_csv,
             posts_csv=posts_csv,
         )

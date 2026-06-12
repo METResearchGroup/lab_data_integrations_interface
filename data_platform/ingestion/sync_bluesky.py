@@ -42,7 +42,7 @@ from data_platform.ingestion.sync_checkpoint import (
 )
 from data_platform.ingestion.sync_clients import init_bluesky_client
 from data_platform.utils.config_paths import load_yaml_config
-from data_platform.utils.deduplication import DedupeConfig
+from data_platform.utils.deduplication import DedupeConfig, DedupeSession
 from data_platform.utils.storage import BlueskyStorageManager, StorageStage
 
 if TYPE_CHECKING:
@@ -220,7 +220,7 @@ def run_sync_tasks(
     without aborting the full run.
     """
     max_rows_int = parse_max_rows(ingestion_params)
-    dedupe = storage.open_dedupe_session(
+    dedupe_session: DedupeSession = storage.open_dedupe_session(
         output_dir,
         DedupeConfig.from_ingestion_params(
             ingestion_params,
@@ -247,13 +247,13 @@ def run_sync_tasks(
         result = storage.append_deduped_records(
             rows,
             output_dir,
-            session=dedupe,
+            dedupe_session=dedupe_session,
             filename=csv_filename,
         )
         metadata["posts_skipped_as_duplicates"] = (
             int(metadata.get("posts_skipped_as_duplicates", 0)) + result.skipped
         )
-        metadata["row_count"] = len(dedupe.seen_ids)
+        metadata["row_count"] = len(dedupe_session.seen_ids)
         mark_task_completed(
             entry,
             storage,

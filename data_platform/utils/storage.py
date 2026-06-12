@@ -191,23 +191,23 @@ class StorageManager:
         return seen
 
     def open_dedupe_session(self, output_dir: Path, config: DedupeConfig) -> DedupeSession:
-        session = DedupeSession(config)
-        session.warm(self, output_dir)
-        return session
+        dedupe_session = DedupeSession(config)
+        dedupe_session.warm(self, output_dir)
+        return dedupe_session
 
     def append_deduped_records(
         self,
         rows: list[dict[str, Any]],
         run_dir: Path,
         *,
-        session: DedupeSession,
+        dedupe_session: DedupeSession,
         filename: str | None = None,
     ) -> AppendResult:
-        kept_rows, skipped = session.filter_rows(rows)
-        resolved_filename = filename or session.config.filename
+        kept_rows, skipped = dedupe_session.filter_rows(rows)
+        resolved_filename = filename or dedupe_session.config.filename
         if kept_rows:
             self.append_records(kept_rows, run_dir, filename=resolved_filename)
-            session.note_appended(kept_rows)
+            dedupe_session.note_appended(kept_rows)
         return AppendResult(kept=len(kept_rows), skipped=skipped)
 
     def load_seen_uris(

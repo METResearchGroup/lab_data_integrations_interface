@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from data_platform.utils.deduplication import DedupeConfig, DedupePolicy
+from data_platform.utils.deduplication import DedupeConfig, DedupePolicy, DedupeSession
 from data_platform.utils.storage import BlueskyStorageManager, RedditStorageManager, StorageStage
 from tests.data_platform.conftest import make_ingestion_row
 from tests.data_platform.constants import VALID_DATASET_ID, VALID_REDDIT_DATASET_ID
@@ -107,7 +107,7 @@ def test_append_deduped_records_skips_current_run_duplicates(bluesky_storage) ->
     existing = [make_ingestion_row(uri="at://did:plc:ex/app.bsky.feed.post/a1")]
     bluesky_storage.append_records(existing, run_dir)
     config = DedupeConfig(policies=[DedupePolicy.CURRENT_RUN], id_column="uri")
-    session = bluesky_storage.open_dedupe_session(run_dir, config)
+    dedupe_session: DedupeSession = bluesky_storage.open_dedupe_session(run_dir, config)
 
     result = bluesky_storage.append_deduped_records(
         [
@@ -115,7 +115,7 @@ def test_append_deduped_records_skips_current_run_duplicates(bluesky_storage) ->
             make_ingestion_row(uri="at://did:plc:ex/app.bsky.feed.post/a2"),
         ],
         run_dir,
-        session=session,
+        dedupe_session=dedupe_session,
     )
 
     assert result.kept == 1
@@ -140,7 +140,7 @@ def test_append_deduped_records_skips_prior_run_duplicates(data_root) -> None:
         id_column="comment_fullname",
         filename="comments.csv",
     )
-    session = comment_storage.open_dedupe_session(current_run, config)
+    dedupe_session: DedupeSession = comment_storage.open_dedupe_session(current_run, config)
 
     result = comment_storage.append_deduped_records(
         [
@@ -148,7 +148,7 @@ def test_append_deduped_records_skips_prior_run_duplicates(data_root) -> None:
             mock_comment_row("t1_comment_b"),
         ],
         current_run,
-        session=session,
+        dedupe_session=dedupe_session,
         filename="comments.csv",
     )
 
@@ -176,7 +176,7 @@ def test_append_deduped_records_skips_platform_duplicates(data_root) -> None:
         id_column="comment_fullname",
         filename="comments.csv",
     )
-    session = storage_b.open_dedupe_session(current_run_b, config)
+    dedupe_session: DedupeSession = storage_b.open_dedupe_session(current_run_b, config)
 
     result = storage_b.append_deduped_records(
         [
@@ -184,7 +184,7 @@ def test_append_deduped_records_skips_platform_duplicates(data_root) -> None:
             mock_comment_row("t1_comment_b"),
         ],
         current_run_b,
-        session=session,
+        dedupe_session=dedupe_session,
         filename="comments.csv",
     )
 
@@ -197,12 +197,12 @@ def test_append_deduped_records_returns_empty_when_all_duplicates(bluesky_storag
     existing = [make_ingestion_row(uri="at://did:plc:ex/app.bsky.feed.post/a1")]
     bluesky_storage.append_records(existing, run_dir)
     config = DedupeConfig(policies=[DedupePolicy.CURRENT_RUN], id_column="uri")
-    session = bluesky_storage.open_dedupe_session(run_dir, config)
+    dedupe_session: DedupeSession = bluesky_storage.open_dedupe_session(run_dir, config)
 
     result = bluesky_storage.append_deduped_records(
         [make_ingestion_row(uri="at://did:plc:ex/app.bsky.feed.post/a1")],
         run_dir,
-        session=session,
+        dedupe_session=dedupe_session,
     )
 
     assert result.kept == 0
