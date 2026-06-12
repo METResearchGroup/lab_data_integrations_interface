@@ -28,12 +28,12 @@ from typing import Any
 from atproto import Client
 
 from data_platform.ingestion.bluesky_retry import retry_bluesky_request
-from data_platform.ingestion.dedupe import append_deduped_rows, load_prior_seen_ids
+from data_platform.ingestion.dedupe import load_prior_seen_ids, persist_deduped_rows
 from data_platform.ingestion.sync_checkpoint import (
     TaskStatus,
     build_base_sync_metadata,
     ensure_dataset_manifest,
-    flush_run_metadata,
+    mark_task_completed,
     mark_task_failed,
     mark_task_in_progress,
     parse_max_rows,
@@ -213,11 +213,7 @@ def run_sync_tasks(
         filename=csv_filename,
         same_dataset_flag="dedupe_posts_from_prior_raw_runs",
     )
-    posts_skipped = int(metadata.get("posts_skipped_as_duplicates", 0))
-
     def process_task(task: BlueskyTask, entry: dict[str, Any]) -> None:
-        nonlocal posts_skipped
-
         mark_task_in_progress(entry, storage, output_dir, metadata)
 
         try:
@@ -231,23 +227,27 @@ def run_sync_tasks(
             mark_task_failed(entry, exc, task.task_id, storage, output_dir, metadata)
             return
 
-        new_rows, skipped = append_deduped_rows(
+        new_rows = persist_deduped_rows(
             storage,
             output_dir,
             rows,
             "uri",
+            metadata,
             prior_ids=prior_uris,
             filename=csv_filename,
+            skipped_key="posts_skipped_as_duplicates",
         )
-        posts_skipped += skipped
-        metadata["posts_skipped_as_duplicates"] = posts_skipped
-        metadata["row_count"] = len(storage.load_seen_ids(output_dir, "uri", filename=csv_filename))
-        entry["status"] = TaskStatus.COMPLETED.value
-        entry["pages_fetched"] = stats["pages_fetched"]
-        entry["rows_collected"] = stats["rows_collected"]
-        entry["hits_total"] = stats["hits_total"]
-        entry["last_error"] = None
-        flush_run_metadata(storage, output_dir, metadata)
+        mark_task_completed(
+            entry,
+            storage,
+            output_dir,
+            metadata,
+            entry_updates={
+                "pages_fetched": stats["pages_fetched"],
+                "rows_collected": stats["rows_collected"],
+                "hits_total": stats["hits_total"],
+            },
+        )
 
         print(
             f"sync_records: {task.task_id} -> {stats['rows_collected']} rows "
@@ -263,9 +263,6 @@ def run_sync_tasks(
         tqdm_desc="Syncing keywords",
         process_task=process_task,
     )
-
-
-load_config = load_yaml_config
 
 
 def setup_client() -> Client:
@@ -284,7 +281,7 @@ def sync_records(
     run_dir_name: str | None = None,
 ) -> Path:
     """Fetch Bluesky records per config and write raw CSV + metadata."""
-    config = load_config(config_path)
+    config = load_yaml_config(config_path)
     dataset_id = require_dataset_id(config, platform="bluesky")
     storage = BlueskyStorageManager("raw", dataset_id)
 

@@ -25,12 +25,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from data_platform.ingestion.dedupe import append_deduped_rows, load_prior_seen_ids
+from data_platform.ingestion.dedupe import load_prior_seen_ids, persist_deduped_rows
 from data_platform.ingestion.sync_checkpoint import (
     TaskStatus,
     build_base_sync_metadata,
     ensure_dataset_manifest,
-    flush_run_metadata,
+    mark_task_completed,
     mark_task_failed,
     mark_task_in_progress,
     parse_max_rows,
@@ -146,25 +146,26 @@ def run_sync_tasks(
             mark_task_failed(entry, exc, task.task_id, storage, output_dir, metadata)
             return
 
-        new_rows, skipped = append_deduped_rows(
+        new_rows = persist_deduped_rows(
             storage,
             output_dir,
             rows,
             "tweet_id",
+            metadata,
             prior_ids=prior_tweet_ids,
             filename=csv_filename,
+            skipped_key="tweets_skipped_as_duplicates",
         )
-        metadata["tweets_skipped_as_duplicates"] = (
-            int(metadata.get("tweets_skipped_as_duplicates", 0)) + skipped
+        mark_task_completed(
+            entry,
+            storage,
+            output_dir,
+            metadata,
+            entry_updates={
+                "pages_fetched": stats["pages_fetched"],
+                "rows_collected": stats["rows_collected"],
+            },
         )
-        metadata["row_count"] = len(
-            storage.load_seen_ids(output_dir, "tweet_id", filename=csv_filename)
-        )
-        entry["status"] = TaskStatus.COMPLETED.value
-        entry["pages_fetched"] = stats["pages_fetched"]
-        entry["rows_collected"] = stats["rows_collected"]
-        entry["last_error"] = None
-        flush_run_metadata(storage, output_dir, metadata)
 
         print(
             f"sync_records: {task.task_id} -> {stats['rows_collected']} rows "

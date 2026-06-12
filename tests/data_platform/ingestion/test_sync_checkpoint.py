@@ -14,6 +14,7 @@ from data_platform.ingestion.sync_checkpoint import (
     flush_run_metadata,
     get_task_progress,
     mark_remaining_tasks_skipped,
+    mark_task_completed,
     parse_max_rows,
     record_type_to_filename,
     require_dataset_id,
@@ -139,6 +140,28 @@ def test_find_resume_run_dir_latest_in_progress(data_root) -> None:
     flush_run_metadata(storage, older, {"sync_status": SyncStatus.COMPLETED.value, "tasks": {}})
     flush_run_metadata(storage, newer, {"sync_status": SyncStatus.IN_PROGRESS.value, "tasks": {}})
     assert find_resume_run_dir(storage, run_dir_name=None) == newer
+
+
+def test_mark_task_completed_updates_entry_and_metadata(data_root) -> None:
+    storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
+    run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
+    metadata = {"row_count": 0, "tasks": {"alpha": {"status": TaskStatus.PENDING.value}}}
+    entry = metadata["tasks"]["alpha"]
+
+    mark_task_completed(
+        entry,
+        storage,
+        run_dir,
+        metadata,
+        entry_updates={"pages_fetched": 2, "rows_collected": 5},
+        metadata_updates={"row_count": 5},
+    )
+
+    assert entry["status"] == TaskStatus.COMPLETED.value
+    assert entry["last_error"] is None
+    assert entry["pages_fetched"] == 2
+    assert metadata["row_count"] == 5
+    assert storage.load_run_metadata(run_dir)["tasks"]["alpha"]["status"] == TaskStatus.COMPLETED.value
 
 
 def test_stop_at_max_rows_marks_pending_skipped(data_root) -> None:

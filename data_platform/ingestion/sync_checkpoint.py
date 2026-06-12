@@ -207,6 +207,23 @@ def mark_task_failed(
     print(f"sync_records: {task_id} failed: {exc}")
 
 
+def mark_task_completed(
+    entry: dict[str, Any],
+    storage: StorageManager,
+    output_dir: Path,
+    metadata: dict[str, Any],
+    *,
+    entry_updates: dict[str, Any],
+    metadata_updates: dict[str, Any] | None = None,
+) -> None:
+    entry["status"] = TaskStatus.COMPLETED.value
+    entry["last_error"] = None
+    entry.update(entry_updates)
+    if metadata_updates:
+        metadata.update(metadata_updates)
+    flush_run_metadata(storage, output_dir, metadata)
+
+
 def run_checkpointed_sync(
     sync_tasks: Sequence[TTask],
     metadata: dict[str, Any],

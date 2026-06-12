@@ -30,13 +30,13 @@ import praw
 import praw.models
 import prawcore.exceptions
 
-from data_platform.ingestion.dedupe import append_deduped_rows, load_prior_seen_ids
+from data_platform.ingestion.dedupe import load_prior_seen_ids, persist_deduped_subreddit_rows
 from data_platform.ingestion.reddit_retry import retry_reddit_request
 from data_platform.ingestion.sync_checkpoint import (
     TaskStatus,
     build_base_sync_metadata,
     ensure_dataset_manifest,
-    flush_run_metadata,
+    mark_task_completed,
     mark_task_failed,
     mark_task_in_progress,
     parse_max_rows,
@@ -236,69 +236,6 @@ def init_sync_metadata(
     )
 
 
-def _count_seen_rows(
-    comment_storage: RedditStorageManager,
-    post_storage: RedditStorageManager,
-    output_dir: Path,
-    *,
-    include_comments: bool,
-    include_posts: bool,
-) -> tuple[int, int]:
-    comments_csv = record_type_to_filename(COMMENTS_RECORD_TYPE)
-    posts_csv = record_type_to_filename(POSTS_RECORD_TYPE)
-    comment_count = (
-        len(comment_storage.load_seen_ids(output_dir, "comment_fullname", filename=comments_csv))
-        if include_comments
-        else 0
-    )
-    post_count = (
-        len(post_storage.load_seen_ids(output_dir, "reddit_fullname", filename=posts_csv))
-        if include_posts
-        else 0
-    )
-    return comment_count, post_count
-
-
-def _append_fetched_subreddit_rows(
-    comment_storage: RedditStorageManager,
-    post_storage: RedditStorageManager,
-    output_dir: Path,
-    post_rows: list[dict[str, Any]],
-    comment_rows: list[dict[str, Any]],
-    *,
-    include_comments: bool,
-    include_posts: bool,
-    prior_comment_ids: set[str] | None = None,
-    prior_post_ids: set[str] | None = None,
-) -> tuple[int, int]:
-    comments_csv = record_type_to_filename(COMMENTS_RECORD_TYPE)
-    posts_csv = record_type_to_filename(POSTS_RECORD_TYPE)
-    comments_skipped = 0
-    posts_skipped = 0
-
-    if include_posts and post_rows:
-        _, posts_skipped = append_deduped_rows(
-            post_storage,
-            output_dir,
-            post_rows,
-            "reddit_fullname",
-            prior_ids=prior_post_ids or set(),
-            filename=posts_csv,
-        )
-
-    if include_comments and comment_rows:
-        _, comments_skipped = append_deduped_rows(
-            comment_storage,
-            output_dir,
-            comment_rows,
-            "comment_fullname",
-            prior_ids=prior_comment_ids or set(),
-            filename=comments_csv,
-        )
-
-    return comments_skipped, posts_skipped
-
-
 def run_sync_tasks(
     reddit: praw.Reddit,
     ingestion_params: dict[str, Any],
@@ -341,12 +278,7 @@ def run_sync_tasks(
             f"sync_records: loaded {len(prior_comment_ids)} prior comment IDs, "
             f"{len(prior_post_ids)} prior post IDs for dedupe"
         )
-    comments_skipped = int(metadata.get("comments_skipped_as_duplicates", 0))
-    posts_skipped = int(metadata.get("posts_skipped_as_duplicates", 0))
-
     def process_task(task: RedditTask, entry: dict[str, Any]) -> None:
-        nonlocal comments_skipped, posts_skipped
-
         mark_task_in_progress(entry, comment_storage, output_dir, metadata)
 
         try:
@@ -362,41 +294,35 @@ def run_sync_tasks(
             mark_task_failed(entry, exc, task.task_id, comment_storage, output_dir, metadata)
             return
 
-        comments_skipped_delta, posts_skipped_delta = _append_fetched_subreddit_rows(
+        counts = persist_deduped_subreddit_rows(
             comment_storage,
             post_storage,
             output_dir,
             post_rows,
             comment_rows,
+            metadata,
             include_comments=include_comments,
             include_posts=include_posts,
             prior_comment_ids=prior_comment_ids,
             prior_post_ids=prior_post_ids,
+            comments_csv=comments_csv,
+            posts_csv=posts_csv,
         )
-        comments_skipped += comments_skipped_delta
-        posts_skipped += posts_skipped_delta
-        metadata["comments_skipped_as_duplicates"] = comments_skipped
-        metadata["posts_skipped_as_duplicates"] = posts_skipped
-
-        comment_count, post_count = _count_seen_rows(
+        mark_task_completed(
+            entry,
             comment_storage,
-            post_storage,
             output_dir,
-            include_comments=include_comments,
-            include_posts=include_posts,
+            metadata,
+            entry_updates={
+                "posts_collected": stats["posts_collected"],
+                "comments_collected": stats["comments_collected"],
+            },
         )
-        metadata["row_count"] = comment_count
-        metadata["post_row_count"] = post_count
-        entry["status"] = TaskStatus.COMPLETED.value
-        entry["posts_collected"] = stats["posts_collected"]
-        entry["comments_collected"] = stats["comments_collected"]
-        entry["last_error"] = None
-        flush_run_metadata(comment_storage, output_dir, metadata)
 
         print(
             f"sync_records: {task.task_id} -> "
             f"{stats['comments_collected']} comments, {stats['posts_collected']} posts "
-            f"(total comments={comment_count}, total posts={post_count})"
+            f"(total comments={counts.comment_count}, total posts={counts.post_count})"
         )
 
     run_checkpointed_sync(
