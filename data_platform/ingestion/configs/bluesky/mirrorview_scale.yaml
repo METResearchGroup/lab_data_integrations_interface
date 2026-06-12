@@ -9,9 +9,8 @@ record_types:
 ingestion_params:
   limit: 700
   sort: latest
-  query_batch_size: 1
   max_rows: 20000
-  keyword:
+  keywords:
     # gun_control
     - gun control
     - gun rights

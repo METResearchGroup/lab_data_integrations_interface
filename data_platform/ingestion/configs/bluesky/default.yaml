@@ -8,7 +8,8 @@ record_types:
 ingestion_params:
   dedupe_across_datasets: true
   handle: user.bsky.social
-  keyword: example
+  keywords:
+    - example
   limit: 50
   max_rows: 200
   sort: latest

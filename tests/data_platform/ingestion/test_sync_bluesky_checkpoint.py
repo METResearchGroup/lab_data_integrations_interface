@@ -18,6 +18,20 @@ from tests.data_platform.ingestion.conftest import (
 )
 
 
+def test_build_sync_tasks_requires_keywords_list() -> None:
+    with pytest.raises(ValueError, match="keywords"):
+        sync_bluesky.build_sync_tasks({})
+    with pytest.raises(ValueError, match="non-empty strings"):
+        sync_bluesky.build_sync_tasks({"keywords": ["alpha", ""]})
+
+
+def test_build_sync_tasks_quotes_keywords_with_spaces() -> None:
+    tasks = sync_bluesky.build_sync_tasks({"keywords": ["gun control"]})
+    assert len(tasks) == 1
+    assert tasks[0].task_id == "gun control"
+    assert tasks[0].query == '"gun control"'
+
+
 def test_init_sync_metadata_task_ledger() -> None:
     config = minimal_sync_config()
     sync_tasks = sync_bluesky.build_sync_tasks(config["ingestion_params"])

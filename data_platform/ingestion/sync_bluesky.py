@@ -53,14 +53,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 API_MAX_LIMIT = 100
 
 POSTS_RECORD_TYPE = "app.bsky.feed.post"
-DEFAULT_QUERY_BATCH_SIZE = 5
 
 
 @dataclass(frozen=True)
 class BlueskyTask:
     task_id: str
     query: str
-    source_keywords: list[str] | None = None
 
 
 def _quote_query_term(keyword: str) -> str:
@@ -70,46 +68,19 @@ def _quote_query_term(keyword: str) -> str:
     return keyword
 
 
-def build_or_query(keywords: list[str]) -> str:
-    """Build a searchPosts q string using Bluesky's pipe-delimited OR syntax."""
-    return " | ".join(_quote_query_term(keyword) for keyword in keywords)
-
-
-def _query_batch_size(ingestion_params: dict[str, Any]) -> int:
-    return int(ingestion_params.get("query_batch_size", DEFAULT_QUERY_BATCH_SIZE))
-
-
-def _chunk_keywords(keywords: list[str], batch_size: int) -> list[list[str]]:
-    return [keywords[i : i + batch_size] for i in range(0, len(keywords), batch_size)]
-
-
 def build_sync_tasks(ingestion_params: dict[str, Any]) -> list[BlueskyTask]:
-    """Return sync tasks keyed by task_id for checkpointing."""
-    keyword = ingestion_params.get("keyword")
-    batch_size = _query_batch_size(ingestion_params)
-    if isinstance(keyword, list):
-        items: list[BlueskyTask] = []
-        for index, chunk in enumerate(_chunk_keywords(keyword, batch_size)):
-            batch_id = f"posts_batch_{index + 1}"
-            query = build_or_query(chunk)
-            if batch_size == 1:
-                task_id = chunk[0]
-                source_keywords = None
-            else:
-                task_id = batch_id
-                source_keywords = chunk
-            items.append(
-                BlueskyTask(
-                    task_id=task_id,
-                    query=query,
-                    source_keywords=source_keywords,
-                )
-            )
-        return items
-    if isinstance(keyword, str) and keyword:
-        return [BlueskyTask(task_id=keyword, query=keyword)]
+    """Return one sync task per keyword for checkpointing."""
+    keywords = ingestion_params.get("keywords")
+    if not isinstance(keywords, list) or not keywords:
+        raise ValueError("ingestion_params must include 'keywords' as a non-empty list of strings")
 
-    raise ValueError("ingestion_params must include 'keyword' as a string or list of strings")
+    items: list[BlueskyTask] = []
+    for raw in keywords:
+        if not isinstance(raw, str) or not raw.strip():
+            raise ValueError("ingestion_params.keywords entries must be non-empty strings")
+        keyword = raw.strip()
+        items.append(BlueskyTask(task_id=keyword, query=_quote_query_term(keyword)))
+    return items
 
 
 def _posts_to_rows(response: Any) -> list[dict[str, Any]]:
@@ -200,7 +171,7 @@ def _initial_task_progress(task: BlueskyTask) -> dict[str, Any]:
     return {
         "status": TaskStatus.PENDING.value,
         "kind": "bluesky",
-        "source_keywords": task.source_keywords,
+        "keyword": task.task_id,
         "pages_fetched": 0,
         "rows_collected": 0,
         "hits_total": None,

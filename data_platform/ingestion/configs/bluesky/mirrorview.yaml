@@ -7,7 +7,7 @@ record_types:
 ingestion_params:
   limit: 100
   sort: latest
-  keyword:
+  keywords:
     # gun_control
     - gun control
     - gun rights

@@ -37,7 +37,6 @@ def minimal_sync_config() -> dict[str, Any]:
         "ingestion_params": {
             "limit": 2,
             "sort": "latest",
-            "query_batch_size": 1,
-            "keyword": ["alpha", "beta"],
+            "keywords": ["alpha", "beta"],
         },
     }
