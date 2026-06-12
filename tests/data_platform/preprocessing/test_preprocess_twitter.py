@@ -7,7 +7,7 @@ import pytest
 
 from data_platform.preprocessing import preprocess_twitter
 from data_platform.preprocessing.validators import twitter_validators
-from data_platform.utils.storage import TwitterStorageManager
+from data_platform.utils.storage import StorageStage, TwitterStorageManager
 from tests.data_platform.constants import VALID_TWITTER_DATASET_ID
 from tests.data_platform.ingestion.twitter_conftest import mock_tweet_row
 
@@ -106,7 +106,7 @@ def test_filter_posts_drops_invalid_rows() -> None:
 
 def test_preprocess_records_writes_output(data_root) -> None:
     dataset_id = VALID_TWITTER_DATASET_ID
-    raw_storage = TwitterStorageManager("raw", dataset_id)
+    raw_storage = TwitterStorageManager(StorageStage.RAW, dataset_id)
     run_dir = raw_storage.create_new_run_dir("2026_05_31-10:00:00")
     raw_storage.write_records(
         [
@@ -125,7 +125,7 @@ def test_preprocess_records_writes_output(data_root) -> None:
 
     output_dir = preprocess_twitter.preprocess_records(dataset_id)
 
-    preprocessed_storage = TwitterStorageManager("preprocessed", dataset_id)
+    preprocessed_storage = TwitterStorageManager(StorageStage.PREPROCESSED, dataset_id)
     output = preprocessed_storage.load_records(output_dir)
     metadata = preprocessed_storage.load_run_metadata(output_dir)
 
@@ -138,7 +138,7 @@ def test_preprocess_records_writes_output(data_root) -> None:
 
 def test_preprocess_records_strips_tco_from_saved_text(data_root) -> None:
     dataset_id = VALID_TWITTER_DATASET_ID
-    raw_storage = TwitterStorageManager("raw", dataset_id)
+    raw_storage = TwitterStorageManager(StorageStage.RAW, dataset_id)
     run_dir = raw_storage.create_new_run_dir("2026_05_31-11:00:00")
     text_with_tco = _valid_text() + " https://t.co/abc123"
     row = _tweet_row(tweet_id="1000000000000000001", text=text_with_tco)
@@ -153,7 +153,7 @@ def test_preprocess_records_strips_tco_from_saved_text(data_root) -> None:
 
     output_dir = preprocess_twitter.preprocess_records(dataset_id)
 
-    preprocessed_storage = TwitterStorageManager("preprocessed", dataset_id)
+    preprocessed_storage = TwitterStorageManager(StorageStage.PREPROCESSED, dataset_id)
     output = preprocessed_storage.load_records(output_dir)
 
     assert len(output) == 1
@@ -165,7 +165,7 @@ def test_preprocess_records_strips_tco_from_saved_text(data_root) -> None:
 
 def test_preprocess_records_merges_all_raw_runs_and_sets_source_raw_runs(data_root) -> None:
     dataset_id = VALID_TWITTER_DATASET_ID
-    raw_storage = TwitterStorageManager("raw", dataset_id)
+    raw_storage = TwitterStorageManager(StorageStage.RAW, dataset_id)
 
     older_run = raw_storage.create_new_run_dir("2026_05_31-11:00:00")
     newer_run = raw_storage.create_new_run_dir("2026_05_31-12:00:00")
@@ -199,7 +199,7 @@ def test_preprocess_records_merges_all_raw_runs_and_sets_source_raw_runs(data_ro
     )
 
     output_dir = preprocess_twitter.preprocess_records(dataset_id)
-    preprocessed_storage = TwitterStorageManager("preprocessed", dataset_id)
+    preprocessed_storage = TwitterStorageManager(StorageStage.PREPROCESSED, dataset_id)
     output_df = preprocessed_storage.load_records(output_dir)
     metadata = preprocessed_storage.load_run_metadata(output_dir)
 

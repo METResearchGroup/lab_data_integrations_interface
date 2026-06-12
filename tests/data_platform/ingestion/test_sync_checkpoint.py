@@ -22,7 +22,7 @@ from data_platform.ingestion.sync_checkpoint import (
     sync_status_from_tasks,
     validate_tasks_for_resume,
 )
-from data_platform.utils.storage import TwitterStorageManager
+from data_platform.utils.storage import StorageStage, TwitterStorageManager
 from tests.data_platform.constants import VALID_TWITTER_DATASET_ID
 from tests.data_platform.ingestion.twitter_conftest import mock_tweet_row
 
@@ -127,14 +127,14 @@ def test_build_base_sync_metadata_includes_tasks() -> None:
 
 
 def test_find_resume_run_dir_specific_run(data_root) -> None:
-    storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
+    storage = TwitterStorageManager(StorageStage.RAW, VALID_TWITTER_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     flush_run_metadata(storage, run_dir, {"sync_status": SyncStatus.IN_PROGRESS.value, "tasks": {}})
     assert find_resume_run_dir(storage, run_dir_name="2026_05_30-10:00:00") == run_dir
 
 
 def test_find_resume_run_dir_latest_in_progress(data_root) -> None:
-    storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
+    storage = TwitterStorageManager(StorageStage.RAW, VALID_TWITTER_DATASET_ID)
     older = storage.create_new_run_dir("2026_05_30-09:00:00")
     newer = storage.create_new_run_dir("2026_05_30-10:00:00")
     flush_run_metadata(storage, older, {"sync_status": SyncStatus.COMPLETED.value, "tasks": {}})
@@ -143,7 +143,7 @@ def test_find_resume_run_dir_latest_in_progress(data_root) -> None:
 
 
 def test_mark_task_completed_updates_entry_and_metadata(data_root) -> None:
-    storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
+    storage = TwitterStorageManager(StorageStage.RAW, VALID_TWITTER_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = {"row_count": 0, "tasks": {"alpha": {"status": TaskStatus.PENDING.value}}}
     entry = metadata["tasks"]["alpha"]
@@ -165,7 +165,7 @@ def test_mark_task_completed_updates_entry_and_metadata(data_root) -> None:
 
 
 def test_stop_at_max_rows_marks_pending_skipped(data_root) -> None:
-    storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
+    storage = TwitterStorageManager(StorageStage.RAW, VALID_TWITTER_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = {
         "row_count": 10,
@@ -179,7 +179,7 @@ def test_stop_at_max_rows_marks_pending_skipped(data_root) -> None:
 
 
 def test_append_deduped_rows_skips_seen_ids(data_root) -> None:
-    storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
+    storage = TwitterStorageManager(StorageStage.RAW, VALID_TWITTER_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     existing = [mock_tweet_row("1")]
     storage.append_records(existing, run_dir)

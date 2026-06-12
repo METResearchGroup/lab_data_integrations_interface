@@ -42,7 +42,7 @@ from data_platform.ingestion.sync_checkpoint import (
 from data_platform.ingestion.sync_clients import init_twitter_client
 from data_platform.ingestion.twitter_client import fetch_posts_for_keyword
 from data_platform.utils.config_paths import load_yaml_config
-from data_platform.utils.storage import TwitterStorageManager
+from data_platform.utils.storage import StorageStage, TwitterStorageManager
 
 POSTS_CSV = "posts.csv"
 
@@ -193,7 +193,7 @@ def sync_records(
     """Fetch Twitter records per config and write raw CSV + metadata."""
     config = load_config(config_path)
     dataset_id = require_dataset_id(config, platform="twitter")
-    storage = TwitterStorageManager("raw", dataset_id)
+    storage = TwitterStorageManager(StorageStage.RAW, dataset_id)
 
     ensure_dataset_manifest(
         storage,

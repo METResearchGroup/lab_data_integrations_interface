@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from data_platform.utils.storage import RedditStorageManager
+from data_platform.utils.storage import BlueskyStorageManager, RedditStorageManager, StorageStage
 from tests.data_platform.conftest import make_ingestion_row
 from tests.data_platform.constants import VALID_DATASET_ID, VALID_REDDIT_DATASET_ID
 from tests.data_platform.ingestion.reddit_conftest import mock_comment_row
@@ -14,9 +14,7 @@ def test_bluesky_storage_root_includes_dataset_id(data_root, bluesky_storage) ->
 
 def test_latest_run_dir_scoped_to_dataset(data_root, bluesky_storage) -> None:
     other_id = "bluesky_00000000-0000-4000-8000-000000000002"
-    from data_platform.utils.storage import BlueskyStorageManager
-
-    storage_b = BlueskyStorageManager("raw", other_id)
+    storage_b = BlueskyStorageManager(StorageStage.RAW, other_id)
 
     run_a = bluesky_storage.create_new_run_dir("2026_05_29-10:00:00")
     storage_b.create_new_run_dir("2026_05_29-11:00:00")
@@ -46,7 +44,7 @@ def test_load_seen_uris(bluesky_storage) -> None:
 
 
 def test_load_seen_ids_from_prior_runs(data_root) -> None:
-    comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
+    comment_storage = RedditStorageManager(StorageStage.RAW, VALID_REDDIT_DATASET_ID)
     prior_run_a = comment_storage.create_new_run_dir("2026_05_29-10:00:00")
     prior_run_b = comment_storage.create_new_run_dir("2026_05_29-11:00:00")
     current_run = comment_storage.create_new_run_dir("2026_05_30-10:00:00")
@@ -78,8 +76,8 @@ def test_load_seen_ids_from_prior_runs(data_root) -> None:
 def test_load_seen_ids_from_platform_raw_runs(data_root) -> None:
     dataset_a = "reddit_00000000-0000-4000-8000-000000000001"
     dataset_b = "reddit_00000000-0000-4000-8000-000000000002"
-    storage_a = RedditStorageManager("raw", dataset_a)
-    storage_b = RedditStorageManager("raw", dataset_b)
+    storage_a = RedditStorageManager(StorageStage.RAW, dataset_a)
+    storage_b = RedditStorageManager(StorageStage.RAW, dataset_b)
 
     prior_run_a = storage_a.create_new_run_dir("2026_05_29-10:00:00")
     current_run_b = storage_b.create_new_run_dir("2026_05_30-10:00:00")

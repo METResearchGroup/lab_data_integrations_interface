@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from data_platform.ingestion.dedupe import increment_metadata_counter, load_prior_seen_ids, persist_deduped_rows
-from data_platform.utils.storage import TwitterStorageManager
+from data_platform.utils.storage import StorageStage, TwitterStorageManager
 from tests.data_platform.constants import VALID_TWITTER_DATASET_ID
 from tests.data_platform.ingestion.twitter_conftest import mock_tweet_row
 
@@ -69,7 +69,7 @@ def test_increment_metadata_counter() -> None:
 
 
 def test_persist_deduped_rows_updates_metadata(data_root) -> None:
-    storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
+    storage = TwitterStorageManager(StorageStage.RAW, VALID_TWITTER_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata: dict[str, int] = {}
     rows = [mock_tweet_row("1"), mock_tweet_row("2")]

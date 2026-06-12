@@ -43,7 +43,7 @@ from data_platform.ingestion.sync_checkpoint import (
 )
 from data_platform.ingestion.sync_clients import init_bluesky_client
 from data_platform.utils.config_paths import load_yaml_config
-from data_platform.utils.storage import BlueskyStorageManager
+from data_platform.utils.storage import BlueskyStorageManager, StorageStage
 
 if TYPE_CHECKING:
     from atproto import Client
@@ -292,7 +292,7 @@ def sync_records(
     """
     config = load_yaml_config(config_path)
     dataset_id = require_dataset_id(config, platform="bluesky")
-    storage = BlueskyStorageManager("raw", dataset_id)
+    storage = BlueskyStorageManager(StorageStage.RAW, dataset_id)
 
     ensure_dataset_manifest(
         storage,

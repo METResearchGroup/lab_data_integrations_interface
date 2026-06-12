@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from data_platform.ingestion import sync_twitter
-from data_platform.utils.storage import TwitterStorageManager
+from data_platform.utils.storage import StorageStage, TwitterStorageManager
 from tests.data_platform.constants import VALID_TWITTER_DATASET_ID
 from tests.data_platform.ingestion.twitter_conftest import mock_tweet_row
 
@@ -50,7 +50,7 @@ def test_run_sync_tasks_appends_per_keyword(
     config = _minimal_twitter_sync_config()
     ingestion_params = config["ingestion_params"]
     sync_tasks = sync_twitter.build_sync_tasks(ingestion_params)
-    storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
+    storage = TwitterStorageManager(StorageStage.RAW, VALID_TWITTER_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_twitter.init_sync_metadata(
         config,
@@ -111,7 +111,7 @@ def test_run_sync_tasks_skips_prior_run_tweets_when_enabled(
     ingestion_params["dedupe_tweets_from_prior_raw_runs"] = True
     ingestion_params["dedupe_across_datasets"] = False
     sync_tasks = sync_twitter.build_sync_tasks(ingestion_params)
-    storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
+    storage = TwitterStorageManager(StorageStage.RAW, VALID_TWITTER_DATASET_ID)
 
     prior_run = storage.create_new_run_dir("2026_05_29-10:00:00")
     storage.append_records(
@@ -169,7 +169,7 @@ def test_run_sync_tasks_does_not_skip_prior_runs_when_disabled(
     ingestion_params = config["ingestion_params"]
     ingestion_params["dedupe_across_datasets"] = False
     sync_tasks = sync_twitter.build_sync_tasks(ingestion_params)
-    storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
+    storage = TwitterStorageManager(StorageStage.RAW, VALID_TWITTER_DATASET_ID)
 
     prior_run = storage.create_new_run_dir("2026_05_29-10:00:00")
     storage.append_records(
@@ -230,14 +230,14 @@ def test_run_sync_tasks_skips_ids_from_other_dataset(
     config = _minimal_twitter_sync_config()
     ingestion_params = config["ingestion_params"]
     sync_tasks = sync_twitter.build_sync_tasks(ingestion_params)
-    other_storage = TwitterStorageManager("raw", other_dataset_id)
+    other_storage = TwitterStorageManager(StorageStage.RAW, other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
         [mock_tweet_row("1000000000000000000", keyword="alpha")],
         other_run,
     )
 
-    storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
+    storage = TwitterStorageManager(StorageStage.RAW, VALID_TWITTER_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_twitter.init_sync_metadata(
         config,
@@ -289,14 +289,14 @@ def test_run_sync_tasks_respects_dedupe_across_datasets_false(
     ingestion_params = config["ingestion_params"]
     ingestion_params["dedupe_across_datasets"] = False
     sync_tasks = sync_twitter.build_sync_tasks(ingestion_params)
-    other_storage = TwitterStorageManager("raw", other_dataset_id)
+    other_storage = TwitterStorageManager(StorageStage.RAW, other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
         [mock_tweet_row("1000000000000000000", keyword="alpha")],
         other_run,
     )
 
-    storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
+    storage = TwitterStorageManager(StorageStage.RAW, VALID_TWITTER_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_twitter.init_sync_metadata(
         config,
@@ -343,7 +343,7 @@ def test_resume_skips_completed_tasks(
     config = _minimal_twitter_sync_config()
     ingestion_params = config["ingestion_params"]
     sync_tasks = sync_twitter.build_sync_tasks(ingestion_params)
-    storage = TwitterStorageManager("raw", VALID_TWITTER_DATASET_ID)
+    storage = TwitterStorageManager(StorageStage.RAW, VALID_TWITTER_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_twitter.init_sync_metadata(
         config,

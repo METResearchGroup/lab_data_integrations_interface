@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import csv
 import json
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import pandas as pd
 from pydantic import BaseModel
@@ -19,7 +20,13 @@ from lib.timestamp_utils import get_current_timestamp
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 METADATA_FILENAME = "metadata.json"
-Stage = Literal["raw", "preprocessed", "features", "curated"]
+
+
+class StorageStage(StrEnum):
+    RAW = "raw"
+    PREPROCESSED = "preprocessed"
+    FEATURES = "features"
+    CURATED = "curated"
 
 
 def _write_csv(rows: list[dict[str, Any]], output_path: Path, fieldnames: list[str]) -> None:
@@ -41,7 +48,7 @@ def _append_csv(rows: list[dict[str, Any]], output_path: Path, fieldnames: list[
 
 class StorageManager:
     platform: str
-    stage: Stage
+    stage: StorageStage
     model: type[BaseModel]
     records_filename: str
     dataset_id: str
@@ -49,7 +56,7 @@ class StorageManager:
     def __init__(
         self,
         platform: str,
-        stage: Stage,
+        stage: StorageStage,
         model: type[BaseModel],
         dataset_id: str,
         *,
@@ -166,7 +173,7 @@ class StorageManager:
         for dataset_dir in platform_root.iterdir():
             if not dataset_dir.is_dir():
                 continue
-            raw_dir = dataset_dir / "raw"
+            raw_dir = dataset_dir / StorageStage.RAW
             if not raw_dir.exists():
                 continue
             for run_dir in raw_dir.iterdir():
@@ -228,7 +235,7 @@ class StorageManager:
 class BlueskyStorageManager(StorageManager):
     def __init__(
         self,
-        stage: Stage = "raw",
+        stage: StorageStage = StorageStage.RAW,
         dataset_id: str = "",
         *,
         records_filename: str = "posts.csv",
@@ -245,7 +252,7 @@ class BlueskyStorageManager(StorageManager):
 class RedditStorageManager(StorageManager):
     def __init__(
         self,
-        stage: Stage = "raw",
+        stage: StorageStage = StorageStage.RAW,
         dataset_id: str = "",
         *,
         records_filename: str = "comments.csv",
@@ -279,7 +286,7 @@ class RedditStorageManager(StorageManager):
 class TwitterStorageManager(StorageManager):
     def __init__(
         self,
-        stage: Stage = "raw",
+        stage: StorageStage = StorageStage.RAW,
         dataset_id: str = "",
         *,
         records_filename: str = "posts.csv",

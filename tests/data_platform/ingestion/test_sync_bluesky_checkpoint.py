@@ -8,7 +8,7 @@ import pytest
 
 from data_platform.ingestion import sync_bluesky
 from data_platform.ingestion.sync_checkpoint import validate_tasks_for_resume
-from data_platform.utils.storage import BlueskyStorageManager
+from data_platform.utils.storage import BlueskyStorageManager, StorageStage
 from tests.data_platform.conftest import make_ingestion_row
 from tests.data_platform.constants import VALID_DATASET_ID
 from tests.data_platform.ingestion.conftest import (
@@ -54,7 +54,7 @@ def test_run_sync_tasks_appends_per_keyword(
     config = minimal_sync_config()
     ingestion_params = config["ingestion_params"]
     sync_tasks = sync_bluesky.build_sync_tasks(ingestion_params)
-    storage = BlueskyStorageManager("raw", VALID_DATASET_ID)
+    storage = BlueskyStorageManager(StorageStage.RAW, VALID_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_bluesky.init_sync_metadata(
         config,
@@ -105,7 +105,7 @@ def test_run_sync_tasks_skips_ids_from_other_dataset(
     config = minimal_sync_config()
     ingestion_params = config["ingestion_params"]
     sync_tasks = sync_bluesky.build_sync_tasks(ingestion_params)
-    other_storage = BlueskyStorageManager("raw", other_dataset_id)
+    other_storage = BlueskyStorageManager(StorageStage.RAW, other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
         [
@@ -119,7 +119,7 @@ def test_run_sync_tasks_skips_ids_from_other_dataset(
         other_run,
     )
 
-    storage = BlueskyStorageManager("raw", VALID_DATASET_ID)
+    storage = BlueskyStorageManager(StorageStage.RAW, VALID_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_bluesky.init_sync_metadata(
         config,
@@ -168,7 +168,7 @@ def test_run_sync_tasks_respects_dedupe_across_datasets_false(
     ingestion_params = config["ingestion_params"]
     ingestion_params["dedupe_across_datasets"] = False
     sync_tasks = sync_bluesky.build_sync_tasks(ingestion_params)
-    other_storage = BlueskyStorageManager("raw", other_dataset_id)
+    other_storage = BlueskyStorageManager(StorageStage.RAW, other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
         [
@@ -182,7 +182,7 @@ def test_run_sync_tasks_respects_dedupe_across_datasets_false(
         other_run,
     )
 
-    storage = BlueskyStorageManager("raw", VALID_DATASET_ID)
+    storage = BlueskyStorageManager(StorageStage.RAW, VALID_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_bluesky.init_sync_metadata(
         config,
@@ -224,7 +224,7 @@ def test_run_sync_tasks_dedupes_within_run(
     config = minimal_sync_config()
     ingestion_params = config["ingestion_params"]
     sync_tasks = sync_bluesky.build_sync_tasks(ingestion_params)
-    storage = BlueskyStorageManager("raw", VALID_DATASET_ID)
+    storage = BlueskyStorageManager(StorageStage.RAW, VALID_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_bluesky.init_sync_metadata(
         config,
@@ -267,7 +267,7 @@ def test_resume_skips_completed_tasks(
     config = minimal_sync_config()
     ingestion_params = config["ingestion_params"]
     sync_tasks = sync_bluesky.build_sync_tasks(ingestion_params)
-    storage = BlueskyStorageManager("raw", VALID_DATASET_ID)
+    storage = BlueskyStorageManager(StorageStage.RAW, VALID_DATASET_ID)
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_bluesky.init_sync_metadata(
         config,

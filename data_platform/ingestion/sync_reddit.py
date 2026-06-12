@@ -50,7 +50,7 @@ from data_platform.ingestion.sync_checkpoint import (
 )
 from data_platform.ingestion.sync_clients import init_reddit_client
 from data_platform.utils.config_paths import load_yaml_config
-from data_platform.utils.storage import RedditStorageManager
+from data_platform.utils.storage import RedditStorageManager, StorageStage
 
 COMMENTS_RECORD_TYPE = "reddit.comment"
 POSTS_RECORD_TYPE = "reddit.post"
@@ -471,7 +471,7 @@ def sync_records(
     """Fetch Reddit records per config and write raw CSV + metadata."""
     config = load_config(config_path)
     dataset_id = require_dataset_id(config, platform="reddit")
-    comment_storage = RedditStorageManager("raw", dataset_id)
+    comment_storage = RedditStorageManager(StorageStage.RAW, dataset_id)
     post_storage = comment_storage.post_storage()
 
     ensure_dataset_manifest(

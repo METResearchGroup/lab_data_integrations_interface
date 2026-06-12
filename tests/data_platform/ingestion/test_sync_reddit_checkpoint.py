@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from data_platform.ingestion import sync_reddit
-from data_platform.utils.storage import RedditStorageManager
+from data_platform.utils.storage import RedditStorageManager, StorageStage
 from tests.data_platform.constants import VALID_REDDIT_DATASET_ID
 from tests.data_platform.ingestion.reddit_conftest import (
     minimal_reddit_sync_config,
@@ -38,7 +38,7 @@ def test_run_sync_tasks_appends_per_subreddit(
     config = minimal_reddit_sync_config()
     ingestion_params = config["ingestion_params"]
     sync_tasks = sync_reddit.build_sync_tasks(ingestion_params)
-    comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
+    comment_storage = RedditStorageManager(StorageStage.RAW, VALID_REDDIT_DATASET_ID)
     post_storage = comment_storage.post_storage()
     run_dir = comment_storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_reddit.init_sync_metadata(
@@ -109,7 +109,7 @@ def test_run_sync_tasks_skips_prior_run_comments(
     ingestion_params["dedupe_comments_from_prior_raw_runs"] = True
     ingestion_params["dedupe_across_datasets"] = False
     sync_tasks = sync_reddit.build_sync_tasks(ingestion_params)
-    comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
+    comment_storage = RedditStorageManager(StorageStage.RAW, VALID_REDDIT_DATASET_ID)
     post_storage = comment_storage.post_storage()
 
     prior_run = comment_storage.create_new_run_dir("2026_05_29-10:00:00")
@@ -177,14 +177,14 @@ def test_run_sync_tasks_skips_ids_from_other_dataset(
     config = minimal_reddit_sync_config()
     ingestion_params = config["ingestion_params"]
     sync_tasks = sync_reddit.build_sync_tasks(ingestion_params)
-    other_storage = RedditStorageManager("raw", other_dataset_id)
+    other_storage = RedditStorageManager(StorageStage.RAW, other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
         [mock_comment_row("t1_comment_old", subreddit="alphasub")],
         other_run,
     )
 
-    comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
+    comment_storage = RedditStorageManager(StorageStage.RAW, VALID_REDDIT_DATASET_ID)
     post_storage = comment_storage.post_storage()
     run_dir = comment_storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_reddit.init_sync_metadata(
@@ -246,14 +246,14 @@ def test_run_sync_tasks_respects_dedupe_across_datasets_false(
     ingestion_params = config["ingestion_params"]
     ingestion_params["dedupe_across_datasets"] = False
     sync_tasks = sync_reddit.build_sync_tasks(ingestion_params)
-    other_storage = RedditStorageManager("raw", other_dataset_id)
+    other_storage = RedditStorageManager(StorageStage.RAW, other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
         [mock_comment_row("t1_comment_old", subreddit="alphasub")],
         other_run,
     )
 
-    comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
+    comment_storage = RedditStorageManager(StorageStage.RAW, VALID_REDDIT_DATASET_ID)
     post_storage = comment_storage.post_storage()
     run_dir = comment_storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_reddit.init_sync_metadata(
@@ -310,7 +310,7 @@ def test_resume_skips_completed_subreddits(
     config = minimal_reddit_sync_config()
     ingestion_params = config["ingestion_params"]
     sync_tasks = sync_reddit.build_sync_tasks(ingestion_params)
-    comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
+    comment_storage = RedditStorageManager(StorageStage.RAW, VALID_REDDIT_DATASET_ID)
     post_storage = comment_storage.post_storage()
     run_dir = comment_storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_reddit.init_sync_metadata(
