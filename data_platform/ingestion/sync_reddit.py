@@ -31,8 +31,8 @@ from typing import Any
 import praw
 import praw.models
 import prawcore.exceptions
+from praw.models.comment_forest import CommentForest
 
-from data_platform.ingestion.dedupe import load_prior_seen_ids, persist_deduped_subreddit_rows
 from data_platform.ingestion.reddit_retry import retry_reddit_request
 from data_platform.ingestion.sync_checkpoint import (
     TaskStatus,
@@ -50,6 +50,7 @@ from data_platform.ingestion.sync_checkpoint import (
 )
 from data_platform.ingestion.sync_clients import init_reddit_client
 from data_platform.utils.config_paths import load_yaml_config
+from data_platform.utils.deduplication import DedupeConfig, DedupeSession
 from data_platform.utils.storage import RedditStorageManager, StorageStage
 
 COMMENTS_RECORD_TYPE = "reddit.comment"
@@ -122,11 +123,11 @@ def comment_to_row(
     }
 
 
-def _has_more_comments(comments_forest: praw.models.CommentForest) -> bool:
+def _has_more_comments(comments_forest: CommentForest) -> bool:
     return any(isinstance(comment, praw.models.MoreComments) for comment in comments_forest)
 
 
-def _expand_more_comments(comments_forest: praw.models.CommentForest) -> None:
+def _expand_more_comments(comments_forest: CommentForest) -> None:
     """Fetch MoreComments batches until none remain or expansion stalls."""
     while _has_more_comments(comments_forest):
         previous_len = len(comments_forest)
@@ -136,7 +137,7 @@ def _expand_more_comments(comments_forest: praw.models.CommentForest) -> None:
 
 
 def _walk_comments_in_order(
-    comments_forest: praw.models.CommentForest,
+    comments_forest: CommentForest,
     depth: int = 0,
 ) -> Iterator[tuple[praw.models.Comment, int]]:
     """Yield (comment, depth) in Reddit default display order via depth-first walk."""
@@ -359,6 +360,88 @@ def init_sync_metadata(
     )
 
 
+def _open_reddit_dedupe_sessions(
+    comment_storage: RedditStorageManager,
+    post_storage: RedditStorageManager,
+    output_dir: Path,
+    ingestion_params: dict[str, Any],
+    *,
+    include_comments: bool,
+    include_posts: bool,
+    comments_csv: str,
+    posts_csv: str,
+) -> tuple[DedupeSession | None, DedupeSession | None]:
+    comment_dedupe = None
+    post_dedupe = None
+    if include_comments:
+        comment_dedupe = comment_storage.open_dedupe_session(
+            output_dir,
+            DedupeConfig.from_ingestion_params(
+                ingestion_params,
+                "comment_fullname",
+                filename=comments_csv,
+                policy_key="comments_dedupe_policy",
+            ),
+        )
+    if include_posts:
+        post_dedupe = post_storage.open_dedupe_session(
+            output_dir,
+            DedupeConfig.from_ingestion_params(
+                ingestion_params,
+                "reddit_fullname",
+                filename=posts_csv,
+                policy_key="posts_dedupe_policy",
+            ),
+        )
+    return comment_dedupe, post_dedupe
+
+
+def _append_subreddit_deduped_rows(
+    comment_storage: RedditStorageManager,
+    post_storage: RedditStorageManager,
+    output_dir: Path,
+    metadata: dict[str, Any],
+    post_rows: list[dict[str, Any]],
+    comment_rows: list[dict[str, Any]],
+    *,
+    include_comments: bool,
+    include_posts: bool,
+    comment_dedupe: DedupeSession | None,
+    post_dedupe: DedupeSession | None,
+    comments_csv: str,
+    posts_csv: str,
+) -> tuple[int, int]:
+    if include_posts and post_rows and post_dedupe is not None:
+        post_result = post_storage.append_deduped_records(
+            post_rows,
+            output_dir,
+            session=post_dedupe,
+            filename=posts_csv,
+        )
+        metadata["posts_skipped_as_duplicates"] = (
+            int(metadata.get("posts_skipped_as_duplicates", 0)) + post_result.skipped
+        )
+
+    if include_comments and comment_rows and comment_dedupe is not None:
+        comment_result = comment_storage.append_deduped_records(
+            comment_rows,
+            output_dir,
+            session=comment_dedupe,
+            filename=comments_csv,
+        )
+        metadata["comments_skipped_as_duplicates"] = (
+            int(metadata.get("comments_skipped_as_duplicates", 0)) + comment_result.skipped
+        )
+
+    comment_count = (
+        len(comment_dedupe.seen_ids) if include_comments and comment_dedupe is not None else 0
+    )
+    post_count = len(post_dedupe.seen_ids) if include_posts and post_dedupe is not None else 0
+    metadata["row_count"] = comment_count
+    metadata["post_row_count"] = post_count
+    return comment_count, post_count
+
+
 def run_sync_tasks(
     reddit: praw.Reddit,
     ingestion_params: dict[str, Any],
@@ -376,31 +459,24 @@ def run_sync_tasks(
     comments_csv = record_type_to_filename(COMMENTS_RECORD_TYPE)
     posts_csv = record_type_to_filename(POSTS_RECORD_TYPE)
 
-    prior_comment_ids: set[str] = set()
-    prior_post_ids: set[str] = set()
-    if include_comments:
-        prior_comment_ids = load_prior_seen_ids(
-            comment_storage,
-            output_dir,
-            ingestion_params,
-            "comment_fullname",
-            filename=comments_csv,
-            same_dataset_flag="dedupe_comments_from_prior_raw_runs",
-        )
-    if include_posts:
-        prior_post_ids = load_prior_seen_ids(
-            post_storage,
-            output_dir,
-            ingestion_params,
-            "reddit_fullname",
-            filename=posts_csv,
-            same_dataset_flag="dedupe_comments_from_prior_raw_runs",
-        )
-    if prior_comment_ids or prior_post_ids:
+    comment_dedupe, post_dedupe = _open_reddit_dedupe_sessions(
+        comment_storage,
+        post_storage,
+        output_dir,
+        ingestion_params,
+        include_comments=include_comments,
+        include_posts=include_posts,
+        comments_csv=comments_csv,
+        posts_csv=posts_csv,
+    )
+    if comment_dedupe or post_dedupe:
+        prior_comment_count = len(comment_dedupe.seen_ids) if comment_dedupe else 0
+        prior_post_count = len(post_dedupe.seen_ids) if post_dedupe else 0
         print(
-            f"sync_records: loaded {len(prior_comment_ids)} prior comment IDs, "
-            f"{len(prior_post_ids)} prior post IDs for dedupe"
+            f"sync_records: loaded {prior_comment_count} prior comment IDs, "
+            f"{prior_post_count} prior post IDs for dedupe"
         )
+
     def process_task(task: RedditTask, entry: dict[str, Any]) -> None:
         mark_task_in_progress(entry, comment_storage, output_dir, metadata)
 
@@ -417,17 +493,17 @@ def run_sync_tasks(
             mark_task_failed(entry, exc, task.task_id, comment_storage, output_dir, metadata)
             return
 
-        counts = persist_deduped_subreddit_rows(
+        comment_count, post_count = _append_subreddit_deduped_rows(
             comment_storage,
             post_storage,
             output_dir,
+            metadata,
             post_rows,
             comment_rows,
-            metadata,
             include_comments=include_comments,
             include_posts=include_posts,
-            prior_comment_ids=prior_comment_ids,
-            prior_post_ids=prior_post_ids,
+            comment_dedupe=comment_dedupe,
+            post_dedupe=post_dedupe,
             comments_csv=comments_csv,
             posts_csv=posts_csv,
         )
@@ -445,7 +521,7 @@ def run_sync_tasks(
         print(
             f"sync_records: {task.task_id} -> "
             f"{stats['comments_collected']} comments, {stats['posts_collected']} posts "
-            f"(total comments={counts.comment_count}, total posts={counts.post_count})"
+            f"(total comments={comment_count}, total posts={post_count})"
         )
 
     run_checkpointed_sync(

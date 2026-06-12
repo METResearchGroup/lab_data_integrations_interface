@@ -7,6 +7,9 @@ date: "2026-05-30"
 record_types:
   - app.bsky.feed.post
 ingestion_params:
+  dedupe_policy:
+    - current_run
+    - prior_runs_all_datasets
   limit: 700
   sort: latest
   max_rows: 20000

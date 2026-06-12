@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -16,10 +17,17 @@ from data_platform.models.sync import (
     SyncTwitterPostModel,
 )
 from data_platform.utils.dataset import validate_dataset_id
+from data_platform.utils.deduplication import DedupeConfig, DedupeSession
 from lib.timestamp_utils import get_current_timestamp
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 METADATA_FILENAME = "metadata.json"
+
+
+@dataclass(frozen=True)
+class AppendResult:
+    kept: int
+    skipped: int
 
 
 class StorageStage(StrEnum):
@@ -129,7 +137,7 @@ class StorageManager:
         _append_csv(validated, csv_path, fieldnames)
         return csv_path
 
-    def load_seen_ids(
+    def load_ids_from_csv(
         self,
         run_dir: Path,
         id_column: str,
@@ -156,7 +164,7 @@ class StorageManager:
         for run_dir in self.root_dir.iterdir():
             if not run_dir.is_dir() or run_dir.resolve() == exclude_run_dir.resolve():
                 continue
-            seen.update(self.load_seen_ids(run_dir, id_column, filename=filename))
+            seen.update(self.load_ids_from_csv(run_dir, id_column, filename=filename))
         return seen
 
     def load_seen_ids_from_platform_raw_runs(
@@ -179,8 +187,28 @@ class StorageManager:
             for run_dir in raw_dir.iterdir():
                 if not run_dir.is_dir() or run_dir.resolve() == exclude_run_dir.resolve():
                     continue
-                seen.update(self.load_seen_ids(run_dir, id_column, filename=filename))
+                seen.update(self.load_ids_from_csv(run_dir, id_column, filename=filename))
         return seen
+
+    def open_dedupe_session(self, output_dir: Path, config: DedupeConfig) -> DedupeSession:
+        session = DedupeSession(config)
+        session.warm(self, output_dir)
+        return session
+
+    def append_deduped_records(
+        self,
+        rows: list[dict[str, Any]],
+        run_dir: Path,
+        *,
+        session: DedupeSession,
+        filename: str | None = None,
+    ) -> AppendResult:
+        kept_rows, skipped = session.filter_rows(rows)
+        resolved_filename = filename or session.config.filename
+        if kept_rows:
+            self.append_records(kept_rows, run_dir, filename=resolved_filename)
+            session.note_appended(kept_rows)
+        return AppendResult(kept=len(kept_rows), skipped=skipped)
 
     def load_seen_uris(
         self,
@@ -188,7 +216,7 @@ class StorageManager:
         *,
         filename: str | None = None,
     ) -> set[str]:
-        return self.load_seen_ids(run_dir, "uri", filename=filename)
+        return self.load_ids_from_csv(run_dir, "uri", filename=filename)
 
     def load_records(
         self,
@@ -323,4 +351,4 @@ class TwitterStorageManager(StorageManager):
         *,
         filename: str | None = None,
     ) -> set[str]:
-        return self.load_seen_ids(run_dir, "tweet_id", filename=filename)
+        return self.load_ids_from_csv(run_dir, "tweet_id", filename=filename)

@@ -35,6 +35,7 @@ def minimal_sync_config() -> dict[str, Any]:
         "date": "2026-05-30",
         "record_types": [sync_bluesky.POSTS_RECORD_TYPE],
         "ingestion_params": {
+            "dedupe_policy": ["current_run", "prior_runs_all_datasets"],
             "limit": 2,
             "sort": "latest",
             "keywords": ["alpha", "beta"],
