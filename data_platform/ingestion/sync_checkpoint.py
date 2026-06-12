@@ -12,6 +12,7 @@ import typer
 from tqdm import tqdm
 
 from data_platform.utils.config_paths import resolve_config_path
+from lib.constants import REPO_ROOT
 from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
 from data_platform.utils.storage import StorageManager
 from lib.timestamp_utils import get_current_timestamp
@@ -263,8 +264,6 @@ def ensure_dataset_manifest(
     dataset_id: str,
     config: dict[str, Any],
     config_path: Path,
-    *,
-    repo_root: Path,
 ) -> None:
     manifest_path = storage.root_dir.parent / "dataset.json"
     if not manifest_path.exists():
@@ -272,7 +271,7 @@ def ensure_dataset_manifest(
             platform,
             dataset_id,
             name=str(config["name"]),
-            ingestion_config=str(config_path.relative_to(repo_root)),
+            ingestion_config=str(config_path.relative_to(REPO_ROOT)),
         )
 
 
@@ -308,7 +307,6 @@ def prepare_sync_run(
 
 def run_sync_cli(
     *,
-    configs_dir: Path,
     default_config: Path,
     sync_records_fn: Callable[..., Path],
     config_help: str,
@@ -330,7 +328,7 @@ def run_sync_cli(
             help="Raw run timestamp directory name (requires --resume)",
         ),
     ) -> None:
-        config_path = resolve_config_path(config, configs_dir)
+        config_path = resolve_config_path(config, REPO_ROOT)
         sync_records_fn(config_path, resume=resume, run_dir_name=run_dir)
 
     typer.run(main)

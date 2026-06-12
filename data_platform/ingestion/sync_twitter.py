@@ -2,19 +2,22 @@
 
 Run from the repo root:
 
-    PYTHONPATH=. uv run python data_platform/ingestion/sync_twitter.py
+    PYTHONPATH=. uv run python data_platform/ingestion/sync_twitter.py \\
+        --config data_platform/ingestion/configs/twitter/default.yaml
 
-    PYTHONPATH=. uv run python data_platform/ingestion/sync_twitter.py --config mirrorview.yaml
+    PYTHONPATH=. uv run python data_platform/ingestion/sync_twitter.py \\
+        --config data_platform/ingestion/configs/twitter/mirrorview.yaml
 
 Resume the latest in-progress run for a dataset:
 
     PYTHONPATH=. uv run python data_platform/ingestion/sync_twitter.py \\
-        --config mirrorview.yaml --resume
+        --config data_platform/ingestion/configs/twitter/mirrorview.yaml --resume
 
 Resume a specific raw run timestamp:
 
     PYTHONPATH=. uv run python data_platform/ingestion/sync_twitter.py \\
-        --config mirrorview.yaml --resume --run-dir 2026_06_01-12:00:00
+        --config data_platform/ingestion/configs/twitter/mirrorview.yaml --resume \\
+        --run-dir 2026_06_01-12:00:00
 
 Ingestion YAML must include `dataset_id` (e.g. twitter_<uuid>).
 """
@@ -44,9 +47,6 @@ from data_platform.ingestion.twitter_client import fetch_posts_for_keyword
 from data_platform.utils.config_paths import load_yaml_config
 from data_platform.utils.storage import TwitterStorageManager
 
-CONFIGS_DIR = Path(__file__).resolve().parent / "configs/twitter"
-DEFAULT_CONFIG = CONFIGS_DIR / "default.yaml"
-REPO_ROOT = Path(__file__).resolve().parents[2]
 POSTS_CSV = "posts.csv"
 
 
@@ -188,7 +188,7 @@ load_config = load_yaml_config
 
 
 def sync_records(
-    config_path: Path = DEFAULT_CONFIG,
+    config_path: Path,
     *,
     resume: bool = False,
     run_dir_name: str | None = None,
@@ -204,7 +204,6 @@ def sync_records(
         dataset_id,
         config,
         config_path,
-        repo_root=REPO_ROOT,
     )
 
     ingestion_params = config["ingestion_params"]
@@ -241,10 +240,12 @@ def sync_records(
 
 def main() -> None:
     run_sync_cli(
-        configs_dir=CONFIGS_DIR,
-        default_config=DEFAULT_CONFIG,
+        default_config=Path("data_platform/ingestion/configs/twitter/default.yaml"),
         sync_records_fn=sync_records,
-        config_help="YAML config path or filename under configs/twitter/ (e.g. mirrorview.yaml)",
+        config_help=(
+            "Ingestion YAML path relative to the repo root "
+            "(e.g. data_platform/ingestion/configs/twitter/mirrorview.yaml)"
+        ),
     )
 
 

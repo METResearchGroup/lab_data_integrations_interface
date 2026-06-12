@@ -17,20 +17,19 @@ from data_platform.ingestion.sync_checkpoint import require_dataset_id
 from data_platform.ingestion.sync_bluesky import sync_records
 from data_platform.preprocessing.preprocess_bluesky import preprocess_records
 from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
+from lib.constants import REPO_ROOT
 
-MIRRORVIEW_CONFIG = (
-    Path(__file__).resolve().parents[1] / "ingestion/configs/bluesky/mirrorview.yaml"
-)
+MIRRORVIEW_CONFIG = Path("data_platform/ingestion/configs/bluesky/mirrorview.yaml")
 
 
 @task(name="sync-bluesky")
 def sync_task() -> None:
-    sync_records()
+    sync_records(resolve_config_path(MIRRORVIEW_CONFIG, REPO_ROOT))
 
 
 @task(name="preprocess-bluesky")
 def preprocess_task() -> None:
-    config = load_yaml_config(resolve_config_path(MIRRORVIEW_CONFIG, MIRRORVIEW_CONFIG.parent))
+    config = load_yaml_config(resolve_config_path(MIRRORVIEW_CONFIG, REPO_ROOT))
     preprocess_records(require_dataset_id(config, platform="bluesky"))
 
 
