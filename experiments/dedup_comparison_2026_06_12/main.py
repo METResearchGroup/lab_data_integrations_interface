@@ -78,8 +78,10 @@ def run_backend(
     seed_uris: dict[int, list[str]],
     *,
     table_sizes: list[int],
+    out_dir: Path,
 ) -> dict[str, object]:
     results: dict[str, object] = {}
+    partial_path = out_dir / f"{backend_name}_results.json"
 
     for table_size in table_sizes:
         if table_size not in seed_uris:
@@ -105,6 +107,9 @@ def run_backend(
                 label=label,
             )
             results[key] = result
+
+        write_json(partial_path, results)
+        print(f"  [{backend_name}] checkpoint saved (table_size={table_size:,})")
 
     return results
 
@@ -282,17 +287,25 @@ def main() -> None:
         print("\n=== S3 + SQLite ===")
         sqlite_backend = SQLiteBackend()
         sqlite_results = run_backend(
-            "sqlite", sqlite_backend, batch_uris, seed_uris, table_sizes=table_sizes
+            "sqlite",
+            sqlite_backend,
+            batch_uris,
+            seed_uris,
+            table_sizes=table_sizes,
+            out_dir=out_dir,
         )
-        write_json(out_dir / "sqlite_results.json", sqlite_results)
 
     if args.backend in ("dynamodb", "both"):
         print("\n=== DynamoDB ===")
         dynamodb_backend = DynamoDBBackend()
         dynamodb_results = run_backend(
-            "dynamodb", dynamodb_backend, batch_uris, seed_uris, table_sizes=table_sizes
+            "dynamodb",
+            dynamodb_backend,
+            batch_uris,
+            seed_uris,
+            table_sizes=table_sizes,
+            out_dir=out_dir,
         )
-        write_json(out_dir / "dynamodb_results.json", dynamodb_results)
 
     print_results_table(sqlite_results, dynamodb_results, table_sizes=table_sizes)
 
