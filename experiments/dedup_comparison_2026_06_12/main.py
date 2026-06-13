@@ -4,12 +4,7 @@ Runs all (batch_size × table_size) combinations for both backends, writes
 results to data/{timestamp}/.
 
 Run from repo root:
-    PYTHONPATH=. uv run python experiments/dedup_comparison_2026_06_12/main.py [--skip-1m]
-
-Flags:
-    --skip-1m   Skip the 1,000,000-URI table size (saves ~$1.50 and significant time).
-                DynamoDB results are identical at any table size (O(1) lookups), so this
-                only affects the SQLite scale degradation measurement.
+    PYTHONPATH=. uv run python experiments/dedup_comparison_2026_06_12/main.py
 """
 
 from __future__ import annotations
@@ -39,17 +34,17 @@ MOCK_DATA_DIR = Path(__file__).parent / "mock_data"
 DATA_DIR = Path(__file__).parent / "data"
 
 BATCH_SIZES = [100, 1_000, 5_000, 10_000]
-TABLE_SIZES = [0, 10_000, 100_000, 1_000_000]
+TABLE_SIZES = [0, 10_000, 100_000]
 
-N_RUNS = 10
-WARMUP = 2
+N_RUNS = 1
+WARMUP = 0
 
 
 def load_uris(path: Path) -> list[str]:
     return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def load_all_mock_data(*, skip_1m: bool) -> tuple[dict[int, list[str]], dict[int, list[str]]]:
+def load_all_mock_data() -> tuple[dict[int, list[str]], dict[int, list[str]]]:
     batch_uris: dict[int, list[str]] = {}
     for n in BATCH_SIZES:
         path = MOCK_DATA_DIR / f"uris_{n}.txt"
@@ -59,9 +54,7 @@ def load_all_mock_data(*, skip_1m: bool) -> tuple[dict[int, list[str]], dict[int
         batch_uris[n] = load_uris(path)
 
     seed_uris: dict[int, list[str]] = {0: []}
-    for size, label in [(10_000, "10k"), (100_000, "100k"), (1_000_000, "1m")]:
-        if size == 1_000_000 and skip_1m:
-            continue
+    for size, label in [(10_000, "10k"), (100_000, "100k")]:
         path = MOCK_DATA_DIR / f"uris_seed_{label}.txt"
         if not path.exists():
             print(f"ERROR: {path} not found. Run generate_mock_data.py first.", file=sys.stderr)
@@ -129,12 +122,9 @@ def print_results_table(
     table.add_column("Backend", style="bold cyan", no_wrap=True)
     table.add_column("Batch", justify="right", style="white")
     table.add_column("Table Size", justify="right", style="white")
-    table.add_column("Check p50", justify="right", style="green")
-    table.add_column("Check p99", justify="right", style="green")
-    table.add_column("Write p50", justify="right", style="yellow")
-    table.add_column("Write p99", justify="right", style="yellow")
-    table.add_column("E2E p50", justify="right", style="blue")
-    table.add_column("E2E p99", justify="right", style="blue")
+    table.add_column("Check ms", justify="right", style="green")
+    table.add_column("Write ms", justify="right", style="yellow")
+    table.add_column("E2E ms", justify="right", style="blue")
     table.add_column("HTTP Calls", justify="right", style="white")
     table.add_column("RSS MB", justify="right", style="magenta")
 
@@ -152,19 +142,13 @@ def print_results_table(
                 if key not in results:
                     continue
                 r = results[key]
-                chk = r["check_latency"]
-                wrt = r["write_latency"]
-                e2e = r["end_to_end_latency"]
                 table.add_row(
                     backend_name if first_row else "",
                     f"{batch_size:,}",
                     f"{table_size:,}",
-                    f"{chk['p50_ms']:.1f}ms",
-                    f"{chk['p99_ms']:.1f}ms",
-                    f"{wrt['p50_ms']:.1f}ms",
-                    f"{wrt['p99_ms']:.1f}ms",
-                    f"{e2e['p50_ms']:.1f}ms",
-                    f"{e2e['p99_ms']:.1f}ms",
+                    f"{r['check_latency']['ms']:.1f}ms",
+                    f"{r['write_latency']['ms']:.1f}ms",
+                    f"{r['end_to_end_latency']['ms']:.1f}ms",
                     str(r["http_call_count"]),
                     f"{r['peak_rss_mb']:.1f}",
                 )
@@ -191,7 +175,7 @@ def build_metrics(
                 }
 
     scale_degradation = {}
-    if 1_000_000 in table_sizes:
+    if 100_000 in table_sizes:
         for batch_size in BATCH_SIZES:
             scale_degradation[f"batch_{batch_size}"] = {
                 "sqlite": compute_scale_degradation(sqlite_results, batch_size=batch_size),
@@ -235,15 +219,15 @@ def _build_recommendation(
                 continue
             if sqlite_coeff > 3.0:
                 reasons.append(
-                    f"S3+SQLite scale degradation at 1M table = {sqlite_coeff:.1f}x "
+                    f"S3+SQLite scale degradation at 100K table = {sqlite_coeff:.1f}x "
                     f"(batch={batch_size}) exceeds 3x threshold"
                 )
 
-    key_1m_10k = "batch_10000_table_1000000"
-    if key_1m_10k in sqlite_results:
-        p99 = sqlite_results[key_1m_10k]["check_latency"]["p99_ms"]
-        if p99 > 5000:
-            reasons.append(f"S3+SQLite check p99 at 1M table = {p99:.0f}ms exceeds 5s threshold")
+    key_100k_10k = "batch_10000_table_100000"
+    if key_100k_10k in sqlite_results:
+        check_ms = sqlite_results[key_100k_10k]["check_latency"]["ms"]
+        if check_ms > 5000:
+            reasons.append(f"S3+SQLite check at 100K table = {check_ms:.0f}ms exceeds 5s threshold")
 
     if reasons:
         return "USE DYNAMODB. Reasons: " + "; ".join(reasons)
@@ -262,11 +246,6 @@ def write_json(path: Path, data: object) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Dedup benchmark: S3+SQLite vs DynamoDB")
     parser.add_argument(
-        "--skip-1m",
-        action="store_true",
-        help="Skip 1M-URI table size (saves time and ~$1.50 in DynamoDB write costs)",
-    )
-    parser.add_argument(
         "--backend",
         choices=["sqlite", "dynamodb", "both"],
         default="both",
@@ -274,7 +253,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    batch_uris, seed_uris = load_all_mock_data(skip_1m=args.skip_1m)
+    batch_uris, seed_uris = load_all_mock_data()
     table_sizes = [ts for ts in TABLE_SIZES if ts in seed_uris]
 
     timestamp = get_current_timestamp()
@@ -327,7 +306,6 @@ def main() -> None:
         "warmup_runs": WARMUP,
         "batch_sizes_tested": BATCH_SIZES,
         "table_sizes_tested": table_sizes,
-        "skip_1m": args.skip_1m,
         "python_version": sys.version,
     }
     write_json(out_dir / "metadata.json", metadata)

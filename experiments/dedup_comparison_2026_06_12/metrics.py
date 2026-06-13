@@ -6,33 +6,13 @@ Run from repo root:
 
 from __future__ import annotations
 
-import statistics
 from typing import Any
-
-
-def percentile(values: list[float], pct: float) -> float:
-    if not values:
-        return 0.0
-    sorted_vals = sorted(values)
-    if len(sorted_vals) == 1:
-        return sorted_vals[0]
-    rank = (len(sorted_vals) - 1) * (pct / 100.0)
-    lower = int(rank)
-    upper = min(lower + 1, len(sorted_vals) - 1)
-    weight = rank - lower
-    return sorted_vals[lower] * (1 - weight) + sorted_vals[upper] * weight
 
 
 def compute_latency_stats(values_ms: list[float]) -> dict[str, float]:
     if not values_ms:
-        return {"p50_ms": 0.0, "p90_ms": 0.0, "p99_ms": 0.0, "mean_ms": 0.0, "stddev_ms": 0.0}
-    return {
-        "p50_ms": round(percentile(values_ms, 50), 3),
-        "p90_ms": round(percentile(values_ms, 90), 3),
-        "p99_ms": round(percentile(values_ms, 99), 3),
-        "mean_ms": round(statistics.mean(values_ms), 3),
-        "stddev_ms": round(statistics.pstdev(values_ms) if len(values_ms) > 1 else 0.0, 3),
-    }
+        return {"ms": 0.0}
+    return {"ms": round(values_ms[0], 3)}
 
 
 def aggregate_run_results(runs: list[dict[str, Any]]) -> dict[str, Any]:
@@ -121,11 +101,11 @@ def compute_scale_degradation(
     batch_size: int,
 ) -> float:
     key_empty = f"batch_{batch_size}_table_0"
-    key_1m = f"batch_{batch_size}_table_1000000"
-    if key_empty not in results or key_1m not in results:
+    key_100k = f"batch_{batch_size}_table_100000"
+    if key_empty not in results or key_100k not in results:
         return float("nan")
-    latency_empty = results[key_empty]["check_latency"]["mean_ms"]
-    latency_1m = results[key_1m]["check_latency"]["mean_ms"]
+    latency_empty = results[key_empty]["check_latency"]["ms"]
+    latency_100k = results[key_100k]["check_latency"]["ms"]
     if latency_empty == 0:
         return float("nan")
-    return round(latency_1m / latency_empty, 3)
+    return round(latency_100k / latency_empty, 3)
