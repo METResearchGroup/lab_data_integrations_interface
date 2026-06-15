@@ -19,6 +19,7 @@ from rich.console import Console
 from rich.table import Table
 
 from experiments.dedup_comparison_2026_06_12.athena_backend import AthenaBackend
+from experiments.dedup_comparison_2026_06_12.duckdb_backend import DuckDBBackend
 from experiments.dedup_comparison_2026_06_12.dynamodb_backend import DynamoDBBackend
 from experiments.dedup_comparison_2026_06_12.harness import run_benchmark
 from experiments.dedup_comparison_2026_06_12.metrics import (
@@ -67,7 +68,7 @@ def load_all_mock_data() -> tuple[dict[int, list[str]], dict[int, list[str]]]:
 
 def run_backend(
     backend_name: str,
-    backend: SQLiteBackend | DynamoDBBackend | AthenaBackend,
+    backend: SQLiteBackend | DynamoDBBackend | AthenaBackend | DuckDBBackend,
     batch_uris: dict[int, list[str]],
     seed_uris: dict[int, list[str]],
     *,
@@ -112,6 +113,7 @@ def print_results_table(
     sqlite_results: dict,
     dynamodb_results: dict,
     athena_results: dict,
+    duckdb_results: dict,
     *,
     table_sizes: list[int],
 ) -> None:
@@ -137,6 +139,8 @@ def print_results_table(
         backends.append(("DynamoDB", dynamodb_results))
     if athena_results:
         backends.append(("S3+Athena", athena_results))
+    if duckdb_results:
+        backends.append(("S3+DuckDB", duckdb_results))
 
     for backend_name, results in backends:
         first_row = True
@@ -251,7 +255,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Dedup benchmark: S3+SQLite vs DynamoDB")
     parser.add_argument(
         "--backend",
-        choices=["sqlite", "dynamodb", "athena", "both"],
+        choices=["sqlite", "dynamodb", "athena", "duckdb", "both"],
         default="both",
         help="Which backend(s) to run (default: both)",
     )
@@ -266,6 +270,7 @@ def main() -> None:
     sqlite_results: dict = {}
     dynamodb_results: dict = {}
     athena_results: dict = {}
+    duckdb_results: dict = {}
 
     if args.backend in ("sqlite", "both"):
         print("\n=== S3 + SQLite ===")
@@ -291,6 +296,18 @@ def main() -> None:
             out_dir=out_dir,
         )
 
+    if args.backend == "duckdb":
+        print("\n=== S3 + DuckDB ===")
+        duckdb_backend = DuckDBBackend()
+        duckdb_results = run_backend(
+            "duckdb",
+            duckdb_backend,
+            batch_uris,
+            seed_uris,
+            table_sizes=table_sizes,
+            out_dir=out_dir,
+        )
+
     if args.backend == "athena":
         print("\n=== S3 + Athena ===")
         athena_backend = AthenaBackend()
@@ -303,7 +320,9 @@ def main() -> None:
             out_dir=out_dir,
         )
 
-    print_results_table(sqlite_results, dynamodb_results, athena_results, table_sizes=table_sizes)
+    print_results_table(
+        sqlite_results, dynamodb_results, athena_results, duckdb_results, table_sizes=table_sizes
+    )
 
     if sqlite_results and dynamodb_results:
         console.print("\nBuilding cross-backend metrics...")
