@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +15,7 @@ DATASET_ID_PATTERN = re.compile(
 MANIFEST_FILENAME = "dataset.json"
 
 
-class ValidDataFormats(str, Enum):
+class ValidDataFormats(StrEnum):
     CSV = "csv"
     PARQUET = "parquet"
 
