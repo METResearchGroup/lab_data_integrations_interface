@@ -157,3 +157,29 @@ def test_generate_reddit_features_defaults_to_opik_disabled(monkeypatch) -> None
 
     generate_reddit_features(VALID_REDDIT_DATASET_ID)
     assert captured["opik_enabled"] is False
+
+
+def test_reddit_feature_config_applies_toxic_tiered_overrides(data_root, monkeypatch) -> None:
+    config_dir = data_root / "reddit" / VALID_REDDIT_DATASET_ID / "features"
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.yaml").write_text(
+        "is_toxic_tiered:\n  low_max: 0.3\n  high_min: 0.5\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "data_platform.generate_features.is_toxic_tiered.generate_feature.get_toxicity_prob",
+        lambda _text: 0.25,
+    )
+    monkeypatch.setattr(
+        "data_platform.generate_features.is_toxic_tiered.generate_feature.get_current_timestamp",
+        lambda: "2026-06-15T00:00:00Z",
+    )
+
+    config = reddit_feature_config(
+        VALID_REDDIT_DATASET_ID,
+        run_config=FeatureRunConfig(opik_enabled=False),
+        preprocessed_run="preprocessed/2026_06_01-00:00:00",
+        features_subset=("is_toxic_tiered",),
+    )
+    result = config.feature_registry["is_toxic_tiered"].generate_fn("t1_comment_1", "text")
+    assert result.toxicity_tier == "low"
