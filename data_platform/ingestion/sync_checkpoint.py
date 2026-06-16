@@ -12,7 +12,7 @@ import typer
 from tqdm import tqdm
 
 from data_platform.utils.config_paths import resolve_config_path
-from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
+from data_platform.utils.dataset import ValidDataFormats, validate_dataset_id, write_dataset_manifest
 from data_platform.utils.storage import StorageManager
 from lib.constants import REPO_ROOT
 from lib.timestamp_utils import get_current_timestamp
@@ -267,11 +267,13 @@ def ensure_dataset_manifest(
 ) -> None:
     manifest_path = storage.root_dir.parent / "dataset.json"
     if not manifest_path.exists():
+        output_format = ValidDataFormats(config.get("output_format", "csv"))
         write_dataset_manifest(
             platform,
             dataset_id,
             name=str(config["name"]),
             ingestion_config=str(config_path.relative_to(REPO_ROOT)),
+            format=output_format,
         )
 
 

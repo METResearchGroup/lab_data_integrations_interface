@@ -23,7 +23,7 @@ from data_platform.generate_features.models import (
     FeatureSpec,
     LabelTask,
 )
-from data_platform.utils.duckdb_features import feature_csv_path
+from data_platform.utils.storage import StorageManager
 from ml_tooling.llm import opik as opik_telemetry
 
 
@@ -70,6 +70,7 @@ def _run_feature_labeling(
     tasks: list[LabelTask],
     config: FeatureGenerationConfig,
     metadata: FeatureRunMetadata,
+    feature_storage: StorageManager,
 ) -> BatchRunStats:
     """Execute batch labeling for one feature and update metadata on completion."""
     mark_feature_in_progress(metadata, feature_name)
@@ -81,8 +82,7 @@ def _run_feature_labeling(
     stats = engine.label_records(
         tasks,
         feature_name=feature_name,
-        features_dir=config.features_dir,
-        dataset_id=config.input_storage.dataset_id,
+        feature_storage=feature_storage,
         batch_size=config.run_config.batch_size,
         on_batch_complete=_make_on_batch_complete(metadata, feature_name, config.features_dir),
     )
@@ -102,14 +102,21 @@ def _process_one_feature(
 ) -> Path:
     """Label posts for a single feature and export labels."""
     feature_status = metadata.features.get(feature_name)
-    csv_path = feature_csv_path(config.features_dir, feature_name)
+    feature_storage = StorageManager(
+        config.platform,
+        "features",
+        spec.model,
+        config.input_storage.dataset_id,
+        records_filename=feature_name,
+    )
+    feature_path = feature_storage.root_dir / feature_storage.records_filename
 
     # Compare input posts against saved labels, to see which records need features.
     pending_df = filter_records_needing_features(records, feature_name, config)
     tasks = tasks_from_dataframe(pending_df, config.id_column, config.text_column)
 
     if len(tasks) == 0:
-        # Every input post is already labeled in {feature}.csv — nothing to do.
+        # Every input post is already labeled — nothing to do.
         prior_labeled = feature_status.labeled if feature_status else 0
         mark_feature_completed(metadata, feature_name, prior_labeled)
         flush_metadata(config.features_dir, metadata)
@@ -119,20 +126,20 @@ def _process_one_feature(
         else:
             # First run (or in-progress run) found no pending posts in this batch.
             print(f"generate_features: {feature_name} — nothing to label")
-        return csv_path
+        return feature_path
 
     # Resume with new posts: a past batch of posts may have been done and
     # we marked the metadata as done, but we have new posts.
     if feature_status and feature_status.status == "completed":
         print(f"generate_features: {feature_name} was completed; labeling {len(tasks)} new posts")
 
-    # Pending posts remain — run batch labeling and append to {feature}.csv.
-    stats = _run_feature_labeling(feature_name, spec, tasks, config, metadata)
+    # Pending posts remain — run batch labeling and append to the feature file.
+    stats = _run_feature_labeling(feature_name, spec, tasks, config, metadata, feature_storage)
     print(
         f"generate_features: {feature_name} -> {stats.labeled} new labels "
-        f"({stats.failed_batches} failed batches) -> {csv_path}"
+        f"({stats.failed_batches} failed batches) -> {feature_path}"
     )
-    return csv_path
+    return feature_path
 
 
 def _mark_sync_completed(

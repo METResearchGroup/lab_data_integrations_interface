@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
+from pydantic import BaseModel
 
 from data_platform.generate_features.models import (
     FeatureGenerationConfig,
@@ -14,7 +15,7 @@ from data_platform.generate_features.models import (
     FeatureSpec,
 )
 from data_platform.utils.feature_labels import FeatureLabelQuery
-from data_platform.utils.storage import BlueskyStorageManager
+from data_platform.utils.storage import BlueskyStorageManager, StorageManager
 from tests.data_platform.constants import (
     FEATURES_DATASET_ID,
     PREPROCESSED_RUN,
@@ -35,9 +36,9 @@ class DummyModel:
 
 
 @pytest.fixture
-def features_dir(tmp_path: Path) -> Path:
-    path = tmp_path / "features"
-    path.mkdir(parents=True)
+def features_dir(data_root: Path) -> Path:
+    path = data_root / "bluesky" / FEATURES_DATASET_ID / "features"
+    path.mkdir(parents=True, exist_ok=True)
     return path
 
 
@@ -56,7 +57,11 @@ def make_feature_generation_config(
         feature_registry=feature_registry or {},
         input_storage=BlueskyStorageManager("preprocessed", dataset_id),
         features_dir=features_dir,
-        feature_label_query=FeatureLabelQuery(features_root=features_dir),
+        feature_label_query=FeatureLabelQuery(
+            feature_storage=StorageManager(
+                "bluesky", "features", BaseModel, dataset_id, records_filename="features"
+            )
+        ),
         run_config=run_config or FeatureRunConfig(opik_enabled=False),
         preprocessed_run=preprocessed_run,
     )

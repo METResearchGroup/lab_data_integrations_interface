@@ -84,8 +84,8 @@ def run_curation(config_path: Path, dataset_id: str, spec: CuratePlatformSpec) -
     filtered_df = rules_result.dataframe
 
     run_dir = curated_storage.create_new_run_dir(get_current_timestamp())
-    output_path = run_dir / rules.output.filename
-    filtered_df.to_csv(output_path, index=False)
+    output_filename = curated_storage.filename_for(rules.output.stem)
+    output_path = curated_storage.write_dataframe(filtered_df, run_dir, filename=output_filename)
 
     metadata = build_curate_metadata(
         dataset_id=dataset_id,
@@ -94,7 +94,7 @@ def run_curation(config_path: Path, dataset_id: str, spec: CuratePlatformSpec) -
         wide_df=wide_df,
         filtered_df=filtered_df,
         rules_result=rules_result,
-        export_filename=rules.output.filename,
+        export_filename=output_filename,
     )
     curated_storage.write_run_metadata(run_dir, metadata)
 

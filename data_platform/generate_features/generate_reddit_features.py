@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 import typer
+from pydantic import BaseModel
 
 from data_platform.generate_features.generate_features import FeatureGenerationConfig
 from data_platform.generate_features.models import FeatureRunConfig
@@ -25,7 +26,7 @@ from data_platform.models.sync import SyncRedditCommentModel
 from data_platform.utils.dataset import dataset_root, validate_dataset_id
 from data_platform.utils.feature_labels import FeatureLabelQuery
 from data_platform.utils.platform_ids import REDDIT_BINDING
-from data_platform.utils.storage import RedditStorageManager, StorageStage
+from data_platform.utils.storage import RedditStorageManager, StorageManager, StorageStage
 
 ID_COLUMN = REDDIT_BINDING.records_id_column
 TEXT_COLUMN = REDDIT_BINDING.text_column
@@ -45,17 +46,19 @@ def reddit_feature_config(
     if features_subset:
         registry = {name: FEATURE_REGISTRY[name] for name in features_subset}
 
-    features_dir = dataset_root("reddit", dataset_id) / "features"
     binding = REDDIT_BINDING
+    feature_label_storage = StorageManager(
+        "reddit", "features", BaseModel, dataset_id, records_filename="features"
+    )
     return FeatureGenerationConfig(
         platform="reddit",
         id_column=binding.records_id_column,
         text_column=binding.text_column,
         feature_registry=registry,
         input_storage=RedditStorageManager(StorageStage.PREPROCESSED, dataset_id),
-        features_dir=features_dir,
+        features_dir=feature_label_storage.root_dir,
         feature_label_query=FeatureLabelQuery(
-            features_root=features_dir,
+            feature_storage=feature_label_storage,
             id_column=binding.records_id_column,
             feature_csv_id_column=binding.feature_csv_id_column,
         ),

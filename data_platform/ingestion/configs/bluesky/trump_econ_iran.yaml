@@ -1,0 +1,15 @@
+dataset_id: bluesky_8ce4cf1f-8ab9-4373-a739-2a2ff2de400f
+name: trump_econ_iran
+description: Bluesky posts on Trump, economy, and Iran — ~334 posts per keyword
+date: "2026-06-07"
+output_format: parquet
+record_types:
+  - app.bsky.feed.post
+fetch:
+  limit: 334
+  sort: latest
+  query_batch_size: 1
+  keyword:
+    - trump
+    - economy
+    - iran

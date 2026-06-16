@@ -1,0 +1,7 @@
+{
+  "dataset_id": "reddit_29747ef4-b7bb-413a-8a4c-55eb6ec6c136",
+  "platform": "reddit",
+  "name": "mirrorview_scale_run_2",
+  "created_at": "2026-06-12T00:37:08.506010+00:00",
+  "ingestion_config": "data_platform/ingestion/configs/reddit/mirrorview_scale_run_2.yaml"
+}

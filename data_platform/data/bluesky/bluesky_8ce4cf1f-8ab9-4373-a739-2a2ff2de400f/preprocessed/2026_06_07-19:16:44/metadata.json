@@ -1,0 +1,15 @@
+{
+  "dataset_id": "bluesky_8ce4cf1f-8ab9-4373-a739-2a2ff2de400f",
+  "source_raw_run": "raw/2026_06_07-19:16:34",
+  "source_raw_runs": [
+    "raw/2026_06_07-19:16:34"
+  ],
+  "preprocess_timestamp": "2026_06_07-19:16:44",
+  "row_counts": {
+    "input": 979,
+    "output": 474
+  },
+  "files": {
+    "posts": "posts.parquet"
+  }
+}
