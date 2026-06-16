@@ -23,7 +23,7 @@ from data_platform.generate_features.models import (
     FeatureSpec,
     LabelTask,
 )
-from data_platform.utils.storage import StorageManager
+from data_platform.utils.storage import StorageManager, StorageStage
 from ml_tooling.llm import opik as opik_telemetry
 
 
@@ -104,7 +104,7 @@ def _process_one_feature(
     feature_status = metadata.features.get(feature_name)
     feature_storage = StorageManager(
         config.platform,
-        "features",
+        StorageStage.FEATURES,
         spec.model,
         config.input_storage.dataset_id,
         records_filename=feature_name,

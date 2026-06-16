@@ -48,7 +48,11 @@ def reddit_feature_config(
 
     binding = REDDIT_BINDING
     feature_label_storage = StorageManager(
-        "reddit", "features", BaseModel, dataset_id, records_filename="features"
+        "reddit",
+        StorageStage.FEATURES,
+        BaseModel,
+        dataset_id,
+        records_filename="features",
     )
     return FeatureGenerationConfig(
         platform="reddit",

@@ -44,7 +44,11 @@ def bluesky_feature_config(
 
     binding = BLUESKY_BINDING
     feature_label_storage = StorageManager(
-        "bluesky", "features", BaseModel, dataset_id, records_filename="features"
+        "bluesky",
+        StorageStage.FEATURES,
+        BaseModel,
+        dataset_id,
+        records_filename="features",
     )
     return FeatureGenerationConfig(
         platform="bluesky",

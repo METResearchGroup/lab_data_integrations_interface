@@ -48,7 +48,11 @@ def twitter_feature_config(
 
     binding = TWITTER_BINDING
     feature_label_storage = StorageManager(
-        "twitter", "features", BaseModel, dataset_id, records_filename="features"
+        "twitter",
+        StorageStage.FEATURES,
+        BaseModel,
+        dataset_id,
+        records_filename="features",
     )
     return FeatureGenerationConfig(
         platform="twitter",
