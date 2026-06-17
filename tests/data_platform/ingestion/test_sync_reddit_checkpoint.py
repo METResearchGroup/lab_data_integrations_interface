@@ -150,6 +150,7 @@ def test_run_sync_tasks_skips_prior_run_comments(
         )
 
     monkeypatch.setattr(sync_reddit, "fetch_records_for_subreddit", fake_fetch)
+    monkeypatch.setattr(comment_storage, "load_seen_ids_from_athena", lambda: {"t1_comment_old"})
 
     sync_reddit.run_sync_tasks(
         MagicMock(),
@@ -218,6 +219,7 @@ def test_run_sync_tasks_skips_ids_from_other_dataset(
         )
 
     monkeypatch.setattr(sync_reddit, "fetch_records_for_subreddit", fake_fetch)
+    monkeypatch.setattr(comment_storage, "load_seen_ids_from_athena", lambda: {"t1_comment_old"})
 
     sync_reddit.run_sync_tasks(
         MagicMock(),

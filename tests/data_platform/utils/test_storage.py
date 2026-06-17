@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
-from data_platform.utils.deduplication import DedupeConfig, DedupePolicy, DedupeSession
+from data_platform.utils.deduplication import DedupeConfig, DedupeSession
 from data_platform.utils.storage import BlueskyStorageManager, RedditStorageManager, StorageStage
 from tests.data_platform.conftest import make_ingestion_row
 from tests.data_platform.constants import VALID_DATASET_ID, VALID_REDDIT_DATASET_ID
@@ -44,69 +45,11 @@ def test_load_seen_uris(bluesky_storage) -> None:
     assert bluesky_storage.load_seen_uris(run_dir) == {row["uri"]}
 
 
-def test_load_seen_ids_from_prior_runs(data_root) -> None:
-    comment_storage = RedditStorageManager(StorageStage.RAW, VALID_REDDIT_DATASET_ID)
-    prior_run_a = comment_storage.create_new_run_dir("2026_05_29-10:00:00")
-    prior_run_b = comment_storage.create_new_run_dir("2026_05_29-11:00:00")
-    current_run = comment_storage.create_new_run_dir("2026_05_30-10:00:00")
-
-    comment_storage.append_records(
-        [mock_comment_row("t1_comment_a")],
-        prior_run_a,
-        filename="comments.csv",
-    )
-    comment_storage.append_records(
-        [mock_comment_row("t1_comment_b")],
-        prior_run_b,
-        filename="comments.csv",
-    )
-    comment_storage.append_records(
-        [mock_comment_row("t1_comment_current")],
-        current_run,
-        filename="comments.csv",
-    )
-
-    seen = comment_storage.load_seen_ids_from_prior_runs(
-        current_run,
-        "comment_fullname",
-        filename="comments.csv",
-    )
-    assert seen == {"t1_comment_a", "t1_comment_b"}
-
-
-def test_load_seen_ids_from_platform_raw_runs(data_root) -> None:
-    dataset_a = "reddit_00000000-0000-4000-8000-000000000001"
-    dataset_b = "reddit_00000000-0000-4000-8000-000000000002"
-    storage_a = RedditStorageManager(StorageStage.RAW, dataset_a)
-    storage_b = RedditStorageManager(StorageStage.RAW, dataset_b)
-
-    prior_run_a = storage_a.create_new_run_dir("2026_05_29-10:00:00")
-    current_run_b = storage_b.create_new_run_dir("2026_05_30-10:00:00")
-
-    storage_a.append_records(
-        [mock_comment_row("t1_comment_a")],
-        prior_run_a,
-        filename="comments.csv",
-    )
-    storage_b.append_records(
-        [mock_comment_row("t1_comment_b")],
-        current_run_b,
-        filename="comments.csv",
-    )
-
-    seen = storage_b.load_seen_ids_from_platform_raw_runs(
-        current_run_b,
-        "comment_fullname",
-        filename="comments.csv",
-    )
-    assert seen == {"t1_comment_a"}
-
-
 def test_append_deduped_records_skips_current_run_duplicates(bluesky_storage) -> None:
     run_dir = bluesky_storage.create_new_run_dir("2026_05_30-10:00:00")
     existing = [make_ingestion_row(uri="at://did:plc:ex/app.bsky.feed.post/a1")]
     bluesky_storage.append_records(existing, run_dir)
-    config = DedupeConfig(policies=[DedupePolicy.CURRENT_RUN], id_column="uri")
+    config = DedupeConfig(id_column="uri")
     dedupe_session = DedupeSession(config)
     dedupe_session.warm(bluesky_storage, run_dir)
 
@@ -136,13 +79,10 @@ def test_append_deduped_records_skips_prior_run_duplicates(data_root) -> None:
         prior_run,
         filename="comments.csv",
     )
-    config = DedupeConfig(
-        policies=[DedupePolicy.CURRENT_RUN, DedupePolicy.PRIOR_RUNS_SAME_DATASET],
-        id_column="comment_fullname",
-        filename="comments.csv",
-    )
+    config = DedupeConfig(id_column="comment_fullname", filename="comments.csv")
     dedupe_session = DedupeSession(config)
-    dedupe_session.warm(comment_storage, current_run)
+    with patch.object(comment_storage, "load_seen_ids_from_athena", return_value={"t1_comment_a"}):
+        dedupe_session.warm(comment_storage, current_run)
 
     result = comment_storage.append_deduped_records(
         [
@@ -173,13 +113,10 @@ def test_append_deduped_records_skips_platform_duplicates(data_root) -> None:
         prior_run_a,
         filename="comments.csv",
     )
-    config = DedupeConfig(
-        policies=[DedupePolicy.CURRENT_RUN, DedupePolicy.PRIOR_RUNS_ALL_DATASETS],
-        id_column="comment_fullname",
-        filename="comments.csv",
-    )
+    config = DedupeConfig(id_column="comment_fullname", filename="comments.csv")
     dedupe_session = DedupeSession(config)
-    dedupe_session.warm(storage_b, current_run_b)
+    with patch.object(storage_b, "load_seen_ids_from_athena", return_value={"t1_comment_a"}):
+        dedupe_session.warm(storage_b, current_run_b)
 
     result = storage_b.append_deduped_records(
         [
@@ -199,7 +136,7 @@ def test_append_deduped_records_returns_empty_when_all_duplicates(bluesky_storag
     run_dir = bluesky_storage.create_new_run_dir("2026_05_30-10:00:00")
     existing = [make_ingestion_row(uri="at://did:plc:ex/app.bsky.feed.post/a1")]
     bluesky_storage.append_records(existing, run_dir)
-    config = DedupeConfig(policies=[DedupePolicy.CURRENT_RUN], id_column="uri")
+    config = DedupeConfig(id_column="uri")
     dedupe_session = DedupeSession(config)
     dedupe_session.warm(bluesky_storage, run_dir)
 

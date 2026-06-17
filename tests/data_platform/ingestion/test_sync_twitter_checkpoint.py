@@ -145,6 +145,7 @@ def test_run_sync_tasks_skips_prior_run_tweets_when_enabled(
         )
 
     monkeypatch.setattr(sync_twitter, "fetch_posts_for_keyword", fake_fetch)
+    monkeypatch.setattr(storage, "load_seen_ids_from_athena", lambda: {"1000000000000000000"})
 
     sync_twitter.run_sync_tasks(
         MagicMock(),
@@ -264,6 +265,7 @@ def test_run_sync_tasks_skips_ids_from_other_dataset(
         )
 
     monkeypatch.setattr(sync_twitter, "fetch_posts_for_keyword", fake_fetch)
+    monkeypatch.setattr(storage, "load_seen_ids_from_athena", lambda: {"1000000000000000000"})
 
     sync_twitter.run_sync_tasks(
         MagicMock(),

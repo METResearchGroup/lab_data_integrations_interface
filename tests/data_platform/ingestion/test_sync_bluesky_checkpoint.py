@@ -144,6 +144,9 @@ def test_run_sync_tasks_skips_ids_from_other_dataset(
         )
 
     monkeypatch.setattr(sync_bluesky, "_search_posts_page", fake_search)
+    monkeypatch.setattr(
+        storage, "load_seen_ids_from_athena", lambda: {"at://did:plc:ex/app.bsky.feed.post/old"}
+    )
 
     sync_bluesky.run_sync_tasks(
         MagicMock(),
