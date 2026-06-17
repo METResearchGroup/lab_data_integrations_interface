@@ -70,7 +70,7 @@ class DedupeSession:
         for policy in self.config.policies:
             if policy is DedupePolicy.CURRENT_RUN:
                 seen.update(
-                    storage.load_ids_from_csv(
+                    storage.load_seen_ids(
                         output_dir,
                         self.config.id_column,
                         filename=self.config.filename,
