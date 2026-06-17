@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import csv
 import json
+import time
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+import boto3
 import pandas as pd
 from pydantic import BaseModel
 
@@ -175,8 +177,35 @@ class StorageManager:
             return {row[id_column] for row in reader if row.get(id_column)}
 
     def load_seen_ids_from_athena(self) -> set[str]:
-        # TODO: SELECT id FROM dedupe_seen_ids WHERE platform = self.platform
-        return set()
+        client = boto3.client("athena", region_name="us-east-2")
+        response = client.start_query_execution(
+            QueryString=f"SELECT id FROM dedupe_seen_ids WHERE platform = '{self.platform}'",
+            QueryExecutionContext={"Database": "lab_data_integrations_interface"},
+            WorkGroup="lab-data-integrations-interface",
+        )
+        execution_id = response["QueryExecutionId"]
+
+        while True:
+            state = client.get_query_execution(QueryExecutionId=execution_id)
+            status = state["QueryExecution"]["Status"]["State"]
+            if status == "SUCCEEDED":
+                break
+            if status in ("FAILED", "CANCELLED"):
+                reason = state["QueryExecution"]["Status"].get("StateChangeReason", "unknown")
+                raise RuntimeError(f"Athena query {status}: {reason}")
+            time.sleep(1)
+
+        seen: set[str] = set()
+        paginator = client.get_paginator("get_query_results")
+        first_page = True
+        for page in paginator.paginate(QueryExecutionId=execution_id):
+            rows = page["ResultSet"]["Rows"]
+            for row in rows[1:] if first_page else rows:
+                value = row["Data"][0].get("VarCharValue")
+                if value:
+                    seen.add(value)
+            first_page = False
+        return seen
 
     def append_deduped_records(
         self,
