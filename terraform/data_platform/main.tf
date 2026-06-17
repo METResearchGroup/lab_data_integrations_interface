@@ -23,6 +23,15 @@ resource "aws_s3_bucket" "data_platform" {
   bucket = "lab-data-integrations-interface"
 }
 
+resource "aws_s3_bucket_public_access_block" "data_platform" {
+  bucket = aws_s3_bucket.data_platform.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
 resource "aws_s3_bucket_versioning" "data_platform" {
   bucket = aws_s3_bucket.data_platform.id
   versioning_configuration {
