@@ -30,6 +30,24 @@ resource "aws_s3_bucket_versioning" "data_platform" {
   }
 }
 
+# Expire Athena query result files after 1 day — they're only needed during warm()
+resource "aws_s3_bucket_lifecycle_configuration" "data_platform" {
+  bucket = aws_s3_bucket.data_platform.id
+
+  rule {
+    id     = "expire-athena-results"
+    status = "Enabled"
+
+    filter {
+      prefix = "athena-results/"
+    }
+
+    expiration {
+      days = 1
+    }
+  }
+}
+
 # ---------------------------------------------------------------------------
 # Glue catalog — schema for Athena to query dedupe ID files
 #
