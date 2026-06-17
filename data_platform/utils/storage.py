@@ -17,7 +17,7 @@ from data_platform.models.sync import (
     SyncTwitterPostModel,
 )
 from data_platform.utils.dataset import ValidDataFormats, load_dataset_format, validate_dataset_id
-from data_platform.utils.deduplication import DedupeConfig, DedupeSession
+from data_platform.utils.deduplication import DedupeSession
 from lib.timestamp_utils import get_current_timestamp
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
@@ -212,11 +212,6 @@ class StorageManager:
                     continue
                 seen.update(self.load_seen_ids(run_dir, id_column, filename=filename))
         return seen
-
-    def open_dedupe_session(self, output_dir: Path, config: DedupeConfig) -> DedupeSession:
-        dedupe_session = DedupeSession(config)
-        dedupe_session.warm(self, output_dir)
-        return dedupe_session
 
     def append_deduped_records(
         self,
