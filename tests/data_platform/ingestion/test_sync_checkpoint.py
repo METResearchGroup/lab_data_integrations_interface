@@ -21,7 +21,7 @@ from data_platform.ingestion.sync_checkpoint import (
     sync_status_from_tasks,
     validate_tasks_for_resume,
 )
-from data_platform.utils.deduplication import DedupeConfig, DedupePolicy, DedupeSession
+from data_platform.utils.deduplication import DedupeConfig, DedupeSession
 from data_platform.utils.storage import StorageStage, TwitterStorageManager
 from tests.data_platform.constants import VALID_TWITTER_DATASET_ID
 from tests.data_platform.ingestion.twitter_conftest import mock_tweet_row
@@ -185,8 +185,9 @@ def test_append_deduped_records_skips_seen_ids(data_root) -> None:
     run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
     existing = [mock_tweet_row("1")]
     storage.append_records(existing, run_dir)
-    config = DedupeConfig(policies=[DedupePolicy.CURRENT_RUN], id_column="tweet_id")
-    dedupe_session: DedupeSession = storage.open_dedupe_session(run_dir, config)
+    config = DedupeConfig(id_column="tweet_id")
+    dedupe_session = DedupeSession(config)
+    dedupe_session.warm(storage, run_dir)
     incoming = [mock_tweet_row("1"), mock_tweet_row("2")]
     result = storage.append_deduped_records(incoming, run_dir, dedupe_session=dedupe_session)
     assert result.skipped == 1

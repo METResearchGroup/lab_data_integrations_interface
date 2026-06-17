@@ -374,25 +374,15 @@ def _open_reddit_dedupe_sessions(
     comment_dedupe_session: DedupeSession | None = None
     post_dedupe_session: DedupeSession | None = None
     if include_comments:
-        comment_dedupe_session = comment_storage.open_dedupe_session(
-            output_dir,
-            DedupeConfig.from_ingestion_params(
-                ingestion_params,
-                "comment_fullname",
-                filename=comments_csv,
-                policy_key="comments_dedupe_policy",
-            ),
+        comment_dedupe_session = DedupeSession(
+            DedupeConfig(id_column="comment_fullname", filename=comments_csv)
         )
+        comment_dedupe_session.warm(comment_storage, output_dir)
     if include_posts:
-        post_dedupe_session = post_storage.open_dedupe_session(
-            output_dir,
-            DedupeConfig.from_ingestion_params(
-                ingestion_params,
-                "reddit_fullname",
-                filename=posts_csv,
-                policy_key="posts_dedupe_policy",
-            ),
+        post_dedupe_session = DedupeSession(
+            DedupeConfig(id_column="reddit_fullname", filename=posts_csv)
         )
+        post_dedupe_session.warm(post_storage, output_dir)
     return comment_dedupe_session, post_dedupe_session
 
 

@@ -10,6 +10,7 @@ from typing import Any
 import pandas as pd
 from pydantic import BaseModel
 
+from data_platform.aws.athena import Athena
 from data_platform.models.sync import (
     SyncBlueskyPostModel,
     SyncRedditCommentModel,
@@ -17,7 +18,7 @@ from data_platform.models.sync import (
     SyncTwitterPostModel,
 )
 from data_platform.utils.dataset import ValidDataFormats, load_dataset_format, validate_dataset_id
-from data_platform.utils.deduplication import DedupeConfig, DedupeSession
+from data_platform.utils.deduplication import DedupeSession
 from lib.timestamp_utils import get_current_timestamp
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
@@ -157,7 +158,7 @@ class StorageManager:
             _append_csv(validated, out_path, fieldnames)
         return out_path
 
-    def load_ids_from_csv(
+    def load_seen_ids_from_disk(
         self,
         run_dir: Path,
         id_column: str,
@@ -174,49 +175,10 @@ class StorageManager:
             reader = csv.DictReader(f)
             return {row[id_column] for row in reader if row.get(id_column)}
 
-    def load_seen_ids_from_prior_runs(
-        self,
-        exclude_run_dir: Path,
-        id_column: str,
-        *,
-        filename: str | None = None,
-    ) -> set[str]:
-        seen: set[str] = set()
-        if not self.root_dir.exists():
-            return seen
-        for run_dir in self.root_dir.iterdir():
-            if not run_dir.is_dir() or run_dir.resolve() == exclude_run_dir.resolve():
-                continue
-            seen.update(self.load_ids_from_csv(run_dir, id_column, filename=filename))
-        return seen
-
-    def load_seen_ids_from_platform_raw_runs(
-        self,
-        exclude_run_dir: Path,
-        id_column: str,
-        *,
-        filename: str | None = None,
-    ) -> set[str]:
-        seen: set[str] = set()
-        platform_root = self.platform_data_root
-        if not platform_root.exists():
-            return seen
-        for dataset_dir in platform_root.iterdir():
-            if not dataset_dir.is_dir():
-                continue
-            raw_dir = dataset_dir / StorageStage.RAW
-            if not raw_dir.exists():
-                continue
-            for run_dir in raw_dir.iterdir():
-                if not run_dir.is_dir() or run_dir.resolve() == exclude_run_dir.resolve():
-                    continue
-                seen.update(self.load_ids_from_csv(run_dir, id_column, filename=filename))
-        return seen
-
-    def open_dedupe_session(self, output_dir: Path, config: DedupeConfig) -> DedupeSession:
-        dedupe_session = DedupeSession(config)
-        dedupe_session.warm(self, output_dir)
-        return dedupe_session
+    def load_seen_ids_from_athena(self) -> set[str]:
+        return Athena().query_column_as_set(
+            f"SELECT id FROM dedupe_seen_ids WHERE platform = '{self.platform}'",
+        )
 
     def append_deduped_records(
         self,
@@ -239,7 +201,7 @@ class StorageManager:
         *,
         filename: str | None = None,
     ) -> set[str]:
-        return self.load_ids_from_csv(run_dir, "uri", filename=filename)
+        return self.load_seen_ids_from_disk(run_dir, "uri", filename=filename)
 
     def load_records(
         self,
@@ -393,4 +355,4 @@ class TwitterStorageManager(StorageManager):
         *,
         filename: str | None = None,
     ) -> set[str]:
-        return self.load_ids_from_csv(run_dir, "tweet_id", filename=filename)
+        return self.load_seen_ids_from_disk(run_dir, "tweet_id", filename=filename)

@@ -14,5 +14,6 @@ experiments/dedup_comparison_2026_06_12/data/
 **/.terraform/
 **/terraform.tfstate
 **/terraform.tfstate.backup
+**/.terraform.tfstate.lock.info
 **/*.tfvars
 **/crash.log

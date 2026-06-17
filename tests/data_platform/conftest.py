@@ -17,6 +17,13 @@ from tests.data_platform.constants import (
 )
 
 
+@pytest.fixture(autouse=True)
+def mock_athena(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent any test from making real Athena calls. Tests that need specific
+    IDs returned can override with their own monkeypatch.setattr."""
+    monkeypatch.setattr(storage_mod.StorageManager, "load_seen_ids_from_athena", lambda self: set())
+
+
 @pytest.fixture
 def data_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point storage and dataset modules at an isolated data directory."""
