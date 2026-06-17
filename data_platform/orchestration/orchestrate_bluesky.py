@@ -22,7 +22,8 @@ from prefect import flow, task
 from data_platform.curate.curate_bluesky import curate_mirrorview
 from data_platform.curate.utils import resolve_curate_config_path
 from data_platform.generate_features.generate_bluesky_features import generate_bluesky_features
-from data_platform.ingestion.sync_bluesky import _require_dataset_id, sync_records
+from data_platform.ingestion.sync_bluesky import sync_records
+from data_platform.ingestion.sync_checkpoint import require_dataset_id
 from data_platform.preprocessing.preprocess_bluesky import preprocess_records
 from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
 
@@ -59,7 +60,7 @@ def orchestrate_bluesky(
     curate_config: Path = DEFAULT_CURATE_CONFIG,
 ) -> None:
     config = load_yaml_config(resolve_config_path(ingestion_config, INGESTION_CONFIGS_DIR))
-    dataset_id = _require_dataset_id(config)
+    dataset_id = require_dataset_id(config, platform="bluesky")
 
     print(f"orchestrate_bluesky: starting pipeline for dataset {dataset_id}")
     sync_task(ingestion_config)

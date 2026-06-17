@@ -2,19 +2,19 @@
 
 Run from the repo root:
 
-    PYTHONPATH=. uv run python data_platform/ingestion/sync_reddit.py
-
-    PYTHONPATH=. uv run python data_platform/ingestion/sync_reddit.py --config mirrorview.yaml
+    PYTHONPATH=. uv run python data_platform/ingestion/sync_reddit.py \\
+        --config data_platform/ingestion/configs/reddit/mirrorview.yaml
 
 Resume the latest in-progress run for a dataset:
 
     PYTHONPATH=. uv run python data_platform/ingestion/sync_reddit.py \\
-        --config mirrorview.yaml --resume
+        --config data_platform/ingestion/configs/reddit/mirrorview.yaml --resume
 
 Resume a specific raw run timestamp:
 
     PYTHONPATH=. uv run python data_platform/ingestion/sync_reddit.py \\
-        --config mirrorview.yaml --resume --run-dir 2026_05_30-12:00:00
+        --config data_platform/ingestion/configs/reddit/mirrorview.yaml --resume \\
+        --run-dir 2026_05_30-12:00:00
 
 Ingestion YAML must include `dataset_id` (e.g. reddit_<uuid>).
 """
@@ -22,87 +22,208 @@ Ingestion YAML must include `dataset_id` (e.g. reddit_<uuid>).
 from __future__ import annotations
 
 import logging
-import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import praw
 import praw.models
 import prawcore.exceptions
-import typer
-from tqdm import tqdm
+from praw.models.comment_forest import CommentForest
 
-from data_platform.ingestion.dedupe import load_prior_seen_ids
 from data_platform.ingestion.reddit_retry import retry_reddit_request
-from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
-from data_platform.utils.dataset import validate_dataset_id, write_dataset_manifest
-from data_platform.utils.storage import RedditStorageManager
-from experiments.reddit_fetch_data_2026_05_23.reddit_client import (
-    fetch_post_comments,
-    init_reddit,
-    submission_to_row,
+from data_platform.ingestion.sync_checkpoint import (
+    TaskStatus,
+    build_base_sync_metadata,
+    ensure_dataset_manifest,
+    mark_task_completed,
+    mark_task_failed,
+    mark_task_in_progress,
+    parse_max_rows,
+    prepare_sync_run,
+    record_type_to_filename,
+    require_dataset_id,
+    run_checkpointed_sync,
+    run_sync_cli,
 )
-from lib.timestamp_utils import get_current_timestamp
-
-CONFIGS_DIR = Path(__file__).resolve().parent / "configs/reddit"
-DEFAULT_CONFIG = CONFIGS_DIR / "default.yaml"
+from data_platform.ingestion.sync_clients import init_reddit_client
+from data_platform.utils.config_paths import load_yaml_config
+from data_platform.utils.deduplication import DedupeConfig, DedupeSession
+from data_platform.utils.storage import RedditStorageManager, StorageStage
 
 COMMENTS_RECORD_TYPE = "reddit.comment"
 POSTS_RECORD_TYPE = "reddit.post"
-COMMENTS_CSV = "comments.csv"
-POSTS_CSV = "posts.csv"
 DEFAULT_LISTING = "hot"
 VALID_LISTING_TIME_FILTERS = frozenset({"all", "day", "hour", "month", "week", "year"})
-
-SubredditStatus = Literal["pending", "in_progress", "completed", "failed", "skipped"]
-SyncStatus = Literal["in_progress", "completed"]
 
 logger = logging.getLogger(__name__)
 
 
+def submission_to_row(post: praw.models.Submission, sync_timestamp: str) -> dict[str, Any]:
+    """Normalize a PRAW Submission to a flat dict matching the CSV schema."""
+    author = "[deleted]" if post.author is None else str(post.author)
+    created_utc = datetime.fromtimestamp(post.created_utc, tz=UTC).isoformat()
+    return {
+        "reddit_id": post.id,
+        "reddit_fullname": post.name,
+        "subreddit": post.subreddit.display_name,
+        "title": post.title,
+        "selftext": post.selftext,
+        "author": author,
+        "score": post.score,
+        "upvote_ratio": post.upvote_ratio,
+        "num_comments": post.num_comments,
+        "created_utc": created_utc,
+        "permalink": post.permalink,
+        "url": post.url,
+        "is_self": post.is_self,
+        "sync_timestamp": sync_timestamp,
+    }
+
+
+def is_eligible_comment(comment: praw.models.Comment, min_body_length: int) -> bool:
+    """Return True if a comment passes stickied/mod/length filters."""
+    if comment.stickied:
+        return False
+    if comment.distinguished is not None:
+        return False
+    if len((comment.body or "").strip()) < min_body_length:
+        return False
+    return True
+
+
+def comment_to_row(
+    comment: praw.models.Comment,
+    submission: praw.models.Submission,
+    sync_timestamp: str,
+    *,
+    depth: int,
+    comment_rank: int,
+) -> dict[str, Any]:
+    """Normalize a PRAW Comment to a flat dict matching the comment CSV schema."""
+    author = "[deleted]" if comment.author is None else str(comment.author)
+    created_utc = datetime.fromtimestamp(comment.created_utc, tz=UTC).isoformat()
+    return {
+        "post_reddit_id": submission.id,
+        "post_reddit_fullname": submission.name,
+        "subreddit": submission.subreddit.display_name,
+        "comment_id": comment.id,
+        "comment_fullname": comment.name,
+        "parent_id": comment.parent_id,
+        "author": author,
+        "body": comment.body,
+        "score": comment.score,
+        "created_utc": created_utc,
+        "permalink": comment.permalink,
+        "depth": depth,
+        "comment_rank": comment_rank,
+        "sync_timestamp": sync_timestamp,
+    }
+
+
+def _has_more_comments(comments_forest: CommentForest) -> bool:
+    return any(isinstance(comment, praw.models.MoreComments) for comment in comments_forest)
+
+
+def _expand_more_comments(comments_forest: CommentForest) -> None:
+    """Fetch MoreComments batches until none remain or expansion stalls."""
+    while _has_more_comments(comments_forest):
+        previous_len = len(comments_forest)
+        comments_forest.replace_more(limit=32)
+        if len(comments_forest) == previous_len:
+            break
+
+
+def _walk_comments_in_order(
+    comments_forest: CommentForest,
+    depth: int = 0,
+) -> Iterator[tuple[praw.models.Comment, int]]:
+    """Yield (comment, depth) in Reddit default display order via depth-first walk."""
+    comments_forest.replace_more(limit=0)
+    _expand_more_comments(comments_forest)
+
+    idx = 0
+    while idx < len(comments_forest):
+        if _has_more_comments(comments_forest):
+            _expand_more_comments(comments_forest)
+
+        if idx >= len(comments_forest):
+            break
+
+        comment = comments_forest[idx]
+        idx += 1
+        if isinstance(comment, praw.models.MoreComments):
+            continue
+
+        yield comment, depth
+        if comment.replies:
+            yield from _walk_comments_in_order(comment.replies, depth + 1)
+
+
+def fetch_post_comments(
+    submission: praw.models.Submission,
+    max_comments: int,
+    min_body_length: int,
+    sync_timestamp: str,
+) -> list[dict[str, Any]]:
+    """Collect up to max_comments eligible comments for a submission."""
+    rows: list[dict[str, Any]] = []
+    submission.comments.replace_more(limit=0)
+
+    for comment, depth in _walk_comments_in_order(submission.comments):
+        if len(rows) >= max_comments:
+            break
+        if not is_eligible_comment(comment, min_body_length):
+            continue
+        rows.append(
+            comment_to_row(
+                comment,
+                submission,
+                sync_timestamp,
+                depth=depth,
+                comment_rank=len(rows) + 1,
+            )
+        )
+
+    return rows
+
+
 @dataclass(frozen=True)
-class FetchWorkItem:
+class RedditTask:
+    task_id: str
     subreddit: str
-    ledger_key: str
-
-
-def _record_type_to_filename(record_type: str) -> str:
-    if record_type == COMMENTS_RECORD_TYPE:
-        return COMMENTS_CSV
-    if record_type == POSTS_RECORD_TYPE:
-        return POSTS_CSV
-    return f"{record_type.rsplit('.', 1)[-1]}.csv"
 
 
 def _normalize_subreddit_key(subreddit: str) -> str:
     return subreddit.removeprefix("r/").lower()
 
 
-def iter_fetch_work_items(fetch: dict[str, Any]) -> list[FetchWorkItem]:
-    """Return work items keyed by subreddit for checkpointing."""
-    subreddits = fetch.get("subreddits")
+def build_sync_tasks(ingestion_params: dict[str, Any]) -> list[RedditTask]:
+    """Return sync tasks keyed by subreddit for checkpointing."""
+    subreddits = ingestion_params.get("subreddits")
     if not isinstance(subreddits, list) or not subreddits:
-        raise ValueError("fetch config must include 'subreddits' as a non-empty list")
+        raise ValueError("ingestion_params must include 'subreddits' as a non-empty list")
 
-    items: list[FetchWorkItem] = []
+    items: list[RedditTask] = []
     for subreddit in subreddits:
         if not isinstance(subreddit, str) or not subreddit.strip():
-            raise ValueError("fetch.subreddits entries must be non-empty strings")
-        ledger_key = _normalize_subreddit_key(subreddit)
-        items.append(FetchWorkItem(subreddit=subreddit.strip(), ledger_key=ledger_key))
+            raise ValueError("ingestion_params.subreddits entries must be non-empty strings")
+        task_id = _normalize_subreddit_key(subreddit)
+        items.append(RedditTask(task_id=task_id, subreddit=subreddit.strip()))
     return items
 
 
-def _resolve_listing_time_filter(fetch: dict[str, Any], listing: str) -> str | None:
-    raw = fetch.get("listing_time_filter")
+def _resolve_listing_time_filter(ingestion_params: dict[str, Any], listing: str) -> str | None:
+    raw = ingestion_params.get("listing_time_filter")
     if raw is None:
         return None
     if listing != "top":
-        raise ValueError("fetch.listing_time_filter is only valid when listing is 'top'")
+        raise ValueError("ingestion_params.listing_time_filter is only valid when listing is 'top'")
     time_filter = str(raw)
     if time_filter not in VALID_LISTING_TIME_FILTERS:
-        raise ValueError(f"Unsupported fetch.listing_time_filter value: {time_filter!r}")
+        raise ValueError(f"Unsupported ingestion_params.listing_time_filter value: {time_filter!r}")
     return time_filter
 
 
@@ -123,7 +244,7 @@ def _get_subreddit_listing(
     if listing == "rising":
         return list(subreddit_obj.rising(limit=limit))
     if listing != "hot":
-        raise ValueError(f"Unsupported fetch.listing value: {listing!r}")
+        raise ValueError(f"Unsupported ingestion_params.listing value: {listing!r}")
     return list(subreddit_obj.hot(limit=limit))
 
 
@@ -143,7 +264,7 @@ def _fetch_subreddit_page(
 
 def fetch_records_for_subreddit(
     reddit: praw.Reddit,
-    fetch: dict[str, Any],
+    ingestion_params: dict[str, Any],
     subreddit: str,
     *,
     sync_timestamp: str,
@@ -151,11 +272,11 @@ def fetch_records_for_subreddit(
     include_comments: bool,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     """Fetch posts and/or comments for a single subreddit."""
-    limit = int(fetch["limit_per_subreddit"])
-    listing = str(fetch.get("listing", DEFAULT_LISTING))
-    listing_time_filter = _resolve_listing_time_filter(fetch, listing)
-    comments_per_post = int(fetch.get("comments_per_post", 100))
-    min_comment_body_length = int(fetch.get("min_comment_body_length", 30))
+    limit = int(ingestion_params["limit_per_subreddit"])
+    listing = str(ingestion_params.get("listing", DEFAULT_LISTING))
+    listing_time_filter = _resolve_listing_time_filter(ingestion_params, listing)
+    comments_per_post = int(ingestion_params.get("comments_per_post", 100))
+    min_comment_body_length = int(ingestion_params.get("min_comment_body_length", 30))
 
     try:
         submissions = _fetch_subreddit_page(
@@ -181,7 +302,7 @@ def fetch_records_for_subreddit(
 
     for post in submissions:
         if include_posts:
-            post_rows.append(submission_to_row(post, sync_timestamp))  # type: ignore[arg-type]
+            post_rows.append(submission_to_row(post, sync_timestamp))
 
         if include_comments:
             try:
@@ -212,10 +333,11 @@ def fetch_records_for_subreddit(
     return post_rows, comment_rows, stats
 
 
-def _subreddit_entry(item: FetchWorkItem) -> dict[str, Any]:
+def _initial_task_progress(task: RedditTask) -> dict[str, Any]:
     return {
-        "status": "pending",
-        "subreddit": item.subreddit,
+        "status": TaskStatus.PENDING.value,
+        "kind": "reddit",
+        "subreddit": task.subreddit,
         "posts_collected": 0,
         "comments_collected": 0,
         "last_error": None,
@@ -226,314 +348,224 @@ def init_sync_metadata(
     config: dict[str, Any],
     config_path: Path,
     sync_timestamp: str,
-    work_items: list[FetchWorkItem],
+    sync_tasks: list[RedditTask],
 ) -> dict[str, Any]:
-    dataset_id = _require_dataset_id(config)
-    return {
-        "sync_status": "in_progress",
-        "dataset_id": dataset_id,
-        "name": config["name"],
-        "description": config["description"],
-        "date": config["date"],
-        "sync_timestamp": sync_timestamp,
-        "ingestion_config": config_path.name,
-        "record_types": config["record_types"],
-        "fetch": config["fetch"],
-        "row_count": 0,
-        "post_row_count": 0,
-        "subreddits": {item.ledger_key: _subreddit_entry(item) for item in work_items},
-    }
+    return build_base_sync_metadata(
+        config,
+        config_path,
+        sync_timestamp,
+        sync_tasks,
+        task_progress_builder=_initial_task_progress,
+        extra_fields={"post_row_count": 0},
+    )
 
 
-def _flush_metadata(storage: RedditStorageManager, run_dir: Path, metadata: dict[str, Any]) -> None:
-    storage.write_run_metadata_atomic(run_dir, metadata)
-
-
-def _mark_remaining_skipped(metadata: dict[str, Any]) -> None:
-    for entry in metadata["subreddits"].values():
-        if entry["status"] == "pending":
-            entry["status"] = "skipped"
-
-
-def _sync_status_done(metadata: dict[str, Any]) -> SyncStatus:
-    statuses = {entry["status"] for entry in metadata["subreddits"].values()}
-    unfinished = statuses - {"completed", "skipped"}
-    return "completed" if not unfinished else "in_progress"
-
-
-def _count_seen_rows(
+def _open_reddit_dedupe_sessions(
     comment_storage: RedditStorageManager,
     post_storage: RedditStorageManager,
     output_dir: Path,
+    ingestion_params: dict[str, Any],
     *,
     include_comments: bool,
     include_posts: bool,
-) -> tuple[int, int]:
-    comment_count = (
-        len(comment_storage.load_seen_ids(output_dir, "comment_fullname", filename=COMMENTS_CSV))
-        if include_comments
-        else 0
-    )
-    post_count = (
-        len(post_storage.load_seen_ids(output_dir, "reddit_fullname", filename=POSTS_CSV))
-        if include_posts
-        else 0
-    )
-    return comment_count, post_count
+    comments_csv: str,
+    posts_csv: str,
+) -> tuple[DedupeSession | None, DedupeSession | None]:
+    comment_dedupe_session: DedupeSession | None = None
+    post_dedupe_session: DedupeSession | None = None
+    if include_comments:
+        comment_dedupe_session = comment_storage.open_dedupe_session(
+            output_dir,
+            DedupeConfig.from_ingestion_params(
+                ingestion_params,
+                "comment_fullname",
+                filename=comments_csv,
+                policy_key="comments_dedupe_policy",
+            ),
+        )
+    if include_posts:
+        post_dedupe_session = post_storage.open_dedupe_session(
+            output_dir,
+            DedupeConfig.from_ingestion_params(
+                ingestion_params,
+                "reddit_fullname",
+                filename=posts_csv,
+                policy_key="posts_dedupe_policy",
+            ),
+        )
+    return comment_dedupe_session, post_dedupe_session
 
 
-def _append_fetched_subreddit_rows(
+def _append_subreddit_deduped_rows(
     comment_storage: RedditStorageManager,
     post_storage: RedditStorageManager,
     output_dir: Path,
+    metadata: dict[str, Any],
     post_rows: list[dict[str, Any]],
     comment_rows: list[dict[str, Any]],
     *,
     include_comments: bool,
     include_posts: bool,
-    prior_comment_ids: set[str] | None = None,
-    prior_post_ids: set[str] | None = None,
+    comment_dedupe_session: DedupeSession | None,
+    post_dedupe_session: DedupeSession | None,
+    comments_csv: str,
+    posts_csv: str,
 ) -> tuple[int, int]:
-    comments_skipped = 0
-    posts_skipped = 0
-    if include_posts and post_rows:
-        seen_posts = (prior_post_ids or set()) | post_storage.load_seen_ids(
-            output_dir, "reddit_fullname", filename=POSTS_CSV
+    if include_posts and post_rows and post_dedupe_session is not None:
+        post_result = post_storage.append_deduped_records(
+            post_rows,
+            output_dir,
+            dedupe_session=post_dedupe_session,
+            filename=posts_csv,
         )
-        new_posts = [row for row in post_rows if row["reddit_fullname"] not in seen_posts]
-        posts_skipped = len(post_rows) - len(new_posts)
-        if new_posts:
-            post_storage.append_records(new_posts, output_dir, filename=POSTS_CSV)
-
-    if include_comments and comment_rows:
-        seen_comments = (prior_comment_ids or set()) | comment_storage.load_seen_ids(
-            output_dir, "comment_fullname", filename=COMMENTS_CSV
+        metadata["posts_skipped_as_duplicates"] = (
+            int(metadata.get("posts_skipped_as_duplicates", 0)) + post_result.skipped
         )
-        new_comments = [row for row in comment_rows if row["comment_fullname"] not in seen_comments]
-        comments_skipped = len(comment_rows) - len(new_comments)
-        if new_comments:
-            comment_storage.append_records(new_comments, output_dir, filename=COMMENTS_CSV)
-    return comments_skipped, posts_skipped
+
+    if include_comments and comment_rows and comment_dedupe_session is not None:
+        comment_result = comment_storage.append_deduped_records(
+            comment_rows,
+            output_dir,
+            dedupe_session=comment_dedupe_session,
+            filename=comments_csv,
+        )
+        metadata["comments_skipped_as_duplicates"] = (
+            int(metadata.get("comments_skipped_as_duplicates", 0)) + comment_result.skipped
+        )
+
+    comment_count = (
+        len(comment_dedupe_session.seen_ids)
+        if include_comments and comment_dedupe_session is not None
+        else 0
+    )
+    post_count = (
+        len(post_dedupe_session.seen_ids)
+        if include_posts and post_dedupe_session is not None
+        else 0
+    )
+    metadata["row_count"] = comment_count
+    metadata["post_row_count"] = post_count
+    return comment_count, post_count
 
 
-def _stop_if_at_max_rows(
-    max_rows_int: int | None,
-    metadata: dict[str, Any],
-    storage: RedditStorageManager,
-    output_dir: Path,
-) -> bool:
-    if max_rows_int is not None and metadata["row_count"] >= max_rows_int:
-        _mark_remaining_skipped(metadata)
-        _flush_metadata(storage, output_dir, metadata)
-        return True
-    return False
-
-
-def run_subreddit_sync_loop(
+def run_sync_tasks(
     reddit: praw.Reddit,
-    fetch: dict[str, Any],
+    ingestion_params: dict[str, Any],
     output_dir: Path,
     comment_storage: RedditStorageManager,
     post_storage: RedditStorageManager,
     metadata: dict[str, Any],
-    work_items: list[FetchWorkItem],
+    sync_tasks: list[RedditTask],
     *,
     include_comments: bool,
     include_posts: bool,
 ) -> None:
-    max_rows = fetch.get("max_rows")
-    max_rows_int = int(max_rows) if max_rows is not None else None
+    max_rows_int = parse_max_rows(ingestion_params)
     sync_timestamp = str(metadata["sync_timestamp"])
-    prior_comment_ids: set[str] = set()
-    prior_post_ids: set[str] = set()
-    if include_comments:
-        prior_comment_ids = load_prior_seen_ids(
-            comment_storage,
-            output_dir,
-            fetch,
-            "comment_fullname",
-            filename=COMMENTS_CSV,
-            same_dataset_flag="dedupe_comments_from_prior_raw_runs",
-        )
-    if include_posts:
-        prior_post_ids = load_prior_seen_ids(
-            post_storage,
-            output_dir,
-            fetch,
-            "reddit_fullname",
-            filename=POSTS_CSV,
-            same_dataset_flag="dedupe_comments_from_prior_raw_runs",
-        )
-    if prior_comment_ids or prior_post_ids:
+    comments_csv = record_type_to_filename(COMMENTS_RECORD_TYPE)
+    posts_csv = record_type_to_filename(POSTS_RECORD_TYPE)
+
+    comment_dedupe_session, post_dedupe_session = _open_reddit_dedupe_sessions(
+        comment_storage,
+        post_storage,
+        output_dir,
+        ingestion_params,
+        include_comments=include_comments,
+        include_posts=include_posts,
+        comments_csv=comments_csv,
+        posts_csv=posts_csv,
+    )
+    if comment_dedupe_session or post_dedupe_session:
+        prior_comment_count = len(comment_dedupe_session.seen_ids) if comment_dedupe_session else 0
+        prior_post_count = len(post_dedupe_session.seen_ids) if post_dedupe_session else 0
         print(
-            f"sync_records: loaded {len(prior_comment_ids)} prior comment IDs, "
-            f"{len(prior_post_ids)} prior post IDs for dedupe"
+            f"sync_records: loaded {prior_comment_count} prior comment IDs, "
+            f"{prior_post_count} prior post IDs for dedupe"
         )
-    comments_skipped = int(metadata.get("comments_skipped_as_duplicates", 0))
-    posts_skipped = int(metadata.get("posts_skipped_as_duplicates", 0))
 
-    for item in tqdm(
-        work_items,
-        desc="Syncing subreddits",
-        disable=not sys.stderr.isatty(),
-    ):
-        entry = metadata["subreddits"][item.ledger_key]
-        status = entry["status"]
-        if status in ("completed", "skipped"):
-            continue
-
-        if _stop_if_at_max_rows(max_rows_int, metadata, comment_storage, output_dir):
-            break
-
-        entry["status"] = "in_progress"
-        entry["last_error"] = None
-        _flush_metadata(comment_storage, output_dir, metadata)
+    def process_task(task: RedditTask, entry: dict[str, Any]) -> None:
+        mark_task_in_progress(entry, comment_storage, output_dir, metadata)
 
         try:
             post_rows, comment_rows, stats = fetch_records_for_subreddit(
                 reddit,
-                fetch,
-                item.subreddit,
+                ingestion_params,
+                task.subreddit,
                 sync_timestamp=sync_timestamp,
                 include_posts=include_posts,
                 include_comments=include_comments,
             )
         except Exception as exc:  # noqa: BLE001 — record and continue
-            entry["status"] = "failed"
-            entry["last_error"] = str(exc)
-            _flush_metadata(comment_storage, output_dir, metadata)
-            print(f"sync_records: {item.ledger_key} failed: {exc}")
-            continue
+            mark_task_failed(entry, exc, task.task_id, comment_storage, output_dir, metadata)
+            return
 
-        comments_skipped_delta, posts_skipped_delta = _append_fetched_subreddit_rows(
+        comment_count, post_count = _append_subreddit_deduped_rows(
             comment_storage,
             post_storage,
             output_dir,
+            metadata,
             post_rows,
             comment_rows,
             include_comments=include_comments,
             include_posts=include_posts,
-            prior_comment_ids=prior_comment_ids,
-            prior_post_ids=prior_post_ids,
+            comment_dedupe_session=comment_dedupe_session,
+            post_dedupe_session=post_dedupe_session,
+            comments_csv=comments_csv,
+            posts_csv=posts_csv,
         )
-        comments_skipped += comments_skipped_delta
-        posts_skipped += posts_skipped_delta
-        metadata["comments_skipped_as_duplicates"] = comments_skipped
-        metadata["posts_skipped_as_duplicates"] = posts_skipped
-
-        comment_count, post_count = _count_seen_rows(
+        mark_task_completed(
+            entry,
             comment_storage,
-            post_storage,
             output_dir,
-            include_comments=include_comments,
-            include_posts=include_posts,
+            metadata,
+            entry_updates={
+                "posts_collected": stats["posts_collected"],
+                "comments_collected": stats["comments_collected"],
+            },
         )
-        metadata["row_count"] = comment_count
-        metadata["post_row_count"] = post_count
-        entry["status"] = "completed"
-        entry["posts_collected"] = stats["posts_collected"]
-        entry["comments_collected"] = stats["comments_collected"]
-        entry["last_error"] = None
-        _flush_metadata(comment_storage, output_dir, metadata)
 
         print(
-            f"sync_records: {item.ledger_key} -> "
+            f"sync_records: {task.task_id} -> "
             f"{stats['comments_collected']} comments, {stats['posts_collected']} posts "
             f"(total comments={comment_count}, total posts={post_count})"
         )
 
-        if _stop_if_at_max_rows(max_rows_int, metadata, comment_storage, output_dir):
-            break
-
-    metadata["sync_status"] = _sync_status_done(metadata)
-    _flush_metadata(comment_storage, output_dir, metadata)
-
-
-def find_resume_run_dir(
-    storage: RedditStorageManager,
-    *,
-    run_dir_name: str | None,
-) -> Path:
-    if run_dir_name is not None:
-        run_dir = storage.root_dir / run_dir_name
-        if not run_dir.is_dir():
-            raise FileNotFoundError(f"Run directory not found: {run_dir}")
-        return run_dir
-
-    if not storage.root_dir.exists():
-        raise FileNotFoundError(f"No raw runs found under {storage.root_dir}")
-
-    candidates: list[tuple[str, Path]] = []
-    for path in storage.root_dir.iterdir():
-        if not path.is_dir():
-            continue
-        metadata_path = path / "metadata.json"
-        if not metadata_path.exists():
-            continue
-        metadata = storage.load_run_metadata(path)
-        if metadata.get("sync_status") == "in_progress":
-            candidates.append((path.name, path))
-
-    if not candidates:
-        raise FileNotFoundError(
-            f"No in-progress raw run found under {storage.root_dir}. "
-            "Start a new sync or pass --run-dir."
-        )
-    return max(candidates, key=lambda item: item[0])[1]
-
-
-def merge_work_items_with_metadata(
-    work_items: list[FetchWorkItem],
-    metadata: dict[str, Any],
-) -> list[FetchWorkItem]:
-    ledger_keys = {item.ledger_key for item in work_items}
-    metadata_keys = set(metadata.get("subreddits", {}))
-    missing = ledger_keys - metadata_keys
-    extra = metadata_keys - ledger_keys
-    if missing or extra:
-        raise ValueError(
-            "Config subreddits do not match resume metadata "
-            f"(missing in metadata: {sorted(missing)}, extra in metadata: {sorted(extra)})"
-        )
-    return work_items
+    run_checkpointed_sync(
+        sync_tasks,
+        metadata,
+        comment_storage,
+        output_dir,
+        max_rows_int=max_rows_int,
+        tqdm_desc="Syncing subreddits",
+        process_task=process_task,
+    )
 
 
 load_config = load_yaml_config
 
 
-def _require_dataset_id(config: dict[str, Any]) -> str:
-    raw = config.get("dataset_id")
-    if not raw:
-        raise ValueError("ingestion config must include dataset_id (reddit_<uuid>)")
-    return validate_dataset_id(str(raw))
-
-
 def sync_records(
-    config_path: Path = DEFAULT_CONFIG,
+    config_path: Path,
     *,
     resume: bool = False,
     run_dir_name: str | None = None,
 ) -> Path:
     """Fetch Reddit records per config and write raw CSV + metadata."""
-    if run_dir_name is not None and not resume:
-        raise ValueError("--run-dir requires --resume")
-
     config = load_config(config_path)
-    dataset_id = _require_dataset_id(config)
-    comment_storage = RedditStorageManager("raw", dataset_id)
+    dataset_id = require_dataset_id(config, platform="reddit")
+    comment_storage = RedditStorageManager(StorageStage.RAW, dataset_id)
     post_storage = comment_storage.post_storage()
 
-    manifest_path = comment_storage.root_dir.parent / "dataset.json"
-    if not manifest_path.exists():
-        write_dataset_manifest(
-            "reddit",
-            dataset_id,
-            name=str(config["name"]),
-            ingestion_config=str(config_path.relative_to(Path(__file__).resolve().parents[2])),
-        )
+    ensure_dataset_manifest(
+        comment_storage,
+        "reddit",
+        dataset_id,
+        config,
+        config_path,
+    )
 
-    fetch = config["fetch"]
-    work_items = iter_fetch_work_items(fetch)
+    ingestion_params = config["ingestion_params"]
+    sync_tasks = build_sync_tasks(ingestion_params)
     record_types: list[str] = config["record_types"]
     include_comments = COMMENTS_RECORD_TYPE in record_types
     include_posts = POSTS_RECORD_TYPE in record_types
@@ -541,31 +573,25 @@ def sync_records(
     if not include_comments and not include_posts:
         raise ValueError(f"Unsupported record types for checkpoint sync: {record_types}")
 
-    reddit = init_reddit()
+    reddit = init_reddit_client()
 
-    if resume:
-        output_dir = find_resume_run_dir(comment_storage, run_dir_name=run_dir_name)
-        metadata = comment_storage.load_run_metadata(output_dir)
-        if metadata.get("sync_status") != "in_progress":
-            metadata["sync_status"] = "in_progress"
-            _flush_metadata(comment_storage, output_dir, metadata)
-        work_items = merge_work_items_with_metadata(work_items, metadata)
-        print(f"sync_records: resuming {output_dir}")
-    else:
-        sync_timestamp = get_current_timestamp()
-        output_dir = comment_storage.create_new_run_dir(sync_timestamp)
-        metadata = init_sync_metadata(config, config_path, sync_timestamp, work_items)
-        _flush_metadata(comment_storage, output_dir, metadata)
-        print(f"sync_records: started new run {output_dir}")
+    output_dir, metadata = prepare_sync_run(
+        comment_storage,
+        sync_tasks,
+        resume=resume,
+        run_dir_name=run_dir_name,
+        init_metadata_fn=lambda ts: init_sync_metadata(config, config_path, ts, sync_tasks),
+        entity_label="subreddits",
+    )
 
-    run_subreddit_sync_loop(
+    run_sync_tasks(
         reddit,
-        fetch,
+        ingestion_params,
         output_dir,
         comment_storage,
         post_storage,
         metadata,
-        work_items,
+        sync_tasks,
         include_comments=include_comments,
         include_posts=include_posts,
     )
@@ -578,26 +604,15 @@ def sync_records(
     return output_dir
 
 
-def main(
-    config: Path = typer.Option(
-        DEFAULT_CONFIG,
-        "--config",
-        help="YAML config path or filename under configs/reddit/ (e.g. mirrorview.yaml)",
-    ),
-    resume: bool = typer.Option(
-        False,
-        "--resume",
-        help="Resume the latest in-progress raw run for this dataset",
-    ),
-    run_dir: str | None = typer.Option(
-        None,
-        "--run-dir",
-        help="Raw run timestamp directory name (requires --resume)",
-    ),
-) -> None:
-    config_path = resolve_config_path(config, CONFIGS_DIR)
-    sync_records(config_path, resume=resume, run_dir_name=run_dir)
+def main() -> None:
+    run_sync_cli(
+        sync_records_fn=sync_records,
+        config_help=(
+            "Ingestion YAML path relative to the repo root "
+            "(e.g. data_platform/ingestion/configs/reddit/mirrorview.yaml)"
+        ),
+    )
 
 
 if __name__ == "__main__":
-    typer.run(main)
+    main()

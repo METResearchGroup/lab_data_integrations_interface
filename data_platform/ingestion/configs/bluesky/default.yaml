@@ -5,10 +5,13 @@ description: Posts from a handle matching a keyword
 date: "2026-05-29"
 record_types:
   - app.bsky.feed.post
-fetch:
-  dedupe_across_datasets: true
+ingestion_params:
+  dedupe_policy:
+    - current_run
+    - prior_runs_all_datasets
   handle: user.bsky.social
-  keyword: example
+  keywords:
+    - example
   limit: 50
   max_rows: 200
   sort: latest

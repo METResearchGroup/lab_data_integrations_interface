@@ -6,12 +6,14 @@ description: Mirrorview scale collection — individual keyword queries, 500 pos
 date: "2026-05-30"
 record_types:
   - app.bsky.feed.post
-fetch:
+ingestion_params:
+  dedupe_policy:
+    - current_run
+    - prior_runs_all_datasets
   limit: 700
   sort: latest
-  query_batch_size: 1
   max_rows: 20000
-  keyword:
+  keywords:
     # gun_control
     - gun control
     - gun rights

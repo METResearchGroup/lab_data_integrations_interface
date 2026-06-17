@@ -4,7 +4,7 @@ description: Politics+economy keywords
 date: "2026-06-02"
 record_types:
   - twitter.tweet
-fetch:
+ingestion_params:
   max_rows: 10000 # changed from 7,000 originally.
   limit_per_keyword: 1000
   lang: en
@@ -12,7 +12,9 @@ fetch:
     - reply
     - retweet
     - quote
-  dedupe_tweets_from_prior_raw_runs: true
+  dedupe_policy:
+    - current_run
+    - prior_runs_same_dataset
   keyword:
     - Trump
     - Iran

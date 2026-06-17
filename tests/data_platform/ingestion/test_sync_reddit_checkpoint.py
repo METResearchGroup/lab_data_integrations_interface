@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from data_platform.ingestion import sync_reddit
-from data_platform.utils.storage import RedditStorageManager
+from data_platform.utils.storage import RedditStorageManager, StorageStage
 from tests.data_platform.constants import VALID_REDDIT_DATASET_ID
 from tests.data_platform.ingestion.reddit_conftest import (
     minimal_reddit_sync_config,
@@ -16,35 +16,36 @@ from tests.data_platform.ingestion.reddit_conftest import (
 )
 
 
-def test_init_sync_metadata_subreddit_ledger() -> None:
+def test_init_sync_metadata_subreddit_task_ledger() -> None:
     config = minimal_reddit_sync_config()
-    work_items = sync_reddit.iter_fetch_work_items(config["fetch"])
+    sync_tasks = sync_reddit.build_sync_tasks(config["ingestion_params"])
     metadata = sync_reddit.init_sync_metadata(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
     assert metadata["sync_status"] == "in_progress"
-    assert set(metadata["subreddits"]) == {"alphasub", "betasub"}
-    assert metadata["subreddits"]["alphasub"]["status"] == "pending"
+    assert set(metadata["tasks"]) == {"alphasub", "betasub"}
+    assert metadata["tasks"]["alphasub"]["status"] == "pending"
+    assert metadata["tasks"]["alphasub"]["kind"] == "reddit"
 
 
-def test_run_subreddit_sync_loop_appends_per_subreddit(
+def test_run_sync_tasks_appends_per_subreddit(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = minimal_reddit_sync_config()
-    fetch = config["fetch"]
-    work_items = sync_reddit.iter_fetch_work_items(fetch)
-    comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
+    ingestion_params = config["ingestion_params"]
+    sync_tasks = sync_reddit.build_sync_tasks(ingestion_params)
+    comment_storage = RedditStorageManager(StorageStage.RAW, VALID_REDDIT_DATASET_ID)
     post_storage = comment_storage.post_storage()
     run_dir = comment_storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_reddit.init_sync_metadata(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
 
     rows_by_subreddit = {
@@ -79,36 +80,35 @@ def test_run_subreddit_sync_loop_appends_per_subreddit(
 
     monkeypatch.setattr(sync_reddit, "fetch_records_for_subreddit", fake_fetch)
 
-    sync_reddit.run_subreddit_sync_loop(
+    sync_reddit.run_sync_tasks(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         comment_storage,
         post_storage,
         metadata,
-        work_items,
+        sync_tasks,
         include_comments=True,
         include_posts=True,
     )
 
-    assert metadata["subreddits"]["alphasub"]["status"] == "completed"
-    assert metadata["subreddits"]["betasub"]["status"] == "completed"
+    assert metadata["tasks"]["alphasub"]["status"] == "completed"
+    assert metadata["tasks"]["betasub"]["status"] == "completed"
     assert metadata["row_count"] == 2
     assert metadata["post_row_count"] == 2
     assert metadata["sync_status"] == "completed"
-    assert len(comment_storage.load_seen_ids(run_dir, "comment_fullname")) == 2
+    assert len(comment_storage.load_ids_from_csv(run_dir, "comment_fullname")) == 2
 
 
-def test_run_subreddit_sync_loop_skips_prior_run_comments(
+def test_run_sync_tasks_skips_prior_run_comments(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = minimal_reddit_sync_config()
-    fetch = config["fetch"]
-    fetch["dedupe_comments_from_prior_raw_runs"] = True
-    fetch["dedupe_across_datasets"] = False
-    work_items = sync_reddit.iter_fetch_work_items(fetch)
-    comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
+    ingestion_params = config["ingestion_params"]
+    ingestion_params["comments_dedupe_policy"] = ["current_run", "prior_runs_same_dataset"]
+    sync_tasks = sync_reddit.build_sync_tasks(ingestion_params)
+    comment_storage = RedditStorageManager(StorageStage.RAW, VALID_REDDIT_DATASET_ID)
     post_storage = comment_storage.post_storage()
 
     prior_run = comment_storage.create_new_run_dir("2026_05_29-10:00:00")
@@ -122,7 +122,7 @@ def test_run_subreddit_sync_loop_skips_prior_run_comments(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
 
     def fake_fetch(
@@ -151,46 +151,46 @@ def test_run_subreddit_sync_loop_skips_prior_run_comments(
 
     monkeypatch.setattr(sync_reddit, "fetch_records_for_subreddit", fake_fetch)
 
-    sync_reddit.run_subreddit_sync_loop(
+    sync_reddit.run_sync_tasks(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         comment_storage,
         post_storage,
         metadata,
-        work_items[:1],
+        sync_tasks[:1],
         include_comments=True,
         include_posts=True,
     )
 
-    seen = comment_storage.load_seen_ids(run_dir, "comment_fullname")
+    seen = comment_storage.load_ids_from_csv(run_dir, "comment_fullname")
     assert seen == {"t1_comment_new"}
     assert metadata["comments_skipped_as_duplicates"] == 1
 
 
-def test_run_subreddit_sync_loop_skips_ids_from_other_dataset(
+def test_run_sync_tasks_skips_ids_from_other_dataset(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     other_dataset_id = "reddit_00000000-0000-4000-8000-000000000002"
     config = minimal_reddit_sync_config()
-    fetch = config["fetch"]
-    work_items = sync_reddit.iter_fetch_work_items(fetch)
-    other_storage = RedditStorageManager("raw", other_dataset_id)
+    ingestion_params = config["ingestion_params"]
+    sync_tasks = sync_reddit.build_sync_tasks(ingestion_params)
+    other_storage = RedditStorageManager(StorageStage.RAW, other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
         [mock_comment_row("t1_comment_old", subreddit="alphasub")],
         other_run,
     )
 
-    comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
+    comment_storage = RedditStorageManager(StorageStage.RAW, VALID_REDDIT_DATASET_ID)
     post_storage = comment_storage.post_storage()
     run_dir = comment_storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_reddit.init_sync_metadata(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
 
     def fake_fetch(
@@ -219,47 +219,47 @@ def test_run_subreddit_sync_loop_skips_ids_from_other_dataset(
 
     monkeypatch.setattr(sync_reddit, "fetch_records_for_subreddit", fake_fetch)
 
-    sync_reddit.run_subreddit_sync_loop(
+    sync_reddit.run_sync_tasks(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         comment_storage,
         post_storage,
         metadata,
-        work_items[:1],
+        sync_tasks[:1],
         include_comments=True,
         include_posts=True,
     )
 
-    seen = comment_storage.load_seen_ids(run_dir, "comment_fullname")
+    seen = comment_storage.load_ids_from_csv(run_dir, "comment_fullname")
     assert seen == {"t1_comment_new"}
     assert metadata["comments_skipped_as_duplicates"] == 1
 
 
-def test_run_subreddit_sync_loop_respects_dedupe_across_datasets_false(
+def test_run_sync_tasks_respects_current_run_only_policy(
     data_root,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     other_dataset_id = "reddit_00000000-0000-4000-8000-000000000002"
     config = minimal_reddit_sync_config()
-    fetch = config["fetch"]
-    fetch["dedupe_across_datasets"] = False
-    work_items = sync_reddit.iter_fetch_work_items(fetch)
-    other_storage = RedditStorageManager("raw", other_dataset_id)
+    ingestion_params = config["ingestion_params"]
+    ingestion_params["comments_dedupe_policy"] = ["current_run"]
+    sync_tasks = sync_reddit.build_sync_tasks(ingestion_params)
+    other_storage = RedditStorageManager(StorageStage.RAW, other_dataset_id)
     other_run = other_storage.create_new_run_dir("2026_05_29-10:00:00")
     other_storage.append_records(
         [mock_comment_row("t1_comment_old", subreddit="alphasub")],
         other_run,
     )
 
-    comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
+    comment_storage = RedditStorageManager(StorageStage.RAW, VALID_REDDIT_DATASET_ID)
     post_storage = comment_storage.post_storage()
     run_dir = comment_storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_reddit.init_sync_metadata(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
 
     def fake_fetch(
@@ -285,19 +285,19 @@ def test_run_subreddit_sync_loop_respects_dedupe_across_datasets_false(
 
     monkeypatch.setattr(sync_reddit, "fetch_records_for_subreddit", fake_fetch)
 
-    sync_reddit.run_subreddit_sync_loop(
+    sync_reddit.run_sync_tasks(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         comment_storage,
         post_storage,
         metadata,
-        work_items[:1],
+        sync_tasks[:1],
         include_comments=True,
         include_posts=True,
     )
 
-    seen = comment_storage.load_seen_ids(run_dir, "comment_fullname")
+    seen = comment_storage.load_ids_from_csv(run_dir, "comment_fullname")
     assert seen == {"t1_comment_old"}
     assert metadata.get("comments_skipped_as_duplicates", 0) == 0
 
@@ -307,19 +307,19 @@ def test_resume_skips_completed_subreddits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = minimal_reddit_sync_config()
-    fetch = config["fetch"]
-    work_items = sync_reddit.iter_fetch_work_items(fetch)
-    comment_storage = RedditStorageManager("raw", VALID_REDDIT_DATASET_ID)
+    ingestion_params = config["ingestion_params"]
+    sync_tasks = sync_reddit.build_sync_tasks(ingestion_params)
+    comment_storage = RedditStorageManager(StorageStage.RAW, VALID_REDDIT_DATASET_ID)
     post_storage = comment_storage.post_storage()
     run_dir = comment_storage.create_new_run_dir("2026_05_30-10:00:00")
     metadata = sync_reddit.init_sync_metadata(
         config,
         Path("test.yaml"),
         "2026_05_30-10:00:00",
-        work_items,
+        sync_tasks,
     )
-    metadata["subreddits"]["alphasub"]["status"] = "completed"
-    metadata["subreddits"]["alphasub"]["comments_collected"] = 1
+    metadata["tasks"]["alphasub"]["status"] = "completed"
+    metadata["tasks"]["alphasub"]["comments_collected"] = 1
     comment_storage.append_records(
         [mock_comment_row("t1_comment_a1", subreddit="alphasub")],
         run_dir,
@@ -354,18 +354,18 @@ def test_resume_skips_completed_subreddits(
     monkeypatch.setattr(sync_reddit, "fetch_records_for_subreddit", fake_fetch)
 
     resumed_metadata = comment_storage.load_run_metadata(run_dir)
-    sync_reddit.run_subreddit_sync_loop(
+    sync_reddit.run_sync_tasks(
         MagicMock(),
-        fetch,
+        ingestion_params,
         run_dir,
         comment_storage,
         post_storage,
         resumed_metadata,
-        work_items,
+        sync_tasks,
         include_comments=True,
         include_posts=True,
     )
 
     assert calls == ["BetaSub"]
-    assert resumed_metadata["subreddits"]["betasub"]["status"] == "completed"
+    assert resumed_metadata["tasks"]["betasub"]["status"] == "completed"
     assert resumed_metadata["row_count"] == 2

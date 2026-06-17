@@ -5,8 +5,10 @@ description: Recent English tweets matching a single keyword
 date: "2026-06-01"
 record_types:
   - twitter.tweet
-fetch:
-  dedupe_across_datasets: true
+ingestion_params:
+  dedupe_policy:
+    - current_run
+    - prior_runs_all_datasets
   max_rows: 50
   limit_per_keyword: 25
   lang: en

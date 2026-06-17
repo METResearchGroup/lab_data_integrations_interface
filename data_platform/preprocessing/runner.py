@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from data_platform.utils.dataset import dataset_root, relative_run_path, validate_dataset_id
 from data_platform.utils.platform_ids import PlatformIdBinding
-from data_platform.utils.storage import StorageManager
+from data_platform.utils.storage import StorageManager, StorageStage
 
 TextValidator = Callable[[str], bool]
 RowValidator = Callable[[str], bool]
@@ -95,7 +95,7 @@ def load_raw_records(
 
     Returns both the loaded/validated records and the raw run directories they came from.
     """
-    raw_storage = spec.storage_cls("raw", dataset_id)
+    raw_storage = spec.storage_cls(StorageStage.RAW, dataset_id)
     if latest_only:
         records = raw_storage.load_records(latest=True)
         if records.empty:
@@ -135,7 +135,7 @@ def save_preprocessed(
     source_raw_run_dirs: list[Path],
 ) -> Path:
     """Persist preprocessed records to a new timestamped run directory."""
-    preprocessed_storage = spec.storage_cls("preprocessed", dataset_id)
+    preprocessed_storage = spec.storage_cls(StorageStage.PREPROCESSED, dataset_id)
     root = dataset_root(spec.platform, dataset_id)
 
     output_dir = preprocessed_storage.create_new_run_dir()

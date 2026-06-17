@@ -9,7 +9,9 @@
   "record_types": [
     "twitter.tweet"
   ],
-  "fetch": {
+  "row_count": 7000,
+  "tweets_skipped_as_duplicates": 330,
+  "ingestion_params": {
     "max_rows": 7000,
     "limit_per_keyword": 1000,
     "lang": "en",
@@ -32,10 +34,10 @@
       "Manufacturing"
     ]
   },
-  "row_count": 7000,
-  "keywords": {
+  "tasks": {
     "Trump": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "Trump",
       "pages_fetched": 11,
       "rows_collected": 1000,
@@ -43,6 +45,7 @@
     },
     "Iran": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "Iran",
       "pages_fetched": 11,
       "rows_collected": 1000,
@@ -50,6 +53,7 @@
     },
     "Israel": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "Israel",
       "pages_fetched": 11,
       "rows_collected": 1000,
@@ -57,6 +61,7 @@
     },
     "Inflation": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "Inflation",
       "pages_fetched": 11,
       "rows_collected": 1000,
@@ -64,6 +69,7 @@
     },
     "Mamdani": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "Mamdani",
       "pages_fetched": 10,
       "rows_collected": 1000,
@@ -71,6 +77,7 @@
     },
     "Affordability": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "Affordability",
       "pages_fetched": 11,
       "rows_collected": 1000,
@@ -78,6 +85,7 @@
     },
     "Economy": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "Economy",
       "pages_fetched": 10,
       "rows_collected": 1000,
@@ -85,6 +93,7 @@
     },
     "Taxes": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "Taxes",
       "pages_fetched": 4,
       "rows_collected": 372,
@@ -92,6 +101,7 @@
     },
     "Reshoring": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "Reshoring",
       "pages_fetched": 1,
       "rows_collected": 23,
@@ -99,11 +109,11 @@
     },
     "Manufacturing": {
       "status": "skipped",
+      "kind": "twitter",
       "keyword": "Manufacturing",
       "pages_fetched": 0,
       "rows_collected": 0,
       "last_error": null
     }
-  },
-  "tweets_skipped_as_duplicates": 330
+  }
 }

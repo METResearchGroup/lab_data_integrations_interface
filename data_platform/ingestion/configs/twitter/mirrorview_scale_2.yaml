@@ -6,7 +6,7 @@ description: Mirrorview scale pass 2 — 300 posts per keyword, 15k cap, prior-r
 date: "2026-06-02"
 record_types:
   - twitter.tweet
-fetch:
+ingestion_params:
   max_rows: 15000
   limit_per_keyword: 300
   lang: en
@@ -14,7 +14,9 @@ fetch:
     - reply
     - retweet
     - quote
-  dedupe_tweets_from_prior_raw_runs: true
+  dedupe_policy:
+    - current_run
+    - prior_runs_same_dataset
   keyword:
     # gun_control
     - gun control

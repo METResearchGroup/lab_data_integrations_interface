@@ -10,7 +10,9 @@
     "reddit.comment",
     "reddit.post"
   ],
-  "fetch": {
+  "row_count": 11222,
+  "post_row_count": 300,
+  "ingestion_params": {
     "subreddits": [
       "Conservative",
       "Republican",
@@ -24,11 +26,10 @@
     "comments_per_post": 200,
     "min_comment_body_length": 30
   },
-  "row_count": 11222,
-  "post_row_count": 300,
-  "subreddits": {
+  "tasks": {
     "conservative": {
       "status": "completed",
+      "kind": "reddit",
       "subreddit": "Conservative",
       "posts_collected": 50,
       "comments_collected": 363,
@@ -36,6 +37,7 @@
     },
     "republican": {
       "status": "completed",
+      "kind": "reddit",
       "subreddit": "Republican",
       "posts_collected": 50,
       "comments_collected": 601,
@@ -43,6 +45,7 @@
     },
     "askconservatives": {
       "status": "completed",
+      "kind": "reddit",
       "subreddit": "AskConservatives",
       "posts_collected": 50,
       "comments_collected": 3299,
@@ -50,6 +53,7 @@
     },
     "politics": {
       "status": "completed",
+      "kind": "reddit",
       "subreddit": "politics",
       "posts_collected": 50,
       "comments_collected": 5236,
@@ -57,6 +61,7 @@
     },
     "liberal": {
       "status": "completed",
+      "kind": "reddit",
       "subreddit": "liberal",
       "posts_collected": 50,
       "comments_collected": 446,
@@ -64,6 +69,7 @@
     },
     "democrats": {
       "status": "completed",
+      "kind": "reddit",
       "subreddit": "democrats",
       "posts_collected": 50,
       "comments_collected": 1277,

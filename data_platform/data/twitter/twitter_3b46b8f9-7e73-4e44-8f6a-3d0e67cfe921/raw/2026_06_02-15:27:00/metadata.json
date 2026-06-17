@@ -9,7 +9,9 @@
   "record_types": [
     "twitter.tweet"
   ],
-  "fetch": {
+  "row_count": 3606,
+  "tweets_skipped_as_duplicates": 476,
+  "ingestion_params": {
     "max_rows": 7000,
     "limit_per_keyword": 1000,
     "lang": "en",
@@ -27,10 +29,10 @@
       "Crime"
     ]
   },
-  "row_count": 3606,
-  "keywords": {
+  "tasks": {
     "Taxes": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "Taxes",
       "pages_fetched": 11,
       "rows_collected": 1000,
@@ -38,6 +40,7 @@
     },
     "Reshoring": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "Reshoring",
       "pages_fetched": 2,
       "rows_collected": 117,
@@ -45,6 +48,7 @@
     },
     "Manufacturing": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "Manufacturing",
       "pages_fetched": 11,
       "rows_collected": 1000,
@@ -52,6 +56,7 @@
     },
     "Corruption": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "Corruption",
       "pages_fetched": 11,
       "rows_collected": 1000,
@@ -59,11 +64,11 @@
     },
     "Crime": {
       "status": "completed",
+      "kind": "twitter",
       "keyword": "Crime",
       "pages_fetched": 10,
       "rows_collected": 1000,
       "last_error": null
     }
-  },
-  "tweets_skipped_as_duplicates": 476
+  }
 }

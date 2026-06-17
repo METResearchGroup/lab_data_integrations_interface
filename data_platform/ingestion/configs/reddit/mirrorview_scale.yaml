@@ -5,7 +5,7 @@ date: "2026-06-01"
 record_types:
   - reddit.comment
   - reddit.post
-fetch:
+ingestion_params:
   subreddits:
     - Conservative
     - Republican
@@ -18,4 +18,8 @@ fetch:
   limit_per_subreddit: 300
   comments_per_post: 300
   min_comment_body_length: 30
-  dedupe_comments_from_prior_raw_runs: true
+  comments_dedupe_policy:
+    - current_run
+    - prior_runs_same_dataset
+  posts_dedupe_policy:
+    - current_run

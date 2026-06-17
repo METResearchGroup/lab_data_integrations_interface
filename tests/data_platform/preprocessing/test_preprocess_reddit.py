@@ -7,7 +7,7 @@ import pytest
 
 from data_platform.preprocessing import preprocess_reddit
 from data_platform.preprocessing.validators import reddit_validators
-from data_platform.utils.storage import RedditStorageManager
+from data_platform.utils.storage import RedditStorageManager, StorageStage
 from tests.data_platform.constants import VALID_REDDIT_DATASET_ID
 from tests.data_platform.ingestion.reddit_conftest import mock_comment_row
 
@@ -81,7 +81,7 @@ def test_filter_comments_drops_invalid_rows() -> None:
 
 def test_preprocess_records_writes_output(data_root) -> None:
     dataset_id = VALID_REDDIT_DATASET_ID
-    raw_storage = RedditStorageManager("raw", dataset_id)
+    raw_storage = RedditStorageManager(StorageStage.RAW, dataset_id)
     run_dir = raw_storage.create_new_run_dir("2026_05_31-10:00:00")
     raw_storage.write_records(
         [
@@ -103,7 +103,7 @@ def test_preprocess_records_writes_output(data_root) -> None:
 
     output_dir = preprocess_reddit.preprocess_records(dataset_id)
 
-    preprocessed_storage = RedditStorageManager("preprocessed", dataset_id)
+    preprocessed_storage = RedditStorageManager(StorageStage.PREPROCESSED, dataset_id)
     output = preprocessed_storage.load_records(output_dir)
     metadata = preprocessed_storage.load_run_metadata(output_dir)
 

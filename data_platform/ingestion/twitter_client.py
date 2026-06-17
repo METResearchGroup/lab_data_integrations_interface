@@ -8,7 +8,6 @@ from typing import Any
 import tweepy
 
 from data_platform.ingestion.twitter_retry import retry_twitter_request
-from lib.load_env_vars import EnvVarsContainer
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +16,6 @@ _EXCLUDE_CLAUSES: dict[str, str] = {
     "retweet": "-is:retweet",
     "quote": "-is:quote",
 }
-
-
-def init_twitter_client() -> tweepy.Client:
-    """Build a Tweepy Client using app-only Bearer Token auth."""
-    bearer_token = EnvVarsContainer.get_env_var("X_BEARER_TOKEN", required=True)
-    return tweepy.Client(bearer_token=bearer_token, wait_on_rate_limit=True)
 
 
 def _quote_query_term(keyword: str) -> str:

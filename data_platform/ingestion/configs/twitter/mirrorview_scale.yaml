@@ -6,7 +6,7 @@ description: Mirrorview scale collection — individual keyword queries, 200 pos
 date: "2026-06-01"
 record_types:
   - twitter.tweet
-fetch:
+ingestion_params:
   max_rows: 10000
   limit_per_keyword: 200
   lang: en
@@ -14,7 +14,9 @@ fetch:
     - reply
     - retweet
     - quote
-  dedupe_tweets_from_prior_raw_runs: true
+  dedupe_policy:
+    - current_run
+    - prior_runs_same_dataset
   keyword:
     # gun_control
     - gun control

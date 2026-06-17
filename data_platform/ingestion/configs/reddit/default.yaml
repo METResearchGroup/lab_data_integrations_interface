@@ -6,8 +6,13 @@ date: "2026-05-31"
 record_types:
   - reddit.comment
   - reddit.post
-fetch:
-  dedupe_across_datasets: true
+ingestion_params:
+  comments_dedupe_policy:
+    - current_run
+    - prior_runs_all_datasets
+  posts_dedupe_policy:
+    - current_run
+    - prior_runs_all_datasets
   subreddits:
     - politics
   listing: hot

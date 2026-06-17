@@ -4,10 +4,13 @@ description: Mirrorview topic keyword collection across Bluesky
 date: "2026-05-29"
 record_types:
   - app.bsky.feed.post
-fetch:
+ingestion_params:
+  dedupe_policy:
+    - current_run
+    - prior_runs_all_datasets
   limit: 100
   sort: latest
-  keyword:
+  keywords:
     # gun_control
     - gun control
     - gun rights

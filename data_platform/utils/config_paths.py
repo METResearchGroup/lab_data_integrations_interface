@@ -8,13 +8,13 @@ from typing import Any
 import yaml
 
 
-def resolve_config_path(config: Path, configs_dir: Path) -> Path:
-    """Resolve a config path from CLI input, optional .yaml suffix, or configs_dir."""
+def resolve_config_path(config: Path, base_dir: Path) -> Path:
+    """Resolve a config path relative to base_dir (typically the repo root)."""
     candidates = [config]
     if config.suffix != ".yaml":
         candidates.append(config.with_suffix(".yaml"))
-    if config.parent == Path("."):
-        candidates.extend(configs_dir / candidate.name for candidate in list(candidates))
+    if not config.is_absolute():
+        candidates.extend(base_dir / candidate for candidate in list(candidates))
 
     for candidate in candidates:
         if candidate.exists():
