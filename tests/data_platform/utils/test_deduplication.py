@@ -8,14 +8,16 @@ from data_platform.utils.deduplication import DedupeConfig, DedupeSession
 
 def test_session_warm_calls_local_and_athena_checks() -> None:
     storage = MagicMock()
-    storage.load_seen_ids.return_value = {"uri-a"}
+    storage.load_seen_ids_from_disk.return_value = {"uri-a"}
     storage.load_seen_ids_from_athena.return_value = {"uri-b"}
     config = DedupeConfig(id_column="uri", filename="posts.csv")
     session = DedupeSession(config)
     session.warm(storage, Path("/tmp/run"))
 
     assert session.seen_ids == {"uri-a", "uri-b"}
-    storage.load_seen_ids.assert_called_once_with(Path("/tmp/run"), "uri", filename="posts.csv")
+    storage.load_seen_ids_from_disk.assert_called_once_with(
+        Path("/tmp/run"), "uri", filename="posts.csv"
+    )
     storage.load_seen_ids_from_athena.assert_called_once()
 
 

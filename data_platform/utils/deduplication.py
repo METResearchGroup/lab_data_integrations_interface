@@ -26,7 +26,7 @@ class DedupeSession:
     def warm(self, storage: StorageManager, output_dir: Path) -> None:  # noqa: F821
         seen: set[str] = set()
         seen.update(
-            storage.load_seen_ids(
+            storage.load_seen_ids_from_disk(
                 output_dir,
                 self.config.id_column,
                 filename=self.config.filename,

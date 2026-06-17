@@ -17,7 +17,7 @@ class FeatureLabelQuery:
 
     def labeled_ids(self, feature_name: str) -> set[str]:
         """Return ids labeled for feature_name in the feature file."""
-        return self.feature_storage.load_seen_ids(
+        return self.feature_storage.load_seen_ids_from_disk(
             self.feature_storage.root_dir,
             self.feature_csv_id_column,
             filename=self.feature_storage.filename_for(feature_name),

@@ -159,7 +159,7 @@ class StorageManager:
             _append_csv(validated, out_path, fieldnames)
         return out_path
 
-    def load_seen_ids(
+    def load_seen_ids_from_disk(
         self,
         run_dir: Path,
         id_column: str,
@@ -228,7 +228,7 @@ class StorageManager:
         *,
         filename: str | None = None,
     ) -> set[str]:
-        return self.load_seen_ids(run_dir, "uri", filename=filename)
+        return self.load_seen_ids_from_disk(run_dir, "uri", filename=filename)
 
     def load_records(
         self,
@@ -382,4 +382,4 @@ class TwitterStorageManager(StorageManager):
         *,
         filename: str | None = None,
     ) -> set[str]:
-        return self.load_seen_ids(run_dir, "tweet_id", filename=filename)
+        return self.load_seen_ids_from_disk(run_dir, "tweet_id", filename=filename)

@@ -96,7 +96,7 @@ def test_append_deduped_records_skips_prior_run_duplicates(data_root) -> None:
 
     assert result.kept == 1
     assert result.skipped == 1
-    assert comment_storage.load_seen_ids(
+    assert comment_storage.load_seen_ids_from_disk(
         current_run, "comment_fullname", filename="comments.csv"
     ) == {"t1_comment_b"}
 
