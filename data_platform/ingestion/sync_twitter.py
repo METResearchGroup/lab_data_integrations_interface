@@ -115,13 +115,7 @@ def run_sync_tasks(
     max_rows_int = parse_max_rows(ingestion_params)
     lang = str(ingestion_params.get("lang", "en"))
     exclude = list(ingestion_params.get("exclude", ["reply", "retweet", "quote"]))
-    dedupe_session = DedupeSession(
-        DedupeConfig.from_ingestion_params(
-            ingestion_params,
-            "tweet_id",
-            filename=csv_filename,
-        )
-    )
+    dedupe_session = DedupeSession(DedupeConfig(id_column="tweet_id", filename=csv_filename))
     dedupe_session.warm(storage, output_dir)
 
     def process_task(task: TwitterTask, entry: dict[str, Any]) -> None:

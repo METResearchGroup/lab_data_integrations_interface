@@ -220,13 +220,7 @@ def run_sync_tasks(
     without aborting the full run.
     """
     max_rows_int = parse_max_rows(ingestion_params)
-    dedupe_session = DedupeSession(
-        DedupeConfig.from_ingestion_params(
-            ingestion_params,
-            "uri",
-            filename=csv_filename,
-        )
-    )
+    dedupe_session = DedupeSession(DedupeConfig(id_column="uri", filename=csv_filename))
     dedupe_session.warm(storage, output_dir)
 
     def process_task(task: BlueskyTask, entry: dict[str, Any]) -> None:

@@ -174,44 +174,9 @@ class StorageManager:
             reader = csv.DictReader(f)
             return {row[id_column] for row in reader if row.get(id_column)}
 
-    def load_seen_ids_from_prior_runs(
-        self,
-        exclude_run_dir: Path,
-        id_column: str,
-        *,
-        filename: str | None = None,
-    ) -> set[str]:
-        seen: set[str] = set()
-        if not self.root_dir.exists():
-            return seen
-        for run_dir in self.root_dir.iterdir():
-            if not run_dir.is_dir() or run_dir.resolve() == exclude_run_dir.resolve():
-                continue
-            seen.update(self.load_seen_ids(run_dir, id_column, filename=filename))
-        return seen
-
-    def load_seen_ids_from_platform_raw_runs(
-        self,
-        exclude_run_dir: Path,
-        id_column: str,
-        *,
-        filename: str | None = None,
-    ) -> set[str]:
-        seen: set[str] = set()
-        platform_root = self.platform_data_root
-        if not platform_root.exists():
-            return seen
-        for dataset_dir in platform_root.iterdir():
-            if not dataset_dir.is_dir():
-                continue
-            raw_dir = dataset_dir / StorageStage.RAW
-            if not raw_dir.exists():
-                continue
-            for run_dir in raw_dir.iterdir():
-                if not run_dir.is_dir() or run_dir.resolve() == exclude_run_dir.resolve():
-                    continue
-                seen.update(self.load_seen_ids(run_dir, id_column, filename=filename))
-        return seen
+    def load_seen_ids_from_athena(self) -> set[str]:
+        # TODO: SELECT id FROM dedupe_seen_ids WHERE platform = self.platform
+        return set()
 
     def append_deduped_records(
         self,
