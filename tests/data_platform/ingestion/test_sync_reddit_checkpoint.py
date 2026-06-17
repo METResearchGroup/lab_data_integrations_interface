@@ -97,7 +97,7 @@ def test_run_sync_tasks_appends_per_subreddit(
     assert metadata["row_count"] == 2
     assert metadata["post_row_count"] == 2
     assert metadata["sync_status"] == "completed"
-    assert len(comment_storage.load_ids_from_csv(run_dir, "comment_fullname")) == 2
+    assert len(comment_storage.load_seen_ids(run_dir, "comment_fullname")) == 2
 
 
 def test_run_sync_tasks_skips_prior_run_comments(
@@ -163,7 +163,7 @@ def test_run_sync_tasks_skips_prior_run_comments(
         include_posts=True,
     )
 
-    seen = comment_storage.load_ids_from_csv(run_dir, "comment_fullname")
+    seen = comment_storage.load_seen_ids(run_dir, "comment_fullname")
     assert seen == {"t1_comment_new"}
     assert metadata["comments_skipped_as_duplicates"] == 1
 
@@ -231,7 +231,7 @@ def test_run_sync_tasks_skips_ids_from_other_dataset(
         include_posts=True,
     )
 
-    seen = comment_storage.load_ids_from_csv(run_dir, "comment_fullname")
+    seen = comment_storage.load_seen_ids(run_dir, "comment_fullname")
     assert seen == {"t1_comment_new"}
     assert metadata["comments_skipped_as_duplicates"] == 1
 
@@ -297,7 +297,7 @@ def test_run_sync_tasks_respects_current_run_only_policy(
         include_posts=True,
     )
 
-    seen = comment_storage.load_ids_from_csv(run_dir, "comment_fullname")
+    seen = comment_storage.load_seen_ids(run_dir, "comment_fullname")
     assert seen == {"t1_comment_old"}
     assert metadata.get("comments_skipped_as_duplicates", 0) == 0
 

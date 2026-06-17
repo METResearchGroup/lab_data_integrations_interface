@@ -107,7 +107,8 @@ def test_append_deduped_records_skips_current_run_duplicates(bluesky_storage) ->
     existing = [make_ingestion_row(uri="at://did:plc:ex/app.bsky.feed.post/a1")]
     bluesky_storage.append_records(existing, run_dir)
     config = DedupeConfig(policies=[DedupePolicy.CURRENT_RUN], id_column="uri")
-    dedupe_session: DedupeSession = bluesky_storage.open_dedupe_session(run_dir, config)
+    dedupe_session = DedupeSession(config)
+    dedupe_session.warm(bluesky_storage, run_dir)
 
     result = bluesky_storage.append_deduped_records(
         [
@@ -140,7 +141,8 @@ def test_append_deduped_records_skips_prior_run_duplicates(data_root) -> None:
         id_column="comment_fullname",
         filename="comments.csv",
     )
-    dedupe_session: DedupeSession = comment_storage.open_dedupe_session(current_run, config)
+    dedupe_session = DedupeSession(config)
+    dedupe_session.warm(comment_storage, current_run)
 
     result = comment_storage.append_deduped_records(
         [
@@ -154,7 +156,7 @@ def test_append_deduped_records_skips_prior_run_duplicates(data_root) -> None:
 
     assert result.kept == 1
     assert result.skipped == 1
-    assert comment_storage.load_ids_from_csv(
+    assert comment_storage.load_seen_ids(
         current_run, "comment_fullname", filename="comments.csv"
     ) == {"t1_comment_b"}
 
@@ -176,7 +178,8 @@ def test_append_deduped_records_skips_platform_duplicates(data_root) -> None:
         id_column="comment_fullname",
         filename="comments.csv",
     )
-    dedupe_session: DedupeSession = storage_b.open_dedupe_session(current_run_b, config)
+    dedupe_session = DedupeSession(config)
+    dedupe_session.warm(storage_b, current_run_b)
 
     result = storage_b.append_deduped_records(
         [
@@ -197,7 +200,8 @@ def test_append_deduped_records_returns_empty_when_all_duplicates(bluesky_storag
     existing = [make_ingestion_row(uri="at://did:plc:ex/app.bsky.feed.post/a1")]
     bluesky_storage.append_records(existing, run_dir)
     config = DedupeConfig(policies=[DedupePolicy.CURRENT_RUN], id_column="uri")
-    dedupe_session: DedupeSession = bluesky_storage.open_dedupe_session(run_dir, config)
+    dedupe_session = DedupeSession(config)
+    dedupe_session.warm(bluesky_storage, run_dir)
 
     result = bluesky_storage.append_deduped_records(
         [make_ingestion_row(uri="at://did:plc:ex/app.bsky.feed.post/a1")],

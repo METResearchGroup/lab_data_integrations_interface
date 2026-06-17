@@ -36,7 +36,7 @@ def test_parse_policies_rejects_empty_list() -> None:
 
 def test_session_warm_current_run_only() -> None:
     storage = MagicMock()
-    storage.load_ids_from_csv.return_value = {"uri-a", "uri-b"}
+    storage.load_seen_ids.return_value = {"uri-a", "uri-b"}
     config = DedupeConfig(
         policies=[DedupePolicy.CURRENT_RUN],
         id_column="uri",
@@ -46,7 +46,7 @@ def test_session_warm_current_run_only() -> None:
     session.warm(storage, Path("/tmp/run"))
 
     assert session.seen_ids == {"uri-a", "uri-b"}
-    storage.load_ids_from_csv.assert_called_once_with(Path("/tmp/run"), "uri", filename="posts.csv")
+    storage.load_seen_ids.assert_called_once_with(Path("/tmp/run"), "uri", filename="posts.csv")
     storage.load_seen_ids_from_prior_runs.assert_not_called()
     storage.load_seen_ids_from_platform_raw_runs.assert_not_called()
 
