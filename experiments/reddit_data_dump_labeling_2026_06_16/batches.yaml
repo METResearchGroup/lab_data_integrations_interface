@@ -1,0 +1,6 @@
+RC_2025-05:
+  dataset_id: reddit_c3e4a5b6-7d8e-9012-3456-789012345601
+  parquet: RC_2025-05/high_toxic_comments.parquet
+RC_2025-06:
+  dataset_id: reddit_d4f5b6c7-8e9f-0123-4567-890123456702
+  parquet: RC_2025-06/high_toxic_comments.parquet
