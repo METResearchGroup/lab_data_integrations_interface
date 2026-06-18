@@ -5,15 +5,11 @@ Run from the repo root:
     PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py \\
         --config data_platform/ingestion/configs/bluesky/mirrorview.yaml
 
-Resume the latest in-progress run for a dataset:
+Automatically resumes the most recent in-progress run for the dataset, or starts a new one.
+Pin a specific run to resume with --run-dir:
 
     PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py \\
-        --config data_platform/ingestion/configs/bluesky/mirrorview_scale.yaml --resume
-
-Resume a specific raw run timestamp:
-
-    PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py \\
-        --config data_platform/ingestion/configs/bluesky/mirrorview_scale.yaml --resume \\
+        --config data_platform/ingestion/configs/bluesky/mirrorview_scale.yaml \\
         --run-dir 2026_05_30-12:00:00
 
 Ingestion YAML must include `dataset_id` (e.g. bluesky_<uuid>).
@@ -279,7 +275,6 @@ def run_sync_tasks(
 def sync_records(
     config_path: Path,
     *,
-    resume: bool = False,
     run_dir_name: str | None = None,
 ) -> Path:
     """Load config, prepare or resume a raw run, and sync all keyword tasks to posts.csv.
@@ -311,7 +306,6 @@ def sync_records(
     output_dir, metadata = prepare_sync_run(
         storage,
         sync_tasks,
-        resume=resume,
         run_dir_name=run_dir_name,
         init_metadata_fn=lambda ts: init_sync_metadata(config, config_path, ts, sync_tasks),
         entity_label="keywords",
