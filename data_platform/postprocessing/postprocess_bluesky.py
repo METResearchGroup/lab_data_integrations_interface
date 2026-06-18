@@ -18,7 +18,7 @@ def postprocess_bluesky(dataset_id: str, curated_path: Path) -> None:
 def _upload_curated(s3: S3, dataset_id: str, curated_path: Path) -> None:
     run_dir = curated_path.parent
     for file in run_dir.iterdir():
-        key = f"{CURATED_S3_PREFIX}/{dataset_id}/{file.name}"
+        key = f"{CURATED_S3_PREFIX}/platform=bluesky/dataset_id={dataset_id}/{file.name}"
         s3.upload_file(file, S3_BUCKET, key)
 
 
