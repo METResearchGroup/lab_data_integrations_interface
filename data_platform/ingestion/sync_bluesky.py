@@ -37,6 +37,7 @@ from data_platform.ingestion.sync_checkpoint import (
     run_sync_cli,
 )
 from data_platform.ingestion.sync_clients import init_bluesky_client
+from data_platform.ingestion.uri_upload import upload_seen_uris
 from data_platform.utils.config_paths import load_yaml_config
 from data_platform.utils.deduplication import DedupeConfig, DedupeSession
 from data_platform.utils.storage import BlueskyStorageManager, StorageStage
@@ -320,6 +321,8 @@ def sync_records(
         sync_tasks,
         csv_filename=csv_filename,
     )
+
+    upload_seen_uris(dataset_id, output_dir, storage)
 
     total_rows = metadata["row_count"]
     print(
