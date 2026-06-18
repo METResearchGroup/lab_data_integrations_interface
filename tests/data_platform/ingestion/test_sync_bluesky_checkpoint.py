@@ -325,6 +325,75 @@ def test_resume_skips_completed_tasks(
     assert resumed_metadata["row_count"] == 2
 
 
+def test_resume_dedupes_against_records_from_completed_tasks(
+    data_root,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = minimal_sync_config()
+    ingestion_params = config["ingestion_params"]
+    sync_tasks = sync_bluesky.build_sync_tasks(ingestion_params)
+    storage = BlueskyStorageManager(StorageStage.RAW, VALID_DATASET_ID)
+    run_dir = storage.create_new_run_dir("2026_05_30-10:00:00")
+    metadata = sync_bluesky.init_sync_metadata(
+        config,
+        Path("test.yaml"),
+        "2026_05_30-10:00:00",
+        sync_tasks,
+    )
+
+    already_seen_uri = "at://did:plc:ex/app.bsky.feed.post/a1"
+    metadata["tasks"]["alpha"]["status"] = "completed"
+    metadata["tasks"]["alpha"]["rows_collected"] = 1
+    storage.append_records(
+        [
+            make_ingestion_row(
+                uri=already_seen_uri,
+                url="https://bsky.app/profile/user/post/a1",
+                author_handle="user",
+                text="x",
+            )
+        ],
+        run_dir,
+    )
+    metadata["row_count"] = 1
+    storage.write_run_metadata_atomic(run_dir, metadata)
+
+    def fake_search(
+        client: Any,
+        fetch_cfg: dict[str, Any],
+        query: str,
+        *,
+        page_limit: int,
+        cursor: str | None = None,
+    ):
+        return mock_search_response(
+            [
+                mock_post(already_seen_uri),
+                mock_post("at://did:plc:ex/app.bsky.feed.post/b1"),
+            ]
+        )
+
+    monkeypatch.setattr(sync_bluesky, "_search_posts_page", fake_search)
+
+    resumed_metadata = storage.load_run_metadata(run_dir)
+    sync_bluesky.run_sync_tasks(
+        MagicMock(),
+        ingestion_params,
+        run_dir,
+        storage,
+        resumed_metadata,
+        sync_tasks,
+        csv_filename="posts.csv",
+    )
+
+    assert storage.load_seen_uris(run_dir) == {
+        already_seen_uri,
+        "at://did:plc:ex/app.bsky.feed.post/b1",
+    }
+    assert resumed_metadata["posts_skipped_as_duplicates"] == 1
+    assert resumed_metadata["row_count"] == 2
+
+
 def test_resume_legacy_keywords_metadata_raises_key_error() -> None:
     config = minimal_sync_config()
     sync_tasks = sync_bluesky.build_sync_tasks(config["ingestion_params"])
