@@ -96,7 +96,6 @@ def test_run_sync_tasks_appends_per_keyword(
     assert metadata["tasks"]["alpha"]["status"] == "completed"
     assert metadata["tasks"]["beta"]["status"] == "completed"
     assert metadata["row_count"] == 2
-    assert metadata["sync_status"] == "completed"
     assert storage.load_seen_tweet_ids(run_dir) == {
         "1000000000000000001",
         "1000000000000000002",

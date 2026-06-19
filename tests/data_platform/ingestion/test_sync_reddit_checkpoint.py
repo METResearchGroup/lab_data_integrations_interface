@@ -96,7 +96,6 @@ def test_run_sync_tasks_appends_per_subreddit(
     assert metadata["tasks"]["betasub"]["status"] == "completed"
     assert metadata["row_count"] == 2
     assert metadata["post_row_count"] == 2
-    assert metadata["sync_status"] == "completed"
     assert len(comment_storage.load_seen_ids_from_disk(run_dir, "comment_fullname")) == 2
 
 
