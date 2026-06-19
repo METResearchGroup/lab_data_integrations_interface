@@ -23,8 +23,8 @@ from data_platform.utils.storage import BlueskyStorageManager, StorageStage
 
 BUCKET = "lab-data-integrations-interface"
 PLATFORM = "bluesky"
-TEST_RUN = "sanity_check_run"
-S3_KEY = f"dedupe/platform={PLATFORM}/run={TEST_RUN}/seen_ids.parquet"
+TEST_DATASET_ID = "sanity_check_dataset"
+S3_KEY = f"dedupe/platform={PLATFORM}/dataset_id={TEST_DATASET_ID}/seen_ids.parquet"
 ATHENA_DB = "lab_data_integrations_interface"
 ATHENA_TABLE = "dedupe_seen_ids"
 WORKGROUP = "lab-data-integrations-interface"
@@ -42,20 +42,20 @@ def upload_test_file(s3: Any) -> None:
 def register_partition(athena: Any) -> None:
     sql = (
         f"ALTER TABLE {ATHENA_TABLE} ADD IF NOT EXISTS "
-        f"PARTITION (platform='{PLATFORM}', run='{TEST_RUN}') "
-        f"LOCATION 's3://{BUCKET}/dedupe/platform={PLATFORM}/run={TEST_RUN}/'"
+        f"PARTITION (platform='{PLATFORM}', dataset_id='{TEST_DATASET_ID}') "
+        f"LOCATION 's3://{BUCKET}/dedupe/platform={PLATFORM}/dataset_id={TEST_DATASET_ID}/'"
     )
     _run_athena_ddl(athena, sql)
-    print(f"  registered partition platform={PLATFORM}/run={TEST_RUN}")
+    print(f"  registered partition platform={PLATFORM}/dataset_id={TEST_DATASET_ID}")
 
 
 def drop_partition(athena: Any) -> None:
     sql = (
         f"ALTER TABLE {ATHENA_TABLE} DROP IF EXISTS "
-        f"PARTITION (platform='{PLATFORM}', run='{TEST_RUN}')"
+        f"PARTITION (platform='{PLATFORM}', dataset_id='{TEST_DATASET_ID}')"
     )
     _run_athena_ddl(athena, sql)
-    print(f"  dropped partition platform={PLATFORM}/run={TEST_RUN}")
+    print(f"  dropped partition platform={PLATFORM}/dataset_id={TEST_DATASET_ID}")
 
 
 def delete_test_file(s3: Any) -> None:
