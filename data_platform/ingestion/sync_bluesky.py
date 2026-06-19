@@ -23,11 +23,11 @@ from typing import TYPE_CHECKING, Any
 
 from data_platform.ingestion.bluesky_retry import retry_bluesky_request
 from data_platform.ingestion.sync_checkpoint import (
-    SyncStatus,
     TaskStatus,
     build_base_sync_metadata,
     ensure_dataset_manifest,
     flush_run_metadata,
+    get_task_progress,
     mark_task_completed,
     mark_task_failed,
     mark_task_in_progress,
@@ -37,6 +37,7 @@ from data_platform.ingestion.sync_checkpoint import (
     require_dataset_id,
     run_checkpointed_sync,
     run_sync_cli,
+    sync_status_from_tasks,
 )
 from data_platform.ingestion.sync_clients import init_bluesky_client
 from data_platform.ingestion.uri_upload import upload_seen_uris
@@ -324,12 +325,9 @@ def sync_records(
         csv_filename=csv_filename,
     )
 
-    try:
-        upload_seen_uris(dataset_id, output_dir, storage)
-    except Exception:
-        metadata["sync_status"] = SyncStatus.IN_PROGRESS.value
-        flush_run_metadata(storage, output_dir, metadata)
-        raise
+    upload_seen_uris(dataset_id, output_dir, storage)
+    metadata["sync_status"] = sync_status_from_tasks(get_task_progress(metadata)).value
+    flush_run_metadata(storage, output_dir, metadata)
 
     total_rows = metadata["row_count"]
     print(

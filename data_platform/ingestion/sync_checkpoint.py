@@ -255,9 +255,6 @@ def run_checkpointed_sync(
         if stop_at_max_rows(metadata, storage, output_dir, max_rows_int):
             break
 
-    metadata["sync_status"] = sync_status_from_tasks(progress).value
-    flush_run_metadata(storage, output_dir, metadata)
-
 
 def ensure_dataset_manifest(
     storage: StorageManager,
