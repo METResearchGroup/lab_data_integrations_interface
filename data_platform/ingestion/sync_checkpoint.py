@@ -168,6 +168,7 @@ def build_base_sync_metadata(
 ) -> dict[str, Any]:
     metadata: dict[str, Any] = {
         "sync_status": SyncStatus.IN_PROGRESS.value,
+        "s3_upload_status": False,
         "dataset_id": require_dataset_id(config),
         "name": config["name"],
         "description": config["description"],
