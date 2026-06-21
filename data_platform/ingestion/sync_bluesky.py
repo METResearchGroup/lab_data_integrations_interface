@@ -21,8 +21,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from data_platform.aws.constants import S3_BUCKET
+from data_platform.aws.s3 import S3
 from data_platform.ingestion.bluesky_retry import retry_bluesky_request
 from data_platform.ingestion.sync_checkpoint import (
+    SyncStatus,
     TaskStatus,
     build_base_sync_metadata,
     ensure_dataset_manifest,
@@ -40,7 +43,6 @@ from data_platform.ingestion.sync_checkpoint import (
     sync_status_from_tasks,
 )
 from data_platform.ingestion.sync_clients import init_bluesky_client
-from data_platform.ingestion.uri_upload import upload_seen_uris
 from data_platform.utils.config_paths import load_yaml_config
 from data_platform.utils.deduplication import DedupeConfig, DedupeSession
 from data_platform.utils.storage import BlueskyStorageManager, StorageStage
@@ -325,8 +327,13 @@ def sync_records(
         csv_filename=csv_filename,
     )
 
-    upload_seen_uris(dataset_id, output_dir, storage)
     metadata["sync_status"] = sync_status_from_tasks(get_task_progress(metadata)).value
+    if metadata["sync_status"] == SyncStatus.COMPLETED.value:
+        key = (
+            f"raw/platform=bluesky/dataset_id={dataset_id}/run_dir={output_dir.name}/{csv_filename}"
+        )
+        S3().upload_file(output_dir / csv_filename, S3_BUCKET, key)
+        metadata["s3_upload_status"] = True
     flush_run_metadata(storage, output_dir, metadata)
 
     total_rows = metadata["row_count"]
