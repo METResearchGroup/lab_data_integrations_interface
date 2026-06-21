@@ -176,6 +176,8 @@ def preprocess_records(
             f"Latest raw run {latest_raw_run.name} is not completed "
             f"(status={raw_metadata.get('sync_status')})"
         )
+    if not raw_metadata.get("s3_upload_status"):
+        raise RuntimeError(f"Latest raw run {latest_raw_run.name} has not been uploaded to S3")
     records, source_raw_run_dirs = load_raw_records(spec, dataset_id, latest_only=latest_only)
     if not latest_only and not records.empty:
         id_col = spec.binding.records_id_column
