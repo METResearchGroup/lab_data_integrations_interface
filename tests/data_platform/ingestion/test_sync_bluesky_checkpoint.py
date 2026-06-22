@@ -87,7 +87,7 @@ def test_run_sync_tasks_appends_per_keyword(
         storage,
         metadata,
         sync_tasks,
-        csv_filename="posts.csv",
+        filename=storage.records_filename,
     )
 
     assert metadata["tasks"]["alpha"]["status"] == "completed"
@@ -154,7 +154,7 @@ def test_run_sync_tasks_skips_ids_from_other_dataset(
         storage,
         metadata,
         sync_tasks[:1],
-        csv_filename="posts.csv",
+        filename=storage.records_filename,
     )
 
     assert storage.load_seen_uris(run_dir) == {"at://did:plc:ex/app.bsky.feed.post/new"}
@@ -212,7 +212,7 @@ def test_run_sync_tasks_respects_current_run_only_policy(
         storage,
         metadata,
         sync_tasks[:1],
-        csv_filename="posts.csv",
+        filename=storage.records_filename,
     )
 
     assert storage.load_seen_uris(run_dir) == {"at://did:plc:ex/app.bsky.feed.post/old"}
@@ -255,7 +255,7 @@ def test_run_sync_tasks_dedupes_within_run(
         storage,
         metadata,
         sync_tasks,
-        csv_filename="posts.csv",
+        filename=storage.records_filename,
     )
 
     assert storage.load_seen_uris(run_dir) == {duplicate_uri}
@@ -316,7 +316,7 @@ def test_resume_skips_completed_tasks(
         storage,
         resumed_metadata,
         sync_tasks,
-        csv_filename="posts.csv",
+        filename=storage.records_filename,
     )
 
     assert calls == ["beta"]
@@ -382,7 +382,7 @@ def test_resume_dedupes_against_records_from_completed_tasks(
         storage,
         resumed_metadata,
         sync_tasks,
-        csv_filename="posts.csv",
+        filename=storage.records_filename,
     )
 
     assert storage.load_seen_uris(run_dir) == {
