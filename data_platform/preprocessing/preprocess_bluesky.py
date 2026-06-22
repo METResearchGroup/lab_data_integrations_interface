@@ -73,6 +73,7 @@ def preprocess_records(dataset_id: str) -> Path:
         f"/run_dir={output_dir.name}/{csv_filename}"
     )
     S3().upload_file(output_dir / csv_filename, S3_BUCKET, key)
+    print(f"preprocess_records: uploaded preprocessed to s3://{S3_BUCKET}/{key}")
     metadata = preprocessed_storage.load_run_metadata(output_dir)
     metadata["s3_upload_status"] = True
     preprocessed_storage.write_run_metadata(output_dir, metadata)

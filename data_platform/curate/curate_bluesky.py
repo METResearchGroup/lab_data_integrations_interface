@@ -54,6 +54,7 @@ def curate_mirrorview(config_path: Path, dataset_id: str) -> Path:
         f"/run_dir={run_dir.name}/{output_path.name}"
     )
     S3().upload_file(output_path, S3_BUCKET, key)
+    print(f"curate_mirrorview: uploaded curated to s3://{S3_BUCKET}/{key}")
     curated_storage = BlueskyStorageManager(StorageStage.CURATED, dataset_id)
     curate_meta = curated_storage.load_run_metadata(run_dir)
     curate_meta["s3_upload_status"] = True

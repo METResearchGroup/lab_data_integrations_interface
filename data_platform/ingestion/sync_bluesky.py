@@ -333,6 +333,7 @@ def sync_records(
             f"raw/platform=bluesky/dataset_id={dataset_id}/run_dir={output_dir.name}/{csv_filename}"
         )
         S3().upload_file(output_dir / csv_filename, S3_BUCKET, key)
+        print(f"sync_records: uploaded raw to s3://{S3_BUCKET}/{key}")
         metadata["s3_upload_status"] = True
     flush_run_metadata(storage, output_dir, metadata)
 

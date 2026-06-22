@@ -136,6 +136,7 @@ def generate_bluesky_features(
             for _, path in written.items():
                 key = f"features/platform=bluesky/dataset_id={dataset_id}/{path.name}"
                 S3().upload_file(path, S3_BUCKET, key)
+                print(f"generate_bluesky_features: uploaded features to s3://{S3_BUCKET}/{key}")
             run_metadata.s3_upload_status = True
             flush_metadata(config.features_dir, run_metadata)
 
