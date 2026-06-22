@@ -14,6 +14,8 @@ from pathlib import Path
 import pandas as pd
 import typer
 
+from data_platform.aws.constants import S3_BUCKET
+from data_platform.aws.s3 import S3
 from data_platform.models.sync import SyncBlueskyPostModel
 from data_platform.preprocessing.runner import (
     PreprocessPlatformSpec,
@@ -30,7 +32,7 @@ from data_platform.preprocessing.validators.validators import (
     check_if_valid_post_length,
 )
 from data_platform.utils.platform_ids import BLUESKY_BINDING
-from data_platform.utils.storage import BlueskyStorageManager
+from data_platform.utils.storage import BlueskyStorageManager, StorageStage
 
 POST_TEXT_VALIDATORS: tuple[TextValidator, ...] = (
     check_if_not_phone,
@@ -63,7 +65,18 @@ def filter_posts(
 
 
 def preprocess_records(dataset_id: str) -> Path:
-    return run_preprocess_records(dataset_id, BLUESKY_SPEC)
+    output_dir = run_preprocess_records(dataset_id, BLUESKY_SPEC)
+    preprocessed_storage = BlueskyStorageManager(StorageStage.PREPROCESSED, dataset_id)
+    csv_filename = preprocessed_storage.records_filename
+    key = (
+        f"preprocessed/platform=bluesky/dataset_id={dataset_id}"
+        f"/run_dir={output_dir.name}/{csv_filename}"
+    )
+    S3().upload_file(output_dir / csv_filename, S3_BUCKET, key)
+    metadata = preprocessed_storage.load_run_metadata(output_dir)
+    metadata["s3_upload_status"] = True
+    preprocessed_storage.write_run_metadata(output_dir, metadata)
+    return output_dir
 
 
 def main(
