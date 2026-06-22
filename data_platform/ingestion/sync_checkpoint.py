@@ -112,7 +112,7 @@ def find_resume_run_dir(
     storage: StorageManager,
     *,
     run_dir_name: str | None,
-) -> Path:
+) -> Path | None:
     if run_dir_name is not None:
         run_dir = storage.root_dir / run_dir_name
         if not run_dir.is_dir():
@@ -120,7 +120,7 @@ def find_resume_run_dir(
         return run_dir
 
     if not storage.root_dir.exists():
-        raise FileNotFoundError(f"No raw runs found under {storage.root_dir}")
+        return None
 
     candidates: list[tuple[str, Path]] = []
     for path in storage.root_dir.iterdir():
@@ -134,10 +134,7 @@ def find_resume_run_dir(
             candidates.append((path.name, path))
 
     if not candidates:
-        raise FileNotFoundError(
-            f"No in-progress raw run found under {storage.root_dir}. "
-            "Start a new sync or pass --run-dir."
-        )
+        return None
     return max(candidates, key=lambda item: item[0])[1]
 
 
@@ -171,6 +168,7 @@ def build_base_sync_metadata(
 ) -> dict[str, Any]:
     metadata: dict[str, Any] = {
         "sync_status": SyncStatus.IN_PROGRESS.value,
+        "s3_upload_status": False,
         "dataset_id": require_dataset_id(config),
         "name": config["name"],
         "description": config["description"],
@@ -258,9 +256,6 @@ def run_checkpointed_sync(
         if stop_at_max_rows(metadata, storage, output_dir, max_rows_int):
             break
 
-    metadata["sync_status"] = sync_status_from_tasks(progress).value
-    flush_run_metadata(storage, output_dir, metadata)
-
 
 def ensure_dataset_manifest(
     storage: StorageManager,
@@ -285,23 +280,19 @@ def prepare_sync_run(
     storage: StorageManager,
     sync_tasks: Sequence[HasTaskId],
     *,
-    resume: bool,
     run_dir_name: str | None,
     init_metadata_fn: Callable[[str], dict[str, Any]],
     entity_label: str,
 ) -> tuple[Path, dict[str, Any]]:
-    if run_dir_name is not None and not resume:
-        raise ValueError("--run-dir requires --resume")
-
-    if resume:
-        output_dir = find_resume_run_dir(storage, run_dir_name=run_dir_name)
-        metadata = storage.load_run_metadata(output_dir)
+    resume_dir = find_resume_run_dir(storage, run_dir_name=run_dir_name)
+    if resume_dir is not None:
+        metadata = storage.load_run_metadata(resume_dir)
         if metadata.get("sync_status") != SyncStatus.IN_PROGRESS.value:
             metadata["sync_status"] = SyncStatus.IN_PROGRESS.value
-            flush_run_metadata(storage, output_dir, metadata)
+            flush_run_metadata(storage, resume_dir, metadata)
         validate_tasks_for_resume(sync_tasks, metadata, entity_label=entity_label)
-        print(f"sync_records: resuming {output_dir}")
-        return output_dir, metadata
+        print(f"sync_records: resuming {resume_dir}")
+        return resume_dir, metadata
 
     sync_timestamp = get_current_timestamp()
     output_dir = storage.create_new_run_dir(sync_timestamp)
@@ -322,18 +313,13 @@ def run_sync_cli(
             "--config",
             help=config_help,
         ),
-        resume: bool = typer.Option(
-            False,
-            "--resume",
-            help="Resume the latest in-progress raw run for this dataset",
-        ),
         run_dir: str | None = typer.Option(
             None,
             "--run-dir",
-            help="Raw run timestamp directory name (requires --resume)",
+            help="Raw run timestamp directory name to resume (e.g. 2026_05_30-12:00:00)",
         ),
     ) -> None:
         config_path = resolve_config_path(config, REPO_ROOT)
-        sync_records_fn(config_path, resume=resume, run_dir_name=run_dir)
+        sync_records_fn(config_path, run_dir_name=run_dir)
 
     typer.run(main)

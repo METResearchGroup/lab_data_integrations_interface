@@ -97,6 +97,7 @@ def test_preprocess_records_writes_output(data_root) -> None:
         run_dir,
         {
             "sync_status": "completed",
+            "s3_upload_status": True,
             "row_count": 2,
         },
     )

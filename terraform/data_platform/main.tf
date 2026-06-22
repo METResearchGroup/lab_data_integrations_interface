@@ -61,9 +61,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_platform" {
 # Glue catalog — schema for Athena to query dedupe ID files
 #
 # S3 layout:
-#   s3://lab-data-integrations-interface/dedupe/platform={platform}/run={run}/seen_ids.parquet
+#   s3://lab-data-integrations-interface/dedupe/platform={platform}/dataset_id={dataset_id}/seen_ids.parquet
 #
-# Each file contains one column (id: string) — the post URIs/IDs for that run.
+# Each file contains one column (id: string) — the post URIs/IDs for that dataset.
 # Athena prunes by platform partition so queries only scan the relevant folder.
 # ---------------------------------------------------------------------------
 
@@ -102,7 +102,7 @@ resource "aws_glue_catalog_table" "dedupe_seen_ids" {
   }
 
   partition_keys {
-    name = "run"
+    name = "dataset_id"
     type = "string"
   }
 }

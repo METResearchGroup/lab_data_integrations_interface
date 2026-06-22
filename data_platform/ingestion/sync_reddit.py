@@ -5,15 +5,11 @@ Run from the repo root:
     PYTHONPATH=. uv run python data_platform/ingestion/sync_reddit.py \\
         --config data_platform/ingestion/configs/reddit/mirrorview.yaml
 
-Resume the latest in-progress run for a dataset:
+Automatically resumes the most recent in-progress run for the dataset, or starts a new one.
+Pin a specific run to resume with --run-dir:
 
     PYTHONPATH=. uv run python data_platform/ingestion/sync_reddit.py \\
-        --config data_platform/ingestion/configs/reddit/mirrorview.yaml --resume
-
-Resume a specific raw run timestamp:
-
-    PYTHONPATH=. uv run python data_platform/ingestion/sync_reddit.py \\
-        --config data_platform/ingestion/configs/reddit/mirrorview.yaml --resume \\
+        --config data_platform/ingestion/configs/reddit/mirrorview.yaml \\
         --run-dir 2026_05_30-12:00:00
 
 Ingestion YAML must include `dataset_id` (e.g. reddit_<uuid>).
@@ -537,7 +533,6 @@ load_config = load_yaml_config
 def sync_records(
     config_path: Path,
     *,
-    resume: bool = False,
     run_dir_name: str | None = None,
 ) -> Path:
     """Fetch Reddit records per config and write raw CSV + metadata."""
@@ -568,7 +563,6 @@ def sync_records(
     output_dir, metadata = prepare_sync_run(
         comment_storage,
         sync_tasks,
-        resume=resume,
         run_dir_name=run_dir_name,
         init_metadata_fn=lambda ts: init_sync_metadata(config, config_path, ts, sync_tasks),
         entity_label="subreddits",

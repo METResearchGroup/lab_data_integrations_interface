@@ -5,15 +5,11 @@ Run from the repo root:
     PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py \\
         --config data_platform/ingestion/configs/bluesky/mirrorview.yaml
 
-Resume the latest in-progress run for a dataset:
+Automatically resumes the most recent in-progress run for the dataset, or starts a new one.
+Pin a specific run to resume with --run-dir:
 
     PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py \\
-        --config data_platform/ingestion/configs/bluesky/mirrorview_scale.yaml --resume
-
-Resume a specific raw run timestamp:
-
-    PYTHONPATH=. uv run python data_platform/ingestion/sync_bluesky.py \\
-        --config data_platform/ingestion/configs/bluesky/mirrorview_scale.yaml --resume \\
+        --config data_platform/ingestion/configs/bluesky/mirrorview_scale.yaml \\
         --run-dir 2026_05_30-12:00:00
 
 Ingestion YAML must include `dataset_id` (e.g. bluesky_<uuid>).
@@ -25,11 +21,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from data_platform.aws.constants import S3_BUCKET
+from data_platform.aws.s3 import S3
 from data_platform.ingestion.bluesky_retry import retry_bluesky_request
 from data_platform.ingestion.sync_checkpoint import (
+    SyncStatus,
     TaskStatus,
     build_base_sync_metadata,
     ensure_dataset_manifest,
+    flush_run_metadata,
+    get_task_progress,
     mark_task_completed,
     mark_task_failed,
     mark_task_in_progress,
@@ -39,6 +40,7 @@ from data_platform.ingestion.sync_checkpoint import (
     require_dataset_id,
     run_checkpointed_sync,
     run_sync_cli,
+    sync_status_from_tasks,
 )
 from data_platform.ingestion.sync_clients import init_bluesky_client
 from data_platform.utils.config_paths import load_yaml_config
@@ -279,7 +281,6 @@ def run_sync_tasks(
 def sync_records(
     config_path: Path,
     *,
-    resume: bool = False,
     run_dir_name: str | None = None,
 ) -> Path:
     """Load config, prepare or resume a raw run, and sync all keyword tasks to posts.csv.
@@ -311,7 +312,6 @@ def sync_records(
     output_dir, metadata = prepare_sync_run(
         storage,
         sync_tasks,
-        resume=resume,
         run_dir_name=run_dir_name,
         init_metadata_fn=lambda ts: init_sync_metadata(config, config_path, ts, sync_tasks),
         entity_label="keywords",
@@ -326,6 +326,15 @@ def sync_records(
         sync_tasks,
         csv_filename=csv_filename,
     )
+
+    metadata["sync_status"] = sync_status_from_tasks(get_task_progress(metadata)).value
+    if metadata["sync_status"] == SyncStatus.COMPLETED.value:
+        key = (
+            f"raw/platform=bluesky/dataset_id={dataset_id}/run_dir={output_dir.name}/{csv_filename}"
+        )
+        S3().upload_file(output_dir / csv_filename, S3_BUCKET, key)
+        metadata["s3_upload_status"] = True
+    flush_run_metadata(storage, output_dir, metadata)
 
     total_rows = metadata["row_count"]
     print(
