@@ -144,6 +144,7 @@ def test_generate_bluesky_features_defaults_to_opik_disabled(
         "data_platform.generate_features.generate_bluesky_features.load_posts",
         lambda dataset_id, preprocessed_run=None: pd.DataFrame([{"uri": "1", "text": "hello"}]),
     )
+    write_preprocessed_posts(data_root, sample_preprocessed_records(1))
 
     generate_bluesky_features(FEATURES_DATASET_ID)
     assert captured["opik_enabled"] is False
