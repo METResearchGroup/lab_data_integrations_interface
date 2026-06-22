@@ -288,15 +288,18 @@ def sync_records(
     """
     config = load_yaml_config(config_path)
     dataset_id = require_dataset_id(config, platform="bluesky")
-    storage = BlueskyStorageManager(StorageStage.RAW, dataset_id)
 
+    # Create a temporary storage just to locate the dataset root for the manifest.
+    # The manifest must exist before we create the real storage so that format is
+    # read correctly (new datasets have no dataset.json yet).
     ensure_dataset_manifest(
-        storage,
+        BlueskyStorageManager(StorageStage.RAW, dataset_id),
         "bluesky",
         dataset_id,
         config,
         config_path,
     )
+    storage = BlueskyStorageManager(StorageStage.RAW, dataset_id)
 
     ingestion_params = config["ingestion_params"]
     sync_tasks = build_sync_tasks(ingestion_params)
