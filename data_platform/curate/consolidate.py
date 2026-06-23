@@ -29,15 +29,15 @@ class ConsolidateConfig:
     """Join preprocessed records with deduped feature label CSVs.
 
     ``id_column`` is the join key on the preprocessed records CSV (e.g. ``uri`` for
-    Bluesky, ``comment_fullname`` for Reddit). ``feature_csv_id_column`` is the id
+    Bluesky, ``comment_fullname`` for Reddit). ``feature_file_id_column`` is the id
     column stored in feature CSV files (defaults to ``uri`` for all platforms today).
     """
 
-    posts_csv: Path
+    posts_file: Path
     features_root: Path
     feature_names: tuple[str, ...] = tuple(FEATURE_WIDE_COLUMNS.keys())
     id_column: str = "uri"
-    feature_csv_id_column: str = "uri"
+    feature_file_id_column: str = "uri"
 
 
 def _feature_cte_sql(
@@ -45,7 +45,8 @@ def _feature_cte_sql(
     glob_pattern: str,
     *,
     id_column: str,
-    feature_csv_id_column: str,
+    feature_file_id_column: str,
+    use_parquet: bool = False,
 ) -> str:
     column_pairs = FEATURE_WIDE_COLUMNS[feature_name]
     inner_cols = ", ".join(
@@ -53,15 +54,20 @@ def _feature_cte_sql(
     )
     outer_cols = ", ".join(alias for _, alias in column_pairs)
     cte_name = f"feat_{feature_name}"
-    feature_id_expr = f"CAST({feature_csv_id_column} AS VARCHAR) AS {id_column}"
-    partition_id = f"CAST({feature_csv_id_column} AS VARCHAR)"
+    feature_id_expr = f"CAST({feature_file_id_column} AS VARCHAR) AS {id_column}"
+    partition_id = f"CAST({feature_file_id_column} AS VARCHAR)"
+    read_expr = (
+        f"read_parquet('{glob_pattern}')"
+        if use_parquet
+        else f"read_csv('{glob_pattern}', union_by_name = true)"
+    )
     return f"""
 {cte_name} AS (
     SELECT {id_column}, {outer_cols}
     FROM (
         SELECT {feature_id_expr}, {inner_cols},
             ROW_NUMBER() OVER (PARTITION BY {partition_id} ORDER BY {partition_id}) AS rn
-        FROM read_csv('{glob_pattern}', union_by_name = true)
+        FROM {read_expr}
     )
     WHERE rn = 1
 )"""
@@ -69,17 +75,20 @@ def _feature_cte_sql(
 
 def _build_consolidate_sql(config: ConsolidateConfig) -> str:
     id_column = config.id_column
-    posts_path = config.posts_csv.as_posix()
-    if config.posts_csv.suffix == ".parquet":
+    use_parquet = config.posts_file.suffix == ".parquet"
+    feature_ext = ".parquet" if use_parquet else ".csv"
+    posts_path = config.posts_file.as_posix()
+    if use_parquet:
         posts_from = f"read_parquet('{posts_path}')"
     else:
         posts_from = f"read_csv('{posts_path}', union_by_name = true)"
     feature_ctes = [
         _feature_cte_sql(
             feature_name,
-            feature_glob(config.features_root, feature_name),
+            feature_glob(config.features_root, feature_name, ext=feature_ext),
             id_column=id_column,
-            feature_csv_id_column=config.feature_csv_id_column,
+            feature_file_id_column=config.feature_file_id_column,
+            use_parquet=use_parquet,
         )
         for feature_name in config.feature_names
         if feature_name in FEATURE_WIDE_COLUMNS

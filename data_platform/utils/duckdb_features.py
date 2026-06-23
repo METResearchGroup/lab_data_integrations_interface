@@ -3,11 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def feature_csv_path(features_root: Path, feature_name: str) -> Path:
-    """Return the feature label CSV path under the features root."""
-    return features_root / f"{feature_name}.csv"
+def feature_file_path(features_root: Path, feature_name: str, ext: str = ".csv") -> Path:
+    """Return the feature label file path under the features root."""
+    return features_root / f"{feature_name}{ext}"
 
 
-def feature_glob(features_root: Path, feature_name: str) -> str:
-    """Return a POSIX path string for DuckDB read_csv on the feature CSV."""
-    return feature_csv_path(features_root, feature_name).as_posix()
+def feature_glob(features_root: Path, feature_name: str, ext: str = ".csv") -> str:
+    """Return a POSIX path string for DuckDB on the feature file."""
+    return feature_file_path(features_root, feature_name, ext).as_posix()

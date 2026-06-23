@@ -29,7 +29,7 @@ TWITTER_CURATE_SPEC = CuratePlatformSpec(
 )
 
 ID_COLUMN = TWITTER_BINDING.records_id_column
-FEATURE_CSV_ID_COLUMN = TWITTER_BINDING.feature_csv_id_column
+FEATURE_FILE_ID_COLUMN = TWITTER_BINDING.feature_file_id_column
 
 
 def curate_mirrorview(config_path: Path, dataset_id: str) -> Path:

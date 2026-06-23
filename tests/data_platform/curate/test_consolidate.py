@@ -8,14 +8,14 @@ from data_platform.curate.consolidate import ConsolidateConfig, build_wide_table
 from tests.data_platform.conftest import (
     make_political_feature_rows,
     write_feature_csv,
-    write_posts_csv,
+    write_posts_file,
 )
 from tests.data_platform.constants import LABEL_TIMESTAMP, URI_POST_A, URI_POST_B
 
 
 def test_build_wide_table_joins_features(tmp_path: Path) -> None:
-    posts_csv = tmp_path / "posts.csv"
-    write_posts_csv(posts_csv)
+    posts_file = tmp_path / "posts.csv"
+    write_posts_file(posts_file)
 
     features_root = tmp_path / "features"
     write_feature_csv(features_root, "is_political", make_political_feature_rows())
@@ -38,7 +38,7 @@ def test_build_wide_table_joins_features(tmp_path: Path) -> None:
 
     wide = build_wide_table(
         ConsolidateConfig(
-            posts_csv=posts_csv,
+            posts_file=posts_file,
             features_root=features_root,
             feature_names=("is_political", "is_likely_spam", "is_news_or_opinion"),
         )
@@ -74,11 +74,11 @@ def test_build_wide_table_supports_reddit_id_column_mapping(tmp_path: Path) -> N
 
     wide = build_wide_table(
         ConsolidateConfig(
-            posts_csv=comments_csv,
+            posts_file=comments_csv,
             features_root=features_root,
             feature_names=("is_political",),
             id_column="comment_fullname",
-            feature_csv_id_column="uri",
+            feature_file_id_column="uri",
         )
     )
 
