@@ -330,7 +330,7 @@ def sync_records(
     )
 
     metadata["sync_status"] = sync_status_from_tasks(get_task_progress(metadata)).value
-    if metadata["sync_status"] == SyncStatus.COMPLETED.value:
+    if metadata["sync_status"] == SyncStatus.COMPLETED.value and (output_dir / filename).exists():
         key = f"raw/platform=bluesky/dataset_id={dataset_id}/run_dir={output_dir.name}/{filename}"
         S3().upload_file(output_dir / filename, S3_BUCKET, key)
         print(f"sync_records: uploaded raw to s3://{S3_BUCKET}/{key}")
