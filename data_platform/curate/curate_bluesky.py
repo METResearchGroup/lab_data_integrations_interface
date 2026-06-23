@@ -8,14 +8,20 @@ Run from the repo root:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import typer
 
+from data_platform.aws.constants import S3_BUCKET
+from data_platform.aws.s3 import S3
 from data_platform.curate.runner import CuratePlatformSpec, run_curation
 from data_platform.curate.utils import resolve_curate_config_path
+from data_platform.generate_features.metadata import metadata_path
+from data_platform.generate_features.models import FeatureRunMetadata
+from data_platform.utils.dataset import dataset_root, relative_run_path, validate_dataset_id
 from data_platform.utils.platform_ids import BLUESKY_BINDING
-from data_platform.utils.storage import BlueskyStorageManager
+from data_platform.utils.storage import BlueskyStorageManager, StorageStage
 
 CONFIGS_DIR = Path(__file__).resolve().parent / "configs" / "bluesky"
 
@@ -30,7 +36,45 @@ BLUESKY_CURATE_SPEC = CuratePlatformSpec(
 
 
 def curate_mirrorview(config_path: Path, dataset_id: str) -> Path:
-    return run_curation(config_path, dataset_id, BLUESKY_CURATE_SPEC)
+    dataset_id = validate_dataset_id(dataset_id)
+
+    features_meta_path = metadata_path(dataset_root("bluesky", dataset_id) / "features")
+    if not features_meta_path.exists():
+        raise FileNotFoundError(f"No features metadata found for dataset {dataset_id}")
+    with features_meta_path.open(encoding="utf-8") as f:
+        features_meta = FeatureRunMetadata.from_dict(json.load(f))
+    if not features_meta.s3_upload_status:
+        raise RuntimeError(f"Features for dataset {dataset_id} have not been uploaded to S3")
+
+    preprocessed_storage = BlueskyStorageManager(StorageStage.PREPROCESSED, dataset_id)
+    preprocessed_run = preprocessed_storage.latest_run_dir()
+    if preprocessed_run is None:
+        raise FileNotFoundError(f"No preprocessed runs found for dataset {dataset_id}")
+    current_preprocessed_run = relative_run_path(
+        dataset_root("bluesky", dataset_id), preprocessed_run
+    )
+    if features_meta.source_preprocessed_run != current_preprocessed_run:
+        raise RuntimeError(
+            f"Feature metadata was generated from '{features_meta.source_preprocessed_run}' "
+            f"but current preprocessed run is '{current_preprocessed_run}'; "
+            "re-run feature generation before curating"
+        )
+
+    output_path = run_curation(config_path, dataset_id, BLUESKY_CURATE_SPEC)
+
+    run_dir = output_path.parent
+    key = (
+        f"curated/platform=bluesky/dataset_id={dataset_id}"
+        f"/run_dir={run_dir.name}/{output_path.name}"
+    )
+    S3().upload_file(output_path, S3_BUCKET, key)
+    print(f"curate_mirrorview: uploaded curated to s3://{S3_BUCKET}/{key}")
+    curated_storage = BlueskyStorageManager(StorageStage.CURATED, dataset_id)
+    curate_meta = curated_storage.load_run_metadata(run_dir)
+    curate_meta["s3_upload_status"] = True
+    curated_storage.write_run_metadata(run_dir, curate_meta)
+
+    return output_path
 
 
 @app.command()

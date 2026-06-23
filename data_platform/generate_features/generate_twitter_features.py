@@ -30,7 +30,7 @@ from data_platform.utils.storage import StorageManager, StorageStage, TwitterSto
 
 ID_COLUMN = TWITTER_BINDING.records_id_column
 TEXT_COLUMN = TWITTER_BINDING.text_column
-FEATURE_CSV_ID_COLUMN = TWITTER_BINDING.feature_csv_id_column
+FEATURE_FILE_ID_COLUMN = TWITTER_BINDING.feature_file_id_column
 
 
 def twitter_feature_config(
@@ -64,7 +64,7 @@ def twitter_feature_config(
         feature_label_query=FeatureLabelQuery(
             feature_storage=feature_label_storage,
             id_column=binding.records_id_column,
-            feature_csv_id_column=binding.feature_csv_id_column,
+            feature_file_id_column=binding.feature_file_id_column,
         ),
         run_config=run_config,
         preprocessed_run=preprocessed_run,

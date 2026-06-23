@@ -56,7 +56,7 @@ def make_post_row(
     }
 
 
-def write_posts_csv(path: Path, rows: list[Mapping[str, Any]] | None = None) -> Path:
+def write_posts_file(path: Path, rows: list[Mapping[str, Any]] | None = None) -> Path:
     if rows is None:
         rows = [
             make_post_row(uri=URI_POST_A, text="post one"),

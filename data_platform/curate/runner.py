@@ -72,12 +72,12 @@ def run_curation(config_path: Path, dataset_id: str, spec: CuratePlatformSpec) -
 
     records_csv = preprocessed_run / preprocessed_storage.records_filename
     consolidate_kwargs: dict[str, Any] = {
-        "posts_csv": records_csv,
+        "posts_file": records_csv,
         "features_root": features_root,
     }
     if spec.binding.records_id_column != "uri":
         consolidate_kwargs["id_column"] = spec.binding.records_id_column
-        consolidate_kwargs["feature_csv_id_column"] = spec.binding.feature_csv_id_column
+        consolidate_kwargs["feature_file_id_column"] = spec.binding.feature_file_id_column
 
     wide_df = build_wide_table(ConsolidateConfig(**consolidate_kwargs))
     rules_result = apply_rules(wide_df, rules)

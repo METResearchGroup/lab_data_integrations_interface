@@ -8,14 +8,18 @@ Run from the repo root:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
 import typer
 from pydantic import BaseModel
 
+from data_platform.aws.constants import S3_BUCKET
+from data_platform.aws.s3 import S3
 from data_platform.generate_features.generate_features import FeatureGenerationConfig
-from data_platform.generate_features.models import FeatureRunConfig
+from data_platform.generate_features.metadata import flush_metadata, metadata_path
+from data_platform.generate_features.models import FeatureRunConfig, FeatureRunMetadata
 from data_platform.generate_features.platform_cli import (
     features_from_cli,
     generate_feature_subset,
@@ -94,8 +98,18 @@ def generate_bluesky_features(
 ) -> dict[str, Path]:
     """Load Bluesky posts and generate the requested feature labels."""
     dataset_id = validate_dataset_id(dataset_id)
-    features_subset = generate_feature_subset(feature_subset)
 
+    preprocessed_storage = BlueskyStorageManager(StorageStage.PREPROCESSED, dataset_id)
+    latest_preprocessed_run = preprocessed_storage.latest_run_dir()
+    if latest_preprocessed_run is None:
+        raise FileNotFoundError(f"No preprocessed runs found for dataset {dataset_id}")
+    preprocessed_meta = preprocessed_storage.load_run_metadata(latest_preprocessed_run)
+    if not preprocessed_meta.get("s3_upload_status"):
+        raise RuntimeError(
+            f"Latest preprocessed run {latest_preprocessed_run.name} has not been uploaded to S3"
+        )
+
+    features_subset = generate_feature_subset(feature_subset)
     run_config = FeatureRunConfig(
         batch_size=batch_size,
         max_concurrency=max_concurrency,
@@ -108,11 +122,25 @@ def generate_bluesky_features(
         preprocessed_run=preprocessed_run,
         features_subset=features_subset,
     )
-    return run_feature_generation(
+    written = run_feature_generation(
         posts,
         config,
         empty_message="generate_bluesky_features: no preprocessed posts found",
     )
+
+    if written:
+        meta_file = metadata_path(config.features_dir)
+        with meta_file.open(encoding="utf-8") as f:
+            run_metadata = FeatureRunMetadata.from_dict(json.load(f))
+        if run_metadata.sync_status == "completed":
+            for _, path in written.items():
+                key = f"features/platform=bluesky/dataset_id={dataset_id}/{path.name}"
+                S3().upload_file(path, S3_BUCKET, key)
+                print(f"generate_bluesky_features: uploaded features to s3://{S3_BUCKET}/{key}")
+            run_metadata.s3_upload_status = True
+            flush_metadata(config.features_dir, run_metadata)
+
+    return written
 
 
 def main(

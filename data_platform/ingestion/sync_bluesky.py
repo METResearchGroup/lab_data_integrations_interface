@@ -36,7 +36,6 @@ from data_platform.ingestion.sync_checkpoint import (
     mark_task_in_progress,
     parse_max_rows,
     prepare_sync_run,
-    record_type_to_filename,
     require_dataset_id,
     run_checkpointed_sync,
     run_sync_cli,
@@ -214,7 +213,7 @@ def run_sync_tasks(
     metadata: dict[str, Any],
     sync_tasks: list[BlueskyTask],
     *,
-    csv_filename: str,
+    filename: str,
 ) -> None:
     """Run the checkpointed keyword loop: fetch, dedupe-append, and flush metadata per task.
 
@@ -222,7 +221,7 @@ def run_sync_tasks(
     without aborting the full run.
     """
     max_rows_int = parse_max_rows(ingestion_params)
-    dedupe_session = DedupeSession(DedupeConfig(id_column="uri", filename=csv_filename))
+    dedupe_session = DedupeSession(DedupeConfig(id_column="uri", filename=filename))
     dedupe_session.warm(storage, output_dir)
 
     def process_task(task: BlueskyTask, entry: dict[str, Any]) -> None:
@@ -244,7 +243,7 @@ def run_sync_tasks(
             rows,
             output_dir,
             dedupe_session=dedupe_session,
-            filename=csv_filename,
+            filename=filename,
         )
         metadata["posts_skipped_as_duplicates"] = (
             int(metadata.get("posts_skipped_as_duplicates", 0)) + result.skipped
@@ -289,15 +288,18 @@ def sync_records(
     """
     config = load_yaml_config(config_path)
     dataset_id = require_dataset_id(config, platform="bluesky")
-    storage = BlueskyStorageManager(StorageStage.RAW, dataset_id)
 
+    # Create a temporary storage just to locate the dataset root for the manifest.
+    # The manifest must exist before we create the real storage so that format is
+    # read correctly (new datasets have no dataset.json yet).
     ensure_dataset_manifest(
-        storage,
+        BlueskyStorageManager(StorageStage.RAW, dataset_id),
         "bluesky",
         dataset_id,
         config,
         config_path,
     )
+    storage = BlueskyStorageManager(StorageStage.RAW, dataset_id)
 
     ingestion_params = config["ingestion_params"]
     sync_tasks = build_sync_tasks(ingestion_params)
@@ -306,7 +308,7 @@ def sync_records(
     if POSTS_RECORD_TYPE not in record_types:
         raise ValueError(f"Unsupported record types for checkpoint sync: {record_types}")
 
-    csv_filename = record_type_to_filename(POSTS_RECORD_TYPE)
+    filename = storage.records_filename
     client = init_bluesky_client()
 
     output_dir, metadata = prepare_sync_run(
@@ -324,15 +326,14 @@ def sync_records(
         storage,
         metadata,
         sync_tasks,
-        csv_filename=csv_filename,
+        filename=filename,
     )
 
     metadata["sync_status"] = sync_status_from_tasks(get_task_progress(metadata)).value
-    if metadata["sync_status"] == SyncStatus.COMPLETED.value:
-        key = (
-            f"raw/platform=bluesky/dataset_id={dataset_id}/run_dir={output_dir.name}/{csv_filename}"
-        )
-        S3().upload_file(output_dir / csv_filename, S3_BUCKET, key)
+    if metadata["sync_status"] == SyncStatus.COMPLETED.value and (output_dir / filename).exists():
+        key = f"raw/platform=bluesky/dataset_id={dataset_id}/run_dir={output_dir.name}/{filename}"
+        S3().upload_file(output_dir / filename, S3_BUCKET, key)
+        print(f"sync_records: uploaded raw to s3://{S3_BUCKET}/{key}")
         metadata["s3_upload_status"] = True
     flush_run_metadata(storage, output_dir, metadata)
 

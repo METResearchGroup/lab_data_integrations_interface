@@ -7,7 +7,7 @@ import pandas as pd
 
 from data_platform.generate_features.generate_features import generate_features
 from data_platform.generate_features.generate_reddit_features import (
-    FEATURE_CSV_ID_COLUMN,
+    FEATURE_FILE_ID_COLUMN,
     ID_COLUMN,
     TEXT_COLUMN,
     generate_reddit_features,
@@ -74,7 +74,7 @@ def test_reddit_feature_config_bindings(data_root) -> None:
     assert config.id_column == ID_COLUMN
     assert config.text_column == TEXT_COLUMN
     assert config.feature_label_query.id_column == ID_COLUMN
-    assert config.feature_label_query.feature_csv_id_column == FEATURE_CSV_ID_COLUMN
+    assert config.feature_label_query.feature_file_id_column == FEATURE_FILE_ID_COLUMN
     assert config.input_storage.platform == "reddit"
 
 
@@ -108,7 +108,7 @@ def test_generate_reddit_features_skips_completed_feature(
     pd.DataFrame(
         [
             {
-                FEATURE_CSV_ID_COLUMN: records[0][ID_COLUMN],
+                FEATURE_FILE_ID_COLUMN: records[0][ID_COLUMN],
                 "label_timestamp": LABEL_TIMESTAMP,
                 "is_political": True,
             }

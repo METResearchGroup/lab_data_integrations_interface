@@ -7,7 +7,7 @@ import pandas as pd
 
 from data_platform.generate_features.generate_features import generate_features
 from data_platform.generate_features.generate_twitter_features import (
-    FEATURE_CSV_ID_COLUMN,
+    FEATURE_FILE_ID_COLUMN,
     ID_COLUMN,
     TEXT_COLUMN,
     generate_twitter_features,
@@ -69,7 +69,7 @@ def test_twitter_feature_config_bindings(data_root) -> None:
     assert config.id_column == ID_COLUMN
     assert config.text_column == TEXT_COLUMN
     assert config.feature_label_query.id_column == ID_COLUMN
-    assert config.feature_label_query.feature_csv_id_column == FEATURE_CSV_ID_COLUMN
+    assert config.feature_label_query.feature_file_id_column == FEATURE_FILE_ID_COLUMN
     assert config.input_storage.platform == "twitter"
 
 
@@ -97,7 +97,7 @@ def test_filter_unlabeled_matches_tweet_id_to_feature_uri_column(data_root) -> N
     pd.DataFrame(
         [
             {
-                FEATURE_CSV_ID_COLUMN: tweet_labeled,
+                FEATURE_FILE_ID_COLUMN: tweet_labeled,
                 "label_timestamp": LABEL_TIMESTAMP,
                 "is_political": True,
             }
@@ -113,7 +113,7 @@ def test_filter_unlabeled_matches_tweet_id_to_feature_uri_column(data_root) -> N
     query = FeatureLabelQuery(
         feature_storage=feature_storage,
         id_column=ID_COLUMN,
-        feature_csv_id_column=FEATURE_CSV_ID_COLUMN,
+        feature_file_id_column=FEATURE_FILE_ID_COLUMN,
     )
     pending = query.filter_unlabeled(records, "is_political")
     assert len(pending) == 1
@@ -140,7 +140,7 @@ def test_generate_twitter_features_skips_completed_feature(
     pd.DataFrame(
         [
             {
-                FEATURE_CSV_ID_COLUMN: records[0][ID_COLUMN],
+                FEATURE_FILE_ID_COLUMN: records[0][ID_COLUMN],
                 "label_timestamp": LABEL_TIMESTAMP,
                 "is_political": True,
             }

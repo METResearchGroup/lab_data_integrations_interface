@@ -6,7 +6,7 @@ import pandas as pd
 
 from data_platform.curate.consolidate import ConsolidateConfig, build_wide_table
 from data_platform.curate.curate_reddit import (
-    FEATURE_CSV_ID_COLUMN,
+    FEATURE_FILE_ID_COLUMN,
     ID_COLUMN,
     curate_mirrorview,
 )
@@ -36,12 +36,12 @@ def test_build_wide_table_joins_reddit_comments_on_comment_fullname(tmp_path: Pa
         "is_political",
         [
             {
-                FEATURE_CSV_ID_COLUMN: comment_a["comment_fullname"],
+                FEATURE_FILE_ID_COLUMN: comment_a["comment_fullname"],
                 "label_timestamp": LABEL_TIMESTAMP,
                 "is_political": True,
             },
             {
-                FEATURE_CSV_ID_COLUMN: comment_b["comment_fullname"],
+                FEATURE_FILE_ID_COLUMN: comment_b["comment_fullname"],
                 "label_timestamp": LABEL_TIMESTAMP,
                 "is_political": False,
             },
@@ -52,12 +52,12 @@ def test_build_wide_table_joins_reddit_comments_on_comment_fullname(tmp_path: Pa
         "is_news_or_opinion",
         [
             {
-                FEATURE_CSV_ID_COLUMN: comment_a["comment_fullname"],
+                FEATURE_FILE_ID_COLUMN: comment_a["comment_fullname"],
                 "label_timestamp": LABEL_TIMESTAMP,
                 "category": "opinion",
             },
             {
-                FEATURE_CSV_ID_COLUMN: comment_b["comment_fullname"],
+                FEATURE_FILE_ID_COLUMN: comment_b["comment_fullname"],
                 "label_timestamp": LABEL_TIMESTAMP,
                 "category": "news",
             },
@@ -68,12 +68,12 @@ def test_build_wide_table_joins_reddit_comments_on_comment_fullname(tmp_path: Pa
         "is_likely_spam",
         [
             {
-                FEATURE_CSV_ID_COLUMN: comment_a["comment_fullname"],
+                FEATURE_FILE_ID_COLUMN: comment_a["comment_fullname"],
                 "label_timestamp": LABEL_TIMESTAMP,
                 "is_likely_spam": False,
             },
             {
-                FEATURE_CSV_ID_COLUMN: comment_b["comment_fullname"],
+                FEATURE_FILE_ID_COLUMN: comment_b["comment_fullname"],
                 "label_timestamp": LABEL_TIMESTAMP,
                 "is_likely_spam": True,
             },
@@ -82,11 +82,11 @@ def test_build_wide_table_joins_reddit_comments_on_comment_fullname(tmp_path: Pa
 
     wide = build_wide_table(
         ConsolidateConfig(
-            posts_csv=comments_csv,
+            posts_file=comments_csv,
             features_root=features_root,
             feature_names=("is_political", "is_news_or_opinion"),
             id_column=ID_COLUMN,
-            feature_csv_id_column=FEATURE_CSV_ID_COLUMN,
+            feature_file_id_column=FEATURE_FILE_ID_COLUMN,
         )
     )
 
@@ -123,7 +123,7 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
             (
                 "is_political",
                 {
-                    FEATURE_CSV_ID_COLUMN: comment["comment_fullname"],
+                    FEATURE_FILE_ID_COLUMN: comment["comment_fullname"],
                     "label_timestamp": LABEL_TIMESTAMP,
                     "is_political": political,
                 },
@@ -131,7 +131,7 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
             (
                 "is_news_or_opinion",
                 {
-                    FEATURE_CSV_ID_COLUMN: comment["comment_fullname"],
+                    FEATURE_FILE_ID_COLUMN: comment["comment_fullname"],
                     "label_timestamp": LABEL_TIMESTAMP,
                     "category": category,
                 },
@@ -139,7 +139,7 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
             (
                 "is_likely_spam",
                 {
-                    FEATURE_CSV_ID_COLUMN: comment["comment_fullname"],
+                    FEATURE_FILE_ID_COLUMN: comment["comment_fullname"],
                     "label_timestamp": LABEL_TIMESTAMP,
                     "is_likely_spam": comment is comment_drop,
                 },
@@ -147,7 +147,7 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
             (
                 "is_self_contained",
                 {
-                    FEATURE_CSV_ID_COLUMN: comment["comment_fullname"],
+                    FEATURE_FILE_ID_COLUMN: comment["comment_fullname"],
                     "label_timestamp": LABEL_TIMESTAMP,
                     "is_self_contained": self_contained,
                 },
@@ -155,7 +155,7 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
             (
                 "is_structurally_complete",
                 {
-                    FEATURE_CSV_ID_COLUMN: comment["comment_fullname"],
+                    FEATURE_FILE_ID_COLUMN: comment["comment_fullname"],
                     "label_timestamp": LABEL_TIMESTAMP,
                     "is_structurally_complete": structurally_complete,
                 },
@@ -163,7 +163,7 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
             (
                 "is_toxic_tiered",
                 {
-                    FEATURE_CSV_ID_COLUMN: comment["comment_fullname"],
+                    FEATURE_FILE_ID_COLUMN: comment["comment_fullname"],
                     "label_timestamp": LABEL_TIMESTAMP,
                     "toxicity_prob": 0.1,
                     "toxicity_tier": "low",
@@ -172,7 +172,7 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
             (
                 "political_stance",
                 {
-                    FEATURE_CSV_ID_COLUMN: comment["comment_fullname"],
+                    FEATURE_FILE_ID_COLUMN: comment["comment_fullname"],
                     "label_timestamp": LABEL_TIMESTAMP,
                     "political_stance": stance,
                 },
