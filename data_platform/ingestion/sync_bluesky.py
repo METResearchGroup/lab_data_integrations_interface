@@ -346,9 +346,8 @@ def sync_records(
                 s3_location,
             )
             print(
-                f"""
-                sync_records: registered partition dataset_id={dataset_id} run_dir={output_dir.name}
-                """
+                f"sync_records: registered partition platform=bluesky"
+                f" dataset_id={dataset_id} run_dir={output_dir.name}"
             )
         metadata["s3_upload_status"] = True
     flush_run_metadata(storage, output_dir, metadata)
