@@ -27,8 +27,8 @@ Format: `STORED AS PARQUET` (parquet datasets only)
 
 ## bluesky_preprocessed
 
-**S3 prefix:** `s3://lab-data-integrations-interface/preprocessed/platform=bluesky/`
-**Partition columns:** `dataset_id`, `run_dir`
+**S3 prefix:** `s3://lab-data-integrations-interface/preprocessed/`
+**Partition columns:** `platform`, `dataset_id`, `run_dir`
 
 Same schema as `bluesky_raw` — preprocessing doesn't add or drop columns.
 
@@ -49,7 +49,7 @@ Same schema as `bluesky_raw` — preprocessing doesn't add or drop columns.
 ## Feature tables
 
 All feature tables share a common `uri` + `label_timestamp` header.
-Partition column: `dataset_id` only (no `run_dir` — features are flat, one file per feature per dataset).
+Partition columns: `platform`, `dataset_id` (no `run_dir` — features are flat, one file per feature per dataset).
 Each table has its own S3 root under `feature={name}/` so partitions are isolated.
 
 ### bluesky_features_is_political
@@ -127,8 +127,8 @@ Each table has its own S3 root under `feature={name}/` so partitions are isolate
 
 ## bluesky_curated
 
-**S3 prefix:** `s3://lab-data-integrations-interface/curated/platform=bluesky/`
-**Partition columns:** `dataset_id`, `run_dir`
+**S3 prefix:** `s3://lab-data-integrations-interface/curated/`
+**Partition columns:** `platform`, `dataset_id`, `run_dir`
 
 Wide table: preprocessed post columns joined with one label column per feature (via `uri`).
 Column aliases match `FEATURE_WIDE_COLUMNS` in `data_platform/curate/consolidate.py`.

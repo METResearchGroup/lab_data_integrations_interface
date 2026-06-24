@@ -21,7 +21,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS bluesky_features_is_political (
   label_timestamp  STRING,
   is_political     BOOLEAN
 )
-PARTITIONED BY (dataset_id STRING)
+PARTITIONED BY (platform STRING, dataset_id STRING)
 STORED AS PARQUET
 LOCATION '{_BASE}=is_political/'
 """,
@@ -34,7 +34,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS bluesky_features_is_news_or_opinion (
   label_timestamp  STRING,
   category         STRING
 )
-PARTITIONED BY (dataset_id STRING)
+PARTITIONED BY (platform STRING, dataset_id STRING)
 STORED AS PARQUET
 LOCATION '{_BASE}=is_news_or_opinion/'
 """,
@@ -47,7 +47,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS bluesky_features_is_likely_spam (
   label_timestamp  STRING,
   is_likely_spam   BOOLEAN
 )
-PARTITIONED BY (dataset_id STRING)
+PARTITIONED BY (platform STRING, dataset_id STRING)
 STORED AS PARQUET
 LOCATION '{_BASE}=is_likely_spam/'
 """,
@@ -60,7 +60,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS bluesky_features_is_self_contained (
   label_timestamp    STRING,
   is_self_contained  BOOLEAN
 )
-PARTITIONED BY (dataset_id STRING)
+PARTITIONED BY (platform STRING, dataset_id STRING)
 STORED AS PARQUET
 LOCATION '{_BASE}=is_self_contained/'
 """,
@@ -73,7 +73,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS bluesky_features_is_structurally_complete (
   label_timestamp           STRING,
   is_structurally_complete  BOOLEAN
 )
-PARTITIONED BY (dataset_id STRING)
+PARTITIONED BY (platform STRING, dataset_id STRING)
 STORED AS PARQUET
 LOCATION '{_BASE}=is_structurally_complete/'
 """,
@@ -87,7 +87,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS bluesky_features_is_toxic_tiered (
   toxicity_prob    DOUBLE,
   toxicity_tier    STRING
 )
-PARTITIONED BY (dataset_id STRING)
+PARTITIONED BY (platform STRING, dataset_id STRING)
 STORED AS PARQUET
 LOCATION '{_BASE}=is_toxic_tiered/'
 """,
@@ -100,7 +100,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS bluesky_features_political_stance (
   label_timestamp   STRING,
   political_stance  STRING
 )
-PARTITIONED BY (dataset_id STRING)
+PARTITIONED BY (platform STRING, dataset_id STRING)
 STORED AS PARQUET
 LOCATION '{_BASE}=political_stance/'
 """,
