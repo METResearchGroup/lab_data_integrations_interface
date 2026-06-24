@@ -331,26 +331,32 @@ def sync_records(
     )
 
     metadata["sync_status"] = sync_status_from_tasks(get_task_progress(metadata)).value
-    if metadata["sync_status"] == SyncStatus.COMPLETED.value and (output_dir / filename).exists():
-        key = f"raw/platform=bluesky/dataset_id={dataset_id}/run_dir={output_dir.name}/{filename}"
-        S3().upload_file(output_dir / filename, S3_BUCKET, key)
-        print(f"sync_records: uploaded raw to s3://{S3_BUCKET}/{key}")
-        if (output_dir / filename).suffix == ".parquet":
-            s3_location = (
-                f"s3://{S3_BUCKET}/raw/platform=bluesky"
-                f"/dataset_id={dataset_id}/run_dir={output_dir.name}/"
+    try:
+        is_completed = metadata["sync_status"] == SyncStatus.COMPLETED.value
+        if is_completed and (output_dir / filename).exists():
+            key = (
+                f"raw/platform=bluesky/dataset_id={dataset_id}/run_dir={output_dir.name}/{filename}"
             )
-            Athena().register_partition(
-                "bluesky_raw",
-                {"platform": "bluesky", "dataset_id": dataset_id, "run_dir": output_dir.name},
-                s3_location,
-            )
-            print(
-                f"sync_records: registered partition platform=bluesky"
-                f" dataset_id={dataset_id} run_dir={output_dir.name}"
-            )
-        metadata["s3_upload_status"] = True
-    flush_run_metadata(storage, output_dir, metadata)
+            S3().upload_file(output_dir / filename, S3_BUCKET, key)
+            print(f"sync_records: uploaded raw to s3://{S3_BUCKET}/{key}")
+            metadata["s3_upload_status"] = True
+
+            if (output_dir / filename).suffix == ".parquet":
+                s3_location = (
+                    f"s3://{S3_BUCKET}/raw/platform=bluesky"
+                    f"/dataset_id={dataset_id}/run_dir={output_dir.name}/"
+                )
+                Athena().register_partition(
+                    "bluesky_raw",
+                    {"platform": "bluesky", "dataset_id": dataset_id, "run_dir": output_dir.name},
+                    s3_location,
+                )
+                print(
+                    f"sync_records: registered partition platform=bluesky"
+                    f" dataset_id={dataset_id} run_dir={output_dir.name}"
+                )
+    finally:
+        flush_run_metadata(storage, output_dir, metadata)
 
     total_rows = metadata["row_count"]
     print(
