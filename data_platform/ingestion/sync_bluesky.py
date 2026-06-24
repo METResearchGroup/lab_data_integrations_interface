@@ -342,7 +342,7 @@ def sync_records(
             )
             Athena().register_partition(
                 "bluesky_raw",
-                {"dataset_id": dataset_id, "run_dir": output_dir.name},
+                {"platform": "bluesky", "dataset_id": dataset_id, "run_dir": output_dir.name},
                 s3_location,
             )
             print(

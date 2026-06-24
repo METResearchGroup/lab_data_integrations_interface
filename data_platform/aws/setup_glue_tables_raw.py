@@ -22,9 +22,9 @@ CREATE EXTERNAL TABLE IF NOT EXISTS bluesky_raw (
   reply_count    BIGINT,
   quote_count    BIGINT
 )
-PARTITIONED BY (dataset_id STRING, run_dir STRING)
+PARTITIONED BY (platform STRING, dataset_id STRING, run_dir STRING)
 STORED AS PARQUET
-LOCATION 's3://{S3_BUCKET}/raw/platform=bluesky/'
+LOCATION 's3://{S3_BUCKET}/raw/'
 """
 
 
