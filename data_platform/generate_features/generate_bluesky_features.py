@@ -133,8 +133,11 @@ def generate_bluesky_features(
         with meta_file.open(encoding="utf-8") as f:
             run_metadata = FeatureRunMetadata.from_dict(json.load(f))
         if run_metadata.sync_status == "completed":
-            for _, path in written.items():
-                key = f"features/platform=bluesky/dataset_id={dataset_id}/{path.name}"
+            for feature_name, path in written.items():
+                key = (
+                    f"features/platform=bluesky/feature={feature_name}"
+                    f"/dataset_id={dataset_id}/{path.name}"
+                )
                 S3().upload_file(path, S3_BUCKET, key)
                 print(f"generate_bluesky_features: uploaded features to s3://{S3_BUCKET}/{key}")
             run_metadata.s3_upload_status = True

@@ -56,3 +56,20 @@ class Athena:
         """Run a query and return one column as a set of strings."""
         execution_id = self.run_query(query, database=database, workgroup=workgroup)
         return self.fetch_column_as_set(execution_id, column_index=column_index)
+
+    def register_partition(
+        self,
+        table: str,
+        partition_values: dict[str, str],
+        s3_location: str,
+    ) -> None:
+        """Register a new partition with Glue via ALTER TABLE ADD IF NOT EXISTS PARTITION."""
+
+        def _q(s: str) -> str:
+            return s.replace("'", "''")
+
+        pairs = ", ".join(f"{k}='{_q(v)}'" for k, v in partition_values.items())
+        location = s3_location.replace("'", "''")
+        self.run_query(
+            f"ALTER TABLE {table} ADD IF NOT EXISTS PARTITION ({pairs}) LOCATION '{location}'"
+        )

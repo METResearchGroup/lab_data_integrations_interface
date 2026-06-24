@@ -61,6 +61,7 @@ class StorageManager:
     model: type[BaseModel]
     records_filename: str
     dataset_id: str
+    athena_id_column: str
 
     def __init__(
         self,
@@ -78,6 +79,7 @@ class StorageManager:
         self.format: ValidDataFormats = load_dataset_format(platform, dataset_id)
         stem = Path(records_filename).stem
         self.records_filename = f"{stem}.{self.format.value}"
+        self.athena_id_column = "uri"
 
     @property
     def platform_data_root(self) -> Path:
@@ -176,8 +178,10 @@ class StorageManager:
             return {row[id_column] for row in reader if row.get(id_column)}
 
     def load_seen_ids_from_athena(self) -> set[str]:
+        table = f"{self.platform}_{self.stage}"
         return Athena().query_column_as_set(
-            f"SELECT id FROM dedupe_seen_ids WHERE platform = '{self.platform}'",
+            f"SELECT {self.athena_id_column} FROM {table}"
+            f" WHERE platform = '{self.platform}' AND dataset_id = '{self.dataset_id}'",
         )
 
     def append_deduped_records(
