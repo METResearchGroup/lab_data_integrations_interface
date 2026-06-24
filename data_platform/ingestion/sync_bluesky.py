@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from data_platform.aws.athena import Athena
 from data_platform.aws.constants import S3_BUCKET
 from data_platform.aws.s3 import S3
 from data_platform.ingestion.bluesky_retry import retry_bluesky_request
@@ -334,6 +335,21 @@ def sync_records(
         key = f"raw/platform=bluesky/dataset_id={dataset_id}/run_dir={output_dir.name}/{filename}"
         S3().upload_file(output_dir / filename, S3_BUCKET, key)
         print(f"sync_records: uploaded raw to s3://{S3_BUCKET}/{key}")
+        if (output_dir / filename).suffix == ".parquet":
+            s3_location = (
+                f"s3://{S3_BUCKET}/raw/platform=bluesky"
+                f"/dataset_id={dataset_id}/run_dir={output_dir.name}/"
+            )
+            Athena().register_partition(
+                "bluesky_raw",
+                {"dataset_id": dataset_id, "run_dir": output_dir.name},
+                s3_location,
+            )
+            print(
+                f"""
+                sync_records: registered partition dataset_id={dataset_id} run_dir={output_dir.name}
+                """
+            )
         metadata["s3_upload_status"] = True
     flush_run_metadata(storage, output_dir, metadata)
 
