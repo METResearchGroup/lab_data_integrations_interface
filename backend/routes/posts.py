@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from data_platform.aws.athena import Athena
 from data_platform.aws.constants import OLAP_WORKGROUP
@@ -12,6 +12,15 @@ PREVIEW_LIMIT = 20
 def _escape(value: str) -> str:
     """Escape single quotes in SQL string literals."""
     return value.replace("'", "''")
+
+
+def _escape_like(value: str) -> str:
+    """Escape SQL string delimiters and LIKE metacharacters (using ! as escape char)."""
+    value = value.replace("'", "''")
+    value = value.replace("!", "!!")
+    value = value.replace("%", "!%")
+    value = value.replace("_", "!_")
+    return value
 
 
 def _partition_filter(dataset_id: str) -> str:
@@ -59,11 +68,13 @@ def get_top_authors(dataset_id: str):
 @router.get("/posts/keyword-count", status_code=200)
 def get_keyword_count(dataset_id: str, keyword: str):
     """Return how many posts contain keyword in their text."""
+    if not keyword.strip():
+        raise HTTPException(status_code=422, detail="keyword must not be blank")
     sql = f"""
         SELECT COUNT(*) AS count
         FROM bluesky_raw
         WHERE {_partition_filter(dataset_id)}
-        AND LOWER(text) LIKE '%{_escape(keyword.lower())}%'
+        AND LOWER(text) LIKE '%{_escape_like(keyword.lower())}%' ESCAPE '!'
     """
     athena = Athena()
     execution_id = athena.run_query(sql, workgroup=OLAP_WORKGROUP)
