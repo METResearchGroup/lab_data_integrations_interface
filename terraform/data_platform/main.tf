@@ -16,7 +16,7 @@ variable "aws_region" {
 }
 
 # ---------------------------------------------------------------------------
-# S3 bucket — stores raw ingestion data and dedupe ID files
+# S3 bucket — stores raw ingestion data and Athena query results
 # ---------------------------------------------------------------------------
 
 resource "aws_s3_bucket" "data_platform" {
@@ -39,84 +39,68 @@ resource "aws_s3_bucket_versioning" "data_platform" {
   }
 }
 
-# Expire Athena query result files after 1 day — they're only needed during warm()
 resource "aws_s3_bucket_lifecycle_configuration" "data_platform" {
   bucket = aws_s3_bucket.data_platform.id
 
+  # Dedup results are only needed during warm() — expire quickly
   rule {
-    id     = "expire-athena-results"
+    id     = "expire-athena-results-dedup"
     status = "Enabled"
 
     filter {
-      prefix = "athena-results/"
+      prefix = "athena-results/dedup/"
     }
 
     expiration {
       days = 1
     }
   }
+
+  # OLAP results back the presigned download URL — keep long enough for users to download
+  rule {
+    id     = "expire-athena-results-olap"
+    status = "Enabled"
+
+    filter {
+      prefix = "athena-results/olap/"
+    }
+
+    expiration {
+      days = 7
+    }
+  }
 }
 
 # ---------------------------------------------------------------------------
-# Glue catalog — schema for Athena to query dedupe ID files
-#
-# S3 layout:
-#   s3://lab-data-integrations-interface/dedupe/platform={platform}/dataset_id={dataset_id}/seen_ids.parquet
-#
-# Each file contains one column (id: string) — the post URIs/IDs for that dataset.
-# Athena prunes by platform partition so queries only scan the relevant folder.
+# Glue catalog database
 # ---------------------------------------------------------------------------
 
 resource "aws_glue_catalog_database" "data_platform" {
   name = "lab_data_integrations_interface"
 }
 
-resource "aws_glue_catalog_table" "dedupe_seen_ids" {
-  database_name = aws_glue_catalog_database.data_platform.name
-  name          = "dedupe_seen_ids"
-
-  table_type = "EXTERNAL_TABLE"
-
-  parameters = {
-    "classification" = "parquet"
-  }
-
-  storage_descriptor {
-    location      = "s3://${aws_s3_bucket.data_platform.bucket}/dedupe/"
-    input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
-    output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
-
-    ser_de_info {
-      serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
-    }
-
-    columns {
-      name = "id"
-      type = "string"
-    }
-  }
-
-  partition_keys {
-    name = "platform"
-    type = "string"
-  }
-
-  partition_keys {
-    name = "dataset_id"
-    type = "string"
-  }
-}
-
 # ---------------------------------------------------------------------------
-# Athena workgroup — controls query result output location
+# Athena workgroups
 # ---------------------------------------------------------------------------
 
+# Internal platform operations: dedup warm(), partition registration
 resource "aws_athena_workgroup" "data_platform" {
   name = "lab-data-integrations-interface"
 
   configuration {
     result_configuration {
-      output_location = "s3://${aws_s3_bucket.data_platform.bucket}/athena-results/"
+      output_location = "s3://${aws_s3_bucket.data_platform.bucket}/athena-results/dedup/"
+    }
+  }
+}
+
+# OLAP queries served by the backend API
+resource "aws_athena_workgroup" "olap" {
+  name = "lab-data-integrations-interface-olap"
+
+  configuration {
+    result_configuration {
+      output_location = "s3://${aws_s3_bucket.data_platform.bucket}/athena-results/olap/"
     }
   }
 }
@@ -133,10 +117,10 @@ output "glue_database_name" {
   value = aws_glue_catalog_database.data_platform.name
 }
 
-output "glue_table_name" {
-  value = aws_glue_catalog_table.dedupe_seen_ids.name
-}
-
 output "athena_workgroup_name" {
   value = aws_athena_workgroup.data_platform.name
+}
+
+output "athena_olap_workgroup_name" {
+  value = aws_athena_workgroup.olap.name
 }
