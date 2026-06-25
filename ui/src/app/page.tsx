@@ -4,10 +4,12 @@ import DataSourceDropdown from "@/components/DataSourceDropdown";
 import ExportButton from "@/components/ExportButton";
 import ParametersInput from "@/components/ParametersInput";
 import ProgressBar from "@/components/ProgressBar";
+import QuerySelector from "@/components/QuerySelector";
+import ResultsTable from "@/components/ResultsTable";
 import RunButton from "@/components/RunButton";
 import { DEFAULT_LIMIT } from "@/lib/constants";
 import type { DataSourceId } from "@/lib/sources";
-import type { AppState, CollectionParams } from "@/lib/types";
+import type { CollectionParams, QueryId, QueryState } from "@/lib/types";
 import { useState } from "react";
 
 export default function Home() {
@@ -15,37 +17,35 @@ export default function Home() {
 	const [params, setParams] = useState<CollectionParams>({
 		limit: DEFAULT_LIMIT,
 	});
-	const [appState, setAppState] = useState<AppState>({ status: "idle" });
+	const [queryId, setQueryId] = useState<QueryId>("recent-posts");
+	const [queryState, setQueryState] = useState<QueryState>({ status: "idle" });
 
 	async function handleRun() {
-		if (appState.status === "running") return;
-		if (!params.limit || params.limit < 1) {
-			setAppState({
-				status: "error",
-				message: "Please enter in the number of results field with at least 1",
-			});
-			return;
-		}
-		setAppState({ status: "running" });
+		if (queryState.status === "running") return;
+		setQueryState({ status: "running" });
 		try {
-			// const res = await fetch('/api/collect', {
-			//   method: 'POST',
-			//   headers: { 'Content-Type': 'application/json' },
-			//   body: JSON.stringify({ source, params }),
-			// })
-			// if (!res.ok) throw new Error(await res.text())
-			// const { downloadUrl } = await res.json()
-			await new Promise((resolve) => setTimeout(resolve, 5000));
-			const blob = new Blob(
-				[
-					"uri,url,author_handle,text,created_at\ntest-uri,https://bsky.app,user.bsky.social,hello world,2024-01-01",
+			// TODO: replace with real API call
+			await new Promise((resolve) => setTimeout(resolve, 2000));
+			setQueryState({
+				status: "success",
+				rows: [
+					{
+						uri: "at://did:plc:abc/app.bsky.feed.post/1",
+						author: "user.bsky.social",
+						text: "hello world",
+						created_at: "2024-01-01",
+					},
+					{
+						uri: "at://did:plc:abc/app.bsky.feed.post/2",
+						author: "other.bsky.social",
+						text: "another post",
+						created_at: "2024-01-02",
+					},
 				],
-				{ type: "text/csv" },
-			);
-			const downloadUrl = URL.createObjectURL(blob);
-			setAppState({ status: "success", downloadUrl });
+				downloadUrl: "",
+			});
 		} catch (e) {
-			setAppState({
+			setQueryState({
 				status: "error",
 				message: e instanceof Error ? e.message : "Something went wrong",
 			});
@@ -57,28 +57,41 @@ export default function Home() {
 			<div className="w-full max-w-lg rounded-xl bg-white p-8 shadow-sm flex flex-col gap-6">
 				<DataSourceDropdown value={source} onChange={setSource} />
 
-				<ParametersInput
-					source={source}
-					value={params}
-					onChange={setParams}
-					onLimitFocus={() => setAppState({ status: "idle" })}
-				/>
+				<ParametersInput source={source} value={params} onChange={setParams} />
 
-				<RunButton
-					onClick={handleRun}
-					disabled={appState.status === "running"}
-				/>
+				<div className="flex flex-col gap-2">
+					<label className="text-sm font-medium text-zinc-700">
+						Choose query{" "}
+						<span className="font-normal text-zinc-400">(select one)</span>
+					</label>
+					<QuerySelector value={queryId} onChange={setQueryId} />
+				</div>
 
-				{appState.status === "running" && <ProgressBar />}
+				<hr className="border-zinc-200" />
+
+				<div className="mt-4">
+					<RunButton
+						onClick={handleRun}
+						disabled={queryState.status === "running"}
+					/>
+				</div>
+
+				{queryState.status === "running" && <ProgressBar />}
+
+				{queryState.status === "success" && (
+					<ResultsTable rows={queryState.rows} />
+				)}
 
 				<ExportButton
 					downloadUrl={
-						appState.status === "success" ? appState.downloadUrl : undefined
+						queryState.status === "success" && queryState.downloadUrl
+							? queryState.downloadUrl
+							: undefined
 					}
 				/>
 
-				{appState.status === "error" && (
-					<p className="text-sm text-red-600">{appState.message}</p>
+				{queryState.status === "error" && (
+					<p className="text-sm text-red-600">{queryState.message}</p>
 				)}
 			</div>
 		</main>
