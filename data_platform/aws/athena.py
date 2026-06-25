@@ -45,6 +45,28 @@ class Athena:
             first_page = False
         return seen
 
+    def fetch_rows(self, execution_id: str) -> list[dict[str, str]]:
+        """Paginate results and return all rows as a list of dicts."""
+        paginator = self.client.get_paginator("get_query_results")
+        rows: list[dict[str, str]] = []
+        headers: list[str] = []
+        first_page = True
+        for page in paginator.paginate(QueryExecutionId=execution_id):
+            page_rows = page["ResultSet"]["Rows"]
+            if first_page:
+                headers = [col.get("VarCharValue", "") for col in page_rows[0]["Data"]]
+                page_rows = page_rows[1:]
+                first_page = False
+            for row in page_rows:
+                values = [col.get("VarCharValue", "") for col in row["Data"]]
+                rows.append(dict(zip(headers, values)))
+        return rows
+
+    def get_output_location(self, execution_id: str) -> str:
+        """Return the S3 URI of the result CSV for a completed query execution."""
+        response = self.client.get_query_execution(QueryExecutionId=execution_id)
+        return response["QueryExecution"]["ResultConfiguration"]["OutputLocation"]
+
     def query_column_as_set(
         self,
         query: str,
