@@ -1,5 +1,3 @@
-from datetime import date, timedelta
-
 from fastapi import APIRouter
 
 from data_platform.aws.athena import Athena
@@ -30,14 +28,12 @@ def _run_and_build_download(sql: str) -> tuple[list[dict[str, str]], str]:
 
 @router.get("/posts/recent", status_code=200)
 def get_recent_posts(dataset_id: str):
-    """Return up to 20 posts from today, ordered by created_at descending."""
-    today = date.today().isoformat()
+    """Return the 20 most recent posts ordered by created_at descending."""
     sql = f"""
         SELECT uri, url, author_handle, text, created_at,
                like_count, repost_count, reply_count, quote_count
         FROM bluesky_raw
         WHERE {_partition_filter(dataset_id)}
-        AND SUBSTR(created_at, 1, 10) = '{today}'
         ORDER BY created_at DESC
         LIMIT {PREVIEW_LIMIT}
     """
@@ -47,13 +43,11 @@ def get_recent_posts(dataset_id: str):
 
 @router.get("/posts/top-authors", status_code=200)
 def get_top_authors(dataset_id: str):
-    """Return the top 20 authors by post count over the past 7 days."""
-    since = (date.today() - timedelta(days=7)).isoformat()
+    """Return the top 20 authors by post count."""
     sql = f"""
         SELECT author_handle, COUNT(*) AS post_count
         FROM bluesky_raw
         WHERE {_partition_filter(dataset_id)}
-        AND SUBSTR(created_at, 1, 10) >= '{since}'
         GROUP BY author_handle
         ORDER BY post_count DESC
         LIMIT {PREVIEW_LIMIT}
@@ -64,13 +58,11 @@ def get_top_authors(dataset_id: str):
 
 @router.get("/posts/keyword-count", status_code=200)
 def get_keyword_count(dataset_id: str, keyword: str):
-    """Return how many posts contain keyword in their text over the past 7 days."""
-    since = (date.today() - timedelta(days=7)).isoformat()
+    """Return how many posts contain keyword in their text."""
     sql = f"""
         SELECT COUNT(*) AS count
         FROM bluesky_raw
         WHERE {_partition_filter(dataset_id)}
-        AND SUBSTR(created_at, 1, 10) >= '{since}'
         AND LOWER(text) LIKE '%{_escape(keyword.lower())}%'
     """
     athena = Athena()
