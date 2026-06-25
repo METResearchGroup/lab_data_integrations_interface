@@ -7,6 +7,7 @@ import ProgressBar from "@/components/ProgressBar";
 import QuerySelector from "@/components/QuerySelector";
 import ResultsTable from "@/components/ResultsTable";
 import RunButton from "@/components/RunButton";
+import { runQuery } from "@/lib/api";
 import { DEFAULT_LIMIT } from "@/lib/constants";
 import type { DataSourceId } from "@/lib/sources";
 import type { CollectionParams, QueryId, QueryState } from "@/lib/types";
@@ -24,26 +25,8 @@ export default function Home() {
 		if (queryState.status === "running") return;
 		setQueryState({ status: "running" });
 		try {
-			// TODO: replace with real API call
-			await new Promise((resolve) => setTimeout(resolve, 2000));
-			setQueryState({
-				status: "success",
-				rows: [
-					{
-						uri: "at://did:plc:abc/app.bsky.feed.post/1",
-						author: "user.bsky.social",
-						text: "hello world",
-						created_at: "2024-01-01",
-					},
-					{
-						uri: "at://did:plc:abc/app.bsky.feed.post/2",
-						author: "other.bsky.social",
-						text: "another post",
-						created_at: "2024-01-02",
-					},
-				],
-				downloadUrl: "",
-			});
+			const { rows, downloadUrl } = await runQuery(queryId);
+			setQueryState({ status: "success", rows, downloadUrl });
 		} catch (e) {
 			setQueryState({
 				status: "error",
