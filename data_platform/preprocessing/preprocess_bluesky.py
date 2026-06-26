@@ -64,9 +64,39 @@ def filter_posts(
     return filter_records(posts, spec)
 
 
-def preprocess_records(dataset_id: str) -> Path:
-    output_dir = run_preprocess_records(dataset_id, BLUESKY_SPEC)
+def _retry_pending_uploads(dataset_id: str, preprocessed_storage: BlueskyStorageManager) -> None:
+    """Retry S3 upload for any preprocessed run dirs that completed but failed to upload."""
+    if not preprocessed_storage.root_dir.exists():
+        return
+    s3 = S3()
+    csv_filename = preprocessed_storage.records_filename
+    for run_dir in sorted(preprocessed_storage.root_dir.iterdir()):
+        if not run_dir.is_dir():
+            continue
+        metadata = preprocessed_storage.load_run_metadata(run_dir)
+        if metadata.get("s3_upload_status", False):
+            continue
+        csv_path = run_dir / csv_filename
+        if not csv_path.exists():
+            continue
+        key = (
+            f"preprocessed/platform=bluesky/dataset_id={dataset_id}"
+            f"/run_dir={run_dir.name}/{csv_filename}"
+        )
+        s3.upload_file(csv_path, S3_BUCKET, key)
+        print(f"preprocess_records: retried upload for {run_dir.name} -> s3://{S3_BUCKET}/{key}")
+        metadata["s3_upload_status"] = True
+        preprocessed_storage.write_run_metadata(run_dir, metadata)
+
+
+def preprocess_records(dataset_id: str) -> Path | None:
     preprocessed_storage = BlueskyStorageManager(StorageStage.PREPROCESSED, dataset_id)
+    _retry_pending_uploads(dataset_id, preprocessed_storage)
+
+    output_dir = run_preprocess_records(dataset_id, BLUESKY_SPEC)
+    if output_dir is None:
+        return None
+
     csv_filename = preprocessed_storage.records_filename
     key = (
         f"preprocessed/platform=bluesky/dataset_id={dataset_id}"

@@ -169,7 +169,11 @@ def preprocess_records(
     if not new_rows:
         print(f"preprocess_records: all {skipped} records already preprocessed, nothing to write")
         return None
-    records = pd.DataFrame(new_rows)
+    records = (
+        pd.DataFrame(new_rows)
+        .drop_duplicates(subset=[spec.binding.records_id_column], keep="last")
+        .reset_index(drop=True)
+    )
 
     preprocessed = filter_records(records, spec)
     preprocessed = apply_text_transform(preprocessed, spec)
