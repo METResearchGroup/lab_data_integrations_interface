@@ -72,7 +72,7 @@ Checks **all** `preprocessed/{timestamp}/` dirs for this `dataset_id`. If any pr
 
 Checks two things:
 1. **All** `preprocessed/{timestamp}/` dirs complete
-2. **All** feature partitions (`features/preprocessed_run=*/`) complete (`s3_upload_status: true` in each partition's metadata)
+2. Features `s3_upload_status: true` in `features/metadata.json`
 
 Both must pass before curation proceeds. Curation joins preprocessed records with feature labels; any incomplete upstream produces a corrupt or missing join.
 
@@ -86,46 +86,37 @@ This is simpler than tracking consumed runs explicitly: no `pending = all - unio
 
 **Sweep is always scoped to the current `dataset_id`.** Different datasets are never mixed.
 
-## Features: partitioned by preprocessed run
+## Features: flat accumulative store per dataset
 
-Features are an exception to the flat timestamped-directory pattern used by other stages.
-
-### Why partitioned
-
-Features are keyed by URI. Since preprocessing dedup guarantees each URI appears exactly once across all preprocessed outputs, features can be stored as an accumulative lookup table rather than a per-run snapshot. There is no need to timestamp the feature directory itself.
-
-However, storing features as a single flat file creates upload problems at scale (re-uploading millions of rows when only thousands are new) and loses the association between labels and the preprocessed run that produced them.
-
-**Decision**: partition features by the preprocessed run that generated them, both locally and on S3.
+Features are an exception to the timestamped-directory pattern used by other stages. There is no `features/{timestamp}/` directory — features are stored as a flat set of files directly under `features/`, one file per feature label.
 
 ```
-# Local
 features/
-  preprocessed_run=T1/is_political.parquet
-  preprocessed_run=T2/is_political.parquet
-
-# S3
-s3://.../features/
-  platform=bluesky/
-    feature=is_political/
-      dataset_id=bluesky_abc123/
-        preprocessed_run=T1/part.parquet
-        preprocessed_run=T2/part.parquet
+  is_political.parquet
+  is_toxic_tiered.parquet
+  is_self_contained.parquet
+  metadata.json
 ```
 
-### Benefits
+### Why flat
 
-- Uploads are incremental — each run only uploads its own partition (the new labels), not the full history.
-- Feature partitions are never overwritten by subsequent runs.
-- If curation fails after feature generation and a new run comes in, the original feature partition for the failed run is still intact.
-- Athena queries across all partitions transparently as one table.
+Features are keyed by URI. Preprocessing dedup guarantees each URI appears exactly once across all preprocessed outputs, so feature files accumulate without collision — new URIs are appended, existing ones are never re-labeled. There is no need to version or partition the feature files by which preprocessed run produced them.
 
-### Feature dedup
+### Sweep model for features
 
-"Unlabeled records" = URIs in the current preprocessed batch not present in any existing feature partition. Warm-up loads all URIs **for this `dataset_id`** across all feature partitions (disk scan + Athena query scoped to `dataset_id`). Since preprocessing dedup guarantees disjoint URI sets across preprocessed runs, there is no risk of collision between partitions.
+Feature generation sweeps **all** preprocessed runs for this `dataset_id`, not just the latest:
+
+1. Gate check — all `preprocessed/{timestamp}/` dirs must have `s3_upload_status: true`
+2. DedupeSession warm-up — scan all existing feature files (disk) + query Athena features table scoped to `dataset_id`. Any URI already present is skipped.
+3. Load all preprocessed records across all runs
+4. Filter to unlabeled URIs only
+5. Generate features for the remainder and append to the flat feature files
+6. Upload updated feature files to S3, set `s3_upload_status: true` in `metadata.json`
+
+The feature files themselves are the record of what has been labeled. No separate "which preprocessed runs are done" tracking is needed — if a URI is in the feature files, it is labeled regardless of which preprocessed run it came from.
 
 ## Open questions
 
 | Question | Status |
 |----------|--------|
-| For feature dedup warm-up, load all partition URIs into set (disk) or query Athena? | Defer until scale is a concern — disk scan is fine now |
+| For feature dedup warm-up, load all feature file URIs into set (disk) or query Athena? | Disk scan is fine at current scale — switch to Athena-only when disk scan becomes slow |
