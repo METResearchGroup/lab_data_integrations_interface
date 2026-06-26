@@ -14,6 +14,7 @@ from pathlib import Path
 import pandas as pd
 import typer
 
+from data_platform.aws.athena import Athena
 from data_platform.aws.constants import S3_BUCKET
 from data_platform.aws.s3 import S3
 from data_platform.models.sync import SyncBlueskyPostModel
@@ -64,11 +65,27 @@ def filter_posts(
     return filter_records(posts, spec)
 
 
+def _publish_preprocessed_run(dataset_id: str, run_dir: Path, csv_path: Path) -> None:
+    """Upload a preprocessed CSV to S3 and register its Athena partition."""
+    s3_prefix = f"preprocessed/platform=bluesky/dataset_id={dataset_id}/run_dir={run_dir.name}"
+    s3_key = f"{s3_prefix}/{csv_path.name}"
+    S3().upload_file(csv_path, S3_BUCKET, s3_key)
+    Athena().register_partition(
+        "bluesky_preprocessed",
+        {"platform": "bluesky", "dataset_id": dataset_id, "run_dir": run_dir.name},
+        f"s3://{S3_BUCKET}/{s3_prefix}/",
+    )
+    print(f"preprocess_records: uploaded to s3://{S3_BUCKET}/{s3_key}")
+    print(
+        f"preprocess_records: registered partition bluesky_preprocessed"
+        f" platform=bluesky dataset_id={dataset_id} run_dir={run_dir.name}"
+    )
+
+
 def _retry_pending_uploads(dataset_id: str, preprocessed_storage: BlueskyStorageManager) -> None:
     """Retry S3 upload for any preprocessed run dirs that completed but failed to upload."""
     if not preprocessed_storage.root_dir.exists():
         return
-    s3 = S3()
     csv_filename = preprocessed_storage.records_filename
     for run_dir in sorted(preprocessed_storage.root_dir.iterdir()):
         if not run_dir.is_dir():
@@ -79,12 +96,7 @@ def _retry_pending_uploads(dataset_id: str, preprocessed_storage: BlueskyStorage
         csv_path = run_dir / csv_filename
         if not csv_path.exists():
             continue
-        key = (
-            f"preprocessed/platform=bluesky/dataset_id={dataset_id}"
-            f"/run_dir={run_dir.name}/{csv_filename}"
-        )
-        s3.upload_file(csv_path, S3_BUCKET, key)
-        print(f"preprocess_records: retried upload for {run_dir.name} -> s3://{S3_BUCKET}/{key}")
+        _publish_preprocessed_run(dataset_id, run_dir, csv_path)
         metadata["s3_upload_status"] = True
         preprocessed_storage.write_run_metadata(run_dir, metadata)
 
@@ -98,12 +110,8 @@ def preprocess_records(dataset_id: str) -> Path | None:
         return None
 
     csv_filename = preprocessed_storage.records_filename
-    key = (
-        f"preprocessed/platform=bluesky/dataset_id={dataset_id}"
-        f"/run_dir={output_dir.name}/{csv_filename}"
-    )
-    S3().upload_file(output_dir / csv_filename, S3_BUCKET, key)
-    print(f"preprocess_records: uploaded preprocessed to s3://{S3_BUCKET}/{key}")
+    _publish_preprocessed_run(dataset_id, output_dir, output_dir / csv_filename)
+
     metadata = preprocessed_storage.load_run_metadata(output_dir)
     metadata["s3_upload_status"] = True
     preprocessed_storage.write_run_metadata(output_dir, metadata)
