@@ -102,6 +102,21 @@ class StorageManager:
             return None
         return max(run_dirs, key=lambda path: path.name)
 
+    def all_runs_uploaded(self) -> bool:
+        """Return True if every timestamped run dir has s3_upload_status: true."""
+        if not self.root_dir.exists():
+            return True
+        for path in self.root_dir.iterdir():
+            if not path.is_dir():
+                continue
+            meta = path / METADATA_FILENAME
+            if not meta.exists():
+                continue
+            metadata = self.load_run_metadata(path)
+            if not metadata.get("s3_upload_status", False):
+                return False
+        return True
+
     def _resolve_run_dir(
         self,
         run_dir: Path | None,
