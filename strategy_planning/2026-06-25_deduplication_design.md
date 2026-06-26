@@ -1,6 +1,6 @@
 # Deduplication design (2026-06-25)
 
-Decisions made about deduplication logic, dataset/run identity, and the auto-catch-up sweep across pipeline stages.
+Decisions made about deduplication logic, dataset/run identity, and gate checks across pipeline stages.
 
 ## Core identity model
 
@@ -17,6 +17,16 @@ Each execution of a pipeline stage creates a timestamped directory (e.g., `raw/2
 This keeps `dataset_id` semantically meaningful ("what are we collecting") and the timestamp semantically meaningful ("when did we collect it / which attempt was this").
 
 Making `dataset_id` 1:1 with a run was considered and rejected: it collapses two distinct concepts into one identifier, breaks cross-run deduplication, and makes historical queries require a config→[dataset_ids] mapping anyway.
+
+## Startup sequence at every stage
+
+Every stage follows the same startup order before doing any new work:
+
+```
+1. Gate check       — hard fail if any upstream run is not fully complete
+2. DedupeSession.warm() — load seen IDs from disk + Athena
+3. Do the work
+```
 
 ## Dedup at each stage
 
@@ -46,30 +56,35 @@ The disk component is narrow (current run only). Athena is the source of truth f
 
 All scoped to `WHERE dataset_id = '{dataset_id}'`.
 
-## Auto-catch-up sweep
+## Gate checks per stage
 
-When a prior run fails partway, the next run sweeps up unprocessed upstream artifacts rather than requiring manual backfill. This was chosen over manual retries to reduce operational burden and to keep run IDs unambiguous (retrying a specific run ID would mean two executions share one ID, breaking its meaning).
+Each stage hard fails if its upstream is not fully complete. "Complete" means both `sync_status: completed` and `s3_upload_status: true`. Each stage is responsible for its own S3 upload reliability — if a stage's upload fails, it is marked incomplete and a human re-runs that stage before downstream can proceed.
 
-### What "sweep" means at each stage
+### Preprocessing gate
 
-Each downstream stage finds all upstream run_dirs that have not yet been referenced in any of its own outputs' `source_X_runs` metadata. It merges those run_dirs, deduplicates by URI, and produces a single output with `source_X_runs: [T1, T2, ...]`.
+Checks **all** `raw/{timestamp}/` dirs for this `dataset_id`. If any raw run is not complete, hard fail. There is no concept of "only check the latest" — every raw run must be clean before preprocessing proceeds.
 
-```
-Preprocessing sweep:
-  pending_raw_runs = all raw/{timestamp}/ dirs
-                   - union of source_raw_runs across all preprocessed/*/metadata.json
+### Feature generation gate
 
-  if pending_raw_runs is empty: nothing to do
-  else: merge + dedup → preprocessed/{now}/
-```
+Checks **all** `preprocessed/{timestamp}/` dirs for this `dataset_id`. If any preprocessed run is not complete, hard fail.
 
-Same pattern for curation over preprocessed runs.
+### Curation gate
 
-**Sweep is always scoped to the current `dataset_id`.** Different datasets are never mixed, even if they share the same config file. Column schema consistency within a sweep is guaranteed by this scoping.
+Checks two things:
+1. **All** `preprocessed/{timestamp}/` dirs complete
+2. **All** feature partitions (`features/preprocessed_run=*/`) complete (`s3_upload_status: true` in each partition's metadata)
 
-### Consumed tracking
+Both must pass before curation proceeds. Curation joins preprocessed records with feature labels; any incomplete upstream produces a corrupt or missing join.
 
-The sweep relies on `source_X_runs` lists in each stage's `metadata.json`. These files are the provenance record and must not be deleted during disk cleanup, even if the associated data files are removed.
+## Sweep model
+
+Each downstream stage always loads **all** upstream run dirs for this `dataset_id`, not just the ones it hasn't seen before. The `DedupeSession` Athena warm-up is what prevents re-processing — URIs already present in the downstream Athena table are filtered out, so only genuinely new records flow through.
+
+This is simpler than tracking consumed runs explicitly: no `pending = all - union(source_X_runs)` diff is needed. If the Athena table has complete data (guaranteed by the S3 retry sweep and gate check), the warm-up naturally skips already-processed URIs.
+
+`source_raw_runs` in preprocessed `metadata.json` is still written as a **provenance record** (which raw runs contributed to this preprocessed output), but it does not gate what gets processed.
+
+**Sweep is always scoped to the current `dataset_id`.** Different datasets are never mixed.
 
 ## Features: partitioned by preprocessed run
 
@@ -107,20 +122,10 @@ s3://.../features/
 
 ### Feature dedup
 
-"Unlabeled records" = URIs in the current preprocessed batch not present in any existing feature partition. Warm-up loads all URIs across all feature partitions into a set (same disk + Athena pattern). At current scale this is fine; at scale, replace the disk scan with an Athena query.
-
-## S3 retry sweep
-
-If a stage completes locally but its S3 upload fails (`s3_upload_status: false`), Athena does not know about those records. The next run's Athena warm-up will miss them, and ingestion may re-collect the same URIs.
-
-**Decision**: at the start of each run, before any new work begins, scan for prior stage run_dirs with `s3_upload_status: false` and retry those uploads. Only after all pending uploads are resolved does the new run proceed.
-
-This keeps S3 as the reliable source of truth and ensures Athena warm-ups are accurate before dedup runs.
+"Unlabeled records" = URIs in the current preprocessed batch not present in any existing feature partition. Warm-up loads all URIs **for this `dataset_id`** across all feature partitions (disk scan + Athena query scoped to `dataset_id`). Since preprocessing dedup guarantees disjoint URI sets across preprocessed runs, there is no risk of collision between partitions.
 
 ## Open questions
 
 | Question | Status |
 |----------|--------|
-| Is local metadata scan sufficient for sweep, or does consumed tracking need to be in DynamoDB? | Open |
-| For feature dedup warm-up, load all partition URIs into set (disk) or query Athena? | Defer until scale is a concern |
-| Should S3 retry sweep also verify against S3 directly, or trust `s3_upload_status` in local metadata? | Open |
+| For feature dedup warm-up, load all partition URIs into set (disk) or query Athena? | Defer until scale is a concern — disk scan is fine now |
