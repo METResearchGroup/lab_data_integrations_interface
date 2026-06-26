@@ -22,7 +22,8 @@ class FeatureLabelQuery:
             self.feature_file_id_column,
             filename=self.feature_storage.filename_for(feature_name),
         )
-        athena_ids = self.feature_storage.load_seen_ids_from_athena_for_feature(feature_name)
+        athena_table = f"{self.feature_storage.platform}_features_{feature_name}"
+        athena_ids = self.feature_storage.load_seen_ids_from_athena(athena_table)
         return disk_ids | athena_ids
 
     def filter_unlabeled(

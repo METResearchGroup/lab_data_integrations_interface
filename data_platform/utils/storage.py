@@ -192,20 +192,11 @@ class StorageManager:
             reader = csv.DictReader(f)
             return {row[id_column] for row in reader if row.get(id_column)}
 
-    def load_seen_ids_from_athena(self) -> set[str]:
-        table = f"{self.platform}_{self.stage}"
+    def load_seen_ids_from_athena(self, table: str | None = None) -> set[str]:
+        resolved_table = table or f"{self.platform}_{self.stage}"
         return Athena().query_column_as_set(
-            f"SELECT {self.athena_id_column} FROM {table}"
+            f"SELECT {self.athena_id_column} FROM {resolved_table}"
             f" WHERE platform = '{self.platform}' AND dataset_id = '{self.dataset_id}'",
-        )
-
-    def load_seen_ids_from_athena_for_feature(self, feature_name: str) -> set[str]:
-        """Query Athena for URIs already labeled for a specific feature."""
-        table = f"{self.platform}_{self.stage}"
-        return Athena().query_column_as_set(
-            f"SELECT {self.athena_id_column} FROM {table}"
-            f" WHERE platform = '{self.platform}' AND dataset_id = '{self.dataset_id}'"
-            f" AND feature = '{feature_name}'",
         )
 
     def append_deduped_records(
