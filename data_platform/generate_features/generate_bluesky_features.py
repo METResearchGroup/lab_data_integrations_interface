@@ -15,6 +15,7 @@ import pandas as pd
 import typer
 from pydantic import BaseModel
 
+from data_platform.aws.athena import Athena
 from data_platform.aws.constants import S3_BUCKET
 from data_platform.aws.s3 import S3
 from data_platform.generate_features.generate_features import FeatureGenerationConfig
@@ -68,6 +69,23 @@ def bluesky_feature_config(
     )
 
 
+def _publish_feature(dataset_id: str, feature_name: str, local_path: Path) -> None:
+    """Upload a feature parquet file to S3 and register its Athena partition."""
+    s3_prefix = f"features/platform=bluesky/feature={feature_name}/dataset_id={dataset_id}"
+    s3_key = f"{s3_prefix}/{local_path.name}"
+    S3().upload_file(local_path, S3_BUCKET, s3_key)
+    Athena().register_partition(
+        f"bluesky_features_{feature_name}",
+        {"platform": "bluesky", "dataset_id": dataset_id},
+        f"s3://{S3_BUCKET}/{s3_prefix}/",
+    )
+    print(f"generate_bluesky_features: uploaded {feature_name} -> s3://{S3_BUCKET}/{s3_key}")
+    print(
+        f"generate_bluesky_features: registered partition bluesky_features_{feature_name}"
+        f" platform=bluesky dataset_id={dataset_id}"
+    )
+
+
 def _retry_pending_upload(dataset_id: str, features_dir: Path) -> None:
     """Retry S3 upload if features are complete but not yet uploaded."""
     meta_file = metadata_path(features_dir)
@@ -77,17 +95,8 @@ def _retry_pending_upload(dataset_id: str, features_dir: Path) -> None:
         meta = FeatureRunMetadata.from_dict(json.load(f))
     if meta.sync_status != "completed" or meta.s3_upload_status:
         return
-    s3 = S3()
     for parquet_file in sorted(features_dir.glob("*.parquet")):
-        feature_name = parquet_file.stem
-        key = (
-            f"features/platform=bluesky/feature={feature_name}"
-            f"/dataset_id={dataset_id}/{parquet_file.name}"
-        )
-        s3.upload_file(parquet_file, S3_BUCKET, key)
-        print(
-            f"generate_bluesky_features: retried upload for {feature_name} -> s3://{S3_BUCKET}/{key}"
-        )
+        _publish_feature(dataset_id, parquet_file.stem, parquet_file)
     meta.s3_upload_status = True
     flush_metadata(features_dir, meta)
 
@@ -153,16 +162,8 @@ def generate_bluesky_features(
         with meta_file.open(encoding="utf-8") as f:
             run_metadata = FeatureRunMetadata.from_dict(json.load(f))
         if run_metadata.sync_status == "completed":
-            s3 = S3()
             for feature_name, path in written.items():
-                key = (
-                    f"features/platform=bluesky/feature={feature_name}"
-                    f"/dataset_id={dataset_id}/{path.name}"
-                )
-                s3.upload_file(path, S3_BUCKET, key)
-                print(
-                    f"generate_bluesky_features: uploaded {feature_name} -> s3://{S3_BUCKET}/{key}"
-                )
+                _publish_feature(dataset_id, feature_name, path)
             run_metadata.s3_upload_status = True
             flush_metadata(config.features_dir, run_metadata)
 
