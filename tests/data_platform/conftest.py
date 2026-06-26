@@ -21,11 +21,10 @@ from tests.data_platform.constants import (
 def mock_athena(monkeypatch: pytest.MonkeyPatch) -> None:
     """Prevent any test from making real Athena calls. Tests that need specific
     IDs returned can override with their own monkeypatch.setattr."""
-    monkeypatch.setattr(storage_mod.StorageManager, "load_seen_ids_from_athena", lambda self: set())
     monkeypatch.setattr(
         storage_mod.StorageManager,
-        "load_seen_ids_from_athena_for_feature",
-        lambda self, feature_name: set(),
+        "load_seen_ids_from_athena",
+        lambda self, table=None: set(),
     )
 
 
