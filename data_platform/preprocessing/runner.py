@@ -11,6 +11,7 @@ import pandas as pd
 from pydantic import BaseModel
 
 from data_platform.utils.dataset import dataset_root, relative_run_path, validate_dataset_id
+from data_platform.utils.deduplication import DedupeConfig, DedupeSession
 from data_platform.utils.platform_ids import PlatformIdBinding
 from data_platform.utils.storage import StorageManager, StorageStage
 
@@ -156,12 +157,24 @@ def preprocess_records(
         raise FileNotFoundError(f"No raw runs found for dataset {dataset_id}")
     if not raw_storage.all_runs_uploaded():
         raise RuntimeError(f"Not all raw runs for dataset {dataset_id} have been uploaded to S3")
+    preprocessed_storage = spec.storage_cls(StorageStage.PREPROCESSED, dataset_id)
+    dedupe_session = DedupeSession(DedupeConfig(id_column=spec.binding.records_id_column))
+    dedupe_session.warm(preprocessed_storage, preprocessed_storage.root_dir)
+
     records, source_raw_run_dirs = load_raw_records(spec, dataset_id)
+
+    new_rows, skipped = dedupe_session.filter_rows(
+        records.to_dict(orient="records")  # type: ignore[arg-type]
+    )
+    if not new_rows:
+        print(f"preprocess_records: all {skipped} records already preprocessed, nothing to write")
+        return None
+    records = pd.DataFrame(new_rows)
 
     preprocessed = filter_records(records, spec)
     preprocessed = apply_text_transform(preprocessed, spec)
     if preprocessed.empty:
-        print("preprocess_records: no new records after dedup and filtering, nothing to write")
+        print("preprocess_records: no records survived filtering, nothing to write")
         return None
     output_dir = save_preprocessed(
         preprocessed,
