@@ -199,6 +199,15 @@ class StorageManager:
             f" WHERE platform = '{self.platform}' AND dataset_id = '{self.dataset_id}'",
         )
 
+    def load_seen_ids_from_athena_for_feature(self, feature_name: str) -> set[str]:
+        """Query Athena for URIs already labeled for a specific feature."""
+        table = f"{self.platform}_{self.stage}"
+        return Athena().query_column_as_set(
+            f"SELECT {self.athena_id_column} FROM {table}"
+            f" WHERE platform = '{self.platform}' AND dataset_id = '{self.dataset_id}'"
+            f" AND feature = '{feature_name}'",
+        )
+
     def append_deduped_records(
         self,
         rows: list[dict[str, Any]],
