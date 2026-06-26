@@ -31,18 +31,17 @@ def flush_metadata(features_dir: Path, metadata: FeatureRunMetadata) -> None:
     tmp_path.replace(path)
 
 
-def resolve_source_preprocessed_run(
-    config: FeatureGenerationConfig,
-    preprocessed_run: str | None,
-) -> str:
-    """Return a pinned or latest preprocessed run path relative to the dataset root."""
-    if preprocessed_run:
-        return preprocessed_run
-    source_run_dir = config.input_storage.latest_run_dir()
-    if source_run_dir is None:
-        raise FileNotFoundError(f"No preprocessed runs found under {config.input_storage.root_dir}")
+def resolve_source_preprocessed_runs(config: FeatureGenerationConfig) -> list[str]:
+    """Return relative paths for all preprocessed run dirs for this dataset."""
     root = dataset_root(config.platform, config.input_storage.dataset_id)
-    return relative_run_path(root, source_run_dir)
+    preprocessed_root = config.input_storage.root_dir
+    if not preprocessed_root.exists():
+        return []
+    return [
+        relative_run_path(root, run_dir)
+        for run_dir in sorted(preprocessed_root.iterdir())
+        if run_dir.is_dir()
+    ]
 
 
 def load_or_init_metadata(
@@ -52,18 +51,17 @@ def load_or_init_metadata(
 ) -> FeatureRunMetadata:
     """Load existing feature-run metadata or create a new in-progress document."""
     path = metadata_path(config.features_dir)
+    source_preprocessed_runs = resolve_source_preprocessed_runs(config)
     if path.exists():
         with path.open(encoding="utf-8") as f:
-            return FeatureRunMetadata.from_dict(json.load(f))
+            metadata = FeatureRunMetadata.from_dict(json.load(f))
+        metadata.source_preprocessed_runs = source_preprocessed_runs
+        return metadata
 
-    source_preprocessed_run = resolve_source_preprocessed_run(
-        config,
-        config.preprocessed_run,
-    )
     features = {name: FeatureStatus() for name in feature_names}
     metadata = FeatureRunMetadata(
         dataset_id=config.input_storage.dataset_id,
-        source_preprocessed_run=source_preprocessed_run,
+        source_preprocessed_runs=source_preprocessed_runs,
         sync_status="in_progress",
         features=features,
         config=config.run_config,

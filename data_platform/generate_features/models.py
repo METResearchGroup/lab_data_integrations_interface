@@ -39,7 +39,7 @@ class FeatureStatus:
 @dataclass
 class FeatureRunMetadata:
     dataset_id: str
-    source_preprocessed_run: str
+    source_preprocessed_runs: list[str]
     sync_status: Literal["pending", "in_progress", "completed"] = "pending"
     features: dict[str, FeatureStatus] = field(default_factory=dict)
     config: FeatureRunConfig = field(default_factory=FeatureRunConfig)
@@ -52,7 +52,7 @@ class FeatureRunMetadata:
         """Serialize metadata to the features/metadata.json document shape."""
         return {
             "dataset_id": self.dataset_id,
-            "source_preprocessed_run": self.source_preprocessed_run,
+            "source_preprocessed_runs": self.source_preprocessed_runs,
             "sync_status": self.sync_status,
             "features": {
                 name: {
@@ -94,9 +94,14 @@ class FeatureRunMetadata:
                 labeled=feat.get("labeled", 0),
                 failed_batches=feat.get("failed_batches", 0),
             )
+        legacy_single = data.get("source_preprocessed_run")
+        source_preprocessed_runs = data.get(
+            "source_preprocessed_runs",
+            [legacy_single] if legacy_single else [],
+        )
         return cls(
             dataset_id=data["dataset_id"],
-            source_preprocessed_run=data.get("source_preprocessed_run", ""),
+            source_preprocessed_runs=source_preprocessed_runs,
             sync_status=data.get("sync_status", "pending"),
             features=features,
             config=config,
@@ -130,7 +135,6 @@ class FeatureGenerationConfig:
     features_dir: Path
     feature_label_query: FeatureLabelQuery
     run_config: FeatureRunConfig
-    preprocessed_run: str | None = None
 
 
 @dataclass
