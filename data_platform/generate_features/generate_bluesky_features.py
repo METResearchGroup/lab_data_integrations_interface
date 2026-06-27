@@ -30,6 +30,7 @@ from data_platform.generate_features.registry import FEATURE_REGISTRY
 from data_platform.models.sync import SyncBlueskyPostModel
 from data_platform.utils.dataset import dataset_root, validate_dataset_id
 from data_platform.utils.feature_labels import FeatureLabelQuery
+from data_platform.utils.gate_checks import require_all_runs_uploaded
 from data_platform.utils.platform_ids import BLUESKY_BINDING
 from data_platform.utils.storage import BlueskyStorageManager, StorageManager, StorageStage
 
@@ -134,10 +135,7 @@ def generate_bluesky_features(
     preprocessed_storage = BlueskyStorageManager(StorageStage.PREPROCESSED, dataset_id)
     if preprocessed_storage.latest_run_dir() is None:
         raise FileNotFoundError(f"No preprocessed runs found for dataset {dataset_id}")
-    if not preprocessed_storage.all_runs_uploaded():
-        raise RuntimeError(
-            f"Not all preprocessed runs for dataset {dataset_id} have been uploaded to S3"
-        )
+    require_all_runs_uploaded(preprocessed_storage, dataset_id)
 
     features_subset = generate_feature_subset(feature_subset)
     run_config = FeatureRunConfig(

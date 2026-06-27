@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from data_platform.utils.dataset import dataset_root, relative_run_path, validate_dataset_id
 from data_platform.utils.deduplication import DedupeConfig, DedupeSession
+from data_platform.utils.gate_checks import require_all_runs_uploaded
 from data_platform.utils.platform_ids import PlatformIdBinding
 from data_platform.utils.storage import StorageManager, StorageStage
 
@@ -155,8 +156,7 @@ def preprocess_records(
     raw_storage = spec.storage_cls(StorageStage.RAW, dataset_id)
     if raw_storage.latest_run_dir() is None:
         raise FileNotFoundError(f"No raw runs found for dataset {dataset_id}")
-    if not raw_storage.all_runs_uploaded():
-        raise RuntimeError(f"Not all raw runs for dataset {dataset_id} have been uploaded to S3")
+    require_all_runs_uploaded(raw_storage, dataset_id)
     preprocessed_storage = spec.storage_cls(StorageStage.PREPROCESSED, dataset_id)
     dedupe_session = DedupeSession(DedupeConfig(id_column=spec.binding.records_id_column))
     dedupe_session.warm(preprocessed_storage, preprocessed_storage.root_dir)

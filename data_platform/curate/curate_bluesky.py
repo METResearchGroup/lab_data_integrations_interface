@@ -21,6 +21,7 @@ from data_platform.curate.utils import resolve_curate_config_path
 from data_platform.generate_features.metadata import metadata_path
 from data_platform.generate_features.models import FeatureRunMetadata
 from data_platform.utils.dataset import dataset_root, validate_dataset_id
+from data_platform.utils.gate_checks import require_all_runs_uploaded, require_features_uploaded
 from data_platform.utils.platform_ids import BLUESKY_BINDING
 from data_platform.utils.storage import BlueskyStorageManager, StorageStage
 
@@ -85,14 +86,10 @@ def curate(config_path: Path, dataset_id: str) -> Path:
         raise FileNotFoundError(f"No features metadata found for dataset {dataset_id}")
     with features_meta_path.open(encoding="utf-8") as f:
         features_meta = FeatureRunMetadata.from_dict(json.load(f))
-    if not features_meta.s3_upload_status:
-        raise RuntimeError(f"Features for dataset {dataset_id} have not been uploaded to S3")
+    require_features_uploaded(features_meta, dataset_id)
 
     preprocessed_storage = BlueskyStorageManager(StorageStage.PREPROCESSED, dataset_id)
-    if not preprocessed_storage.all_runs_uploaded():
-        raise RuntimeError(
-            f"Not all preprocessed runs for dataset {dataset_id} have been uploaded to S3"
-        )
+    require_all_runs_uploaded(preprocessed_storage, dataset_id)
 
     output_path = run_curation(config_path, dataset_id, BLUESKY_CURATE_SPEC)
 
