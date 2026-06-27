@@ -102,6 +102,23 @@ class StorageManager:
             return None
         return max(run_dirs, key=lambda path: path.name)
 
+    def all_runs_uploaded(self) -> bool:
+        """Return True if every timestamped run dir has metadata.json with s3_upload_status: true.
+
+        A run dir missing metadata.json is treated as not uploaded and returns False."""
+        if not self.root_dir.exists():
+            return True
+        for path in self.root_dir.iterdir():
+            if not path.is_dir():
+                continue
+            meta = path / METADATA_FILENAME
+            if not meta.exists():
+                return False
+            metadata = self.load_run_metadata(path)
+            if not metadata.get("s3_upload_status", False):
+                return False
+        return True
+
     def _resolve_run_dir(
         self,
         run_dir: Path | None,
@@ -177,10 +194,10 @@ class StorageManager:
             reader = csv.DictReader(f)
             return {row[id_column] for row in reader if row.get(id_column)}
 
-    def load_seen_ids_from_athena(self) -> set[str]:
-        table = f"{self.platform}_{self.stage}"
+    def load_seen_ids_from_athena(self, table: str | None = None) -> set[str]:
+        resolved_table = table or f"{self.platform}_{self.stage}"
         return Athena().query_column_as_set(
-            f"SELECT {self.athena_id_column} FROM {table}"
+            f"SELECT {self.athena_id_column} FROM {resolved_table}"
             f" WHERE platform = '{self.platform}' AND dataset_id = '{self.dataset_id}'",
         )
 

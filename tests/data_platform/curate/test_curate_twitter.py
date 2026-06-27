@@ -8,7 +8,7 @@ from data_platform.curate.consolidate import ConsolidateConfig, build_wide_table
 from data_platform.curate.curate_twitter import (
     FEATURE_FILE_ID_COLUMN,
     ID_COLUMN,
-    curate_mirrorview,
+    curate,
 )
 from data_platform.utils.storage import TwitterStorageManager
 from tests.data_platform.constants import LABEL_TIMESTAMP, VALID_TWITTER_DATASET_ID
@@ -99,7 +99,7 @@ def test_build_wide_table_joins_twitter_posts_on_tweet_id(tmp_path: Path) -> Non
     }
 
 
-def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
+def test_curate_writes_export_and_metadata(data_root) -> None:
     dataset_id = VALID_TWITTER_DATASET_ID
     root = data_root / "twitter" / dataset_id
     preprocessed_dir = root / "preprocessed" / "2026_06_01-00:00:00"
@@ -189,7 +189,7 @@ def test_curate_mirrorview_writes_export_and_metadata(data_root) -> None:
     config_path = (
         Path(__file__).resolve().parents[3] / "data_platform/curate/configs/twitter/mirrorview.yaml"
     )
-    output_path = curate_mirrorview(config_path, dataset_id)
+    output_path = curate(config_path, dataset_id)
 
     curated_storage = TwitterStorageManager("curated", dataset_id)
     run_dir = output_path.parent

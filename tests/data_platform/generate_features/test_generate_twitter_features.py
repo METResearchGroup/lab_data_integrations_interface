@@ -49,12 +49,10 @@ def make_twitter_feature_generation_config(
     dataset_id: str = VALID_TWITTER_DATASET_ID,
     feature_registry: dict[str, FeatureSpec] | None = None,
     run_config: FeatureRunConfig | None = None,
-    preprocessed_run: str = "preprocessed/2026_06_01-00:00:00",
 ):
     return twitter_feature_config(
         dataset_id,
         run_config=run_config or FeatureRunConfig(opik_enabled=False),
-        preprocessed_run=preprocessed_run,
         features_subset=tuple(feature_registry.keys()) if feature_registry else None,
     )
 
@@ -63,7 +61,6 @@ def test_twitter_feature_config_bindings(data_root) -> None:
     config = twitter_feature_config(
         VALID_TWITTER_DATASET_ID,
         run_config=FeatureRunConfig(opik_enabled=False),
-        preprocessed_run="preprocessed/2026_06_01-00:00:00",
     )
     assert config.platform == "twitter"
     assert config.id_column == ID_COLUMN
@@ -73,7 +70,7 @@ def test_twitter_feature_config_bindings(data_root) -> None:
     assert config.input_storage.platform == "twitter"
 
 
-def test_load_posts_reads_latest_preprocessed_run(data_root) -> None:
+def test_load_posts_reads_all_preprocessed_runs(data_root) -> None:
     records = _sample_preprocessed_posts(2)
     write_preprocessed_posts(data_root, records)
 
@@ -182,9 +179,7 @@ def test_generate_twitter_features_defaults_to_opik_disabled(monkeypatch) -> Non
     )
     monkeypatch.setattr(
         "data_platform.generate_features.generate_twitter_features.load_posts",
-        lambda dataset_id, preprocessed_run=None: pd.DataFrame(
-            [{ID_COLUMN: "1", TEXT_COLUMN: "hello"}]
-        ),
+        lambda dataset_id: pd.DataFrame([{ID_COLUMN: "1", TEXT_COLUMN: "hello"}]),
     )
 
     generate_twitter_features(VALID_TWITTER_DATASET_ID)

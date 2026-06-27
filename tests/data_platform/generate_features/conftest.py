@@ -19,7 +19,6 @@ from data_platform.utils.feature_labels import FeatureLabelQuery
 from data_platform.utils.storage import BlueskyStorageManager, StorageManager
 from tests.data_platform.constants import (
     FEATURES_DATASET_ID,
-    PREPROCESSED_RUN,
     PREPROCESSED_RUN_DIR,
     URI_POST_A,
     URI_POST_B,
@@ -49,7 +48,6 @@ def make_feature_generation_config(
     dataset_id: str = FEATURES_DATASET_ID,
     feature_registry: dict[str, FeatureSpec] | None = None,
     run_config: FeatureRunConfig | None = None,
-    preprocessed_run: str = PREPROCESSED_RUN,
 ) -> FeatureGenerationConfig:
     return FeatureGenerationConfig(
         platform="bluesky",
@@ -64,7 +62,6 @@ def make_feature_generation_config(
             )
         ),
         run_config=run_config or FeatureRunConfig(opik_enabled=False),
-        preprocessed_run=preprocessed_run,
     )
 
 

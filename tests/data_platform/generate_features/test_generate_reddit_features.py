@@ -54,12 +54,10 @@ def make_reddit_feature_generation_config(
     dataset_id: str = VALID_REDDIT_DATASET_ID,
     feature_registry: dict[str, FeatureSpec] | None = None,
     run_config: FeatureRunConfig | None = None,
-    preprocessed_run: str = "preprocessed/2026_06_01-00:00:00",
 ):
     return reddit_feature_config(
         dataset_id,
         run_config=run_config or FeatureRunConfig(opik_enabled=False),
-        preprocessed_run=preprocessed_run,
         features_subset=tuple(feature_registry.keys()) if feature_registry else None,
     )
 
@@ -68,7 +66,6 @@ def test_reddit_feature_config_bindings(data_root) -> None:
     config = reddit_feature_config(
         VALID_REDDIT_DATASET_ID,
         run_config=FeatureRunConfig(opik_enabled=False),
-        preprocessed_run="preprocessed/2026_06_01-00:00:00",
     )
     assert config.platform == "reddit"
     assert config.id_column == ID_COLUMN
@@ -78,7 +75,7 @@ def test_reddit_feature_config_bindings(data_root) -> None:
     assert config.input_storage.platform == "reddit"
 
 
-def test_load_comments_reads_latest_preprocessed_run(data_root) -> None:
+def test_load_comments_reads_all_preprocessed_runs(data_root) -> None:
     records = _sample_preprocessed_comments(2)
     write_preprocessed_comments(data_root, records)
 
@@ -150,9 +147,7 @@ def test_generate_reddit_features_defaults_to_opik_disabled(monkeypatch) -> None
     )
     monkeypatch.setattr(
         "data_platform.generate_features.generate_reddit_features.load_comments",
-        lambda dataset_id, preprocessed_run=None: pd.DataFrame(
-            [{ID_COLUMN: "1", TEXT_COLUMN: "hello"}]
-        ),
+        lambda dataset_id: pd.DataFrame([{ID_COLUMN: "1", TEXT_COLUMN: "hello"}]),
     )
 
     generate_reddit_features(VALID_REDDIT_DATASET_ID)

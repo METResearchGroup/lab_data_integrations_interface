@@ -8,6 +8,7 @@ Run from the repo root:
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import typer
@@ -32,8 +33,9 @@ ID_COLUMN = REDDIT_BINDING.records_id_column
 FEATURE_FILE_ID_COLUMN = REDDIT_BINDING.feature_file_id_column
 
 
-def curate_mirrorview(config_path: Path, dataset_id: str) -> Path:
-    return run_curation(config_path, dataset_id, REDDIT_CURATE_SPEC)
+def curate(config_path: Path, dataset_id: str) -> Path:
+    rules_hash = hashlib.sha256(config_path.read_bytes()).hexdigest()
+    return run_curation(config_path, dataset_id, REDDIT_CURATE_SPEC, rules_hash=rules_hash)
 
 
 @app.command()
@@ -51,7 +53,7 @@ def main(
     ),
 ) -> None:
     config_path = resolve_curate_config_path(config, CONFIGS_DIR)
-    curate_mirrorview(config_path, dataset_id)
+    curate(config_path, dataset_id)
 
 
 if __name__ == "__main__":

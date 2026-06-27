@@ -23,7 +23,7 @@ from data_platform.generate_features.platform_cli import (
 )
 from data_platform.generate_features.registry import FEATURE_REGISTRY
 from data_platform.models.sync import SyncTwitterPostModel
-from data_platform.utils.dataset import dataset_root, validate_dataset_id
+from data_platform.utils.dataset import validate_dataset_id
 from data_platform.utils.feature_labels import FeatureLabelQuery
 from data_platform.utils.platform_ids import TWITTER_BINDING
 from data_platform.utils.storage import StorageManager, StorageStage, TwitterStorageManager
@@ -37,7 +37,6 @@ def twitter_feature_config(
     dataset_id: str,
     *,
     run_config: FeatureRunConfig,
-    preprocessed_run: str | None = None,
     features_subset: tuple[str, ...] | None = None,
 ) -> FeatureGenerationConfig:
     """Build a FeatureGenerationConfig for Twitter flat feature CSV output."""
@@ -67,25 +66,25 @@ def twitter_feature_config(
             feature_file_id_column=binding.feature_file_id_column,
         ),
         run_config=run_config,
-        preprocessed_run=preprocessed_run,
     )
 
 
-def load_posts(dataset_id: str, preprocessed_run: str | None = None) -> pd.DataFrame:
-    """Load preprocessed posts from the latest or a pinned preprocessing run."""
+def load_posts(dataset_id: str) -> pd.DataFrame:
+    """Load preprocessed posts from all preprocessed run dirs."""
     storage = TwitterStorageManager(StorageStage.PREPROCESSED, dataset_id)
-    if preprocessed_run:
-        run_dir = dataset_root("twitter", dataset_id) / preprocessed_run
-        posts = storage.load_records(run_dir)
-    else:
-        posts = storage.load_records(latest=True)
-    if posts.empty:
-        return posts.copy()
-
-    return pd.DataFrame(
-        SyncTwitterPostModel.model_validate(row).model_dump()
-        for row in posts.to_dict(orient="records")
-    )
+    if not storage.root_dir.exists():
+        return pd.DataFrame()
+    all_rows = []
+    for run_dir in sorted(storage.root_dir.iterdir()):
+        if not run_dir.is_dir():
+            continue
+        posts = storage.load_records(run_dir=run_dir)
+        if posts.empty:
+            continue
+        all_rows.extend(posts.to_dict(orient="records"))
+    if not all_rows:
+        return pd.DataFrame()
+    return pd.DataFrame(SyncTwitterPostModel.model_validate(row).model_dump() for row in all_rows)
 
 
 def generate_twitter_features(
@@ -94,7 +93,6 @@ def generate_twitter_features(
     batch_size: int = 64,
     max_concurrency: int = 80,
     opik_enabled: bool = False,
-    preprocessed_run: str | None = None,
     feature_subset: list[str] | None = None,
 ) -> dict[str, Path]:
     """Load Twitter posts and generate the requested feature labels."""
@@ -106,11 +104,10 @@ def generate_twitter_features(
         max_concurrency=max_concurrency,
         opik_enabled=opik_enabled,
     )
-    posts = load_posts(dataset_id, preprocessed_run)
+    posts = load_posts(dataset_id)
     config = twitter_feature_config(
         dataset_id,
         run_config=run_config,
-        preprocessed_run=preprocessed_run,
         features_subset=features_subset,
     )
     return run_feature_generation(
@@ -129,11 +126,6 @@ def main(
     batch_size: int = typer.Option(64, "--batch-size"),
     max_concurrency: int = typer.Option(80, "--max-concurrency"),
     opik_enabled: bool = typer.Option(False, "--opik", help="Enable Opik telemetry"),
-    preprocessed_run: str | None = typer.Option(
-        None,
-        "--preprocessed-run",
-        help="Pin preprocessed run path, e.g. preprocessed/2026_06_01-16:30:00",
-    ),
     features: list[str] | None = typer.Option(
         None,
         "--features",
@@ -146,7 +138,6 @@ def main(
         batch_size=batch_size,
         max_concurrency=max_concurrency,
         opik_enabled=opik_enabled,
-        preprocessed_run=preprocessed_run,
         feature_subset=features_from_cli(features),
     )
 

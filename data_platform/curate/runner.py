@@ -31,7 +31,8 @@ def build_curate_metadata(
     *,
     dataset_id: str,
     rules_name: str,
-    source_preprocessed_run: str | None,
+    rules_hash: str,
+    source_preprocessed_runs: list[str],
     wide_df: pd.DataFrame,
     filtered_df: pd.DataFrame,
     rules_result: ApplyRulesResult,
@@ -40,7 +41,8 @@ def build_curate_metadata(
     return {
         "dataset_id": dataset_id,
         "name": rules_name,
-        "source_preprocessed_run": source_preprocessed_run,
+        "rules_hash": rules_hash,
+        "source_preprocessed_runs": source_preprocessed_runs,
         "row_counts": {
             "preprocessed": len(wide_df),
             "wide": len(wide_df),
@@ -58,7 +60,9 @@ def build_curate_metadata(
     }
 
 
-def run_curation(config_path: Path, dataset_id: str, spec: CuratePlatformSpec) -> Path:
+def run_curation(
+    config_path: Path, dataset_id: str, spec: CuratePlatformSpec, *, rules_hash: str
+) -> Path:
     dataset_id = validate_dataset_id(dataset_id)
     root = dataset_root(spec.platform, dataset_id)
     preprocessed_storage = spec.storage_cls("preprocessed", dataset_id)
@@ -66,13 +70,15 @@ def run_curation(config_path: Path, dataset_id: str, spec: CuratePlatformSpec) -
     features_root = root / "features"
 
     rules = load_rules_config(config_path)
-    preprocessed_run = preprocessed_storage.latest_run_dir()
-    if preprocessed_run is None:
+    if not preprocessed_storage.root_dir.exists():
+        raise FileNotFoundError(f"No preprocessed runs found for dataset {dataset_id}")
+    all_run_dirs = sorted(p for p in preprocessed_storage.root_dir.iterdir() if p.is_dir())
+    if not all_run_dirs:
         raise FileNotFoundError(f"No preprocessed runs found for dataset {dataset_id}")
 
-    records_csv = preprocessed_run / preprocessed_storage.records_filename
+    posts_glob = preprocessed_storage.root_dir / "*" / preprocessed_storage.records_filename
     consolidate_kwargs: dict[str, Any] = {
-        "posts_file": records_csv,
+        "posts_file": posts_glob,
         "features_root": features_root,
     }
     if spec.binding.records_id_column != "uri":
@@ -87,10 +93,12 @@ def run_curation(config_path: Path, dataset_id: str, spec: CuratePlatformSpec) -
     output_filename = curated_storage.filename_for(rules.output.stem)
     output_path = curated_storage.write_dataframe(filtered_df, run_dir, filename=output_filename)
 
+    source_preprocessed_runs = [relative_run_path(root, d) for d in all_run_dirs]
     metadata = build_curate_metadata(
         dataset_id=dataset_id,
         rules_name=rules.name,
-        source_preprocessed_run=relative_run_path(root, preprocessed_run),
+        rules_hash=rules_hash,
+        source_preprocessed_runs=source_preprocessed_runs,
         wide_df=wide_df,
         filtered_df=filtered_df,
         rules_result=rules_result,
@@ -99,7 +107,7 @@ def run_curation(config_path: Path, dataset_id: str, spec: CuratePlatformSpec) -
     curated_storage.write_run_metadata(run_dir, metadata)
 
     print(
-        f"curate_mirrorview: kept {len(filtered_df)} of {len(wide_df)} "
+        f"curate_{spec.platform}: kept {len(filtered_df)} of {len(wide_df)} "
         f"{spec.record_noun} -> {run_dir}"
     )
     return output_path

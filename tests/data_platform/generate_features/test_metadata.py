@@ -37,7 +37,7 @@ def test_load_or_init_metadata_creates_file(features_dir) -> None:
 def test_flush_metadata_round_trip(features_dir) -> None:
     metadata = FeatureRunMetadata(
         dataset_id=FEATURES_DATASET_ID,
-        source_preprocessed_run=PREPROCESSED_RUN,
+        source_preprocessed_runs=[PREPROCESSED_RUN],
         config=FeatureRunConfig(),
     )
     metadata.features["is_political"] = FeatureStatus()

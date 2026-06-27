@@ -130,7 +130,7 @@ def find_resume_run_dir(
         if not metadata_path.exists():
             continue
         metadata = storage.load_run_metadata(path)
-        if metadata.get("sync_status") == SyncStatus.IN_PROGRESS.value:
+        if not metadata.get("s3_upload_status", False):
             candidates.append((path.name, path))
 
     if not candidates:

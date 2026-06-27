@@ -11,6 +11,8 @@ import pandas as pd
 from pydantic import BaseModel
 
 from data_platform.utils.dataset import dataset_root, relative_run_path, validate_dataset_id
+from data_platform.utils.deduplication import DedupeConfig, DedupeSession
+from data_platform.utils.gate_checks import require_all_runs_uploaded
 from data_platform.utils.platform_ids import PlatformIdBinding
 from data_platform.utils.storage import StorageManager, StorageStage
 
@@ -88,25 +90,12 @@ def _rows_to_validated_dicts(
 def load_raw_records(
     spec: PreprocessPlatformSpec,
     dataset_id: str,
-    *,
-    latest_only: bool,
 ) -> tuple[pd.DataFrame, list[Path]]:
-    """Load raw records for preprocessing.
+    """Load raw records from all run dirs for preprocessing.
 
     Returns both the loaded/validated records and the raw run directories they came from.
     """
     raw_storage = spec.storage_cls(StorageStage.RAW, dataset_id)
-    if latest_only:
-        records = raw_storage.load_records(latest=True)
-        if records.empty:
-            return records.copy(), []
-
-        source_dir = raw_storage.latest_run_dir()
-        source_raw_run_dirs = [source_dir] if source_dir is not None else []
-
-        validated = _rows_to_validated_dicts(records.to_dict(orient="records"), spec.model_cls)
-        return pd.DataFrame(validated), source_raw_run_dirs
-
     raw_root = raw_storage.root_dir
     run_dirs = sorted([p for p in raw_root.iterdir() if p.is_dir()])
     validated_rows: list[dict[str, Any]] = []
@@ -162,31 +151,35 @@ def save_preprocessed(
 def preprocess_records(
     dataset_id: str,
     spec: PreprocessPlatformSpec,
-    *,
-    latest_only: bool = True,
-) -> Path:
+) -> Path | None:
     dataset_id = validate_dataset_id(dataset_id)
     raw_storage = spec.storage_cls(StorageStage.RAW, dataset_id)
-    latest_raw_run = raw_storage.latest_run_dir()
-    if latest_raw_run is None:
+    if raw_storage.latest_run_dir() is None:
         raise FileNotFoundError(f"No raw runs found for dataset {dataset_id}")
-    raw_metadata = raw_storage.load_run_metadata(latest_raw_run)
-    if raw_metadata.get("sync_status") != "completed":
-        raise RuntimeError(
-            f"Latest raw run {latest_raw_run.name} is not completed "
-            f"(status={raw_metadata.get('sync_status')})"
-        )
-    if not raw_metadata.get("s3_upload_status"):
-        raise RuntimeError(f"Latest raw run {latest_raw_run.name} has not been uploaded to S3")
-    records, source_raw_run_dirs = load_raw_records(spec, dataset_id, latest_only=latest_only)
-    if not latest_only and not records.empty:
-        id_col = spec.binding.records_id_column
-        # Newest wins: run-dir directories are concatenated in ascending name order,
-        # then drop_duplicates keep="last".
-        records = records.drop_duplicates(subset=[id_col], keep="last").reset_index(drop=True)
+    require_all_runs_uploaded(raw_storage, dataset_id)
+    preprocessed_storage = spec.storage_cls(StorageStage.PREPROCESSED, dataset_id)
+    dedupe_session = DedupeSession(DedupeConfig(id_column=spec.binding.records_id_column))
+    dedupe_session.warm(preprocessed_storage, preprocessed_storage.root_dir)
+
+    records, source_raw_run_dirs = load_raw_records(spec, dataset_id)
+
+    new_rows, skipped = dedupe_session.filter_rows(
+        records.to_dict(orient="records")  # type: ignore[arg-type]
+    )
+    if not new_rows:
+        print(f"preprocess_records: all {skipped} records already preprocessed, nothing to write")
+        return None
+    records = (
+        pd.DataFrame(new_rows)
+        .drop_duplicates(subset=[spec.binding.records_id_column], keep="last")
+        .reset_index(drop=True)
+    )
 
     preprocessed = filter_records(records, spec)
     preprocessed = apply_text_transform(preprocessed, spec)
+    if preprocessed.empty:
+        print("preprocess_records: no records survived filtering, nothing to write")
+        return None
     output_dir = save_preprocessed(
         preprocessed,
         spec,

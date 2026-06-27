@@ -19,7 +19,7 @@ from pathlib import Path
 import typer
 from prefect import flow, task
 
-from data_platform.curate.curate_bluesky import curate_mirrorview
+from data_platform.curate.curate_bluesky import curate as curate_bluesky
 from data_platform.curate.utils import resolve_curate_config_path
 from data_platform.generate_features.generate_bluesky_features import generate_bluesky_features
 from data_platform.ingestion.sync_bluesky import sync_records
@@ -51,7 +51,7 @@ def features_task(dataset_id: str) -> None:
 
 @task(name="curate-bluesky")
 def curate_task(dataset_id: str, curate_config: Path) -> None:
-    curate_mirrorview(curate_config, dataset_id)
+    curate_bluesky(curate_config, dataset_id)
 
 
 @flow(name="orchestrate-bluesky", log_prints=True)
