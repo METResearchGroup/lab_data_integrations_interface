@@ -84,14 +84,16 @@ Curation joins all preprocessed records with their feature labels, applies busin
 
    Both must be true before curation proceeds. Curation joins preprocessed records with feature labels; any incomplete upstream produces a corrupt or missing join.
 
-3. **Load all preprocessed runs** — load records from every `preprocessed/{timestamp}/` dir for this `dataset_id`. Concatenate into a single dataframe. Always all runs, never just the latest.
+3. **Early exit (run-level dedup)** — curation always produces a complete snapshot, not an accumulation of new records. URI-level dedup (like preprocessing's DedupeSession) does not apply here — there is no concept of "already curated this URI, skip it." Instead, dedup happens at the run level: skip creating a new curated run if the inputs haven't changed. Check if the latest curated run has `s3_upload_status: true`, its `source_preprocessed_runs` matches the current list of preprocessed run dirs, AND its `rules_hash` (sha256 of the rules config YAML) matches the current file. If all three conditions hold, return the existing output path immediately. If any differ (a new preprocessed run appeared, or the rules file was edited), proceed with a fresh run.
 
-4. **Join with features** — read each flat feature parquet file from `features/` and join on URI. The flat store guarantees each URI has at most one label per feature regardless of which preprocessed run it came from.
+4. **Load all preprocessed runs** — load records from every `preprocessed/{timestamp}/` dir for this `dataset_id`. Concatenate into a single dataframe. Always all runs, never just the latest.
 
-5. **Apply curation rules** — run the configured filter steps (e.g. `mirrorview.yaml`). Each step removes records that fail a condition and records how many passed.
+5. **Join with features** — read each flat feature parquet file from `features/` and join on URI. The flat store guarantees each URI has at most one label per feature regardless of which preprocessed run it came from.
 
-6. **Write output** — create a new `curated/{timestamp}/` dir, write the filtered output file, write `metadata.json` with `s3_upload_status: false` and `source_preprocessed_runs` (provenance).
+6. **Apply curation rules** — run the configured filter steps (e.g. `mirrorview.yaml`). Each step removes records that fail a condition and records how many passed.
 
-7. **Upload** — upload the curated output file to S3, register its Athena partition on `bluesky_curated` with `(platform, dataset_id, run_dir)`, then set `s3_upload_status: true`.
+7. **Write output** — create a new `curated/{timestamp}/` dir, write the filtered output file, write `metadata.json` with `s3_upload_status: false`, `source_preprocessed_runs`, and `rules_hash` (for the next run's early-exit check).
 
-`source_preprocessed_runs` in `metadata.json` records which preprocessed run dirs contributed, for provenance only — not used to gate what gets processed.
+8. **Upload** — upload the curated output file to S3, register its Athena partition on `bluesky_curated` with `(platform, dataset_id, run_dir)`, then set `s3_upload_status: true`.
+
+`source_preprocessed_runs` and `rules_hash` in `metadata.json` serve double duty: provenance tracking AND inputs to the next run's early-exit check.
