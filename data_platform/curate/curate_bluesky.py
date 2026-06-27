@@ -46,9 +46,9 @@ def _publish_curated_run(dataset_id: str, run_dir: Path, output_path: Path) -> N
         {"platform": "bluesky", "dataset_id": dataset_id, "run_dir": run_dir.name},
         f"s3://{S3_BUCKET}/{s3_prefix}/",
     )
-    print(f"curate_mirrorview: uploaded to s3://{S3_BUCKET}/{s3_key}")
+    print(f"curate_bluesky: uploaded to s3://{S3_BUCKET}/{s3_key}")
     print(
-        f"curate_mirrorview: registered partition bluesky_curated"
+        f"curate_bluesky: registered partition bluesky_curated"
         f" platform=bluesky dataset_id={dataset_id} run_dir={run_dir.name}"
     )
 
@@ -74,7 +74,7 @@ def _retry_pending_uploads(dataset_id: str, curated_storage: BlueskyStorageManag
         curated_storage.write_run_metadata(run_dir, meta)
 
 
-def curate_mirrorview(config_path: Path, dataset_id: str) -> Path:
+def curate(config_path: Path, dataset_id: str) -> Path:
     dataset_id = validate_dataset_id(dataset_id)
 
     curated_storage = BlueskyStorageManager(StorageStage.CURATED, dataset_id)
@@ -120,7 +120,7 @@ def main(
     ),
 ) -> None:
     config_path = resolve_curate_config_path(config, CONFIGS_DIR)
-    curate_mirrorview(config_path, dataset_id)
+    curate(config_path, dataset_id)
 
 
 if __name__ == "__main__":

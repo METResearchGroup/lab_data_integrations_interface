@@ -102,7 +102,7 @@ def run_curation(config_path: Path, dataset_id: str, spec: CuratePlatformSpec) -
     curated_storage.write_run_metadata(run_dir, metadata)
 
     print(
-        f"curate_mirrorview: kept {len(filtered_df)} of {len(wide_df)} "
+        f"curate_{spec.platform}: kept {len(filtered_df)} of {len(wide_df)} "
         f"{spec.record_noun} -> {run_dir}"
     )
     return output_path
