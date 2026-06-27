@@ -32,6 +32,7 @@ from data_platform.preprocessing.validators.validators import (
     check_if_text_english,
     check_if_valid_post_length,
 )
+from data_platform.utils.dataset import validate_dataset_id
 from data_platform.utils.platform_ids import BLUESKY_BINDING
 from data_platform.utils.storage import BlueskyStorageManager, StorageStage
 
@@ -102,6 +103,7 @@ def _retry_pending_uploads(dataset_id: str, preprocessed_storage: BlueskyStorage
 
 
 def preprocess_records(dataset_id: str) -> Path | None:
+    dataset_id = validate_dataset_id(dataset_id)
     preprocessed_storage = BlueskyStorageManager(StorageStage.PREPROCESSED, dataset_id)
     _retry_pending_uploads(dataset_id, preprocessed_storage)
 
