@@ -8,6 +8,7 @@ Run from the repo root:
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import typer
@@ -33,7 +34,8 @@ FEATURE_FILE_ID_COLUMN = TWITTER_BINDING.feature_file_id_column
 
 
 def curate(config_path: Path, dataset_id: str) -> Path:
-    return run_curation(config_path, dataset_id, TWITTER_CURATE_SPEC)
+    rules_hash = hashlib.sha256(config_path.read_bytes()).hexdigest()
+    return run_curation(config_path, dataset_id, TWITTER_CURATE_SPEC, rules_hash=rules_hash)
 
 
 @app.command()
