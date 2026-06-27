@@ -115,8 +115,3 @@ Feature generation sweeps **all** preprocessed runs for this `dataset_id`, not j
 
 The feature files themselves are the record of what has been labeled. No separate "which preprocessed runs are done" tracking is needed — if a URI is in the feature files, it is labeled regardless of which preprocessed run it came from.
 
-## Open questions
-
-| Question | Status |
-|----------|--------|
-| For feature dedup warm-up, load all feature file URIs into set (disk) or query Athena? | Disk scan is fine at current scale — switch to Athena-only when disk scan becomes slow |
