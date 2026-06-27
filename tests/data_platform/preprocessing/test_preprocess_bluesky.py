@@ -73,3 +73,5 @@ class TestPreprocessRetry:
         preprocess_records(VALID_DATASET_ID)
 
         mock_publish.assert_called_once_with(VALID_DATASET_ID, run_dir, run_dir / "posts.csv")
+        metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+        assert metadata["s3_upload_status"] is True
