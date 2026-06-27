@@ -96,8 +96,9 @@ def _retry_pending_upload(dataset_id: str, features_dir: Path) -> None:
         meta = FeatureRunMetadata.from_dict(json.load(f))
     if meta.sync_status != "completed" or meta.s3_upload_status:
         return
-    for parquet_file in sorted(features_dir.glob("*.parquet")):
-        _publish_feature(dataset_id, parquet_file.stem, parquet_file)
+    feature_files = sorted(f for ext in ("*.parquet", "*.csv") for f in features_dir.glob(ext))
+    for feature_file in feature_files:
+        _publish_feature(dataset_id, feature_file.stem, feature_file)
     meta.s3_upload_status = True
     flush_metadata(features_dir, meta)
 
