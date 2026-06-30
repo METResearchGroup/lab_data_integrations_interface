@@ -7,6 +7,7 @@ os.environ.setdefault("PREFECT_API_URL", "")
 
 from pathlib import Path
 from typing import Any
+from unittest.mock import ANY
 
 import pytest
 
@@ -52,7 +53,9 @@ def recorded_calls(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]]:
         )
 
     def fake_finalize(pipeline_run_id: str, *, status: str, completed_at: str) -> None:
-        calls["finalize"].append({"pipeline_run_id": pipeline_run_id, "status": status})
+        calls["finalize"].append(
+            {"pipeline_run_id": pipeline_run_id, "status": status, "completed_at": completed_at}
+        )
 
     monkeypatch.setattr(orch, "new_pipeline_run_id", fake_new_pipeline_run_id)
     monkeypatch.setattr(orch, "init_pipeline_run", fake_init)
@@ -91,7 +94,7 @@ def test_full_success_records_each_stage_and_finalizes_completed(
         "2026_01_01-00:10:00",
     ]
     assert recorded_calls["finalize"] == [
-        {"pipeline_run_id": "fixed-run-id", "status": "completed"}
+        {"pipeline_run_id": "fixed-run-id", "status": "completed", "completed_at": ANY}
     ]
 
 
@@ -113,7 +116,7 @@ def test_preprocessing_no_new_data_is_completed_with_null_run_id(
     assert preprocessing["status"] == "completed"
     assert [s["stage"] for s in stages] == ["ingestion", "preprocessing", "features", "curation"]
     assert recorded_calls["finalize"] == [
-        {"pipeline_run_id": "fixed-run-id", "status": "completed"}
+        {"pipeline_run_id": "fixed-run-id", "status": "completed", "completed_at": ANY}
     ]
 
 
@@ -157,4 +160,6 @@ def test_stage_failure_stops_pipeline_and_marks_failed(
         "status": "failed",
         "error": "Claude API timeout",
     }
-    assert recorded_calls["finalize"] == [{"pipeline_run_id": "fixed-run-id", "status": "failed"}]
+    assert recorded_calls["finalize"] == [
+        {"pipeline_run_id": "fixed-run-id", "status": "failed", "completed_at": ANY}
+    ]
