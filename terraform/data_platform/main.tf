@@ -106,6 +106,38 @@ resource "aws_athena_workgroup" "olap" {
 }
 
 # ---------------------------------------------------------------------------
+# DynamoDB — pipeline run records (one item per orchestrator invocation)
+# ---------------------------------------------------------------------------
+
+resource "aws_dynamodb_table" "pipeline_runs" {
+  name         = "lab-data-integrations-interface-pipeline-runs"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "pipeline_run_id"
+
+  attribute {
+    name = "pipeline_run_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "dataset_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "started_at"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "dataset_id-started_at-index"
+    hash_key        = "dataset_id"
+    range_key       = "started_at"
+    projection_type = "ALL"
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Outputs
 # ---------------------------------------------------------------------------
 
@@ -123,4 +155,8 @@ output "athena_workgroup_name" {
 
 output "athena_olap_workgroup_name" {
   value = aws_athena_workgroup.olap.name
+}
+
+output "pipeline_runs_table_name" {
+  value = aws_dynamodb_table.pipeline_runs.name
 }
