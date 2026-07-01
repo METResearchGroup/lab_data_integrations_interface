@@ -268,4 +268,4 @@ class TestCurateRetry:
 
         mock_publish.assert_called_once()
         assert mock_publish.call_args[0][1] == pending_run
-        assert result == pending_run / "test.csv"
+        assert result == pending_run
