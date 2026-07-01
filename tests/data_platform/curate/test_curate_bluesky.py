@@ -146,7 +146,7 @@ class TestCurateEarlyExit:
         result = curate(config_path, VALID_DATASET_ID)
 
         mock_run_curation.assert_not_called()
-        assert result == existing_run / "test.csv"
+        assert result == existing_run
 
     def test_reruns_if_new_preprocessed_run(
         self, data_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
