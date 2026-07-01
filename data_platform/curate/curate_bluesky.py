@@ -130,7 +130,7 @@ def curate(config_path: Path, dataset_id: str) -> Path:
     existing = _is_up_to_date(curated_storage, all_preprocessed_run_dirs, root, rules_hash)
     if existing is not None:
         print(f"curate_bluesky: already up to date, skipping ({existing})")
-        return existing
+        return existing.parent
 
     output_path = run_curation(config_path, dataset_id, BLUESKY_CURATE_SPEC, rules_hash=rules_hash)
 
@@ -140,7 +140,7 @@ def curate(config_path: Path, dataset_id: str) -> Path:
     curate_meta["s3_upload_status"] = True
     curated_storage.write_run_metadata(run_dir, curate_meta)
 
-    return output_path
+    return run_dir
 
 
 @app.command()
