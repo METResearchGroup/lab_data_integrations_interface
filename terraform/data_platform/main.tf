@@ -114,6 +114,10 @@ resource "aws_dynamodb_table" "pipeline_runs" {
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "pipeline_run_id"
 
+  point_in_time_recovery {
+    enabled = true
+  }
+  
   attribute {
     name = "pipeline_run_id"
     type = "S"
