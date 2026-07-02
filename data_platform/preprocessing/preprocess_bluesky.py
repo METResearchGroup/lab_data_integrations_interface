@@ -102,14 +102,12 @@ def _retry_pending_uploads(dataset_id: str, preprocessed_storage: BlueskyStorage
         preprocessed_storage.write_run_metadata(run_dir, metadata)
 
 
-def preprocess_records(dataset_id: str) -> Path | None:
+def preprocess_records(dataset_id: str) -> Path:
     dataset_id = validate_dataset_id(dataset_id)
     preprocessed_storage = BlueskyStorageManager(StorageStage.PREPROCESSED, dataset_id)
     _retry_pending_uploads(dataset_id, preprocessed_storage)
 
     output_dir = run_preprocess_records(dataset_id, BLUESKY_SPEC)
-    if output_dir is None:
-        return None
 
     csv_filename = preprocessed_storage.records_filename
     _publish_preprocessed_run(dataset_id, output_dir, output_dir / csv_filename)

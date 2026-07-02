@@ -76,7 +76,7 @@ def filter_posts(
     return filter_records(posts, spec)
 
 
-def preprocess_records(dataset_id: str) -> Path | None:
+def preprocess_records(dataset_id: str) -> Path:
     return run_preprocess_records(dataset_id, TWITTER_SPEC)
 
 

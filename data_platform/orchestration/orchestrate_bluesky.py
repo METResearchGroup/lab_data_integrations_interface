@@ -49,7 +49,7 @@ def sync_task(ingestion_config: Path) -> Path:
 
 
 @task(name="preprocess-bluesky")
-def preprocess_task(dataset_id: str) -> Path | None:
+def preprocess_task(dataset_id: str) -> Path:
     return preprocess_records(dataset_id)
 
 
@@ -105,7 +105,7 @@ def orchestrate_bluesky(
         pipeline_run_id,
         "preprocessing",
         lambda: preprocess_task(dataset_id),
-        lambda r: r.name if r else None,
+        lambda r: r.name,
     )
     _run_stage(pipeline_run_id, "features", lambda: features_task(dataset_id), lambda _: None)
     _run_stage(
