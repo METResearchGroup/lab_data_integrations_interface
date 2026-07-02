@@ -290,13 +290,6 @@ def test_record_stage_result_failure_on_failure_path_does_not_mask_original_exce
     ]
 
 
-# --- pipeline_run.py's own DynamoDB-writing logic (init_pipeline_run, record_stage_result,
-# finalize_pipeline_run) -- separate from the tests above, which only check that
-# orchestrate_bluesky *calls* these functions correctly via fakes. These call the real
-# functions and assert on the actual DynamoDB write, same mocking pattern as
-# tests/data_platform/aws/test_dynamodb.py.
-
-
 @pytest.fixture
 def mock_table(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     table = MagicMock()
