@@ -8,6 +8,7 @@ Run a specific job:
         --ingestion-config trump_econ_iran.yaml --curate-config trump_econ_iran.yaml
 """
 
+import logging
 import os
 
 if __name__ == "__main__":
@@ -42,6 +43,8 @@ CURATE_CONFIGS_DIR = Path(__file__).resolve().parents[1] / "curate/configs/blues
 DEFAULT_INGESTION_CONFIG = INGESTION_CONFIGS_DIR / "mirrorview.yaml"
 DEFAULT_CURATE_CONFIG = CURATE_CONFIGS_DIR / "mirrorview.yaml"
 
+logger = logging.getLogger(__name__)
+
 
 @task(name="sync-bluesky")
 def sync_task(ingestion_config: Path) -> Path:
@@ -63,6 +66,19 @@ def curate_task(dataset_id: str, curate_config: Path) -> Path:
     return curate_bluesky(curate_config, dataset_id)
 
 
+def _record_best_effort(record: Callable[[], None]) -> None:
+    """Run one pipeline-run bookkeeping call, logging instead of raising on failure.
+
+    A DynamoDB write failure here must never replace the real stage outcome -- the
+    original stage exception on the failure path, or a genuinely successful result on
+    the success path -- and one failed write shouldn't block an unrelated one.
+    """
+    try:
+        record()
+    except Exception:
+        logger.exception("Failed to record pipeline run state")
+
+
 def _run_stage(
     pipeline_run_id: str,
     stage_name: str,
@@ -76,15 +92,24 @@ def _run_stage(
     left to the next orchestrator invocation."""
     try:
         result = fn()
+        _record_best_effort(
+            lambda: record_stage_result(
+                pipeline_run_id, stage_name, run_id=run_id_from_result(result), status="completed"
+            )
+        )
     except Exception as e:
-        record_stage_result(pipeline_run_id, stage_name, run_id=None, status="failed", error=str(e))
-        finalize_pipeline_run(
-            pipeline_run_id, status="failed", completed_at=get_current_timestamp()
+        error = str(e)
+        _record_best_effort(
+            lambda: record_stage_result(
+                pipeline_run_id, stage_name, run_id=None, status="failed", error=error
+            )
+        )
+        _record_best_effort(
+            lambda: finalize_pipeline_run(
+                pipeline_run_id, status="failed", completed_at=get_current_timestamp()
+            )
         )
         raise
-    record_stage_result(
-        pipeline_run_id, stage_name, run_id=run_id_from_result(result), status="completed"
-    )
     return result
 
 
