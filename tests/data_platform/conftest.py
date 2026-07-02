@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,15 @@ from tests.data_platform.constants import (
     URI_POST_A,
     URI_POST_B,
 )
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _quiet_prefect_logging() -> None:
+    """Prefect's ephemeral test server logs its shutdown message after pytest has
+    already closed the captured output stream, producing a harmless but noisy
+    '--- Logging error ---' traceback. Raising the logger above INFO stops that
+    message from ever being emitted."""
+    logging.getLogger("prefect").setLevel(logging.WARNING)
 
 
 @pytest.fixture(autouse=True)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import pytest
 
@@ -56,9 +56,17 @@ class TestPreprocessRetry:
     def test_retry_uploads_pending_run(
         self, data_root: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        run_dir = _write_preprocessed_run(
+        stale_run_dir = _write_preprocessed_run(
             data_root, VALID_DATASET_ID, "2026_01_01-00:00:00", s3_upload_status=False
         )
+
+        # Created only once run_preprocess_records is invoked, i.e. *after* the retry
+        # sweep already ran -- mirrors how a real new run wouldn't exist on disk yet
+        # when preprocess_records starts.
+        def fake_run_preprocess_records(*_args: object) -> Path:
+            return _write_preprocessed_run(
+                data_root, VALID_DATASET_ID, "2026_01_01-00:05:00", s3_upload_status=False
+            )
 
         mock_publish = MagicMock()
         monkeypatch.setattr(
@@ -67,11 +75,21 @@ class TestPreprocessRetry:
         )
         monkeypatch.setattr(
             "data_platform.preprocessing.preprocess_bluesky.run_preprocess_records",
-            lambda *_: None,
+            fake_run_preprocess_records,
         )
 
         preprocess_records(VALID_DATASET_ID)
 
-        mock_publish.assert_called_once_with(VALID_DATASET_ID, run_dir, run_dir / "posts.csv")
-        metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
-        assert metadata["s3_upload_status"] is True
+        # The stale run gets published via the retry sweep; the current run gets
+        # published as part of the main preprocess_records flow (which now always
+        # runs, even for an empty result -- see preprocess_records's Path-only contract).
+        current_run_dir = (
+            data_root / "bluesky" / VALID_DATASET_ID / "preprocessed" / "2026_01_01-00:05:00"
+        )
+        assert mock_publish.call_args_list == [
+            call(VALID_DATASET_ID, stale_run_dir, stale_run_dir / "posts.csv"),
+            call(VALID_DATASET_ID, current_run_dir, current_run_dir / "posts.csv"),
+        ]
+        for run_dir in (stale_run_dir, current_run_dir):
+            metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+            assert metadata["s3_upload_status"] is True

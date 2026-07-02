@@ -98,28 +98,6 @@ def test_full_success_records_each_stage_and_finalizes_completed(
     ]
 
 
-def test_preprocessing_no_new_data_is_completed_with_null_run_id(
-    monkeypatch: pytest.MonkeyPatch, recorded_calls: dict[str, list[Any]]
-) -> None:
-    monkeypatch.setattr(orch, "sync_records", lambda _cfg: Path("raw/2026_01_01-00:00:00"))
-    monkeypatch.setattr(orch, "preprocess_records", lambda _dataset_id: None)
-    monkeypatch.setattr(orch, "generate_bluesky_features", lambda _dataset_id: {})
-    monkeypatch.setattr(
-        orch, "curate_bluesky", lambda _cfg, _dataset_id: Path("curated/2026_01_01-00:10:00")
-    )
-
-    orch.orchestrate_bluesky(INGESTION_CONFIG, CURATE_CONFIG)
-
-    stages = recorded_calls["stage"]
-    preprocessing = next(s for s in stages if s["stage"] == "preprocessing")
-    assert preprocessing["run_id"] is None
-    assert preprocessing["status"] == "completed"
-    assert [s["stage"] for s in stages] == ["ingestion", "preprocessing", "features", "curation"]
-    assert recorded_calls["finalize"] == [
-        {"pipeline_run_id": "fixed-run-id", "status": "completed", "completed_at": ANY}
-    ]
-
-
 def test_stage_failure_stops_pipeline_and_marks_failed(
     monkeypatch: pytest.MonkeyPatch, recorded_calls: dict[str, list[Any]]
 ) -> None:
