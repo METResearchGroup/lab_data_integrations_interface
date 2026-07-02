@@ -92,11 +92,6 @@ def _run_stage(
     left to the next orchestrator invocation."""
     try:
         result = fn()
-        _record_best_effort(
-            lambda: record_stage_result(
-                pipeline_run_id, stage_name, run_id=run_id_from_result(result), status="completed"
-            )
-        )
     except Exception as e:
         error = str(e)
         _record_best_effort(
@@ -110,6 +105,11 @@ def _run_stage(
             )
         )
         raise
+    _record_best_effort(
+        lambda: record_stage_result(
+            pipeline_run_id, stage_name, run_id=run_id_from_result(result), status="completed"
+        )
+    )
     return result
 
 
