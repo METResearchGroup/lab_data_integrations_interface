@@ -8,11 +8,19 @@ os.environ.setdefault("PREFECT_API_URL", "")
 import logging
 from pathlib import Path
 from typing import Any
-from unittest.mock import ANY
+from unittest.mock import ANY, MagicMock
 
 import pytest
 
+from data_platform.aws import dynamodb as dynamodb_mod
+from data_platform.aws.constants import PIPELINE_RUNS_TABLE
 from data_platform.orchestration import orchestrate_bluesky as orch
+from data_platform.orchestration.pipeline_run import (
+    STAGE_NAMES,
+    finalize_pipeline_run,
+    init_pipeline_run,
+    record_stage_result,
+)
 from tests.data_platform.constants import VALID_DATASET_ID
 
 INGESTION_CONFIG = Path("ingestion.yaml")
@@ -280,3 +288,93 @@ def test_record_stage_result_failure_on_failure_path_does_not_mask_original_exce
     assert recorded_calls["finalize"] == [
         {"pipeline_run_id": "fixed-run-id", "status": "failed", "completed_at": ANY}
     ]
+
+
+# --- pipeline_run.py's own DynamoDB-writing logic (init_pipeline_run, record_stage_result,
+# finalize_pipeline_run) -- separate from the tests above, which only check that
+# orchestrate_bluesky *calls* these functions correctly via fakes. These call the real
+# functions and assert on the actual DynamoDB write, same mocking pattern as
+# tests/data_platform/aws/test_dynamodb.py.
+
+
+@pytest.fixture
+def mock_table(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    table = MagicMock()
+    resource = MagicMock()
+    resource.Table.return_value = table
+    monkeypatch.setattr(dynamodb_mod.boto3, "resource", lambda *args, **kwargs: resource)
+    table.resource = resource
+    return table
+
+
+def test_init_pipeline_run_writes_initial_item(mock_table: MagicMock) -> None:
+    init_pipeline_run("run-1", "bluesky_abc", "2026_01_01-00:00:00")
+
+    mock_table.resource.Table.assert_called_with(PIPELINE_RUNS_TABLE)
+    mock_table.put_item.assert_called_once_with(
+        Item={
+            "pipeline_run_id": "run-1",
+            "dataset_id": "bluesky_abc",
+            "started_at": "2026_01_01-00:00:00",
+            "status": "in_progress",
+            "stages": {stage: {"run_id": None, "status": "not_started"} for stage in STAGE_NAMES},
+        }
+    )
+
+
+def test_record_stage_result_happy_path_without_error(mock_table: MagicMock) -> None:
+    record_stage_result("run-1", "ingestion", run_id="2026_01_01-00:00:00", status="completed")
+
+    mock_table.resource.Table.assert_called_with(PIPELINE_RUNS_TABLE)
+    mock_table.update_item.assert_called_once_with(
+        Key={"pipeline_run_id": "run-1"},
+        UpdateExpression="SET #n0_0.#n0_1 = :v0",
+        ExpressionAttributeNames={"#n0_0": "stages", "#n0_1": "ingestion"},
+        ExpressionAttributeValues={":v0": {"run_id": "2026_01_01-00:00:00", "status": "completed"}},
+    )
+
+
+def test_record_stage_result_includes_error_when_provided(mock_table: MagicMock) -> None:
+    record_stage_result(
+        "run-1", "features", run_id=None, status="failed", error="Claude API timeout"
+    )
+
+    mock_table.update_item.assert_called_once_with(
+        Key={"pipeline_run_id": "run-1"},
+        UpdateExpression="SET #n0_0.#n0_1 = :v0",
+        ExpressionAttributeNames={"#n0_0": "stages", "#n0_1": "features"},
+        ExpressionAttributeValues={
+            ":v0": {"run_id": None, "status": "failed", "error": "Claude API timeout"}
+        },
+    )
+
+
+def test_record_stage_result_omits_error_key_when_none(mock_table: MagicMock) -> None:
+    """error defaults to None and must not appear in the stage entry at all --
+    not even as an explicit `"error": None`."""
+    record_stage_result("run-1", "curation", run_id="run-dir", status="completed")
+
+    written_entry = mock_table.update_item.call_args.kwargs["ExpressionAttributeValues"][":v0"]
+    assert "error" not in written_entry
+
+
+def test_record_stage_result_rejects_unknown_stage_without_touching_dynamodb(
+    mock_table: MagicMock,
+) -> None:
+    with pytest.raises(ValueError, match="Unknown stage 'bogus'"):
+        record_stage_result("run-1", "bogus", run_id=None, status="failed")
+
+    mock_table.update_item.assert_not_called()
+    mock_table.resource.Table.assert_not_called()
+
+
+def test_finalize_pipeline_run_writes_status_and_completed_at(mock_table: MagicMock) -> None:
+    finalize_pipeline_run("run-1", status="completed", completed_at="2026_01_01-00:10:00")
+
+    mock_table.resource.Table.assert_called_with(PIPELINE_RUNS_TABLE)
+    mock_table.update_item.assert_called_once_with(
+        Key={"pipeline_run_id": "run-1"},
+        UpdateExpression="SET #n0_0 = :v0, #n1_0 = :v1",
+        ExpressionAttributeNames={"#n0_0": "status", "#n1_0": "completed_at"},
+        ExpressionAttributeValues={":v0": "completed", ":v1": "2026_01_01-00:10:00"},
+    )
