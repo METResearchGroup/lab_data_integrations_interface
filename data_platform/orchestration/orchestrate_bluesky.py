@@ -8,13 +8,16 @@ Run a specific job:
         --ingestion-config trump_econ_iran.yaml --curate-config trump_econ_iran.yaml
 """
 
+import logging
 import os
 
 if __name__ == "__main__":
     os.environ["PREFECT_SERVER_ALLOW_EPHEMERAL_MODE"] = "true"
     os.environ["PREFECT_API_URL"] = ""
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import typer
 from prefect import flow, task
@@ -24,8 +27,15 @@ from data_platform.curate.utils import resolve_curate_config_path
 from data_platform.generate_features.generate_bluesky_features import generate_bluesky_features
 from data_platform.ingestion.sync_bluesky import sync_records
 from data_platform.ingestion.sync_checkpoint import require_dataset_id
+from data_platform.orchestration.pipeline_run import (
+    finalize_pipeline_run,
+    init_pipeline_run,
+    new_pipeline_run_id,
+    record_stage_result,
+)
 from data_platform.preprocessing.preprocess_bluesky import preprocess_records
 from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
+from lib.timestamp_utils import get_current_timestamp
 
 INGESTION_CONFIGS_DIR = Path(__file__).resolve().parents[1] / "ingestion/configs/bluesky"
 CURATE_CONFIGS_DIR = Path(__file__).resolve().parents[1] / "curate/configs/bluesky"
@@ -33,25 +43,74 @@ CURATE_CONFIGS_DIR = Path(__file__).resolve().parents[1] / "curate/configs/blues
 DEFAULT_INGESTION_CONFIG = INGESTION_CONFIGS_DIR / "mirrorview.yaml"
 DEFAULT_CURATE_CONFIG = CURATE_CONFIGS_DIR / "mirrorview.yaml"
 
+logger = logging.getLogger(__name__)
+
 
 @task(name="sync-bluesky")
-def sync_task(ingestion_config: Path) -> None:
-    sync_records(ingestion_config)
+def sync_task(ingestion_config: Path) -> Path:
+    return sync_records(ingestion_config)
 
 
 @task(name="preprocess-bluesky")
-def preprocess_task(dataset_id: str) -> None:
-    preprocess_records(dataset_id)
+def preprocess_task(dataset_id: str) -> Path:
+    return preprocess_records(dataset_id)
 
 
 @task(name="generate-bluesky-features")
-def features_task(dataset_id: str) -> None:
-    generate_bluesky_features(dataset_id)
+def features_task(dataset_id: str) -> dict[str, Path]:
+    return generate_bluesky_features(dataset_id)
 
 
 @task(name="curate-bluesky")
-def curate_task(dataset_id: str, curate_config: Path) -> None:
-    curate_bluesky(curate_config, dataset_id)
+def curate_task(dataset_id: str, curate_config: Path) -> Path:
+    return curate_bluesky(curate_config, dataset_id)
+
+
+def _record_best_effort(record: Callable[[], None]) -> None:
+    """Run one pipeline-run bookkeeping call, logging instead of raising on failure.
+
+    A DynamoDB write failure here must never replace the real stage outcome -- the
+    original stage exception on the failure path, or a genuinely successful result on
+    the success path -- and one failed write shouldn't block an unrelated one.
+    """
+    try:
+        record()
+    except Exception:
+        logger.exception("Failed to record pipeline run state")
+
+
+def _run_stage(
+    pipeline_run_id: str,
+    stage_name: str,
+    fn: Callable[[], Any],
+    run_id_from_result: Callable[[Any], str | None],
+) -> Any:
+    """Run one stage, then record its result in the pipeline run record.
+
+    On failure, marks the stage and the overall pipeline as failed and re-raises so the
+    Prefect flow run stops immediately -- no retry within this invocation. Recovery is
+    left to the next orchestrator invocation."""
+    try:
+        result = fn()
+    except Exception as e:
+        error = str(e)
+        _record_best_effort(
+            lambda: record_stage_result(
+                pipeline_run_id, stage_name, run_id=None, status="failed", error=error
+            )
+        )
+        _record_best_effort(
+            lambda: finalize_pipeline_run(
+                pipeline_run_id, status="failed", completed_at=get_current_timestamp()
+            )
+        )
+        raise
+    _record_best_effort(
+        lambda: record_stage_result(
+            pipeline_run_id, stage_name, run_id=run_id_from_result(result), status="completed"
+        )
+    )
+    return result
 
 
 @flow(name="orchestrate-bluesky", log_prints=True)
@@ -62,12 +121,27 @@ def orchestrate_bluesky(
     config = load_yaml_config(resolve_config_path(ingestion_config, INGESTION_CONFIGS_DIR))
     dataset_id = require_dataset_id(config, platform="bluesky")
 
-    print(f"orchestrate_bluesky: starting pipeline for dataset {dataset_id}")
-    sync_task(ingestion_config)
-    preprocess_task(dataset_id)
-    features_task(dataset_id)
-    curate_task(dataset_id, curate_config)
-    print(f"orchestrate_bluesky: pipeline complete for dataset {dataset_id}")
+    pipeline_run_id = new_pipeline_run_id()
+    init_pipeline_run(pipeline_run_id, dataset_id, get_current_timestamp())
+
+    print(f"orchestrate_bluesky: starting pipeline {pipeline_run_id} for dataset {dataset_id}")
+    _run_stage(pipeline_run_id, "ingestion", lambda: sync_task(ingestion_config), lambda r: r.name)
+    _run_stage(
+        pipeline_run_id,
+        "preprocessing",
+        lambda: preprocess_task(dataset_id),
+        lambda r: r.name,
+    )
+    _run_stage(pipeline_run_id, "features", lambda: features_task(dataset_id), lambda _: None)
+    _run_stage(
+        pipeline_run_id,
+        "curation",
+        lambda: curate_task(dataset_id, curate_config),
+        lambda r: r.name,
+    )
+
+    finalize_pipeline_run(pipeline_run_id, status="completed", completed_at=get_current_timestamp())
+    print(f"orchestrate_bluesky: pipeline {pipeline_run_id} complete for dataset {dataset_id}")
 
 
 def main(

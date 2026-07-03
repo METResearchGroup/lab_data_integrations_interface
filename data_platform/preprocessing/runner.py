@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 from pydantic import BaseModel
@@ -148,10 +148,26 @@ def save_preprocessed(
     return output_dir
 
 
+def _drop_already_preprocessed(
+    records: pd.DataFrame, id_col: str, seen_ids: set[str]
+) -> tuple[pd.DataFrame, int]:
+    """Drop rows already preprocessed in a prior run, then dedupe by id within this batch.
+
+    Returns the surviving records and how many rows were dropped for being seen before.
+    """
+    id_series = cast(pd.Series, records[id_col])
+    is_new = ~id_series.isin(list(seen_ids))
+    skipped = len(records) - int(is_new.sum())
+    deduped = (
+        records.loc[is_new].drop_duplicates(subset=[id_col], keep="last").reset_index(drop=True)
+    )
+    return deduped, skipped
+
+
 def preprocess_records(
     dataset_id: str,
     spec: PreprocessPlatformSpec,
-) -> Path | None:
+) -> Path:
     dataset_id = validate_dataset_id(dataset_id)
     raw_storage = spec.storage_cls(StorageStage.RAW, dataset_id)
     if raw_storage.latest_run_dir() is None:
@@ -162,24 +178,12 @@ def preprocess_records(
     dedupe_session.warm(preprocessed_storage, preprocessed_storage.root_dir)
 
     records, source_raw_run_dirs = load_raw_records(spec, dataset_id)
-
-    new_rows, skipped = dedupe_session.filter_rows(
-        records.to_dict(orient="records")  # type: ignore[arg-type]
-    )
-    if not new_rows:
-        print(f"preprocess_records: all {skipped} records already preprocessed, nothing to write")
-        return None
-    records = (
-        pd.DataFrame(new_rows)
-        .drop_duplicates(subset=[spec.binding.records_id_column], keep="last")
-        .reset_index(drop=True)
+    records, skipped = _drop_already_preprocessed(
+        records, spec.binding.records_id_column, dedupe_session.seen_ids
     )
 
     preprocessed = filter_records(records, spec)
     preprocessed = apply_text_transform(preprocessed, spec)
-    if preprocessed.empty:
-        print("preprocess_records: no records survived filtering, nothing to write")
-        return None
     output_dir = save_preprocessed(
         preprocessed,
         spec,
@@ -188,5 +192,8 @@ def preprocess_records(
         source_raw_run_dirs=source_raw_run_dirs,
     )
     noun = spec.binding.records_file_key
-    print(f"preprocess_records: kept {len(preprocessed)} of {len(records)} {noun} -> {output_dir}")
+    print(
+        f"preprocess_records: kept {len(preprocessed)} of {len(records)} {noun}"
+        f" (skipped {skipped} already preprocessed) -> {output_dir}"
+    )
     return output_dir

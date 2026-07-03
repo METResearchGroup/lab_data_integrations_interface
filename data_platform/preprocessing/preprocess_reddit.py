@@ -97,7 +97,7 @@ def filter_comments(
     return filter_records(comments, spec)
 
 
-def preprocess_records(dataset_id: str) -> Path | None:
+def preprocess_records(dataset_id: str) -> Path:
     return run_preprocess_records(dataset_id, REDDIT_SPEC)
 
 

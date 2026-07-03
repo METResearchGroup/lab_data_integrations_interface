@@ -55,6 +55,11 @@ def _append_csv(rows: list[dict[str, Any]], output_path: Path, fieldnames: list[
         writer.writerows(rows)
 
 
+def _write_parquet(rows: list[dict[str, Any]], output_path: Path, fieldnames: list[str]) -> None:
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=fieldnames)
+    df.to_parquet(output_path, index=False)
+
+
 class StorageManager:
     platform: str
     stage: StorageStage
@@ -142,10 +147,10 @@ class StorageManager:
         filename: str | None = None,
     ) -> Path:
         out_path = run_dir / (filename or self.records_filename)
+        fieldnames = list(self.model.model_fields.keys())
         if self.format == "parquet":
-            pd.DataFrame(rows).to_parquet(out_path, index=False)
+            _write_parquet(rows, out_path, fieldnames)
         else:
-            fieldnames = list(self.model.model_fields.keys())
             _write_csv(rows, out_path, fieldnames)
         return out_path
 
