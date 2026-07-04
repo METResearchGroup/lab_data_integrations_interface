@@ -14,4 +14,6 @@ def delete_dataset_local_files(platform: str, dataset_id: str) -> None:
     never run ahead of the S3 copy actually existing.
     """
     require_dataset_fully_uploaded(platform, dataset_id)
-    shutil.rmtree(dataset_root(platform, dataset_id))
+    root = dataset_root(platform, dataset_id)
+    shutil.rmtree(root)
+    print(f"delete_dataset_local_files: deleted {root}")
