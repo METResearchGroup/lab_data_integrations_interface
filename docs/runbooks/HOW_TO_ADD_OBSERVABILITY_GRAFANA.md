@@ -52,11 +52,16 @@ Railway's **Variables** tab for the deployed backend, see
 | Variable | Value | Notes |
 |---|---|---|
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `https://otlp-gateway-<region>.grafana.net/otlp` | Base gateway URL — the SDK appends `/v1/traces`, `/v1/logs`, `/v1/metrics` per signal automatically. Don't point this at a signal-specific path. |
-| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | Required. `opentelemetry-distro` defaults this to `grpc` if unset (see `opentelemetry/distro/__init__.py`'s `os.environ.setdefault(...)` calls) — Grafana Cloud's gateway needs `http/protobuf`, so this is the one var that must be set explicitly. |
 | `OTEL_EXPORTER_OTLP_HEADERS` | `Authorization=Basic%20<base64(instanceID:token)>` | Note the `%20` — the Python OTLP exporter needs the header value URL-encoded, a literal space breaks it. |
 | `OTEL_SERVICE_NAME` | `backend` | Not currently set — add this so the service shows up with a clear name in Grafana instead of a default. |
-| `OTEL_LOGS_EXPORTER` | `otlp` | Not currently set. Traces/metrics default to `otlp` in `opentelemetry-distro`, but log export is opt-in — without this, logs never reach Loki even with the instrumentation package installed. |
-| `OTEL_METRICS_EXPORTER` | `otlp` | Not currently set. Defaults to `otlp` already, but set explicitly to be safe. |
+
+`OTEL_TRACES_EXPORTER`, `OTEL_METRICS_EXPORTER`, and `OTEL_LOGS_EXPORTER` do
+**not** need to be set — `opentelemetry-distro` defaults all three to `otlp`
+via `os.environ.setdefault(...)` before the SDK reads them (verified in the
+installed package source and empirically by inspecting the configured
+providers under `opentelemetry-instrument`). All three signals export by
+default; only the protocol needs overriding.
 
 ## Viewing data in Grafana Cloud
 
