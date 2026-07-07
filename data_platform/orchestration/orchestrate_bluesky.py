@@ -35,6 +35,7 @@ from data_platform.orchestration.pipeline_run import (
 )
 from data_platform.preprocessing.preprocess_bluesky import preprocess_records
 from data_platform.utils.config_paths import load_yaml_config, resolve_config_path
+from data_platform.utils.disk_cleanup import delete_dataset_local_files
 from lib.timestamp_utils import get_current_timestamp
 
 INGESTION_CONFIGS_DIR = Path(__file__).resolve().parents[1] / "ingestion/configs/bluesky"
@@ -64,6 +65,11 @@ def features_task(dataset_id: str) -> dict[str, Path]:
 @task(name="curate-bluesky")
 def curate_task(dataset_id: str, curate_config: Path) -> Path:
     return curate_bluesky(curate_config, dataset_id)
+
+
+@task(name="disk-cleanup-bluesky")
+def disk_cleanup_task(dataset_id: str) -> None:
+    delete_dataset_local_files("bluesky", dataset_id)
 
 
 def _record_best_effort(record: Callable[[], None]) -> None:
@@ -138,6 +144,12 @@ def orchestrate_bluesky(
         "curation",
         lambda: curate_task(dataset_id, curate_config),
         lambda r: r.name,
+    )
+    _run_stage(
+        pipeline_run_id,
+        "disk_cleanup",
+        lambda: disk_cleanup_task(dataset_id),
+        lambda _: None,
     )
 
     finalize_pipeline_run(pipeline_run_id, status="completed", completed_at=get_current_timestamp())
