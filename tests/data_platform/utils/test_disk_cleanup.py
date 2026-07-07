@@ -8,13 +8,11 @@ from data_platform.utils.dataset import dataset_root
 from data_platform.utils.disk_cleanup import delete_dataset_local_files
 from data_platform.utils.storage import BlueskyStorageManager, StorageStage
 from tests.data_platform.constants import VALID_DATASET_ID
-from tests.data_platform.utils.conftest import write_stage_metadata
+from tests.data_platform.utils.conftest import seed_fully_uploaded_dataset, write_stage_metadata
 
 
 def test_delete_dataset_local_files_removes_directory_when_fully_uploaded(data_root: Path) -> None:
-    curated = BlueskyStorageManager(StorageStage.CURATED, VALID_DATASET_ID)
-    write_stage_metadata(curated.create_new_run_dir("2026_01_01-00:10:00"), s3_upload_status=True)
-    root = dataset_root("bluesky", VALID_DATASET_ID)
+    root = seed_fully_uploaded_dataset()
     assert root.exists()
 
     delete_dataset_local_files("bluesky", VALID_DATASET_ID)

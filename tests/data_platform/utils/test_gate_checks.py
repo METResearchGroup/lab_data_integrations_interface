@@ -8,7 +8,7 @@ from data_platform.utils.dataset import dataset_root
 from data_platform.utils.gate_checks import require_dataset_fully_uploaded
 from data_platform.utils.storage import BlueskyStorageManager, StorageStage
 from tests.data_platform.constants import VALID_DATASET_ID
-from tests.data_platform.utils.conftest import write_stage_metadata
+from tests.data_platform.utils.conftest import seed_fully_uploaded_dataset, write_stage_metadata
 
 
 def test_require_dataset_fully_uploaded_passes_when_dataset_root_missing(data_root: Path) -> None:
@@ -24,17 +24,7 @@ def test_require_dataset_fully_uploaded_passes_when_no_metadata_files_found(
 
 
 def test_require_dataset_fully_uploaded_passes_when_all_metadata_uploaded(data_root: Path) -> None:
-    raw = BlueskyStorageManager(StorageStage.RAW, VALID_DATASET_ID)
-    preprocessed = BlueskyStorageManager(StorageStage.PREPROCESSED, VALID_DATASET_ID)
-    curated = BlueskyStorageManager(StorageStage.CURATED, VALID_DATASET_ID)
-    write_stage_metadata(raw.create_new_run_dir("2026_01_01-00:00:00"), s3_upload_status=True)
-    write_stage_metadata(
-        preprocessed.create_new_run_dir("2026_01_01-00:05:00"), s3_upload_status=True
-    )
-    write_stage_metadata(curated.create_new_run_dir("2026_01_01-00:10:00"), s3_upload_status=True)
-    write_stage_metadata(
-        dataset_root("bluesky", VALID_DATASET_ID) / "features", s3_upload_status=True
-    )
+    seed_fully_uploaded_dataset()
 
     require_dataset_fully_uploaded("bluesky", VALID_DATASET_ID)
 

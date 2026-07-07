@@ -21,10 +21,8 @@ from data_platform.orchestration.pipeline_run import (
     init_pipeline_run,
     record_stage_result,
 )
-from data_platform.utils.dataset import dataset_root
-from data_platform.utils.storage import BlueskyStorageManager, StorageStage
 from tests.data_platform.constants import VALID_DATASET_ID
-from tests.data_platform.utils.conftest import write_stage_metadata
+from tests.data_platform.utils.conftest import seed_fully_uploaded_dataset
 
 INGESTION_CONFIG = Path("ingestion.yaml")
 CURATE_CONFIG = Path("curate.yaml")
@@ -390,26 +388,12 @@ def test_finalize_pipeline_run_writes_status_and_completed_at(mock_table: MagicM
     )
 
 
-def _seed_uploaded_dataset(data_root: Path) -> Path:
-    """Write real, fully-uploaded metadata.json files for every stage on disk, so the
-    real (unmocked) delete_dataset_local_files has something genuine to check and delete."""
-    for stage in (StorageStage.RAW, StorageStage.PREPROCESSED, StorageStage.CURATED):
-        storage = BlueskyStorageManager(stage, VALID_DATASET_ID)
-        write_stage_metadata(
-            storage.create_new_run_dir("2026_01_01-00:00:00"), s3_upload_status=True
-        )
-    write_stage_metadata(
-        dataset_root("bluesky", VALID_DATASET_ID) / "features", s3_upload_status=True
-    )
-    return dataset_root("bluesky", VALID_DATASET_ID)
-
-
 def test_orchestrate_bluesky_deletes_local_dataset_files_after_curation_succeeds(
     monkeypatch: pytest.MonkeyPatch,
     recorded_calls: dict[str, list[Any]],
     data_root: Path,
 ) -> None:
-    root = _seed_uploaded_dataset(data_root)
+    root = seed_fully_uploaded_dataset()
     assert root.exists()
 
     monkeypatch.setattr(orch, "sync_records", lambda _cfg: Path("raw/2026_01_01-00:00:00"))
@@ -436,7 +420,7 @@ def test_orchestrate_bluesky_does_not_delete_local_files_when_curation_fails(
     recorded_calls: dict[str, list[Any]],
     data_root: Path,
 ) -> None:
-    root = _seed_uploaded_dataset(data_root)
+    root = seed_fully_uploaded_dataset()
     assert root.exists()
 
     monkeypatch.setattr(orch, "sync_records", lambda _cfg: Path("raw/2026_01_01-00:00:00"))
