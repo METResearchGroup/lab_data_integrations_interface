@@ -22,6 +22,7 @@ from data_platform.orchestration.pipeline_run import (
     record_stage_result,
 )
 from tests.data_platform.constants import VALID_DATASET_ID
+from tests.data_platform.utils.conftest import seed_fully_uploaded_dataset
 
 INGESTION_CONFIG = Path("ingestion.yaml")
 CURATE_CONFIG = Path("curate.yaml")
@@ -88,19 +89,27 @@ def test_full_success_records_each_stage_and_finalizes_completed(
     monkeypatch.setattr(
         orch, "curate_bluesky", lambda _cfg, _dataset_id: Path("curated/2026_01_01-00:10:00")
     )
+    monkeypatch.setattr(orch, "delete_dataset_local_files", lambda _platform, _dataset_id: None)
 
     orch.orchestrate_bluesky(INGESTION_CONFIG, CURATE_CONFIG)
 
     assert recorded_calls["init"] == [("fixed-run-id", VALID_DATASET_ID)]
 
     stages = recorded_calls["stage"]
-    assert [s["stage"] for s in stages] == ["ingestion", "preprocessing", "features", "curation"]
-    assert [s["status"] for s in stages] == ["completed"] * 4
+    assert [s["stage"] for s in stages] == [
+        "ingestion",
+        "preprocessing",
+        "features",
+        "curation",
+        "disk_cleanup",
+    ]
+    assert [s["status"] for s in stages] == ["completed"] * 5
     assert [s["run_id"] for s in stages] == [
         "2026_01_01-00:00:00",
         "2026_01_01-00:05:00",
         None,
         "2026_01_01-00:10:00",
+        None,
     ]
     assert recorded_calls["finalize"] == [
         {"pipeline_run_id": "fixed-run-id", "status": "completed", "completed_at": ANY}
@@ -172,6 +181,7 @@ def test_init_pipeline_run_receives_dataset_id_and_a_real_timestamp(
     monkeypatch.setattr(
         orch, "curate_bluesky", lambda _cfg, _dataset_id: Path("curated/2026_01_01-00:10:00")
     )
+    monkeypatch.setattr(orch, "delete_dataset_local_files", lambda _platform, _dataset_id: None)
 
     orch.orchestrate_bluesky(INGESTION_CONFIG, CURATE_CONFIG)
 
@@ -209,10 +219,14 @@ def test_record_stage_result_failure_on_success_path_is_logged_not_raised(
         called.append("curation")
         return Path("curated/2026_01_01-00:10:00")
 
+    def fake_disk_cleanup(_platform: str, _dataset_id: str) -> None:
+        called.append("disk_cleanup")
+
     monkeypatch.setattr(orch, "sync_records", fake_sync)
     monkeypatch.setattr(orch, "preprocess_records", fake_preprocess)
     monkeypatch.setattr(orch, "generate_bluesky_features", fake_features)
     monkeypatch.setattr(orch, "curate_bluesky", fake_curate)
+    monkeypatch.setattr(orch, "delete_dataset_local_files", fake_disk_cleanup)
 
     def flaky_record_stage_result(
         pipeline_run_id: str,
@@ -240,7 +254,7 @@ def test_record_stage_result_failure_on_success_path_is_logged_not_raised(
         orch.orchestrate_bluesky(INGESTION_CONFIG, CURATE_CONFIG)
 
     # every stage still ran despite the ingestion stage's write failing
-    assert called == ["ingestion", "preprocessing", "features", "curation"]
+    assert called == ["ingestion", "preprocessing", "features", "curation", "disk_cleanup"]
     # the failed write was logged, not allowed to raise
     assert "Failed to record pipeline run state" in caplog.text
     # remaining stages' writes still went through normally
@@ -248,6 +262,7 @@ def test_record_stage_result_failure_on_success_path_is_logged_not_raised(
         "preprocessing",
         "features",
         "curation",
+        "disk_cleanup",
     ]
     # one bad write doesn't sour the overall run
     assert recorded_calls["finalize"] == [
@@ -371,3 +386,57 @@ def test_finalize_pipeline_run_writes_status_and_completed_at(mock_table: MagicM
         ExpressionAttributeNames={"#n0_0": "status", "#n1_0": "completed_at"},
         ExpressionAttributeValues={":v0": "completed", ":v1": "2026_01_01-00:10:00"},
     )
+
+
+def test_orchestrate_bluesky_deletes_local_dataset_files_after_curation_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+    recorded_calls: dict[str, list[Any]],
+    data_root: Path,
+) -> None:
+    root = seed_fully_uploaded_dataset()
+    assert root.exists()
+
+    monkeypatch.setattr(orch, "sync_records", lambda _cfg: Path("raw/2026_01_01-00:00:00"))
+    monkeypatch.setattr(
+        orch, "preprocess_records", lambda _dataset_id: Path("preprocessed/2026_01_01-00:05:00")
+    )
+    monkeypatch.setattr(orch, "generate_bluesky_features", lambda _dataset_id: {})
+    monkeypatch.setattr(
+        orch, "curate_bluesky", lambda _cfg, _dataset_id: Path("curated/2026_01_01-00:10:00")
+    )
+    # delete_dataset_local_files is intentionally left unmocked here -- this test's whole
+    # point is proving the real deletion happens against real files on disk.
+
+    orch.orchestrate_bluesky(INGESTION_CONFIG, CURATE_CONFIG)
+
+    stages = recorded_calls["stage"]
+    assert stages[-1]["stage"] == "disk_cleanup"
+    assert stages[-1]["status"] == "completed"
+    assert not root.exists()
+
+
+def test_orchestrate_bluesky_does_not_delete_local_files_when_curation_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    recorded_calls: dict[str, list[Any]],
+    data_root: Path,
+) -> None:
+    root = seed_fully_uploaded_dataset()
+    assert root.exists()
+
+    monkeypatch.setattr(orch, "sync_records", lambda _cfg: Path("raw/2026_01_01-00:00:00"))
+    monkeypatch.setattr(
+        orch, "preprocess_records", lambda _dataset_id: Path("preprocessed/2026_01_01-00:05:00")
+    )
+    monkeypatch.setattr(orch, "generate_bluesky_features", lambda _dataset_id: {})
+
+    def fake_curate(_cfg: Path, _dataset_id: str) -> Path:
+        raise RuntimeError("curation exploded")
+
+    monkeypatch.setattr(orch, "curate_bluesky", fake_curate)
+
+    with pytest.raises(RuntimeError, match="curation exploded"):
+        orch.orchestrate_bluesky(INGESTION_CONFIG, CURATE_CONFIG)
+
+    stages = recorded_calls["stage"]
+    assert "disk_cleanup" not in [s["stage"] for s in stages]
+    assert root.exists()

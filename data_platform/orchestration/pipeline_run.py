@@ -12,7 +12,7 @@ from typing import Any
 from data_platform.aws.constants import PIPELINE_RUNS_TABLE
 from data_platform.aws.dynamodb import DynamoDB
 
-STAGE_NAMES = ("ingestion", "preprocessing", "features", "curation")
+STAGE_NAMES = ("ingestion", "preprocessing", "features", "curation", "disk_cleanup")
 
 
 def new_pipeline_run_id() -> str:
