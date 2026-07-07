@@ -4,7 +4,7 @@
 
 This runbook covers how to start `backend/` with telemetry exporting to
 Grafana Cloud, and how to run it without — no code branching or feature flag
-involved. See [HOW_TO_ADD_OBSERVABILITY_GRAFANA.md](HOW_TO_ADD_OBSERVABILITY_GRAFANA.md)
+involved. See [grafana-cloud-observability-setup.md](grafana-cloud-observability-setup.md)
 for the dependencies/env vars this assumes are already in place.
 
 ## How the on/off switch works
@@ -50,7 +50,7 @@ would be too late — the SDK would already be configured (or not) by then.
    curl "http://localhost:8000/posts/recent?dataset_id=<id>"
    ```
 2. Check Grafana Cloud (Application Observability or Explore, per
-   [HOW_TO_ADD_OBSERVABILITY_GRAFANA.md](HOW_TO_ADD_OBSERVABILITY_GRAFANA.md))
+   [grafana-cloud-observability-setup.md](grafana-cloud-observability-setup.md))
    for a `backend` service with matching traces/logs.
 3. If nothing shows up, confirm `OTEL_EXPORTER_OTLP_ENDPOINT` /
    `OTEL_EXPORTER_OTLP_HEADERS` are actually present in the environment the
@@ -65,7 +65,7 @@ form above, so telemetry is on by default in the deployed backend — no
 contents directly into the container's environment.
 
 The one remaining step: the env vars from
-[HOW_TO_ADD_OBSERVABILITY_GRAFANA.md](HOW_TO_ADD_OBSERVABILITY_GRAFANA.md)
+[grafana-cloud-observability-setup.md](grafana-cloud-observability-setup.md)
 (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`,
 `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_SERVICE_NAME`, `OTEL_LOGS_EXPORTER`,
 `OTEL_METRICS_EXPORTER`) still need to be added to Railway's **Variables**
