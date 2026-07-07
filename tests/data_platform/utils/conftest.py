@@ -36,6 +36,6 @@ def seed_fully_uploaded_dataset() -> Path:
             storage.create_new_run_dir("2026_01_01-00:00:00"), s3_upload_status=True
         )
     write_stage_metadata(
-        dataset_root("bluesky", VALID_DATASET_ID) / "features", s3_upload_status=True
+        dataset_root("bluesky", VALID_DATASET_ID) / StorageStage.FEATURES, s3_upload_status=True
     )
     return dataset_root("bluesky", VALID_DATASET_ID)
