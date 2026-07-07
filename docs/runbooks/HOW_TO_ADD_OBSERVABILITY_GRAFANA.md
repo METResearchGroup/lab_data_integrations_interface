@@ -63,7 +63,7 @@ Railway's **Variables** tab for the deployed backend, see
 1. **Application Observability** (guided, recommended first stop): in your
    Grafana Cloud stack, go to **Observability → Application**. Once the app
    has sent data (see
-   [backend-observability-usage.md](backend-observability-usage.md)), a
+   [HOW_TO_RUN_BACKEND_APP.md](HOW_TO_RUN_BACKEND_APP.md)), a
    service card appears named after `OTEL_SERVICE_NAME`, with RED metrics,
    trace search, and correlated logs pre-wired.
 2. **Explore** (raw queries): pick the Tempo/Loki/Mimir datasource from the

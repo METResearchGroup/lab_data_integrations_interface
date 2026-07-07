@@ -4,7 +4,7 @@
 
 This runbook covers how to start `backend/` with telemetry exporting to
 Grafana Cloud, and how to run it without — no code branching or feature flag
-involved. See [grafana-cloud-observability-setup.md](grafana-cloud-observability-setup.md)
+involved. See [HOW_TO_ADD_OBSERVABILITY_GRAFANA.md](HOW_TO_ADD_OBSERVABILITY_GRAFANA.md)
 for the dependencies/env vars this assumes are already in place.
 
 ## How the on/off switch works
@@ -50,7 +50,7 @@ would be too late — the SDK would already be configured (or not) by then.
    curl "http://localhost:8000/posts/recent?dataset_id=<id>"
    ```
 2. Check Grafana Cloud (Application Observability or Explore, per
-   [grafana-cloud-observability-setup.md](grafana-cloud-observability-setup.md))
+   [HOW_TO_ADD_OBSERVABILITY_GRAFANA.md](HOW_TO_ADD_OBSERVABILITY_GRAFANA.md))
    for a `backend` service with matching traces/logs.
 3. If nothing shows up, confirm `OTEL_EXPORTER_OTLP_ENDPOINT` /
    `OTEL_EXPORTER_OTLP_HEADERS` are actually present in the environment the
@@ -59,10 +59,15 @@ would be too late — the SDK would already be configured (or not) by then.
 
 ## Deploying
 
-`railway.json`'s `startCommand` currently runs plain `uvicorn` (no telemetry
-wrapper). To enable telemetry in the deployed backend, that command needs to
-be updated to the `opentelemetry-instrument`-wrapped form above, and the env
-vars from [grafana-cloud-observability-setup.md](grafana-cloud-observability-setup.md)
-need to be set in Railway's **Variables** tab (see
-[backend-railway-deploy.md](backend-railway-deploy.md)) — this hasn't been
-done yet.
+`railway.json`'s `startCommand` runs the `opentelemetry-instrument`-wrapped
+form above, so telemetry is on by default in the deployed backend — no
+`--env-file` needed there, since Railway injects the **Variables** tab
+contents directly into the container's environment.
+
+The one remaining step: the env vars from
+[HOW_TO_ADD_OBSERVABILITY_GRAFANA.md](HOW_TO_ADD_OBSERVABILITY_GRAFANA.md)
+(`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`,
+`OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_SERVICE_NAME`, `OTEL_LOGS_EXPORTER`,
+`OTEL_METRICS_EXPORTER`) still need to be added to Railway's **Variables**
+tab (see [backend-railway-deploy.md](backend-railway-deploy.md)) — without
+them, the wrapper runs but exports nowhere.
