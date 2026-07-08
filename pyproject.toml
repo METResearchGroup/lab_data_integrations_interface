@@ -28,6 +28,11 @@ dependencies = [
     "langdetect>=1.0.9",
     "tweepy>=4.14.0",
     "boto3>=1.35.0",
+    "opentelemetry-distro~=0.64b0",
+    "opentelemetry-exporter-otlp~=1.43.0",
+    "opentelemetry-instrumentation-fastapi~=0.64b0",
+    "opentelemetry-instrumentation-logging~=0.64b0",
+    "opentelemetry-instrumentation-botocore~=0.64b0",
 ]
 
 [project.optional-dependencies]
