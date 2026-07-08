@@ -8,7 +8,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-06-29T06:47:54.213925Z"
+exclude-newer = "2026-07-01T02:06:41.393615Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -1205,11 +1205,11 @@ requires-dist = [
     { name = "langdetect", specifier = ">=1.0.9" },
     { name = "langdetect", marker = "extra == 'preprocessing'", specifier = ">=1.0.9" },
     { name = "numpy", specifier = ">=2.4.4" },
-    { name = "opentelemetry-distro", specifier = ">=0.64b0" },
-    { name = "opentelemetry-exporter-otlp", specifier = ">=1.43.0" },
-    { name = "opentelemetry-instrumentation-botocore", specifier = ">=0.64b0" },
-    { name = "opentelemetry-instrumentation-fastapi", specifier = ">=0.64b0" },
-    { name = "opentelemetry-instrumentation-logging", specifier = ">=0.64b0" },
+    { name = "opentelemetry-distro", specifier = "~=0.64b0" },
+    { name = "opentelemetry-exporter-otlp", specifier = "~=1.43.0" },
+    { name = "opentelemetry-instrumentation-botocore", specifier = "~=0.64b0" },
+    { name = "opentelemetry-instrumentation-fastapi", specifier = "~=0.64b0" },
+    { name = "opentelemetry-instrumentation-logging", specifier = "~=0.64b0" },
     { name = "opik", specifier = ">=1.0.0" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "praw", specifier = ">=7.7.0" },
