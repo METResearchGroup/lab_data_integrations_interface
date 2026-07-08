@@ -64,10 +64,10 @@ form above, so telemetry is on by default in the deployed backend — no
 `--env-file` needed there, since Railway injects the **Variables** tab
 contents directly into the container's environment.
 
-The one remaining step: the env vars from
+Make sure to include the env vars from
 [grafana-cloud-observability-setup.md](grafana-cloud-observability-setup.md)
 (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`,
 `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_SERVICE_NAME`, `OTEL_LOGS_EXPORTER`,
-`OTEL_METRICS_EXPORTER`) still need to be added to Railway's **Variables**
+`OTEL_METRICS_EXPORTER`) in Railway's **Variables**
 tab (see [backend-railway-deploy.md](backend-railway-deploy.md)) — without
 them, the wrapper runs but exports nowhere.
