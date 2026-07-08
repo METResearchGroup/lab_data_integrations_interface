@@ -22,7 +22,7 @@ app.add_middleware(
 @app.get("/health")
 def health():
     """Health check endpoint. Returns 200 when the service is up."""
-    logger.info("health check called")
+    logger.debug("health check called")
     return {"status": "ok"}
 
 
