@@ -43,7 +43,7 @@ Therefore, the next versions of the app should revolve around achieving both of 
 Currently, we're looking at the following as the next units of work:
 
 - [Adding support for Jetstream backfills + more data types](https://github.com/METResearchGroup/lab_data_integrations_interface/issues/111)
-- [Introducing agentic search](...)
+- [Introducing agentic search](https://github.com/METResearchGroup/lab_data_integrations_interface/issues/116)
 
 Once these are done, some things that we'll want to work on next include:
 
