@@ -17,7 +17,10 @@ Likely steps are:
 
 ## Proposal
 
-Our proposal is a 
+Our proposal is a natural-language (NL) to SQL search interface. We propose a natural language query interface, where we take user queries, convert to SQL, execute the queries, and return results to users. Along the way, we include layers of caching and validation.
+
+### High-level architecture
+
 ```mermaid
 flowchart LR
     U["User query:<br/>'I want all posts liked by Stanley<br/>in the past 2 weeks'"]
@@ -60,9 +63,35 @@ flowchart LR
     VAL_RES --> CACHE
 ```
 
-We propose a natural language query interface, where we take user queries, convert to SQL, execute the queries, and return results to users. Along the way, we include layers of caching and validation.
+### User-facing behavior
+
+### Goals/non-goals
+
+#### What is in-scope
+
+- NL-to-SQL end-to-end pipeline.
+- Validation + preprocessing/postprocessing.
+- API gateway layer (for rate limiting, authorization, etc).
+- Agent plane observability: adding telemetry to the app and integrating with the existing [Grafana-based telemetry plane](https://github.com/METResearchGroup/lab_data_integrations_interface/issues/113). Some key metrics we care to track include error rate, p95/p99, cache hits/misses.
+- LLMOps for the LLM components (router query, SQL generation query, and RAG steps).
+- Basic FinOps: we want to track the cost of supporting our expected use case. We want to understand the cost of scaling different application components as well as provide a cost basis that we can then convert into a well-structured proposal for multi-TB project expansion.
+
+#### What is out-of-scope
+
+- Support for expanding data availability: this is managed in [this call for proposal](https://github.com/METResearchGroup/lab_data_integrations_interface/issues/111). The current plan builds on top of the existing database.
+- Expanded app interactions beyond natural-language queries: we will keep the same endpoint that exists in FastAPI, focusing on providing a NL interface for users to request data.
+- Expanding to multiple data sources and data integrations: this is managed in [this call for proposal](https://github.com/METResearchGroup/lab_data_integrations_interface/issues/111). The current plan builds on top of the existing data integrations.
+- Multi-agent systems: two consecutive LLM calls are more than enough. No need for multi-agent architectures.
+
+### Key design choices
+
+### Scope of changes
+
+Here, we introduce a new product surface. We replace the existing simple FastAPI + Athena query logic with a NL query interface.
 
 ## Implementation details
+
+...
 
 ### Prompting
 
@@ -175,6 +204,20 @@ the presigned URL for that past query.
 Can possibly use a combination, e.g., using Option 1 first, then Option 2, then Option 3, in sequence.
 
 Also Options 1+2 are probably via Redis, Option 3 is via vector DB (higher latency, higher cost, but more accurate)
+
+### Observability/Telemetry
+
+#### System Ops
+
+...
+
+#### LLMOps
+
+...
+
+#### FinOps
+
+...
 
 ## Alternatives considered
 
