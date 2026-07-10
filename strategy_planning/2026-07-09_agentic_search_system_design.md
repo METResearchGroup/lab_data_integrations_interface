@@ -9,8 +9,15 @@ Likely steps are:
 - We'll make this more robust (add validation, avoid prompt injection, make sure queries don't give results that are too large, etc). We can do more experiments for this step as well.
 - Then we can put into production (still vague as to what that means).
 
-## High-level design
+## Purpose
 
+...
+
+## Background
+
+## Proposal
+
+Our proposal is a 
 ```mermaid
 flowchart LR
     U["User query:<br/>'I want all posts liked by Stanley<br/>in the past 2 weeks'"]
@@ -53,11 +60,13 @@ flowchart LR
     VAL_RES --> CACHE
 ```
 
+We propose a natural language query interface, where we take user queries, convert to SQL, execute the queries, and return results to users. Along the way, we include layers of caching and validation.
+
 ## Implementation details
 
 ### Prompting
 
-Possible draft prompt for "ask an LLM to create the query":
+#### Draft query generation prompt
 
 ```markdown
 {SYSTEM_PROMPT}
@@ -79,6 +88,98 @@ Given that we have these columns and tables, generate an Athena SQL query for th
 {cleaned up version of the user's prompt}
 ```
 
-We'll need to do some experiments and have eval datasets to see if we're generating the right prompts.
+#### Draft router prompt
+
+```markdown
+You are a routing agent, charged with gatekeeping access to a database.
+
+Our database has the following tables and columns:
+
+{tables + columns from Glue}
+
+{other system prompt details}
+
+This is a query that a user has for our DB.
+
+{cleaned up version of the user's prompt}.  
+
+This is a request that a user has for our DB.
+
+Classify the request using the following labels:
+
+- VALID
+- INVALID_MISSING_DATASET: Invalid because we don't have that table/dataset.
+- INVALID_MISSING_ROWS: Invalid because we lack the rows of data.
+- INVALID_UNQUERYABLE_REQUEST: Invalid because the user request isn't something that can be queried (e.g., "What is 2+2").
+- INVALID_OTHER: Invalid for other reasons.
+
+{Include few-shot examples}
+
+Classify the request:
+
+{cleaned up version of the user's prompt}
+```
+
+#### Testing + Experimentation
+
+We'll need to do some experiments and have eval datasets to see if we're generating the right prompts. We'll want to create 40-50 queries for each use case, determine common query patterns, and use a subset as representative few-shot examples while keep the remaining as a validation set.
+
+We'll also add regression testing as part of nightly tests, CI/CD (especially before big production releases relating to the search functionality).
+
+We also want to add telemetry and take a subset of production traffic, perhaps every 1-2 days, and manually QA the samples + generate new evaluation samples.
 
 ### Caching
+
+We want to invest in a good caching system (Redis cache + DB search of past queries + RAG) so as to avoid expensive queries + Athena calls. We also want to prioritize caching results of large queries, and caching results of smaller queries is less important (though will have to see financial tradeoff of keeping extra RAM in Redis + RAG queries vs. cost of executing smaller queries).
+
+Our motivating example is the following user query:
+
+```json
+{
+     "user_query": "I want all posts liked by Stanley in the past 2 months.",
+     "cleaned_query": "i want all posts liked by stanley in the past 2 months",
+}
+```
+
+#### Option 1: Matching on other entities or values
+
+We can match on entities/values extracted from the user query.
+
+```json
+{
+     "user_query": "I want all posts liked by Stanley in the past 2 months.",
+     "cleaned_query": "i want all posts liked by stanley in the past 2 months",
+     // don't match on the exact query string, match on the entities
+    "users_referenced": "Stanley",
+    "entities_mentioned": "posts",
+    "timeframe": "last 2 months"
+
+    // cache key could be something like {users referenced}::{entities}::{timeframe}
+    // i want all posts liked by stanley in the past 2 months" vs.
+    // i want all posts in the past 2 months  liked by stanley" have the same cache key
+}
+```
+
+This is a low-cost approach, easy to implement and requires 0 LLM calls. It may require deploying some pretrained NER models, but beyond that  
+
+Option 2: Fuzzy matching
+
+Basically an extension of option 1, but not looking for exact match, but rather approximate string.
+
+Option 3: Hybrid RAG (semantic search + BM25)
+
+Can use RAG to find queries that are similar enough, then grab those similar queries, pass to an LLM,
+ask an LLM "are any of these past queries the same as what a user is looking for?". If yes, return
+the presigned URL for that past query.
+
+Can possibly use a combination, e.g., using Option 1 first, then Option 2, then Option 3, in sequence.
+
+Also Options 1+2 are probably via Redis, Option 3 is via vector DB (higher latency, higher cost, but more accurate)
+
+## Alternatives considered
+
+...
+
+## Cross-cutting concerns
+
+...
