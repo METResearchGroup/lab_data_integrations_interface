@@ -44,6 +44,8 @@ Currently, we're looking at the following as the next units of work:
 
 - [Adding support for Jetstream backfills + more data types](https://github.com/METResearchGroup/lab_data_integrations_interface/issues/111)
 - [Introducing agentic search](https://github.com/METResearchGroup/lab_data_integrations_interface/issues/116)
+- Add cron jobs on common query requests, to continuously collect that data.
+  - We can do this temporarily via the API for now, though to really get a lot of data we'll have to use the Bluesky firehose. If we want to collect tens of thousands of records daily, this is infeasible via API (we'll hit rate limits), and ideally we could scale this up to hundreds of thousands or even millions of daily records.
 
 Once these are done, some things that we'll want to work on next include:
 
