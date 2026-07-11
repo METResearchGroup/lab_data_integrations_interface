@@ -776,12 +776,27 @@ Large result files might become a meaningful storage cost over time. For each re
 
 We also want to reference against a retention policy. This retention policy should account for user expectations, research reproducibility, IRB requirements, etc.
 
-### Scaling the results
+### Scaling how we manage query results
 
 A v1 approach is presigned URLs. We can probably ship this as a v1, but what do we do with queries that will return LARGE results? A few options here:
 
 - Disallow such queries, and tell them to contact the team: this removes the possibility of an end user querying lots of data, but still leaves it up to the internal team to have a policy for queries with a large number of results. This can possibly be combined with other methods (see below)
 - Return paginated results: We can either (1) paginate the query internally, run multiple queries, and combine the results after the fact, or (2) run the expensive query once and then paginate the results ourselves. We can experiment with the more feasible approach (feasible via cost + runtime). I suspect the second approach is better since running multiple queries in order to get subsets of rows will result in more disk reads, which is where the cost will really pile on.
+
+#### Guiding principles to consider
+
+For scaling the results, there are a few principles for us to consider:
+
+1. Execute expensive queries at most once: Pagination should not repeatedly scan the same Athena data.
+2. Separate query execution from result consumption: Once a query is done, users should read or download the materialized artifact instead of re-executing the query.
+3. Apply limits before execution where possible.
+4. Treat large exports as async jobs: the HTTP request should not remain open while a large query and export completes.
+5. Use different delivery paths for previews and full datasets: interactive pagination is useful for inspecting results, while a file export is more appropriate for complete datasets.
+6. Reject workloads we can't safely support.
+
+#### A tiered management policy
+
+We can define configurable result tiers and have a separate management approach for each. We'll have to determine
 
 ## Alternatives considered
 
