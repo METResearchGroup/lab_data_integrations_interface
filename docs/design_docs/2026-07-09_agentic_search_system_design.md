@@ -90,6 +90,13 @@
       - [Async job model](#async-job-model)
       - [Materialized-result design](#materialized-result-design)
   - [Cross-cutting concerns](#cross-cutting-concerns)
+    - [Security and authorization](#security-and-authorization)
+    - [Idempoptency and duplicate requests](#idempoptency-and-duplicate-requests)
+    - [Configuration and environment management](#configuration-and-environment-management)
+    - [Failure isolation and degraded behavior](#failure-isolation-and-degraded-behavior)
+    - [Consistency and state transitions](#consistency-and-state-transitions)
+    - [User experience and explainability](#user-experience-and-explainability)
+    - [Maintainability and ownership](#maintainability-and-ownership)
   - [Errata](#errata)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -178,9 +185,34 @@ A user enters the app and enters a natural language query as well as an email fo
 
 ### Estimated scale
 
-... How many queries?
-... How many users?
-... Average size of records requested?
+The initial system is intended for a relatively small group of academic researchers rather than a high-volume public search product.
+
+For V1 planning, we can assume:
+
+- Tens of active users rather than thousands.
+- Low hundreds of requests per day at peak beta usage.
+- Low concurrent usage, likely fewer than 5–10 active queries at a time.
+- Most users submitting a small number of highly specific requests rather than repeatedly querying the system.
+- Most accepted requests returning datasets small enough to download and analyze locally.
+- A small minority of requests producing large scans or exports and requiring rejection or manual handling.
+
+The primary scalability risk is therefore not raw request throughput. It is the long-tail cost and runtime of individual queries. A single poorly constrained query may scan far more data than hundreds of ordinary requests.
+
+As a result, we'll want to focus capacity planning on measuring metrics such as:
+
+- Athena bytes scanned per request
+- Result size
+- Query runtime
+- Concurrent Athena executions
+- Storage consumed by generated result artifacts
+
+The architecture should support moderate growth without redesign, but we do not need to optimize V1 for large-scale public traffic. If usage grows substantially, likely scaling steps include:
+
+- Moving async work into a dedicated queue and worker pool.
+- Separating workloads based on size.
+- Introducing stricter quotas and classes.
+- Expanding precomputation and query optimization.
+- Adding autoscaling for API and worker services.
 
 ### Scope of changes
 
@@ -1068,6 +1100,7 @@ We should support a small result preview, but we do not need full interactive pa
 This is appropriate because the expected user goal is to obtain a research dataset for use in R, Python, or another analysis environment. Pagination improves browser usability, but it does not solve the user’s need to retrieve the complete dataset.
 
 #### Async job model
+
 Even moderate Athena requests may take longer than is appropriate for a synchronous HTTP connection.
 
 The API should model the request as a job with states such as:
@@ -1145,7 +1178,78 @@ The manifest allows us to:
 
 ## Cross-cutting concerns
 
-...
+### Security and authorization
+
+All access controls must be enforced service-side.
+
+Some measures include:
+
+- Authenticating every user.
+- Ensuring generated SQL cannot bypass authorization.
+- Restrict Athena to read-only workloads.
+- Use short-lived presigned URLs.
+
+### Idempoptency and duplicate requests
+
+Submitting or retrying the same request should not unintentionally create multiple expensive Athena executions. The job creation endpoint should have an idempotency key or an equivalent request-deduplication mechanism.
+
+The backend should distinguish between retrying an existing job, replaying a failed pipeline stage, intentionally submitting a new query, and reusing a previous completed result. Retries after Athena execution should reuse the existing query result whenever possible rather than rerunning the query.
+
+### Configuration and environment management
+
+Limits, prompts,  models, and as much of the infra setup as possible should be configuration-driven. Configuration changes should be versioned and included in request traces.
+
+In addition, we should have two environments, `dev` and `prod`, each with their own setup.
+
+### Failure isolation and degraded behavior
+
+Failures in one optional component should not necessarily make the entire application unavailable. Each dependency should have explicit timeout, retry, fallback, and circuit-breaker behavior.
+
+### Consistency and state transitions
+
+The asynchronous job state should have a single authoritative store.
+
+State transitions should be atomic and validated. For example:
+
+- A READY job should always have a valid result artifact.
+- A FAILED or REJECTED job should contain a stable reason.
+- An expired result should no longer expose an active download URL.
+- Reprocessing should not overwrite a completed result without an explicit new version.
+
+The database record, S3 artifact, and user-visible job status should not silently disagree.
+
+### User experience and explainability
+
+The system should communicate clearly when a request is:
+
+- Accepted and still running.
+- Rejected as unsupported.
+- Too large or expensive.
+- Valid but returns no results.
+- Failed due to a temporary system error.
+- Ready for download.
+- Expired.
+
+Users should receive actionable guidance rather than internal error details. For example, a large request should suggest narrowing the date range or selecting fewer fields.
+
+The system may show a brief normalized interpretation of the request so that the user can identify obvious misunderstandings before downloading the result.
+
+### Maintainability and ownership
+
+Logical responsibilities should remain separated even if V1 is deployed as a single backend service.
+
+We should maintain clear ownership boundaries for:
+
+- Frontend.
+- API and job orchestration.
+- LLM pipeline.
+- SQL validation and query policy.
+- Athena and data platform.
+- Result artifacts.
+- Observability.
+- Cost governance.
+
+This allows individual components to evolve independently and avoids turning the backend into a single tightly coupled request handler.
 
 ## Errata
 
