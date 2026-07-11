@@ -1,3 +1,52 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents** 
+
+- [Design Doc: Natural language search](#design-doc-natural-language-search)
+  - [Purpose](#purpose)
+  - [Background](#background)
+  - [Proposal](#proposal)
+    - [High-level architecture](#high-level-architecture)
+    - [User-facing behavior](#user-facing-behavior)
+    - [Goals/non-goals](#goalsnon-goals)
+      - [What is in-scope](#what-is-in-scope)
+      - [What is out-of-scope](#what-is-out-of-scope)
+    - [Key design choices](#key-design-choices)
+    - [Estimated scale](#estimated-scale)
+    - [Scope of changes](#scope-of-changes)
+  - [Implementation details](#implementation-details)
+    - [Per-service/component changes](#per-servicecomponent-changes)
+      - [Frontend input](#frontend-input)
+      - [Backend](#backend)
+      - [Athena client](#athena-client)
+      - [New service layers](#new-service-layers)
+        - [API Gateway](#api-gateway)
+    - [Schemas/APIs](#schemasapis)
+    - [Prompting](#prompting)
+      - [Draft query generation prompt](#draft-query-generation-prompt)
+      - [Draft router prompt](#draft-router-prompt)
+      - [Testing + Experimentation](#testing--experimentation)
+    - [Validation rules](#validation-rules)
+    - [Adding limits by default](#adding-limits-by-default)
+    - [Gating on the `EXPLAIN ANALYZE` query](#gating-on-the-explain-analyze-query)
+      - [Router layer validation](#router-layer-validation)
+      - [Validating generated SQL queries](#validating-generated-sql-queries)
+      - [Post-Athena validation/postprocesisng](#post-athena-validationpostprocesisng)
+    - [Caching design](#caching-design)
+      - [Option 1: Matching on other entities or values](#option-1-matching-on-other-entities-or-values)
+      - [Option 2: Fuzzy matching](#option-2-fuzzy-matching)
+      - [Option 3: Hybrid RAG (semantic search + BM25)](#option-3-hybrid-rag-semantic-search--bm25)
+    - [Observability/Telemetry](#observabilitytelemetry)
+      - [System Ops](#system-ops)
+      - [LLMOps](#llmops)
+      - [FinOps](#finops)
+    - [Scaling the results](#scaling-the-results)
+  - [Alternatives considered](#alternatives-considered)
+  - [Cross-cutting concerns](#cross-cutting-concerns)
+  - [Errata](#errata)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Design Doc: Natural language search
 
 This is a design doc for the natural language search component.
@@ -85,6 +134,12 @@ A user enters the app and enters a natural language query as well as an email fo
 ### Key design choices
 
 ...
+
+### Estimated scale
+
+... How many queries?
+... How many users?
+... Average size of records requested?
 
 ### Scope of changes
 
@@ -184,19 +239,46 @@ We also want to add telemetry and take a subset of production traffic, perhaps e
 
 ### Validation rules
 
+### Adding limits by default
+
+... Adding limits by default, e.g., limiting the max results, adding date range limits, etc.
+
+### Gating on the `EXPLAIN ANALYZE` query
+
+Our goal is to avoid naively running expensive queries. Our end users won't have the insight to know how expensive queries are to run, so we must make defensive design a core part of our plan.
+
+Athena costs $5/TB to run. Even just $1 means scanning 200GB of records. We will use indexing and precomputed views (both out of scope of this design, will be more scoped out in [this proposal](https://github.com/METResearchGroup/lab_data_integrations_interface/issues/115)) as well as other optimizations to reduce the query scan cost, but if a query is costing even $1 to run, that's already a cause for caution for our current estimated scale.
+
+As a first pass, we restrict queries scanning >10GB of data. As part of the beta phase of this application, we can restrict the amount of records that a user can access. 10GB is towards the upper limit of how many records a single nontechnical user can download on their computer (much less download in-memory into an R script or Jupyter notebook). Even if, say, only 10% of the scanned data is actually exported, 1GB is still a decently large dataset for a nontechnical user to manage on their personal laptop.
+
+Given that this is how the majority of nontechnical users will likely interact with our interface, we can set this cap. We have limitations that should circumvent 
+
 #### Router layer validation
 
-ssss
+Let's treat any `INVALID_*` labels as hard failures and automatically invalidate the query.
 
-#### Validating SQL queries as read-only
+We will also do testing (accumulating an eval set and refining the LLM prompt against it). We'll also review rejection decisions during beta testing to calibrate the LLM's propensity of assigning `INVALID_*` labels.
+
+#### Validating generated SQL queries
 
 We want to make sure that queries are read-only.
 
 - We can allowlist read statements (e.g., `SELECT`, `WITH ... SELECT`) and restrict all other SQL queries.
 - We also can require that queries be condensed to single statements, to avoid the possibility of 1 statement being a valid SQL query and another being invalid.
 
-- Read-only queries: we only allow `SELECT` queries and we disallow create/update/delete queries.
-- ...
+Stretch goal: we can ask a validator LLM if the SQL query would be a valid query to answer the user's request. For a V1, this is likely a stretch goal because it adds another LLM call and we should first see if this problem comes up before we prematurely add another LLM call per query (adding both cost and latency).
+
+On invalid queries, for whatever reason it is deemed invalid, we can add the error message (or, in the case of the LLM validator, the reason why it's invalid) and retry the SQL query generation LLM call (up to n=3 times) using exponential backoff. Upon failing the last retry, we can hard-fail and log the error in our telemetry collector, returning a "Your request failed to be processed" message to the user.
+
+#### Post-Athena validation/postprocesisng
+
+We can do the following as postprocessing/validation steps once the Athena query results are completed:
+
+- PII/column allowlist: this is a use case that hasn't come up yet but perhaps may come up depending on, for example, IRB requirements around exposing names of user handles.
+- Empty results: return a "No results found" to the user.
+- Error (Athena query couldn't complete): retry up to n=3 times. Upon failing the last retry, we can hard-fail and log the error in our telemetry collector, returning a "Your request failed to be processed" message to the user. We can be more specific if/when we see specific Athena errors.
+
+Stretch goal: Review the returned columns (and perhaps the first 5 rows) and run an LLM query to see if, given this subset, the results likely captured what the user intended. If not, we can ask the LLM for a reason and then we can retry. This one is optional as it adds another LLM call to the pipeline. We should first evaluate if this is a real error case (e.g., by seeing actual queries whose results were not entailed by the request).
 
 ### Caching design
 
@@ -229,7 +311,7 @@ We can match on entities/values extracted from the user query.
 }
 ```
 
-This is a low-cost approach, easy to implement and requires 0 LLM calls. It may require deploying some pretrained NER models, but beyond that  
+This is a low-cost approach, easy to implement and requires 0 LLM calls. The only inference cost may be from deploying NER models, but these are multiple orders of magnitude smaller than LLMs and easily fit in-memory.
 
 #### Option 2: Fuzzy matching
 
