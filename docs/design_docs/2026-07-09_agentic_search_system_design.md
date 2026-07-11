@@ -47,6 +47,7 @@
         - [1. Was the LLM result correct?](#1-was-the-llm-result-correct)
         - [2. Was the LLM behavior reliable, observable, and cost-efficient?](#2-was-the-llm-behavior-reliable-observable-and-cost-efficient)
         - [3. Can we audit and reconstruct how the result was produced?](#3-can-we-audit-and-reconstruct-how-the-result-was-produced)
+        - [Tracking LLMOps in a dashboard](#tracking-llmops-in-a-dashboard)
       - [FinOps](#finops)
     - [Scaling the results](#scaling-the-results)
   - [Alternatives considered](#alternatives-considered)
@@ -393,7 +394,7 @@ Across all these pillars, there are a few principles for us to keep in mind.
 4. **Treat prompts, models, and configurations as versioned production artifacts**: Prompt templates, few-shot examples, model identifiers, inference parameters, schema context, and validators should be reviewed and deployed like code. We should define all of these as YAML configs and use a plugin-style architecture (see [this YAML config for an example](https://github.com/METResearchGroup/lab_data_integrations_interface/blob/main/data_platform/ingestion/configs/bluesky/default.yaml)). Not only should these be committed in Git, but we should, within reason, add these as trace-level metadata on production requests. At minimum, for each trace we should track the prompt, model, model parameters, and config version.
 5. **Combine offline evals with online observation**: We discuss this more in the "LLM application deployment to production" section. A proper LLMOps strategy requires combining offline evals with online observations.
 6. **Turn failures into regression tests**: As we track queries, we'll want to review meaningful production errors, incorrect refusals, expensive generated queries, and user-reported mistakes, and add them to the evaluation suite.
-7. **Consider tradeoff between precision/recall on a case-by-case basis**: the tradeoff between recall and precision varies based on the LLM task. For the router LLM, for example, we would rather prioritize a high precision of the `VALID` label as any result that is marked as valid gets passed down to the next LLM caller to generate a SQL query. Too many incorrectly assigned `VALID` labels causes downstream callers to break. However, for the RAG cache layer, we want to prioritize recall (specifically, `recall@k`) as we more clearly care about retrieving a matching query from past queries, even at the expense of precision.
+7. **Consider tradeoff between precision/recall on a case-by-case basis**: the tradeoff between recall and precision varies based on the LLM task. For the router LLM, for example, we would rather prioritize a high precision of the `VALID` label as any result that is marked as valid gets passed down to the next LLM caller to generate a SQL query. Too many incorrectly assigned `VALID` labels causes downstream callers to break.
 
 ##### 1. Was the LLM result correct?
 
@@ -436,19 +437,23 @@ Where possible, we should verify SQL correctness against a stable fixtuer databa
 
 --
 
-RAG
+**Cache/RAG correctness**: For using RAG to retrieve past queries, we want to prioritize precision, as we're OK with a user request being retried as opposed to being returned an incorrect past query whose result is then incorrect as well. We'll want to do a similar approach as the previous models, developing an evaluation set to evaluate RAG retrieval correctness (e.g., `precision@k`).
 
 ##### 2. Was the LLM behavior reliable, observable, and cost-efficient?
 
-...
+We also need to measure the operational behavior of the LLMs beyond accuracy. Some operational metrics that we'll want to consider include: p50/p95/p99, TTFT, input/output/total tokens, retry count, timeout rate, and rate limits. We'll want to consider this for each LLM step individually as well as at the level of the entire request.
+
+We'll want to establish initial SLAs for each of these parameters.
 
 ##### 3. Can we audit and reconstruct how the result was produced?
 
-We will track basic LLM performance measures (latency, # of retries, TTFT, cost, tokens in/out) on each call type (router, SQL generation, and RAG checks).
+For each LLM-derived result, we should be able to determine what inputs and configs produced it. We'll want values like: request/trace identifiers, timestamp, Git version commit, LLM model details (model name, hyperparameters), config/prompt version, etc.
 
-We will also add prompt-level versioning on each prompt and trace, so that we can attribute specific traces to the given prompts. This can be added as prompt-level and trace-level metadata.
+Ideally, with sufficiently detailed audit trails, we can replay requests and understand why a particular result came to be. This is critical for reproducibility and debugging.
 
-...
+##### Tracking LLMOps in a dashboard
+
+We'll want a dashboard (possibly an extension of [the dashboard created in this ticket](https://github.com/METResearchGroup/lab_data_integrations_interface/issues/113)) to track basic LLMOps metrics. We'll discuss later what metrics will be most important here (which will be informed by the approach the team agrees on in the aforementioned proposal ticket). Some initial thoughts: basic success/failure for each LLM step, snapshot count of LLM failure modes, p50/p95/p99 for each LLM step, cost for each LLM step.
 
 #### FinOps
 
