@@ -39,9 +39,13 @@
     - [Observability/Telemetry](#observabilitytelemetry)
       - [System Ops](#system-ops)
       - [LLMOps](#llmops)
+        - [General LLMOps considerations](#general-llmops-considerations)
         - [1. Was the LLM result correct?](#1-was-the-llm-result-correct)
         - [2. Was the LLM behavior reliable, observable, and cost-efficient?](#2-was-the-llm-behavior-reliable-observable-and-cost-efficient)
         - [3. Can we audit and reconstruct how the result was produced?](#3-can-we-audit-and-reconstruct-how-the-result-was-produced)
+        - [Deploying LLM pipeline changes to production](#deploying-llm-pipeline-changes-to-production)
+        - [Offline evals strategy](#offline-evals-strategy)
+        - [Online evals strategy](#online-evals-strategy)
       - [FinOps](#finops)
     - [Scaling the results](#scaling-the-results)
   - [Alternatives considered](#alternatives-considered)
@@ -364,6 +368,18 @@ For our use case, the LLM steps are relatively constrained (as opposed to free-f
 2. Was the LLM behavior reliable, observable, and cost-efficient?
 3. Can we audit and reconstruct how the result was produced?
 
+##### General LLMOps considerations
+
+Across all these pillars, there are a few principles for us to keep in mind.
+
+1. **Evaluate each LLM task independently**: each LLM task has different assumptions, failure modes, and thresholds for failure, so we should evaluate each independently. They should each have their own evaluation datasets, metrics, and release thresholds.
+2. **Optimizing for task-level correctness**: we want to avoid "shiny-object" syndrome and automatically plugging in the latest cutting-edge models. We want to prioritize designing LLM systems that perform well on their specific task. What this may mean, for example, is that a different LLM works better for the router than the RAG component.
+3. **Utilize deterministic checks as much as possible**: We want to use deterministic verifiers and checks as much as possible, both to (1) complement LLM checks and (2) verify LLM results. For example, we can have a lightweight set of examples as well as edge cases (e.g., queries < 10 chars) to automatically filter some results before it gets to the LLM router. We can also use deterministic checks (see the "1. Was the LLM result correct?" discussion below) against the LLM-generated results. We want to avoid LLM-as-a-judge as much as possible, reserving it for more heavyweight, infrequent QA. An LLM should be able to propose an action (e.g., run a specific SQL query), but it should be gated and verified.
+4. **Treat prompts, models, and configurations as versioned production artifacts**: Prompt templates, few-shot examples, model identifiers, inference parameters, schema context, and validators should be reviewed and deployed like code. We should define all of these as YAML configs and use a plugin-style architecture (see [this YAML config for an example](https://github.com/METResearchGroup/lab_data_integrations_interface/blob/main/data_platform/ingestion/configs/bluesky/default.yaml)). Not only should these be committed in Git, but we should, within reason, add these as trace-level metadata on production requests. At minimum, for each trace we should track the prompt, model, model parameters, and config version.
+5. **Combine offline evals with online observation**: ... TODO: need to figure this out in more detail
+6. **Turn failures into regression tests**: ...
+7. **Consider tradeoff between precision/recall**: ...
+
 ##### 1. Was the LLM result correct?
 
 We should define correctness separately per LLM module.
@@ -393,7 +409,17 @@ We will track basic LLM performance measures (latency, # of retries, TTFT, cost,
 
 We will also add prompt-level versioning on each prompt and trace, so that we can attribute specific traces to the given prompts. This can be added as prompt-level and trace-level metadata.
 
-For 
+##### Deploying LLM pipeline changes to production
+
+(Process of trying a new model/prompt/etc and deploying to production).
+
+##### Offline evals strategy
+
+...
+
+##### Online evals strategy
+
+...
 
 #### FinOps
 
