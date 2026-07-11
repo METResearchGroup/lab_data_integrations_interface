@@ -42,6 +42,7 @@
       - [Online evals strategy](#online-evals-strategy)
     - [Observability/Telemetry](#observabilitytelemetry)
       - [System Ops](#system-ops)
+        - [General System Ops considerations](#general-system-ops-considerations)
       - [LLMOps](#llmops)
         - [General LLMOps considerations](#general-llmops-considerations)
         - [1. Was the LLM result correct?](#1-was-the-llm-result-correct)
@@ -375,6 +376,30 @@ Some metrics to add include:
 - Cache: hit/miss by layer (Redis/RAG).
 
 Later on, as we have more concurrency requirements, we might also consider measuring number of concurrent queries.
+
+Some of the core questions we care about include:
+
+1. Did the overall request complete successfully?
+2. Did each component perform within its operational targets?
+3. If the request failed or degraded, can we quickly determine where and whhy?
+4. Can the system protect itself from overload, expensive requests, failing dependencies, and other failures?
+5. Can the team safely deploy, monitor, and recover the application?
+
+We want to be able to both observe the end-to-end flow while also allowing us to isolate the behavior of each component separately.
+
+##### General System Ops considerations
+
+Some guiding principles we want to consider include:
+
+1. **Observe both complete user journeys and individual services**: we want to be able to deep-dive into both end-to-end request flows as well as what happens in individual journeys.
+2. **Measure both success AND quality of service**: a request that returns in 5 seconds versus a request that returns in 5 minutes both technically returned results, but are different in quality.
+3. **Distinguish between requests rejected explicitly vs. requests that aren't fulfilled due to system error**: we want to make sure that we know when a request isn't fulfilled because, for example, it's invalid, as opposed to a request that isn't fulfilled because the pipeline breaks.
+
+Additionally, some more general Ops-specific principles that we'll want to consider include:
+
+1. Prefer structured telemetry over free-form logs, so we can more easily review later.
+2. Avoid high-cardinality metrics: don't track things like "unique request IDs", as these are high cardinality metrics and we'll want to keep those in traces, not metric dimensions.
+3. Use a single request identifier. We want to make sure that disparate artifacts (e.g., logs, traces, metrics, etc.) can be all linked through a common trace identifier.
 
 #### LLMOps
 
