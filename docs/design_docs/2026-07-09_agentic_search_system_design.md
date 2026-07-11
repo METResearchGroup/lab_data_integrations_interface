@@ -182,6 +182,13 @@ We also want to add telemetry and take a subset of production traffic, perhaps e
 
 Some rules for us to enforce are:
 
+#### Validating SQL queries as read-only
+
+We want to make sure that queries are read-only.
+
+- We can allowlist read statements (e.g., `SELECT`, `WITH ... SELECT`) and restrict all other SQL queries.
+- We also can require that queries be condensed to single statements, to avoid the possibility of 1 statement being a valid SQL query and another being invalid.
+
 - Read-only queries: we only allow `SELECT` queries and we disallow create/update/delete queries.
 - ...
 
