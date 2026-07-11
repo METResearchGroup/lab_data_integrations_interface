@@ -65,6 +65,10 @@ flowchart LR
 
 ### User-facing behavior
 
+A user enters the app and enters a natural language query as well as an email for contact (how the results are returned to the user is out-of-scope of the current plan). Upon submission, the user is informed that the request is underway. They then are given an end result, one of the following:
+
+- A presigned URL with the resulting .csv file, if the request is valid.
+
 ### Goals/non-goals
 
 #### What is in-scope
@@ -218,6 +222,13 @@ Also Options 1+2 are probably via Redis, Option 3 is via vector DB (higher laten
 #### FinOps
 
 ...
+
+### Scaling the results
+
+A v1 approach is presigned URLs. We can probably ship this as a v1, but what do we do with queries that will return LARGE results? A few options here:
+
+- Disallow such queries, and tell them to contact the team: this removes the possibility of an end user querying lots of data, but still leaves it up to the internal team to have a policy for queries with a large number of results. This can possibly be combined with other methods (see below)
+- Return paginated results: We can either (1) paginate the query internally, run multiple queries, and combine the results after the fact, or (2) run the expensive query once and then paginate the results ourselves. We can experiment with the more feasible approach (feasible via cost + runtime). I suspect the second approach is better since running multiple queries in order to get subsets of rows will result in more disk reads, which is where the cost will really pile on.
 
 ## Alternatives considered
 
