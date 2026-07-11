@@ -359,17 +359,115 @@ Therefore, we can err on the side of using RAG retrieval to fetch semantically s
 
 ### LLM application deployment to production
 
-(the stuff here complements what's in LLMOps, focusing on production considerations + evals)
+The LLM application is more than just a model and prompt. A production LLM pipeline contains components such as:
+
+- Model provider, identifier, and parameters.
+- Prompt templates.
+- Few-shot examples.
+- Structured-output schemas.
+- Deterministic validators.
+- Retry/fallback behavior.
+- Postprocessing logic.
+- Embedding models + indexes.
+
+Changing any of these can affect correctness, latency, cost, or reliability.
 
 #### Deploying LLM pipeline changes to production
 
-(Process of trying a new model/prompt/etc and deploying to production).
+Changes to the LLM pipeline should follow a progressive release process, proportional to the risk of the change.
+
+Some low-risk changes include:
+
+- Correcting prompt wording without changing the output schema.
+- Adding telemetry metadata.
+- Adding a deterministic validator that can only reject invalid output.
+
+Some higher-risk changes include:
+
+- Changing the router model or prompt.
+- Changing the meaning of a router label.
+- Changing the SQL generation model.
+- Modifying few-shot examples.
+- Updating validation restrictions.
+
+We want to follow a series of steps for these changes. The following is the "end stage" deployment checklist; during rapid iteration, especially during alpha/beta testing, we can shortcut some of these.
+
+##### 1. Define the proposed change and hypothesis
+
+Each change should begin with a clear statement of what is being changed and why, such as "We believe Model B can reduce router false acceptances without increasing false rejections by more than an acceptable amount". The proposal should clearly state the component being changed, the expected benefit, the metrics expected to improve, metrics that must not regress, known risks, rollback criteria, and if the change is backwards compatible.
+
+##### 2. Create an isolated candidate configuration
+
+The candidate change should receive its own immutable configuration version rather than modifying the current production configuration in place. For example:
+
+```yaml
+pipeline_version: nl_search_2026_07_11_candidate_01
+
+router:
+  model: ...
+  prompt_version: router_v4
+  few_shot_version: router_examples_v3
+  temperature: 0
+  
+sql_generation:
+  model: ...
+  prompt_version: sql_generation_v7
+  few_shot_version: sql_examples_v5
+  temperature: 0
+  
+validators:
+  version: sql_validators_v3
+```
+
+This allows the candidate and baseline to run side by side and makes rollback a configuration change rather than an emergency code modification.
+
+##### 3. Run deterministic tests
+
+Before running LLM evals, the change should pass normal unit and integration testing with determistic checks.
+
+##### 3. Run offline evals
+
+The canddiate should run against the offline eval suite. We should compare the candidate with the current production baseline on measures such as correctness, critical failure modes, latency, token usage, estimated cost, and retry behavior. We should also block on hard violations (e.g., generating write queries, accepting prompt-injection attempts, etc).
+
+We can define two classes of gates:
+
+- Hard gates: candidates can't be deployed if they result in unsafe SQL, accept adversarial requests, etc.
+- Soft gates: accuracy/precision measures slightly change, p95 latency is within a certain range, etc. These are ones in which we may not have an explicit hard gate, but we'll want to take a closer look.
+
+##### 4. Test in a dev environment
+
+The candidate should be deployed in dev and exposed to real simulated behavior, such as known requests, pressure, load, and such.
+
+##### 5. Shadow mode
+
+For larger changes, the candidate can run against production requests. Users are still served results from the production pipeline, but we can compare the results of the production pipeline against the candidate changes.
+
+##### 6. Canary
+
+After offline and shadow validation, a candidate change can receive a small percentage of production traffic. We evaluate in the same way as the shadow mode.
+
+##### 7. Release to production
+
+After passing increasing percentages of prod exposure, a change can be released to production.
 
 #### Offline evals strategy
 
-...
+Offline evals allow us to assess a candidate LLM pipeline before it hits production.
 
-#### Online evals strategy
+We should maintain a separate eval suite for each of the following:
+
+- Router classification
+- SQL generation
+- RAG retrieval
+- End-to-end pipeline behavior.
+
+We should maintain a few sets of examples:
+
+- Few shot examples, included directly in the prompts. These shouldn't be used in evals.
+- Dev set: used while iterating on changes. Repeated comparison against this set will lead us to optimize against it, so we still need another hold-out set.
+- Hold-out eval set: reserved for offline evals before release.
+- Regression set: contains important failure cases observed over time.
+- Adversarial set: requests containing adversarial inputs (prompt-injection, invalid requests, requests that would result in expensive SQL queries, etc.).
 
 ### Observability/Telemetry
 
