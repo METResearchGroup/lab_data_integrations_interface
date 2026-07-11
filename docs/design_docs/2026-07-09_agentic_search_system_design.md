@@ -107,11 +107,46 @@ This is a design doc for the natural language search component.
 
 ## Purpose
 
-...
+This document proposes a natural-language search interface for the existing research data platform.
+
+The system will allow users to describe the data they need in plain language, translate that request into a validated Athena SQL query, execute the query, and return the resulting dataset through a downloadable artifact.
+
+The design covers the end-to-end request lifecycle, including:
+
+- Natural-language request intake.
+- Request routing and validation.
+- SQL generation and deterministic safeguards.
+- Query-cost controls.
+- Athena execution.
+- Result materialization and delivery.
+- Caching and reuse of prior results.
+- LLMOps, System Ops, and FinOps considerations.
+
+The primary goal is to make the platform accessible to researchers who understand the data they need but may not know the underlying schemas or be comfortable writing SQL.
+
+This document also defines the operational boundaries for a V1 implementation. In particular, the system should prioritize correctness, bounded cost, and safe failure behavior over supporting every possible query or large-scale export.
 
 ## Background
 
-...
+The existing interface exposes a relatively direct path from the FastAPI application to Athena. This works for users who already understand the available tables, columns, joins, and SQL dialect, but it places a significant burden on less technical researchers.
+
+To retrieve data successfully, a user currently needs to know:
+
+- Which datasets contain the relevant information.
+- The names and meanings of tables and columns.
+- How datasets relate to one another.
+- How to express the request as valid Athena SQL.
+- How to constrain the query so that it does not scan or return an unreasonable amount of data.
+
+This creates several problems.
+
+- First, it limits access to users with sufficient SQL and data-platform knowledge. Researchers may understand their substantive research question while still needing engineering support to translate it into a query.
+- Second, direct user-generated SQL creates operational and financial risk. A syntactically valid query may still reference the wrong data, scan an excessive number of records, return an unusably large result, or fail because of incorrect assumptions about the schema.
+- Third, the current interaction model does not provide a structured place for request validation, cost estimation, query reuse, asynchronous execution, or result lifecycle management.
+
+Recent improvements to LLMs make natural-language-to-SQL a feasible interface for this use case, particularly because the application is constrained to a known set of datasets and relatively narrow request types. However, an LLM-generated query should not be executed directly. The model should be treated as one component in a broader system containing deterministic validation, cost controls, observability, and explicit failure handling.
+
+The proposed design therefore introduces a guarded natural-language query pipeline on top of the existing data platform. The system will use LLMs to interpret requests and generate candidate SQL, while retaining deterministic application controls over what may be executed and returned.
 
 ## Proposal
 
