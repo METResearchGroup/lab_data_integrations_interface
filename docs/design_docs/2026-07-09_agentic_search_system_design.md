@@ -8,6 +8,8 @@ This is a design doc for the natural language search component.
 
 ## Background
 
+...
+
 ## Proposal
 
 Our proposal is a natural-language (NL) to SQL search interface. We propose a natural language query interface, where we take user queries, convert to SQL, execute the queries, and return results to users. Along the way, we include layers of caching and validation.
@@ -81,6 +83,8 @@ A user enters the app and enters a natural language query as well as an email fo
 - Multi-agent systems: two consecutive LLM calls are more than enough. No need for multi-agent architectures.
 
 ### Key design choices
+
+...
 
 ### Scope of changes
 
@@ -180,7 +184,9 @@ We also want to add telemetry and take a subset of production traffic, perhaps e
 
 ### Validation rules
 
-Some rules for us to enforce are:
+#### Router layer validation
+
+ssss
 
 #### Validating SQL queries as read-only
 
