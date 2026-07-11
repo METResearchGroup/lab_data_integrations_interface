@@ -86,6 +86,6 @@ venv = ".venv"
 exclude = ["tests", "experiments"]
 
 [tool.vulture]
-exclude = ["*venv*"]
+exclude = ["*venv*", "temp.py"]
 min_confidence = 80
 paths = ["."]
