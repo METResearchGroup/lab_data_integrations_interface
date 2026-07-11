@@ -39,6 +39,9 @@
     - [Observability/Telemetry](#observabilitytelemetry)
       - [System Ops](#system-ops)
       - [LLMOps](#llmops)
+        - [1. Was the LLM result correct?](#1-was-the-llm-result-correct)
+        - [2. Was the LLM behavior reliable, observable, and cost-efficient?](#2-was-the-llm-behavior-reliable-observable-and-cost-efficient)
+        - [3. Can we audit and reconstruct how the result was produced?](#3-can-we-audit-and-reconstruct-how-the-result-was-produced)
       - [FinOps](#finops)
     - [Scaling the results](#scaling-the-results)
   - [Alternatives considered](#alternatives-considered)
@@ -331,11 +334,66 @@ Also Options 1+2 are probably via Redis, Option 3 is via vector DB (higher laten
 
 #### System Ops
 
-...
+We'll want to add telemetry across the entire request lifecycle:
+
+- Request acceptance
+- Cache
+- Router
+- SQL query generation
+- Validation
+- `EXPLAIN ANALYZE`
+- Execute query
+- Validation
+- Return response
+
+We'll want to add request-level tracing.
+
+Some metrics to add include:
+
+- Latency: p50/p95/p99 per stage + end-to-end.
+- Error rate by refusal reason (e.g., `INVALID_*`) and by exception class (timeout, validation failure, Athena query failure, etc.)
+- Cache: hit/miss by layer (Redis/RAG).
+
+Later on, as we have more concurrency requirements, we might also consider measuring number of concurrent queries.
 
 #### LLMOps
 
+For our use case, the LLM steps are relatively constrained (as opposed to free-form multi-agent or chatbot apps). However, they do fulfill core responsibilities in our pipeline, validating user requests and generating valid SQL. Our LLMOps strategy revolves around three pillars:
+
+1. Was the LLM result correct?
+2. Was the LLM behavior reliable, observable, and cost-efficient?
+3. Can we audit and reconstruct how the result was produced?
+
+##### 1. Was the LLM result correct?
+
+We should define correctness separately per LLM module.
+
+Router correctness: for router correctness, we want to know if the assigned label is correct. Therefore, we can make use of typical classification metrics:
+
+- Precision
+- Recall
+- ...
+
+SQL query generation correctness: we can't do exact SQL string matching because multiple SQL statements can correctly answer the same requests. There's a few ways for us to evaluate SQL queries, ranging from syntax to correct data fetching:
+
+- Is this SQL query valid, parseable, compilable SQL?
+- Is the SQL query grounded in real tables/columns, or does it hallucinate?
+- Is the SQL query read-only and single-statement?
+- Can Athena successfully execute or explain the query?
+- Does the query implement the filters, joins, aggregations, date ranges, ordering, and entities that are requestesd by the user?
+- Does the query result in the correct data being fetched?
+
+##### 2. Was the LLM behavior reliable, observable, and cost-efficient?
+
 ...
+
+##### 3. Can we audit and reconstruct how the result was produced?
+
+We will track basic LLM performance measures (latency, # of retries, TTFT, cost, tokens in/out) on each call type (router, SQL generation, and RAG checks).
+
+We will also add prompt-level versioning on each prompt and trace, so that we can attribute specific traces to the given prompts. This can be added as prompt-level and trace-level metadata.
+
+For 
 
 #### FinOps
 
