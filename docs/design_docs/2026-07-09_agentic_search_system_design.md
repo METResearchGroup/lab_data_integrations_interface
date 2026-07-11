@@ -11,17 +11,26 @@
     - [Goals/non-goals](#goalsnon-goals)
       - [What is in-scope](#what-is-in-scope)
       - [What is out-of-scope](#what-is-out-of-scope)
-    - [Key design choices](#key-design-choices)
     - [Estimated scale](#estimated-scale)
     - [Scope of changes](#scope-of-changes)
   - [Implementation details](#implementation-details)
     - [Per-service/component changes](#per-servicecomponent-changes)
-      - [Frontend input](#frontend-input)
+      - [Frontend](#frontend)
       - [Backend](#backend)
       - [Athena client](#athena-client)
       - [New service layers](#new-service-layers)
+        - [LLM orchestration layer](#llm-orchestration-layer)
+        - [Validation layer](#validation-layer)
+        - [Query policy layer](#query-policy-layer)
+        - [Job-state layer](#job-state-layer)
+        - [Result artifact layer](#result-artifact-layer)
+        - [Retrieval/cache layer](#retrievalcache-layer)
         - [API Gateway](#api-gateway)
     - [Schemas/APIs](#schemasapis)
+      - [Creating a search job](#creating-a-search-job)
+      - [Get job status](#get-job-status)
+      - [Job states](#job-states)
+      - [Error shape](#error-shape)
     - [Prompting](#prompting)
       - [Draft query generation prompt](#draft-query-generation-prompt)
       - [Draft router prompt](#draft-router-prompt)
@@ -80,7 +89,6 @@
       - [Proposed V1](#proposed-v1)
       - [Async job model](#async-job-model)
       - [Materialized-result design](#materialized-result-design)
-  - [Alternatives considered](#alternatives-considered)
   - [Cross-cutting concerns](#cross-cutting-concerns)
   - [Errata](#errata)
 
@@ -148,9 +156,7 @@ flowchart LR
 
 ### User-facing behavior
 
-A user enters the app and enters a natural language query as well as an email for contact (how the results are returned to the user is out-of-scope of the current plan). Upon submission, the user is informed that the request is underway. They then are given an end result, one of the following:
-
-- A presigned URL with the resulting .csv file, if the request is valid.
+A user enters the app and enters a natural language query as well as an email for contact (how the results are returned to the user is out-of-scope of the current plan). Upon submission, the user is informed that the request is underway. They then are given an end result, currently scoped to be a presigned URL with the resulting .csv file, if the request is valid.
 
 ### Goals/non-goals
 
@@ -170,10 +176,6 @@ A user enters the app and enters a natural language query as well as an email fo
 - Expanding to multiple data sources and data integrations: this is managed in [this call for proposal](https://github.com/METResearchGroup/lab_data_integrations_interface/issues/111). The current plan builds on top of the existing data integrations.
 - Multi-agent systems: two consecutive LLM calls are more than enough. No need for multi-agent architectures.
 
-### Key design choices
-
-...
-
 ### Estimated scale
 
 ... How many queries?
@@ -188,29 +190,216 @@ Here, we introduce a new product surface. We replace the existing simple FastAPI
 
 ### Per-service/component changes
 
-#### Frontend input
+#### Frontend
 
-...
+The frontend will replace the existing SQL input with a natural-language request form.  The initial form should include:
+
+- Natural-language query
+- User email or other contact info
+- A confirmation that the request may be rejected or require narrowing if it is too large.
+
+The frontend can also do some lightweight usability validation, such as minimum query length, but these are for the UX side only (more heavyweight checks are done by the backend).
+
+Since queries are processed async, the frontend should receive a job identifier and display the current job state. It can poll a status endpoint until the job reaches `READY`, `REJECTED`, or `FAILED`. For completed jobs, the frontend should display a short summary of the interpreted result, the total time taken, total records, and download link.
 
 #### Backend
 
-...
+The backend owns orchestration of the complete workflow.
+
+Its responsibilities, as outlined in the design flow, include:
+
+1. Accept and validate the API request.
+2. Assign a `request_id` and `job_id`.
+3. Normalize the natural-language input.
+4. Apply deterministic request checks.
+5. Check for reusable past results where applicable.
+6. Run router.
+7. Generate SQL for accepted requests.
+8. Parse/validate SQL.
+9. Estimate query cost and enforce limits.
+10. Submit the query through the Athena client.
+11. Track query execution.
+12. Validate/materialize the result.
+13. Update job status.
+14. Emit tracing, metrics, and logs.
+
+The backend should keep the LLM callers, validators, Athena client, result management, and job-state management behind separate interfaces. This makes the individual components easier to test, replace, and evaluate.
+
+The backend should also own retry behavior. Retries should be bounded and limited to retryable failures; deterministic rejection or validation failures should not be repeatedly retried without changing the input or correction context.
 
 #### Athena client
 
-...
+The Athena client should wrap the AWS Athena APIs and expose a narrower interface tailored to this application.
+
+Its responsibilities include:
+
+- Submitting validated read-only queries.
+- Applying the correct database, catalog, workgroup, and output location.
+- Estimating or retrieving query-cost information where supported.
+- Polling query status.
+- Cancelling queries that exceed time or policy limits.
+- Returning execution metadata.
+- Retrieving or referencing the result artifact.
+- Translating AWS errors into stable application error types.
+
+The client should return metadata such as:
+
+- Athena query execution ID.
+- Query status.
+- Queue and execution time.
+- Bytes scanned.
+- Result location.
+- Failure reason.
+- Whether the query was cancelled or rejected by a limit.
 
 #### New service layers
 
-...
+The new workflow introduces several logical service layers. These do not necessarily need to be separate deployed services in V1; they can initially be modules inside the FastAPI application.
+
+##### LLM orchestration layer
+
+Owns the router, SQL generator, prompt/config loading, structured-output parsing, retries, and model metadata.
+
+##### Validation layer
+
+Owns deterministic request and SQL validation.
+
+##### Query policy layer
+
+Owns cost and usage controls, such as size limits, maximum date ranges, etc.
+
+##### Job-state layer
+
+Stores the current state and metadata for asynchronous requests. It should support state transitions, status lookup, retry tracking, and idempotency.
+
+##### Result artifact layer
+
+Owns result metadata, s3 object locations, etc.
+
+##### Retrieval/cache layer
+
+Stores and retrieves prior requests and SQL queries. It should verify freshness and compatibility before a past result is reused.
 
 ##### API Gateway
 
-...
+API Gateway will provide the public entry point to the application. API Gateway should reject clearly malformed, unauthorized, or rate-limited requests before they reach the application. Domain-specific validation, LLM routing, query policy, and cost enforcement remain backend responsibilities. For V1, we can use conservative request and rate limits and adjust them after observing beta traffic.
+
+Its initial responsibilities should include:
+
+- Authentication and authorization integration.
+- Request-size limits.
+- Per-user or per-key rate limiting.
+- Basic request-schema enforcement.
+- CORS configuration.
+- TLS termination.
+- Request correlation headers.
+- Routing requests to the FastAPI backend.
 
 ### Schemas/APIs
 
-Request/response shapes, error codes.
+The API should represent each request as an asynchronous search job.
+
+#### Creating a search job
+
+`POST /search/jobs/`
+
+Example request:
+
+```json
+{
+  "query": "I want all posts liked by Stanley in the past two weeks",
+  "email": "user@example.com"
+}
+```
+
+Example resopnse:
+
+```json
+{ "job_id": "job_123", "request_id": "req_123", "status": "PENDING", "created_at": "2026-07-11T15:00:00Z", "status_url": "/v1/search/jobs/job_123" }
+```
+
+The endpoint should return `202 Accepted` because the result is not expected to be available immediately.
+
+#### Get job status
+
+`GET /search/jobs/{job_id}`
+
+Example in-progress response:
+
+```json
+{
+  "job_id": "job_123",
+  "status": "EXECUTING",
+  "message": "Your query is currently running.",
+  "created_at": "2026-07-11T15:00:00Z",
+  "updated_at": "2026-07-11T15:00:08Z"
+}
+```
+
+Example completed response:
+
+```json
+{
+  "job_id": "job_123",
+  "status": "READY",
+  "message": "Your result is ready.",
+  "result": {
+    "result_id": "result_123",
+    "row_count": 12500,
+    "size_bytes": 4200000,
+    "format": "csv",
+    "download_url": "...",
+    "expires_at": "2026-07-18T15:00:00Z"
+  }
+}
+```
+
+Example rejected response:
+
+```json
+{
+  "job_id": "job_123",
+  "status": "REJECTED",
+  "error": {
+    "code": "QUERY_TOO_EXPENSIVE",
+    "message": "This request is too large for automatic execution. Try narrowing the date range or selecting fewer fields."
+  }
+}
+```
+
+#### Job states
+
+The initial set of job states is:
+
+- PENDING
+- ROUTING
+- GENERATING_SQL
+- VALIDATING
+- ESTIMATING_COST
+- QUEUED
+- EXECUTING
+- POSTPROCESSING
+- READY
+- REJECTED
+- FAILED
+- EXPIRED
+
+State transitions should be validated by the backend so that, for example, a failed or expired job cannot later be marked as executing.
+
+#### Error shape
+
+All API errors should use a consistent structure:
+
+```json
+{
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "The request could not be processed.",
+    "request_id": "req_123",
+    "details": {}
+  }
+}
+```
 
 ### Prompting
 
@@ -278,7 +467,34 @@ We also want to add telemetry and take a subset of production traffic, perhaps e
 
 ### Adding limits by default
 
-... Adding limits by default, e.g., limiting the max results, adding date range limits, etc.
+The system should add conservative limits by default rather than relying on users to constrain their requests correctly.
+
+These limits serve two purposes:
+
+1. Prevent unexpectedly expensive Athena queries.
+2. Prevent the system from returning datasets that are too large for the user or application to handle safely.
+
+Initial limits should be configuration-driven rather than hard-coded.
+
+Potential defaults include:
+
+1. Maximum natural-language query length.
+2. Maximum date range.
+3. Maximum number of result rows.
+4. Maximum estimated Athena bytes scanned.
+5. Maximum result-file size.
+6. Maximum query runtime.
+7. Maximum number or complexity of joins.
+8. Maximum daily requests or scanned bytes per user or project.
+9. Maximum retry count per pipeline stage.
+
+The SQL generation prompt should instruct the model to include defensive defaults, such as:
+
+- Selecting only relevant columns rather than using SELECT *.
+- Adding a bounded date range when the request permits it.
+- Adding a result limit for exploratory requests.
+- Avoiding unnecessary joins.
+- Using partition columns where available.
 
 ### Gating on the `EXPLAIN ANALYZE` query
 
@@ -926,10 +1142,6 @@ The manifest allows us to:
 - Track artifact size and retention.
 - Validate that all chunks were generated.
 - Avoid rerunning the query.
-
-## Alternatives considered
-
-...
 
 ## Cross-cutting concerns
 
