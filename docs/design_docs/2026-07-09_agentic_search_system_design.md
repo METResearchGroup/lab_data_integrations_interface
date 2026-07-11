@@ -36,6 +36,10 @@
       - [Option 1: Matching on other entities or values](#option-1-matching-on-other-entities-or-values)
       - [Option 2: Fuzzy matching](#option-2-fuzzy-matching)
       - [Option 3: Hybrid RAG (semantic search + BM25)](#option-3-hybrid-rag-semantic-search--bm25)
+    - [LLM application deployment to production](#llm-application-deployment-to-production)
+      - [Deploying LLM pipeline changes to production](#deploying-llm-pipeline-changes-to-production)
+      - [Offline evals strategy](#offline-evals-strategy)
+      - [Online evals strategy](#online-evals-strategy)
     - [Observability/Telemetry](#observabilitytelemetry)
       - [System Ops](#system-ops)
       - [LLMOps](#llmops)
@@ -43,9 +47,6 @@
         - [1. Was the LLM result correct?](#1-was-the-llm-result-correct)
         - [2. Was the LLM behavior reliable, observable, and cost-efficient?](#2-was-the-llm-behavior-reliable-observable-and-cost-efficient)
         - [3. Can we audit and reconstruct how the result was produced?](#3-can-we-audit-and-reconstruct-how-the-result-was-produced)
-        - [Deploying LLM pipeline changes to production](#deploying-llm-pipeline-changes-to-production)
-        - [Offline evals strategy](#offline-evals-strategy)
-        - [Online evals strategy](#online-evals-strategy)
       - [FinOps](#finops)
     - [Scaling the results](#scaling-the-results)
   - [Alternatives considered](#alternatives-considered)
@@ -334,6 +335,20 @@ Can possibly use a combination, e.g., using Option 1 first, then Option 2, then 
 
 Also Options 1+2 are probably via Redis, Option 3 is via vector DB (higher latency, higher cost, but more accurate)
 
+### LLM application deployment to production
+
+(the stuff here complements what's in LLMOps, focusing on production considerations + evals)
+
+#### Deploying LLM pipeline changes to production
+
+(Process of trying a new model/prompt/etc and deploying to production).
+
+#### Offline evals strategy
+
+...
+
+#### Online evals strategy
+
 ### Observability/Telemetry
 
 #### System Ops
@@ -376,21 +391,28 @@ Across all these pillars, there are a few principles for us to keep in mind.
 2. **Optimizing for task-level correctness**: we want to avoid "shiny-object" syndrome and automatically plugging in the latest cutting-edge models. We want to prioritize designing LLM systems that perform well on their specific task. What this may mean, for example, is that a different LLM works better for the router than the RAG component.
 3. **Utilize deterministic checks as much as possible**: We want to use deterministic verifiers and checks as much as possible, both to (1) complement LLM checks and (2) verify LLM results. For example, we can have a lightweight set of examples as well as edge cases (e.g., queries < 10 chars) to automatically filter some results before it gets to the LLM router. We can also use deterministic checks (see the "1. Was the LLM result correct?" discussion below) against the LLM-generated results. We want to avoid LLM-as-a-judge as much as possible, reserving it for more heavyweight, infrequent QA. An LLM should be able to propose an action (e.g., run a specific SQL query), but it should be gated and verified.
 4. **Treat prompts, models, and configurations as versioned production artifacts**: Prompt templates, few-shot examples, model identifiers, inference parameters, schema context, and validators should be reviewed and deployed like code. We should define all of these as YAML configs and use a plugin-style architecture (see [this YAML config for an example](https://github.com/METResearchGroup/lab_data_integrations_interface/blob/main/data_platform/ingestion/configs/bluesky/default.yaml)). Not only should these be committed in Git, but we should, within reason, add these as trace-level metadata on production requests. At minimum, for each trace we should track the prompt, model, model parameters, and config version.
-5. **Combine offline evals with online observation**: ... TODO: need to figure this out in more detail
-6. **Turn failures into regression tests**: ...
-7. **Consider tradeoff between precision/recall**: ...
+5. **Combine offline evals with online observation**: We discuss this more in the "LLM application deployment to production" section. A proper LLMOps strategy requires combining offline evals with online observations.
+6. **Turn failures into regression tests**: As we track queries, we'll want to review meaningful production errors, incorrect refusals, expensive generated queries, and user-reported mistakes, and add them to the evaluation suite.
+7. **Consider tradeoff between precision/recall on a case-by-case basis**: the tradeoff between recall and precision varies based on the LLM task. For the router LLM, for example, we would rather prioritize a high precision of the `VALID` label as any result that is marked as valid gets passed down to the next LLM caller to generate a SQL query. Too many incorrectly assigned `VALID` labels causes downstream callers to break. However, for the RAG cache layer, we want to prioritize recall (specifically, `recall@k`) as we more clearly care about retrieving a matching query from past queries, even at the expense of precision.
 
 ##### 1. Was the LLM result correct?
 
 We should define correctness separately per LLM module.
 
-Router correctness: for router correctness, we want to know if the assigned label is correct. Therefore, we can make use of typical classification metrics:
+**Router correctness**: for router correctness, we want to know if the assigned label is correct. Therefore, we can make use of typical classification metrics:
 
-- Precision
-- Recall
-- ...
+- Overall accuracy/F1
+- Class-specific precision/recall
+- False acceptance rate: requests that should've been rejected but were passed to SQL generation.
+- False rejection rate: valid user requests that were unnecessarily rejected.
+- Confusion between the different `INVALID_*` labels.
+- Performance on ambiguous, malformed, adversarial, and prompt-injection-like requests.
 
-SQL query generation correctness: we can't do exact SQL string matching because multiple SQL statements can correctly answer the same requests. There's a few ways for us to evaluate SQL queries, ranging from syntax to correct data fetching:
+Not all errors are equal. As previously mentioned, false acceptance is particularly costly, while false rejections, albeit inconvenient to a user, is safer. During beta testing, we prefer that the router is conservative and requires tuning as opposed to a router that incorrectly accepts requests.
+
+--
+
+**SQL query generation correctness**: we can't do exact SQL string matching because multiple SQL statements can correctly answer the same requests. There's a few ways for us to evaluate SQL queries, ranging from syntax to correct data fetching:
 
 - Is this SQL query valid, parseable, compilable SQL?
 - Is the SQL query grounded in real tables/columns, or does it hallucinate?
@@ -398,6 +420,23 @@ SQL query generation correctness: we can't do exact SQL string matching because 
 - Can Athena successfully execute or explain the query?
 - Does the query implement the filters, joins, aggregations, date ranges, ordering, and entities that are requestesd by the user?
 - Does the query result in the correct data being fetched?
+
+When designing the evaluation dataset, we'll want to include both common request template as well as difficult edge cases, such as:
+
+- Similar entity/column names
+- Multiple simultaneous filter
+- Relative/absolute date ranges
+- Joins
+- Aggregated vs. raw-row retrieval
+- Requests for unavailable or unsupported datasets.
+- Ambiguous query references
+- Queries that are logically valid but unreasonably expensive.
+
+Where possible, we should verify SQL correctness against a stable fixtuer database or representative test tables. We'll want to complement SQL query correctness with comparing the results of the actual queries against the text fixtures.
+
+--
+
+RAG
 
 ##### 2. Was the LLM behavior reliable, observable, and cost-efficient?
 
@@ -408,16 +447,6 @@ SQL query generation correctness: we can't do exact SQL string matching because 
 We will track basic LLM performance measures (latency, # of retries, TTFT, cost, tokens in/out) on each call type (router, SQL generation, and RAG checks).
 
 We will also add prompt-level versioning on each prompt and trace, so that we can attribute specific traces to the given prompts. This can be added as prompt-level and trace-level metadata.
-
-##### Deploying LLM pipeline changes to production
-
-(Process of trying a new model/prompt/etc and deploying to production).
-
-##### Offline evals strategy
-
-...
-
-##### Online evals strategy
 
 ...
 
