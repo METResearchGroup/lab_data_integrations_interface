@@ -39,8 +39,15 @@
       - [Erring towards RAG rather than Redis](#erring-towards-rag-rather-than-redis)
     - [LLM application deployment to production](#llm-application-deployment-to-production)
       - [Deploying LLM pipeline changes to production](#deploying-llm-pipeline-changes-to-production)
+        - [1. Define the proposed change and hypothesis](#1-define-the-proposed-change-and-hypothesis)
+        - [2. Create an isolated candidate configuration](#2-create-an-isolated-candidate-configuration)
+        - [3. Run deterministic tests](#3-run-deterministic-tests)
+        - [3. Run offline evals](#3-run-offline-evals)
+        - [4. Test in a dev environment](#4-test-in-a-dev-environment)
+        - [5. Shadow mode](#5-shadow-mode)
+        - [6. Canary](#6-canary)
+        - [7. Release to production](#7-release-to-production)
       - [Offline evals strategy](#offline-evals-strategy)
-      - [Online evals strategy](#online-evals-strategy)
     - [Observability/Telemetry](#observabilitytelemetry)
       - [System Ops](#system-ops)
         - [General System Ops considerations](#general-system-ops-considerations)
@@ -64,7 +71,15 @@
         - [Controlling LLM costs](#controlling-llm-costs)
         - [Controlling cache costs](#controlling-cache-costs)
         - [Controlling storage and result-retention costs](#controlling-storage-and-result-retention-costs)
-    - [Scaling the results](#scaling-the-results)
+    - [Scaling how we manage query results](#scaling-how-we-manage-query-results)
+      - [Guiding principles to consider](#guiding-principles-to-consider)
+      - [A tiered management policy](#a-tiered-management-policy)
+        - [Small results](#small-results)
+        - [Medium results](#medium-results)
+        - [Large results](#large-results)
+      - [Proposed V1](#proposed-v1)
+      - [Async job model](#async-job-model)
+      - [Materialized-result design](#materialized-result-design)
   - [Alternatives considered](#alternatives-considered)
   - [Cross-cutting concerns](#cross-cutting-concerns)
   - [Errata](#errata)
@@ -796,7 +811,121 @@ For scaling the results, there are a few principles for us to consider:
 
 #### A tiered management policy
 
-We can define configurable result tiers and have a separate management approach for each. We'll have to determine
+We can define configurable result tiers and have a separate management approach for each. We'll have to determine these thresholds based on beta usage and user research.
+
+##### Small results
+
+Small results can be materialized as a single file, stored in S3, and returned through a presigned URL. This is our default V1 path.
+
+##### Medium results
+
+Medium results are still safe to execute automatically, but may be inconvenient as a single uncompressed .csv. Some options here include:
+
+- Compressing the output
+- Splitting the output into multiple files
+- Offering a small preview and then a complete download
+- Using parquet instead of .csv
+- Using a shorter or policy-based retention period.
+
+We can likely combine multiple options into a single policy.
+
+##### Large results
+
+During V1 development, large results should be rejected and routed to the team for manual handling. Manual handling allows the team to learn what types of large requests users make before investing in a policy for handling large results. The team can also suggest refinements to the user's queries, like a narrower time range.
+
+#### Proposed V1
+
+For V1, we should:
+
+1. Accept the natural-language request asynchronously.
+2. Generate and validate the SQL query.
+3. Estimate query cost and output size where possible.
+4. Reject queries above the configured automatic-execution limits.
+5. Execute accepted queries once.
+6. Materialize the result to S3.
+7. Generate a presigned URL.
+8. Return or send the URL to the user.
+9. Expire the result according to the retention policy.
+
+We should support a small result preview, but we do not need full interactive pagination during V1.
+
+This is appropriate because the expected user goal is to obtain a research dataset for use in R, Python, or another analysis environment. Pagination improves browser usability, but it does not solve the user’s need to retrieve the complete dataset.
+
+#### Async job model
+Even moderate Athena requests may take longer than is appropriate for a synchronous HTTP connection.
+
+The API should model the request as a job with states such as:
+
+- PENDING
+- ROUTING
+- GENERATING_SQL
+- VALIDATING
+- ESTIMATING_COST
+- QUEUED
+- EXECUTING
+- POSTPROCESSING
+- READY
+- REJECTED
+- FAILED
+- EXPIRED
+
+The initial API response can return a job identifier. The frontend can then poll a status endpoint or use another notification mechanism.
+
+The completed job should include:
+
+- Final status.
+- Human-readable status message.
+- Result metadata.
+- Row count where available.
+- Result size.
+- File format.
+- Expiration time.
+- Presigned download URL.
+- Error or rejection reason.
+
+This also makes large-query execution more resilient to browser refreshes and network interruptions.
+
+#### Materialized-result design
+
+Each completed request should create a result artifact or a result manifest.
+
+A result manifest may include:
+
+```json
+{
+  "request_id": "...",
+  "result_id": "...",
+  "status": "READY",
+  "format": "csv.gz",
+  "row_count": 250000,
+  "total_size_bytes": 125000000,
+  "created_at": "...",
+  "expires_at": "...",
+  "files": [
+    {
+      "file_index": 0,
+      "size_bytes": 64000000,
+      "row_count": 128000,
+      "storage_key": "..."
+    },
+    {
+      "file_index": 1,
+      "size_bytes": 61000000,
+      "row_count": 122000,
+      "storage_key": "..."
+    }
+  ]
+}
+```
+
+The manifest allows us to:
+
+- Split large exports into manageable chunks.
+- Resume partial downloads.
+- Generate separate presigned URLs.
+- Track artifact size and retention.
+- Validate that all chunks were generated.
+- Avoid rerunning the query.
 
 ## Alternatives considered
 
