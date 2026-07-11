@@ -1,13 +1,6 @@
-# System Design: Agentic Search
+# Design Doc: Natural language search
 
-Text-to-SQL.
-
-Likely steps are:
-
-- Expand the query functionality to take on more generic queries (let's discuss later what this means)
-- Add V1 text-to-SQL functionality, very naive (prompting an LLM to query, we'll pass into the LLM prompt the list of tables and their fields). We'll turn this into an experiment in experiments/ to have a proof of concept.
-- We'll make this more robust (add validation, avoid prompt injection, make sure queries don't give results that are too large, etc). We can do more experiments for this step as well.
-- Then we can put into production (still vague as to what that means).
+This is a design doc for the natural language search component.
 
 ## Purpose
 
@@ -95,7 +88,31 @@ Here, we introduce a new product surface. We replace the existing simple FastAPI
 
 ## Implementation details
 
+### Per-service/component changes
+
+#### Frontend input
+
 ...
+
+#### Backend
+
+...
+
+#### Athena client
+
+...
+
+#### New service layers
+
+...
+
+##### API Gateway
+
+...
+
+### Schemas/APIs
+
+Request/response shapes, error codes.
 
 ### Prompting
 
@@ -161,7 +178,14 @@ We'll also add regression testing as part of nightly tests, CI/CD (especially be
 
 We also want to add telemetry and take a subset of production traffic, perhaps every 1-2 days, and manually QA the samples + generate new evaluation samples.
 
-### Caching
+### Validation rules
+
+Some rules for us to enforce are:
+
+- Read-only queries: we only allow `SELECT` queries and we disallow create/update/delete queries.
+- ...
+
+### Caching design
 
 We want to invest in a good caching system (Redis cache + DB search of past queries + RAG) so as to avoid expensive queries + Athena calls. We also want to prioritize caching results of large queries, and caching results of smaller queries is less important (though will have to see financial tradeoff of keeping extra RAM in Redis + RAG queries vs. cost of executing smaller queries).
 
@@ -180,13 +204,12 @@ We can match on entities/values extracted from the user query.
 
 ```json
 {
-     "user_query": "I want all posts liked by Stanley in the past 2 months.",
-     "cleaned_query": "i want all posts liked by stanley in the past 2 months",
-     // don't match on the exact query string, match on the entities
+    "user_query": "I want all posts liked by Stanley in the past 2 months.",
+    "cleaned_query": "i want all posts liked by stanley in the past 2 months",
+    // don't match on the exact query string, match on the entities
     "users_referenced": "Stanley",
     "entities_mentioned": "posts",
-    "timeframe": "last 2 months"
-
+    "timeframe": "last 2 months",
     // cache key could be something like {users referenced}::{entities}::{timeframe}
     // i want all posts liked by stanley in the past 2 months" vs.
     // i want all posts in the past 2 months  liked by stanley" have the same cache key
@@ -195,11 +218,11 @@ We can match on entities/values extracted from the user query.
 
 This is a low-cost approach, easy to implement and requires 0 LLM calls. It may require deploying some pretrained NER models, but beyond that  
 
-Option 2: Fuzzy matching
+#### Option 2: Fuzzy matching
 
 Basically an extension of option 1, but not looking for exact match, but rather approximate string.
 
-Option 3: Hybrid RAG (semantic search + BM25)
+#### Option 3: Hybrid RAG (semantic search + BM25)
 
 Can use RAG to find queries that are similar enough, then grab those similar queries, pass to an LLM,
 ask an LLM "are any of these past queries the same as what a user is looking for?". If yes, return
@@ -237,3 +260,13 @@ A v1 approach is presigned URLs. We can probably ship this as a v1, but what do 
 ## Cross-cutting concerns
 
 ...
+
+## Errata
+
+*A design doc is essentially the same thing as an RFC. Some companies, like Uber, call it RFCs, while others, like Google, call it Design Docs.
+
+Some resources:
+
+- [Practical Engineer article on RFCs](https://blog.pragmaticengineer.com/scaling-engineering-teams-via-writing-things-down-rfcs/)
+- ["How we use RFCs"](https://resend.com/handbook/engineering/how-we-use-rfcs)
+- [Design docs at Google](https://www.industrialempathy.com/posts/design-docs-at-google/)
