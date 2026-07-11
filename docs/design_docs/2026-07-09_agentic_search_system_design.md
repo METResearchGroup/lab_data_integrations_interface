@@ -26,9 +26,9 @@
       - [Draft query generation prompt](#draft-query-generation-prompt)
       - [Draft router prompt](#draft-router-prompt)
       - [Testing + Experimentation](#testing--experimentation)
-    - [Validation rules](#validation-rules)
     - [Adding limits by default](#adding-limits-by-default)
     - [Gating on the `EXPLAIN ANALYZE` query](#gating-on-the-explain-analyze-query)
+    - [Validation rules](#validation-rules)
       - [Router layer validation](#router-layer-validation)
       - [Validating generated SQL queries](#validating-generated-sql-queries)
       - [Post-Athena validation/postprocesisng](#post-athena-validationpostprocesisng)
@@ -237,8 +237,6 @@ We'll also add regression testing as part of nightly tests, CI/CD (especially be
 
 We also want to add telemetry and take a subset of production traffic, perhaps every 1-2 days, and manually QA the samples + generate new evaluation samples.
 
-### Validation rules
-
 ### Adding limits by default
 
 ... Adding limits by default, e.g., limiting the max results, adding date range limits, etc.
@@ -252,6 +250,8 @@ Athena costs $5/TB to run. Even just $1 means scanning 200GB of records. We will
 As a first pass, we restrict queries scanning >10GB of data. As part of the beta phase of this application, we can restrict the amount of records that a user can access. 10GB is towards the upper limit of how many records a single nontechnical user can download on their computer (much less download in-memory into an R script or Jupyter notebook). Even if, say, only 10% of the scanned data is actually exported, 1GB is still a decently large dataset for a nontechnical user to manage on their personal laptop.
 
 Given that this is how the majority of nontechnical users will likely interact with our interface, we can set this cap. We have limitations that should circumvent this (see the ##adding-limits-by-default section). We can direct users to contact the research team and we can collaborate with them to run larger queries. This will also allow us to work more closely with power users, troubleshoot queries that could be particularly tricky and/or costly, and simplify our development by removing a surface area for scalability problems during V1 development (costly/large-scale queries).
+
+### Validation rules
 
 #### Router layer validation
 
