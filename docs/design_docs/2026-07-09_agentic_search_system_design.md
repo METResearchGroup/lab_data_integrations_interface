@@ -36,6 +36,7 @@
       - [Option 1: Matching on other entities or values](#option-1-matching-on-other-entities-or-values)
       - [Option 2: Fuzzy matching](#option-2-fuzzy-matching)
       - [Option 3: Hybrid RAG (semantic search + BM25)](#option-3-hybrid-rag-semantic-search--bm25)
+      - [Erring towards RAG rather than Redis](#erring-towards-rag-rather-than-redis)
     - [LLM application deployment to production](#llm-application-deployment-to-production)
       - [Deploying LLM pipeline changes to production](#deploying-llm-pipeline-changes-to-production)
       - [Offline evals strategy](#offline-evals-strategy)
@@ -57,6 +58,12 @@
         - [3. Can we audit and reconstruct how the result was produced?](#3-can-we-audit-and-reconstruct-how-the-result-was-produced)
         - [Tracking LLMOps in a dashboard](#tracking-llmops-in-a-dashboard)
       - [FinOps](#finops)
+        - [FinOps principles](#finops-principles)
+        - [Cost model](#cost-model)
+        - [Controlling Athena costs](#controlling-athena-costs)
+        - [Controlling LLM costs](#controlling-llm-costs)
+        - [Controlling cache costs](#controlling-cache-costs)
+        - [Controlling storage and result-retention costs](#controlling-storage-and-result-retention-costs)
     - [Scaling the results](#scaling-the-results)
   - [Alternatives considered](#alternatives-considered)
   - [Cross-cutting concerns](#cross-cutting-concerns)
@@ -344,6 +351,12 @@ Can possibly use a combination, e.g., using Option 1 first, then Option 2, then 
 
 Also Options 1+2 are probably via Redis, Option 3 is via vector DB (higher latency, higher cost, but more accurate)
 
+#### Erring towards RAG rather than Redis
+
+Although we keep the option of having a Redis cache layer in consideration, we don't expect requests to actually be repeated very often in practice. Caching is particularly valuable when equivalent requests occur repeatedly and remain valid for a useful period. However, it's likely that, for the use case of academic researchers, their requests will be so specific to their use case that once they get the data, they themselves won't make that same request again and it's unlikely that someone else will make a similar request.
+
+Therefore, we can err on the side of using RAG retrieval to fetch semantically similar requests, if they exist, rather than using a Redis cache.
+
 ### LLM application deployment to production
 
 (the stuff here complements what's in LLMOps, focusing on production considerations + evals)
@@ -573,7 +586,97 @@ We'll want a dashboard (possibly an extension of [the dashboard created in this 
 
 #### FinOps
 
-...
+We want to be able to measure, control, and forecast the cost of operating the search system.
+
+Our FinOps strategy revolves around 3 core questions:
+
+1. Can we attribute cost to individual requests, features, and users?
+2. Can we prevent unexpectedly expensive behavior before it occurs?
+3. Can we forecast how cost changes as usage and data volume grow?
+
+Our goal isn't to necessarily minimize infra spending. Instead, we want to know the total cost of serving a user request and to make cost-informed tradeoffs amongst the different components. For example, if we add a cache, the financial cost of that has to be considered against the benefits.
+
+##### FinOps principles
+
+We have a few FinOps principles core to the project scope:
+
+- The key metric we care about is **what is the total cost of producing a valid result for a user?**
+- Attribute cost as close to the request as possible.
+- Proactively prevent cost where possible. For example, our `EXPLAIN ANALYZE` work is one way of preventig expensive queries.
+- Separate fixed and variable costs.
+- Evaluate cost alongside correctness and reliability.
+- Treat budgets as operational guardrails.
+- Make cost visible to engineers and product owners.
+
+##### Cost model
+
+We can use a simplified request-level model for tracking cost:
+
+```markdown
+total_request_cost =
+    gateway_and_compute_cost
+  + cache_cost
+  + llm_inference_cost
+  + athena_cost
+  + storage_cost
+  + data_transfer_cost
+  + observability_cost
+```
+
+We make a distinction between costs associated with an individual request versus shared costs. Some direct variable costs include LLM input/output tokens, embedding generation, Athena bytes scanned, etc., while some shared costs include Redis memory ops and server compute.
+
+Each request should include a `request_id`. Using this, we can link operational traces to cost-producing activities.
+
+We can track mean/median cost per completed request, as well as p50/p90/p95/p99. We particularly care about tail costs as these are the ones most likely to exopnentially increase our total cost.
+
+##### Controlling Athena costs
+
+Athena is likely to be one of the largest cost centers, especially as the scale of queries increases. The system needs to proactively prevent unbounded scans through deterministic controls.
+
+Some approaches to do this include:
+
+- Pre-execution checks: table/column allowlists, maximum estimated bytes scanned, maximum date range, prohibition of certain joins, maximum output size, maximum result-row limit, per-user/per-project quotas, etc. This can complement the aforementioned work related to `EXPLAIN ANALYZE`.
+- Runtime controls: we can enforce things like per-request execution timeouts, automated cancellation policies, etc.
+- Post-execution monitoring: for every Athena execution, we can track estimated/actual bytes scanned, estimated/actual cost, query runtime, and result size. Large discrepancies between estimated/actual results should be reviewed.
+
+Some common ways to reduce Athena costs include:
+
+- Partitioning data by frequently filtered dimensions.
+- Requiring partition files.
+- Using compressed columnar formats (our pipeline already uses .parquet).
+- Using precomputed views.
+- Compacting small files.
+- Using prior results.
+- Avoiding repeated scans for pagination.
+
+This implies a close collaboration with data platform work in order to make sure that the query patterns in the search interface match data platform and format assumptions.
+
+##### Controlling LLM costs
+
+LLM costs are the other most likely contributor to the cost of an individual request. LLM cost should be measured separately per caller. For each, we should track metrics such as input/output tokens and cost per call, in addition to other LLM fields (see the "LLMOps" section for more detail).
+
+When we consider the cost for a model, we should review under a policy of cost-adjusted quality rather than cost alone. We will likely err towards using a distilled `*-nano` model, but we want to review the performance of such models against other larger models to see if any possible improvement is worth the increase in cost (we'll discuss this as a team after experimentation).
+
+Some potential LLM cost controls to consider incldue:
+
+- Maximum prompt-token, output-token budgets.
+- Retrieving only relevant tables/columns.
+- Limiting the number of few-shot examples.
+- Varying usage of small/large models, erring towards using small models.
+- Caching results aggressively.
+- Using deterministic validators instead of LLM validators.
+
+##### Controlling cache costs
+
+Caching is most helpful when the underlying queries are expensive, requests are likely repeated, and results remain valid for a useful period.
+
+We anticipate that requests won't be repeated that often. We instead can err towards using RAG retrieval to fetch similar requests, if any.
+
+##### Controlling storage and result-retention costs
+
+Large result files might become a meaningful storage cost over time. For each result artifact, we'll track: request identifier, size, expiration time, number of downloads, and associated query cost.
+
+We also want to reference against a retention policy. This retention policy should account for user expectations, research reproducibility, IRB requirements, etc.
 
 ### Scaling the results
 
