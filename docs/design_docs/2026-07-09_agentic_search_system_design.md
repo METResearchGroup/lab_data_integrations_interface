@@ -43,6 +43,8 @@
     - [Observability/Telemetry](#observabilitytelemetry)
       - [System Ops](#system-ops)
         - [General System Ops considerations](#general-system-ops-considerations)
+        - [Service-level indicators and objectives](#service-level-indicators-and-objectives)
+        - [Latency/performance metrics](#latencyperformance-metrics)
       - [LLMOps](#llmops)
         - [General LLMOps considerations](#general-llmops-considerations)
         - [1. Was the LLM result correct?](#1-was-the-llm-result-correct)
@@ -392,14 +394,51 @@ We want to be able to both observe the end-to-end flow while also allowing us to
 Some guiding principles we want to consider include:
 
 1. **Observe both complete user journeys and individual services**: we want to be able to deep-dive into both end-to-end request flows as well as what happens in individual journeys.
-2. **Measure both success AND quality of service**: a request that returns in 5 seconds versus a request that returns in 5 minutes both technically returned results, but are different in quality.
-3. **Distinguish between requests rejected explicitly vs. requests that aren't fulfilled due to system error**: we want to make sure that we know when a request isn't fulfilled because, for example, it's invalid, as opposed to a request that isn't fulfilled because the pipeline breaks.
+2. **Define service-level indicators and objectives**: we want to have expectations for how the platform should perform.
+3. **Measure both success AND quality of service**: a request that returns in 5 seconds versus a request that returns in 5 minutes both technically returned results, but are different in quality.
+4. **Distinguish between requests rejected explicitly vs. requests that aren't fulfilled due to system error**: we want to make sure that we know when a request isn't fulfilled because, for example, it's invalid, as opposed to a request that isn't fulfilled because the pipeline breaks.
 
 Additionally, some more general Ops-specific principles that we'll want to consider include:
 
 1. Prefer structured telemetry over free-form logs, so we can more easily review later.
 2. Avoid high-cardinality metrics: don't track things like "unique request IDs", as these are high cardinality metrics and we'll want to keep those in traces, not metric dimensions.
-3. Use a single request identifier. We want to make sure that disparate artifacts (e.g., logs, traces, metrics, etc.) can be all linked through a common trace identifier.
+3. Use a single request identifier. We want to make sure that disparate artifacts (e.g., logs, traces, metrics, etc.) can be all linked through a common trace identifier. Every request should receive a unique `trace_id`.
+
+A trace should be structured in a way that allows us to answer questions like:
+
+1. Where did a slow request spend most of its time?
+2. Did a request wait on an LLM step? The Athena query? Something else?
+3. When we rejected a request, did we do it intentionally or did the request just fail?
+4. How many times did a request retry?
+5. Were we able to successfully fulfill a query but unable to deliver the result to the user?
+
+##### Service-level indicators and objectives
+
+We want to define SLIs/SLOs for our system. We can define some initial SLIs, and then after collecting traffic during beta development, we can develop SLOs.
+
+Some initial SLIs to consider include:
+
+- Request acceptance rate.
+- Successful end-to-end completion rate.
+- First-attempt success rate (also, retry rate).
+- End-to-end latency.
+- Time to produce the final result once a result is accepted.
+- Percentage of accepted requests that fail before returning a result.
+- Percentage of results/queries blocked by validation.
+
+We should also carefully triage success/failure. One possible breakdown is something like:
+
+- `SUCCESS_RESULTS_RETURNED`: the request completed and returned one or more records.
+- `SUCCESS_NO_RESULTS`: the request completed correctly but matched no records.
+- `REJECTED_ROUTER_REJECT`: the request was rejected by the router.
+- `REJECTED_TOO_EXPENSIVE`: the query was too expensive.
+- `FAILED_INTERNAL`: the request failed due to an application error.
+- `FAILED_TIMEOUT`: the request failed a timeout.
+- `FAILED_VALIDATION`: the request failed due to a validation step.
+
+##### Latency/performance metrics
+
+We should track end-to-end and per-stage latency at p50/p95/p99. in addition, we should also track performance using metrics such as: requests that complete on the first attempt, requests that require retries, cache hits vs. misses, and small/medium/large query performance.
 
 #### LLMOps
 
