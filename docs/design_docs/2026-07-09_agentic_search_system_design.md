@@ -45,6 +45,11 @@
         - [General System Ops considerations](#general-system-ops-considerations)
         - [Service-level indicators and objectives](#service-level-indicators-and-objectives)
         - [Latency/performance metrics](#latencyperformance-metrics)
+        - [Reliability](#reliability)
+        - [Logging](#logging)
+        - [Deployment and change management](#deployment-and-change-management)
+        - [Incident response and runbooks](#incident-response-and-runbooks)
+        - [Data retention and privacy](#data-retention-and-privacy)
       - [LLMOps](#llmops)
         - [General LLMOps considerations](#general-llmops-considerations)
         - [1. Was the LLM result correct?](#1-was-the-llm-result-correct)
@@ -439,6 +444,53 @@ We should also carefully triage success/failure. One possible breakdown is somet
 ##### Latency/performance metrics
 
 We should track end-to-end and per-stage latency at p50/p95/p99. in addition, we should also track performance using metrics such as: requests that complete on the first attempt, requests that require retries, cache hits vs. misses, and small/medium/large query performance.
+
+##### Reliability
+
+We can include explicit operational safeguards to promote reliability.
+
+- Timeouts: each external call should have a bounded timeout.
+- Retries: retries should be included for transient/retryable failures, using bounded exponential backoff with jitter.
+- Circuit breaker: we want to temporarily stop calls to a dependency when repeated failures indicate that the dependency is unhealthy. For example, we should stop calling the router LLM node if it keeps returning an error, and automatically reject requests until the router is fixed (or some other reasonable fallback).
+
+##### Logging
+
+We can use structured logs, with a consistent schema across services.
+
+Some fields we can add include: timestamp, log level, service, environment, application version, request ID, trace ID, span ID, pipeline stage, event type, outcome, duration, error code, retry attemp, etc.
+
+##### Deployment and change management
+
+Every trace and log should include the application version or Git commit so that any operational changes can be attributed to a deployment.
+
+When we make changes, we should follow a progressive release process:
+
+- Automated tests + integration tests
+- Deployment to dev environment.
+- Smoke tests against representative requests.
+- Canary deployment.
+- Full rollout.
+- Rollback if needed.
+
+##### Incident response and runbooks
+
+We'll want to create runbooks for various foreseen incidents, such as per-stage failures.
+
+Some of the things to include in a runbook are:
+
+- How to identify the incident.
+- Which dashboards and logs to inspect.
+- Immediate mitigation steps.
+- Fallback or degraded-mode behavior.
+- Rollback procedures.
+- How to identify affected requests.
+- How to replay or recover failed requests.
+- When and how to notify users or stakeholders.
+- What information should be collected for a post-incident review.
+
+##### Data retention and privacy
+
+This is out-of-scope of the current plan. Right now we don't need pseudonymization.
 
 #### LLMOps
 
