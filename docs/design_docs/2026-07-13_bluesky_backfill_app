@@ -1,0 +1,72 @@
+# Background
+
+In the current data platform we specify a particular way to retrieve records from Bluesky. We use the direct Bluesky API. We then also get only posts currently. We take this and pass it into the rest of the pipeline. We want to expand to more methods of ingestion from Bluesky as well as more data types.
+
+# Proposal
+
+Use the Bluesky Jetstream API to access all data from a few days up to a few weeks ago. Since the Jetstream is a continuous WebSocket connection, we will always try to keep connected to the WebSocket, and keep a cursor for when we lose the connection. 
+
+# Implementation Plan
+
+System design diagram:
+https://www.tldraw.com/f/mVmZO-nqLuI_uoJ6I8K-u?d=v-1693.-392.4499.2958.page
+
+## 1. Ingestion
+
+### Receive Data from Websocket
+
+We should keep a websocket connection to the Jetstream and continuosly stream their data into our machine's memory. 
+We should start receiving data from our cursor's value. 
+
+### Periodically Flush to S3
+
+We can do this in 2 ways:
+
+1. Every x amount of time
+
+2. After x amount of data enters our server
+
+### Update cursor in DynamoDB
+
+Because it is unrealistic to always keep our WebSocket connection, we need some way to know where to leave off.
+We can do this by storing the cursor in DynamoDB so that when our connection goes down, we know where to restart. 
+
+## Splitting Data into Individual Tables
+
+### Filter the Data
+We have 4 main tables we want:
+- Posts
+- Likes
+- Reposts
+- Follows
+
+Based off this, we need to make Athena queries for each of these things and load them into our memory. 
+A solution is to use AWS Bookmarks for this. 
+
+### Upload Filtered Data to S3
+We should have separate tables for each of these filters, and upload to S3 after we have received the data into memory.
+
+### Update Partitions
+3 Options:
+1. Glue Crawler
+- Cheaper than immediate Glue table updates, assuming we upload to S3 more frequently than we run Glue Crawler
+- New data won't be queryable for x time
+
+
+2. Immediate Glue Table updates
+- New data is queryable immediately after update
+- More expensive than Glue Crawler, assuming we upload to S3 more frequently than we run Glue Crawler
+
+3. Partition Projection
+- New data is queryable immedaitely after S3 upload
+- Only works for highly predictable partition structures
+
+## Open Questions
+
+1. For periodically flushing ingested data to s3, should we do option 1, 2, or both?
+
+2. Other possibilities for updating cursor, both for ingestion and for filtering? 
+
+3. Which partition updating method to use? I'm leaning towards Partition Projection
+
+4. Retry logic, TBD
