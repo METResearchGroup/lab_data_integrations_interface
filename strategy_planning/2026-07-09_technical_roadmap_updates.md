@@ -1,3 +1,17 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Status update on the technical roadmap](#status-update-on-the-technical-roadmap)
+  - [What's been built](#whats-been-built)
+    - [Data pipeline](#data-pipeline)
+    - [Frontend/backend](#frontendbackend)
+    - [Observability](#observability)
+    - [Review of current status](#review-of-current-status)
+  - [What's next](#whats-next)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Status update on the technical roadmap
 
 ## What's been built

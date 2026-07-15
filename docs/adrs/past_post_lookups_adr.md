@@ -1,3 +1,23 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [ADR 1: Past Post URI Lookups for Dedupes](#adr-1-past-post-uri-lookups-for-dedupes)
+  - [Context and Problem Statement](#context-and-problem-statement)
+  - [Decision Drivers](#decision-drivers)
+  - [Considered Options](#considered-options)
+  - [Decision Outcome](#decision-outcome)
+  - [Pros and Cons of the Options](#pros-and-cons-of-the-options)
+    - [Option A: S3 + Sqlite](#option-a-s3--sqlite)
+    - [Option B: DynamoDB](#option-b-dynamodb)
+    - [Option C: S3 + Athena](#option-c-s3--athena)
+    - [Option D: S3 + DuckDB](#option-d-s3--duckdb)
+  - [Validation](#validation)
+  - [Consequences](#consequences)
+  - [References](#references)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # ADR 1: Past Post URI Lookups for Dedupes
 
 - **Status**: Accepted 
