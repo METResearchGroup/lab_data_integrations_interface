@@ -1,3 +1,27 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Initial spec details](#initial-spec-details)
+  - [Scope for v1](#scope-for-v1)
+    - [In-scope](#in-scope)
+    - [Fast-follow](#fast-follow)
+    - [Out-of-scope (longer-term build)](#out-of-scope-longer-term-build)
+  - [V1 details](#v1-details)
+    - [Step 1: Create integration-specific support](#step-1-create-integration-specific-support)
+      - [Bluesky](#bluesky)
+        - [Getting familiar with Bluesky](#getting-familiar-with-bluesky)
+        - [Creating the Jetstream](#creating-the-jetstream)
+        - [Getting live posts that meet certain criteria](#getting-live-posts-that-meet-certain-criteria)
+      - [Reddit](#reddit)
+      - [Twitter](#twitter)
+    - [Step 2: Create a unified interface across integrations](#step-2-create-a-unified-interface-across-integrations)
+  - [V2 details](#v2-details)
+    - [Deploy the API](#deploy-the-api)
+    - [Create a frontend](#create-a-frontend)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Initial spec details
 
 Problem: We want a way to reduce the duplicated work related to gathering and scraping data. Academics write the same boilerplate code over and over to scrape data from Twitter, Bluesky, and Reddit.

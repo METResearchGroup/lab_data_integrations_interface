@@ -1,3 +1,15 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Deployment spec](#deployment-spec)
+  - [Phase 1: Initial build](#phase-1-initial-build)
+  - [Phase 2: Hardening](#phase-2-hardening)
+  - [Phase 3: More hardening](#phase-3-more-hardening)
+  - [Phase 4: Scaling up](#phase-4-scaling-up)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Deployment spec
 
 Now that we have (1) some initial scripts and (2) confirmed interest in a more fleshed-out lab data integrations interface, let's plan out what that build-out would look like.

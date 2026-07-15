@@ -1,3 +1,31 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Setting up the observability layer of the data integrations interface](#setting-up-the-observability-layer-of-the-data-integrations-interface)
+  - [What is observability?](#what-is-observability)
+  - [How does observability work?](#how-does-observability-work)
+    - [What do we track?](#what-do-we-track)
+    - [What does it look like if we don't have observability?](#what-does-it-look-like-if-we-dont-have-observability)
+  - [Epic 1: Building a "Hello World" for observability](#epic-1-building-a-hello-world-for-observability)
+    - [Ticket 1: Set up a "Hello World" example](#ticket-1-set-up-a-hello-world-example)
+      - [Ticket 1 implementation](#ticket-1-implementation)
+      - [Details of HTTP service](#details-of-http-service)
+      - [Ticket 1 acceptance criteria](#ticket-1-acceptance-criteria)
+      - [Ticket 1 runbook requirements](#ticket-1-runbook-requirements)
+    - [Ticket 2: Trace topology and dependencies](#ticket-2-trace-topology-and-dependencies)
+    - [Ticket 3: Failure modes and retries](#ticket-3-failure-modes-and-retries)
+    - [Ticket 4: Async work](#ticket-4-async-work)
+    - [Ticket 5: Resource symptoms](#ticket-5-resource-symptoms)
+    - [Ticket 6: End-to-end smoke testing](#ticket-6-end-to-end-smoke-testing)
+  - [Epic 2: Deploying the "Hello World" example to AWS](#epic-2-deploying-the-hello-world-example-to-aws)
+  - [Epic 3: Connecting the DevOps layer to the full-stack app](#epic-3-connecting-the-devops-layer-to-the-full-stack-app)
+  - [Epic 4: Develop an observability AI agent and connect to the telemetry stack](#epic-4-develop-an-observability-ai-agent-and-connect-to-the-telemetry-stack)
+  - [Key questions to be able to answer along the way](#key-questions-to-be-able-to-answer-along-the-way)
+  - [Notes](#notes)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Setting up the observability layer of the data integrations interface
 
 ## What is observability?

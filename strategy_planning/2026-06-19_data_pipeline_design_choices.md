@@ -1,3 +1,26 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Data pipeline design choices (2026-06-19)](#data-pipeline-design-choices-2026-06-19)
+  - [Pipeline shape (the “happy path”)](#pipeline-shape-the-happy-path)
+  - [Design choices made](#design-choices-made)
+    - [Store stage outputs in S3 (not just on disk)](#store-stage-outputs-in-s3-not-just-on-disk)
+    - [Accept data duplication across stages (copy-on-write pipeline)](#accept-data-duplication-across-stages-copy-on-write-pipeline)
+    - [Derive “seen IDs” from tables on demand (single source of truth)](#derive-seen-ids-from-tables-on-demand-single-source-of-truth)
+    - [Deduplicate at each node (not only at ingestion)](#deduplicate-at-each-node-not-only-at-ingestion)
+    - [Choose “auto-catch-up” semantics for failed runs (Option 2)](#choose-auto-catch-up-semantics-for-failed-runs-option-2)
+  - [Provenance, run IDs, and metadata](#provenance-run-ids-and-metadata)
+    - [Run ID semantics: keep run IDs idempotent / meaningful](#run-id-semantics-keep-run-ids-idempotent--meaningful)
+    - [Per-stage run IDs for posts (required by Option 2)](#per-stage-run-ids-for-posts-required-by-option-2)
+    - [Where metadata lives (and what’s still open)](#where-metadata-lives-and-whats-still-open)
+  - [Scenarios discussed (the concrete correctness tests)](#scenarios-discussed-the-concrete-correctness-tests)
+    - [Scenario A: preprocessing stalls; rerun happens "too soon" (no new posts)](#scenario-a-preprocessing-stalls-rerun-happens-too-soon-no-new-posts)
+    - [Scenario B: run 1 ingestion succeeds; preprocessing fails; run 2 ingests new posts](#scenario-b-run-1-ingestion-succeeds-preprocessing-fails-run-2-ingests-new-posts)
+  - [Cost/latency tradeoffs explicitly called out](#costlatency-tradeoffs-explicitly-called-out)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Data pipeline design choices (2026-06-19)
 
 What we decided for the pipeline, the tradeoffs we explicitly considered, and the concrete scenarios used to reason about correctness.

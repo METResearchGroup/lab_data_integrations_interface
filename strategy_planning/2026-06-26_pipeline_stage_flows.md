@@ -1,3 +1,15 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Pipeline stage flows (2026-06-26)](#pipeline-stage-flows-2026-06-26)
+  - [Ingestion](#ingestion)
+  - [Preprocessing](#preprocessing)
+  - [Feature generation](#feature-generation)
+  - [Curation](#curation)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Pipeline stage flows (2026-06-26)
 
 Detailed execution flow for each pipeline stage, capturing deduplication, gate checks, resume logic, and early-exit conditions.

@@ -1,3 +1,19 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Data platform pipeline correctness](#data-platform-pipeline-correctness)
+  - [Guarantees-First Pipeline Design](#guarantees-first-pipeline-design)
+    - [Stage 1: Domain objects](#stage-1-domain-objects)
+    - [Stage 2: State transitions](#stage-2-state-transitions)
+    - [Stage 3: System guarantees](#stage-3-system-guarantees)
+    - [Stage 4: Failure and retry model](#stage-4-failure-and-retry-model)
+    - [Stage 5: Scaling](#stage-5-scaling)
+    - [A quick set of questions to answer about architecture](#a-quick-set-of-questions-to-answer-about-architecture)
+    - [Some ways to think about this](#some-ways-to-think-about-this)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Data platform pipeline correctness
 
 ## Guarantees-First Pipeline Design
