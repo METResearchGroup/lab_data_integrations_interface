@@ -1,3 +1,20 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [`com.atproto.sync.getRepo` return type](#comatprotosyncgetrepo-return-type)
+  - [What you get back](#what-you-get-back)
+  - [1. Commit block](#1-commit-block)
+  - [2. MST tree-node block](#2-mst-tree-node-block)
+  - [3. Record blocks (per collection)](#3-record-blocks-per-collection)
+    - [`app.bsky.feed.post`](#appbskyfeedpost)
+    - [`app.bsky.feed.like`](#appbskyfeedlike)
+    - [`app.bsky.feed.repost`](#appbskyfeedrepost)
+    - [`app.bsky.graph.follow`](#appbskygraphfollow)
+  - [Mapping to our CSV columns](#mapping-to-our-csv-columns)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # `com.atproto.sync.getRepo` return type
 
 What the endpoint actually returns, block by block, and which fields are always present vs.
