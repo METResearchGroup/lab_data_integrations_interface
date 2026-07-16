@@ -29,7 +29,15 @@ We can do this in 2 ways:
 ### Update cursor in DynamoDB
 
 Because it is unrealistic to always keep our WebSocket connection, we need some way to know where to leave off.
-We can do this by storing the cursor in DynamoDB so that when our connection goes down, we know where to restart. 
+We can do this by storing the cursor in DynamoDB so that when our connection goes down, we know where to restart.
+
+### Ingestion pipeline
+
+```mermaid
+flowchart LR
+    A["WebSocket Connection<br/>(all data)"] --> B["Flush Raw Data to<br/>S3"]
+    B --> C["Update cursor in<br/>DynamoDB"]
+```
 
 ## Splitting Data into Individual Tables
 
