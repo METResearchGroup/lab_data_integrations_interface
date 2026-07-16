@@ -32,3 +32,13 @@ repos:
       - id: biome-check
         additional_dependencies: ["@biomejs/biome@1.8.3"]
         files: ^ui/
+
+  - repo: local
+    hooks:
+      - id: doctoc
+        name: Update markdown TOCs (doctoc)
+        entry: bash scripts/update_doc_tocs.sh
+        language: node
+        additional_dependencies: ["doctoc@2"]
+        files: ^(docs/adrs|docs/design_docs|strategy_planning)/.+\.md$
+        pass_filenames: true

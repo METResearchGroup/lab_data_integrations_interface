@@ -1,3 +1,25 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Deduplication design (2026-06-25)](#deduplication-design-2026-06-25)
+  - [Core identity model](#core-identity-model)
+    - [dataset_id — stable per config](#dataset_id--stable-per-config)
+    - [Timestamp — the run identity](#timestamp--the-run-identity)
+  - [Startup sequence at every stage](#startup-sequence-at-every-stage)
+  - [Dedup at each stage](#dedup-at-each-stage)
+    - [Stage dedup targets](#stage-dedup-targets)
+  - [Gate checks per stage](#gate-checks-per-stage)
+    - [Preprocessing gate](#preprocessing-gate)
+    - [Feature generation gate](#feature-generation-gate)
+    - [Curation gate](#curation-gate)
+  - [Sweep model](#sweep-model)
+  - [Features: flat accumulative store per dataset](#features-flat-accumulative-store-per-dataset)
+    - [Why flat](#why-flat)
+    - [Sweep model for features](#sweep-model-for-features)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Deduplication design (2026-06-25)
 
 Decisions made about deduplication logic, dataset/run identity, and gate checks across pipeline stages.
