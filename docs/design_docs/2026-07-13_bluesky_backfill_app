@@ -11,7 +11,7 @@ Use the Bluesky Jetstream API to access all data from a few days up to a few wee
 System design diagram:
 https://www.tldraw.com/f/mVmZO-nqLuI_uoJ6I8K-u?d=v-1693.-392.4499.2958.page
 
-## 1. Ingestion
+## Ingestion
 
 ### Receive Data from Websocket
 
@@ -30,14 +30,29 @@ We can do this in 2 ways:
 
 Because it is unrealistic to always keep our WebSocket connection, we need some way to know where to leave off.
 We can do this by storing the cursor in DynamoDB so that when our connection goes down, we know where to restart.
+We will update the cursor after all of our buffers have been flushed, so that the cursor never gets ahead of any event.
 
 ### Ingestion pipeline
 
 ```mermaid
 flowchart LR
-    A["WebSocket Connection<br/>(all data)"] --> B["Flush Raw Data to<br/>S3"]
-    B --> C["Update cursor in<br/>DynamoDB"]
+    A["1 WebSocket<br/>Connection"] --> B["process record based<br/>on type (post, repost,<br/>likes, follows)"]
+    B -->|"when any<br/>buffer is full"| C["Flush all 4 buffers"]
+    C --> D["Update Cursor in<br/>DynamoDB"]
 ```
+
+### Buffer max capacity
+We want to flush all 4 buffers once any reach their capacity. However, some events are more likeley than others. 
+Therefore, we will set a ratio of posts:likes:follows:reposts such that the amount of each event should be similar 
+every time we flush each event the S3 table. 
+
+### Clearing the buffer/uploading to S3
+Use a retry + deadletter pattern for S3 uploads.
+
+In addition, we should use a pandas dataframe to automatically split the data across dt/hr for us so that we can 
+accurately place the data into their respective files. 
+
+Provenance: We can consider adding in json files with run_id + created_at timestamps. 
 
 ## Splitting Data into Individual Tables
 
@@ -69,12 +84,59 @@ We should have separate tables for each of these filters, and upload to S3 after
 - New data is queryable immedaitely after S3 upload
 - Only works for highly predictable partition structures
 
-## Open Questions
+### Decision: Use Partition Projection
+How partition projection works:
+You define all of the keys (and their data types) ahead of time
+You define all of the values' ranges ahead of time
+You'll never have to do glue table updates (save money!)
 
-1. For periodically flushing ingested data to s3, should we do option 1, 2, or both?
+This works in our case since our paths should be very stable, rarely should we add new partitions. 
+We can always need partitions if needed over time. 
 
-2. Other possibilities for updating cursor, both for ingestion and for filtering? 
+### Proposed S3 Layout for Partition Projection
+Instead, partition on flush time truncated to the hour, since that's the natural granularity of our periodic flush. Both the raw and filtered layouts key off the same `dt=`/`hour=` pair so cursor replay and backfills land in predictable locations:
 
-3. Which partition updating method to use? I'm leaning towards Partition Projection
+```
+s3://lab-data-integrations-interface/platform=bluesky/stage=raw/table=posts/dt=2026-07-16/hour=14/{run_id}.parquet
+s3://lab-data-integrations-interface/platform=bluesky/stage=raw/table=likes/dt=2026-07-16/hour=14/{run_id}.parquet
+s3://lab-data-integrations-interface/platform=bluesky/stage=raw/table=reposts/dt=2026-07-16/hour=14/{run_id}.parquet
+s3://lab-data-integrations-interface/platform=bluesky/stage=raw/table=follows/dt=2026-07-16/hour=14/{run_id}.parquet
+```
 
-4. Retry logic, TBD
+Corresponding Glue table properties:
+```
+-- 1. Enable Projection
+'projection.enabled' = 'true',
+
+-- 2. Platform (Enum)
+'projection.platform.type' = 'enum',
+'projection.platform.values' = 'bluesky,twitter,mastodon', -- list the platforms you support
+
+-- 3. Stage (Enum)
+'projection.stage.type' = 'enum',
+'projection.stage.values' = 'raw,preprocessed,features,curated',
+
+-- 4. Table (Enum)
+'projection.table.type' = 'enum',
+'projection.table.values' = 'posts,likes,reposts,follows',
+
+-- 5. Date (Date type)
+'projection.dt.type' = 'date',
+'projection.dt.range' = '2025-01-01,NOW',
+'projection.dt.format' = 'yyyy-MM-dd',
+
+-- 6. Hour (Integer type with zero-padding)
+'projection.hour.type' = 'integer',
+'projection.hour.range' = '0,23',
+'projection.hour.digits' = '2', -- Ensures 9 becomes '09' to match S3 'hour=09'
+
+-- 7. The exact S3 path structure template
+'storage.location.template' = 's3://lab-data-integrations-interface/platform=${platform}/stage=${stage}/table=${table}/dt=${dt}/hour=${hour}/'
+```
+
+If we flush more/less often than hourly, `hour` could be dropped in favor of `dt` alone, or split further into `minute=` buckets — worth revisiting once we settle the flush interval from the open question below.
+
+Open Questions:
+- How large should the buffer be? I think this depends on how much memory and cores our VM will have (potentially HPC)
+- What should we use as the ratio for posts:follows:reposts:likes? https://bsky.jazco.dev/stats doesn't include reposts, 
+is the reposts included in the posts? Either way, it is unclear just based off these stats
