@@ -98,3 +98,35 @@ def get_ten_users(client: Client) -> tuple[list[dict], int, str]:
             break
 
     return qualified, evaluated, target_did
+
+
+def get_follower_dids(client: Client, n: int) -> tuple[list[dict], str]:
+    """Fetches the first `n` of TARGET_HANDLE's followers, unfiltered (no
+    MIN_FOLLOWERS/MIN_POSTS_LAST_7_DAYS qualification). For use where the
+    identity of the users doesn't matter, only that they're real DIDs to
+    call an endpoint against - e.g. scalability timing.
+
+    Returns (users, target_did), where each user is {"handle", "did"}.
+    """
+    target_did = client.app.bsky.actor.get_profile({"actor": TARGET_HANDLE}).did
+
+    users: list[dict] = []
+    cursor = None
+
+    while len(users) < n:
+        followers_response = client.app.bsky.graph.get_followers(
+            {"actor": target_did, "limit": FOLLOWERS_PAGE_SIZE, "cursor": cursor}
+        )
+        if not followers_response.followers:
+            break
+
+        for follower in followers_response.followers:
+            users.append({"handle": follower.handle, "did": follower.did})
+            if len(users) >= n:
+                break
+
+        cursor = followers_response.cursor
+        if not cursor:
+            break
+
+    return users, target_did

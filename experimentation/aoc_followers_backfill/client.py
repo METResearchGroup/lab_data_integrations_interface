@@ -4,6 +4,7 @@ from atproto import Client
 from dotenv import load_dotenv
 
 RELAY_BASE_URL = "https://bsky.network"
+PUBLIC_APPVIEW_BASE_URL = "https://public.api.bsky.app"
 
 
 def create_client() -> Client:
@@ -14,6 +15,14 @@ def create_client() -> Client:
     password = os.getenv("BLUESKY_PASSWORD") or os.getenv("BLUESKY_APP_PASSWORD")
     client.login(os.getenv("BLUESKY_HANDLE"), password)
     return client
+
+
+def create_public_client() -> Client:
+    """Unauthenticated client against Bluesky's public read-only AppView
+    mirror. getProfile/getFollowers/getAuthorFeed etc. are public data and
+    don't require a login - this skips authentication (and its login-step
+    connection) entirely for read-only queries."""
+    return Client(base_url=PUBLIC_APPVIEW_BASE_URL)
 
 
 def create_relay_client() -> Client:

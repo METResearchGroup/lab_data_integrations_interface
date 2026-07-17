@@ -12,6 +12,8 @@ AUTHOR_FEED_CHECK_LIMIT = 30
 
 MAX_FOLLOWERS_TO_EVALUATE = 20_000
 
+TIMING_SCALES = [1, 10, 50]
+
 TARGET_COLLECTIONS = {
     "app.bsky.feed.post": "posts",
     "app.bsky.feed.like": "likes",
