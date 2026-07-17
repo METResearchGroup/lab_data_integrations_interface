@@ -95,10 +95,10 @@ _ROW_BUILDERS = {
 
 
 def backfill_user(
-    user: dict, relay_client: Client | None = None
+    user: dict, relay_client: Client | None = None, days_back: int = DAYS_BACK
 ) -> tuple[dict[str, list[dict]], str | None]:
     """Fetches this user's repo via getRepo, decodes it, and returns rows
-    from the last DAYS_BACK days, bucketed by output file name ("posts",
+    from the last `days_back` days, bucketed by output file name ("posts",
     "likes", "reposts", "follows").
 
     Returns (rows_by_type, error) - error is None on success, otherwise a
@@ -119,7 +119,7 @@ def backfill_user(
     except Exception as e:
         return rows_by_type, f"CAR/MST decode failed: {e}"
 
-    cutoff = datetime.now(UTC) - timedelta(days=DAYS_BACK)
+    cutoff = datetime.now(UTC) - timedelta(days=days_back)
 
     for uri, record in records.items():
         collection = record.get("$type")
