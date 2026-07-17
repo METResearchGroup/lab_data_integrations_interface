@@ -1,3 +1,18 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Data Platform Progress Summary — 2026-06-10](#data-platform-progress-summary--2026-06-10)
+  - [Work Completed](#work-completed)
+  - [Data Pipeline Overview (Current)](#data-pipeline-overview-current)
+    - [1. Ingestion](#1-ingestion)
+    - [2. Preprocessing](#2-preprocessing)
+    - [3. Feature Generation](#3-feature-generation)
+    - [4. Curation](#4-curation)
+  - [Open Questions / In Progress](#open-questions--in-progress)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Data Platform Progress Summary — 2026-06-10
 
 ## Work Completed

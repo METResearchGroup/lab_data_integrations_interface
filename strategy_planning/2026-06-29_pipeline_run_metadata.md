@@ -1,3 +1,19 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Pipeline run metadata (2026-06-29)](#pipeline-run-metadata-2026-06-29)
+  - [Two distinct concerns](#two-distinct-concerns)
+  - [Stage run ID](#stage-run-id)
+  - [Pipeline run record](#pipeline-run-record)
+    - [Example: successful pipeline](#example-successful-pipeline)
+    - [Example: pipeline X fails at feature generation](#example-pipeline-x-fails-at-feature-generation)
+    - [Example: pipeline Y runs next (the recovery)](#example-pipeline-y-runs-next-the-recovery)
+  - [Orchestrator behavior](#orchestrator-behavior)
+  - [Storage](#storage)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Pipeline run metadata (2026-06-29)
 
 Design for run-level metadata and pipeline run IDs across the ingestion → preprocessing → feature generation → curation pipeline.
