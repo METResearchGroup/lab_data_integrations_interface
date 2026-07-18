@@ -1,3 +1,26 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Background](#background)
+- [Proposal](#proposal)
+- [Implementation Plan](#implementation-plan)
+  - [Ingestion](#ingestion)
+    - [Receive Data from Websocket](#receive-data-from-websocket)
+    - [Periodically Flush to S3](#periodically-flush-to-s3)
+    - [Update cursor in DynamoDB](#update-cursor-in-dynamodb)
+    - [Ingestion pipeline](#ingestion-pipeline)
+    - [Buffer max capacity](#buffer-max-capacity)
+    - [Clearing the buffer/uploading to S3](#clearing-the-bufferuploading-to-s3)
+  - [Splitting Data into Individual Tables](#splitting-data-into-individual-tables)
+    - [Filter the Data](#filter-the-data)
+    - [Upload Filtered Data to S3](#upload-filtered-data-to-s3)
+    - [Update Partitions](#update-partitions)
+    - [Decision: Use Partition Projection](#decision-use-partition-projection)
+    - [Proposed S3 Layout for Partition Projection](#proposed-s3-layout-for-partition-projection)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Background
 
 In the current data platform we specify a particular way to retrieve records from Bluesky. We use the direct Bluesky API. We then also get only posts currently. We take this and pass it into the rest of the pipeline. We want to expand to more methods of ingestion from Bluesky as well as more data types.
