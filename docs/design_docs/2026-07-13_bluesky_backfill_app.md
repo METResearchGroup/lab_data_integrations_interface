@@ -16,8 +16,8 @@
     - [Filter the Data](#filter-the-data)
     - [Upload Filtered Data to S3](#upload-filtered-data-to-s3)
     - [Update Partitions](#update-partitions)
-    - [Decision: Use Partition Projection](#decision-use-partition-projection)
-    - [Proposed S3 Layout for Partition Projection](#proposed-s3-layout-for-partition-projection)
+    - [Apache Iceberg Overview](#apache-iceberg-overview)
+    - [Proposed File Structure](#proposed-file-structure)
   - [Deduplication](#deduplication)
   - [Open Questions:](#open-questions)
 
@@ -109,64 +109,66 @@ We should have separate tables for each of these filters, and upload to S3 after
 - More expensive than Glue Crawler, assuming we upload to S3 more frequently than we run Glue Crawler
 
 3. Partition Projection
-- New data is queryable immedaitely after S3 upload
+- New data is queryable immediately after S3 upload
 - Only works for highly predictable partition structures
 
-### Decision: Use Partition Projection
-How partition projection works:
-You define all of the keys (and their data types) ahead of time
-You define all of the values' ranges ahead of time
-You'll never have to do glue table updates (save money!)
+4. Apache Iceberg
+- Free
+- Works as well as partition projection
+- Sets us up for deduplication better
 
-This works in our case since our paths should be very stable, rarely should we add new partitions. 
-We can always need partitions if needed over time. 
+### Apache Iceberg Overview
+- Doesn't need hive file system
+- Iceberg stores the schemas of our data, not Glue
+- All glue now does is point to the Iceberg metadata file
+- Iceberg tracks all data via metadata dir
 
-### Proposed S3 Layout for Partition Projection
-Instead, partition on flush time truncated to the hour, since that's the natural granularity of our periodic flush. Both the raw and filtered layouts key off the same `dt=`/`hour=` pair so cursor replay and backfills land in predictable locations:
 
+### Proposed File Structure
 ```
 s3://lab-data-integrations-interface/
+│
 ├── bluesky/
-│   ├── posts/               <-- Point Glue Table "bluesky_posts" here
-│   │   └── stage=raw/dt=2026-07-16/run_123.parquet
-│   └── follows/             <-- Point Glue Table "bluesky_follows" here
-│       └── stage=raw/dt=2026-07-16/run_123.parquet
+│   ├── posts/
+│   │   ├── metadata/  <── (Iceberg creates this to keep track of files)
+│   │   └── data/
+│   │       ├── created_at_day=2026-07-16/
+│   │       │   ├── run_123.parquet
+│   │       │   └── run_124.parquet
+│   │       └── created_at_day=2026-07-17/
+│   │           └── run_125.parquet
+│   │
+│   └── follows/
+│       ├── metadata/
+│       └── data/
+│           ├── created_at_day=2026-07-16/
+│           │   └── run_123.parquet
+│           └── created_at_day=2026-07-17/
+│               └── run_124.parquet
+│
 ├── twitter/
-│   ├── posts/               <-- Point Glue Table "twitter_posts" here
-│   │   └── stage=raw/dt=2026-07-16/run_456.parquet
-│   └── likes/               <-- Point Glue Table "twitter_likes" here
-│       └── stage=raw/dt=2026-07-16/run_456.parquet
-└── reddit/
-    └── posts/               <-- Point Glue Table "reddit_posts" here
-        └── stage=raw/dt=2026-07-16/run_789.parquet
+(rest is similar)
 ```
-
-Corresponding Glue table properties:
-```
--- 1. Enable Projection
-'projection.enabled' = 'true',
-
--- 2. Stage (Enum)
-'projection.stage.type' = 'enum',
-'projection.stage.values' = 'raw,preprocessed,features,curated',
-
--- 3. Date (Date type)
-'projection.dt.type' = 'date',
-'projection.dt.range' = '2025-01-01,NOW',
-'projection.dt.format' = 'yyyy-MM-dd',
-
--- 4. Hour (Integer type with zero-padding)
-'projection.hour.type' = 'integer',
-'projection.hour.range' = '0,23',
-'projection.hour.digits' = '2',
-
--- 5. The exact S3 path structure template (Notice platform and table are hardcoded)
-'storage.location.template' = 's3://lab-data-integrations-interface/bluesky/posts/stage=${stage}/dt=${dt}/hour=${hour}/'
-```
-
-If we flush more/less often than hourly, `hour` could be dropped in favor of `dt` alone, or split further into `minute=` buckets — worth revisiting once we settle the flush interval from the open question below.
 
 ## Deduplication
+At a high level, we have two options:
+1. Deduplicate before writing to S3. 
+2. Deduplicate at the query level. 
+
+We can do a hybrid. 
+
+Since Athena queries charge on size, a couple of duplicates won't hurt. We just don't want them to add up over time. 
+
+Initially in ingestion, just allow all writes to the S3 after deduping within the file itself. 
+
+Then, as a cron job, do a compaction + deduplication via AWS EventBridge Rule. 
+
+Cost:
+- for AWS EventBridge, essentially $0.00
+- Athena is necessary for EventBridge to do its compaction ($5.00/TB)
+
+This seems to be a very cost-optimized operation.
+A tradeoff is that the Athena queries will be slower as it has to deduplicate. 
 
 ## Open Questions:
 - How large should the buffer be? I think this depends on how much memory and cores our VM will have (potentially HPC)
