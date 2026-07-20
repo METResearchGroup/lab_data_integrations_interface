@@ -18,6 +18,7 @@
     - [Update Partitions](#update-partitions)
     - [Decision: Use Partition Projection](#decision-use-partition-projection)
     - [Proposed S3 Layout for Partition Projection](#proposed-s3-layout-for-partition-projection)
+  - [Deduplication](#deduplication)
   - [Open Questions:](#open-questions)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -165,7 +166,11 @@ Corresponding Glue table properties:
 
 If we flush more/less often than hourly, `hour` could be dropped in favor of `dt` alone, or split further into `minute=` buckets — worth revisiting once we settle the flush interval from the open question below.
 
+## Deduplication
+
 ## Open Questions:
 - How large should the buffer be? I think this depends on how much memory and cores our VM will have (potentially HPC)
 - What should we use as the ratio for posts:follows:reposts:likes? https://bsky.jazco.dev/stats doesn't include reposts, 
 is the reposts included in the posts? Either way, it is unclear just based off these stats
+- Will we need deduplication here? Or should we omit entirely, since the jetstream should be generally reliable. 
+Ie, even in the cases where we do have duplicates, we could potentially pass deduplication onto the querying layer. 
