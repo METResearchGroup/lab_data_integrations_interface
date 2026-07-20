@@ -82,13 +82,16 @@ Provenance: We can consider adding in json files with run_id + created_at timest
 ### Filter the Data
 In general, we want a separate table for (platform, data_type) since each of these combinations potentially have different columns.
 
+The reasoning is that:
+1. We will have different columns for each of the data types, as well as each of the platforms.
+2. Users likely will only query one platform at a time, so splitting platforms into separate tables makes sense. 
+
 For example, with the platform Bluesky alone, we will have:
 - Posts table
 - Likes table
 - Reposts table
 - Follows table
 
-Later on we will potentially add twitter and reddit, whose schemas won't look exactly like Bluesky's. 
 
 ### Upload Filtered Data to S3
 We should have separate tables for each of these filters, and upload to S3 after we have received the data into memory.
