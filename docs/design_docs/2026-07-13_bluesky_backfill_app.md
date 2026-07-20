@@ -80,14 +80,15 @@ Provenance: We can consider adding in json files with run_id + created_at timest
 ## Splitting Data into Individual Tables
 
 ### Filter the Data
-We have 4 main tables we want:
-- Posts
-- Likes
-- Reposts
-- Follows
+In general, we want a separate table for (platform, data_type) since each of these combinations potentially have different columns.
 
-Based off this, we need to make Athena queries for each of these things and load them into our memory. 
-A solution is to use AWS Bookmarks for this. 
+For example, with the platform Bluesky alone, we will have:
+- Posts table
+- Likes table
+- Reposts table
+- Follows table
+
+Later on we will potentially add twitter and reddit, whose schemas won't look exactly like Bluesky's. 
 
 ### Upload Filtered Data to S3
 We should have separate tables for each of these filters, and upload to S3 after we have received the data into memory.
@@ -97,7 +98,6 @@ We should have separate tables for each of these filters, and upload to S3 after
 1. Glue Crawler
 - Cheaper than immediate Glue table updates, assuming we upload to S3 more frequently than we run Glue Crawler
 - New data won't be queryable for x time
-
 
 2. Immediate Glue Table updates
 - New data is queryable immediately after update
@@ -120,10 +120,20 @@ We can always need partitions if needed over time.
 Instead, partition on flush time truncated to the hour, since that's the natural granularity of our periodic flush. Both the raw and filtered layouts key off the same `dt=`/`hour=` pair so cursor replay and backfills land in predictable locations:
 
 ```
-s3://lab-data-integrations-interface/platform=bluesky/stage=raw/table=posts/dt=2026-07-16/hour=14/{run_id}.parquet
-s3://lab-data-integrations-interface/platform=bluesky/stage=raw/table=likes/dt=2026-07-16/hour=14/{run_id}.parquet
-s3://lab-data-integrations-interface/platform=bluesky/stage=raw/table=reposts/dt=2026-07-16/hour=14/{run_id}.parquet
-s3://lab-data-integrations-interface/platform=bluesky/stage=raw/table=follows/dt=2026-07-16/hour=14/{run_id}.parquet
+s3://lab-data-integrations-interface/
+├── bluesky/
+│   ├── posts/               <-- Point Glue Table "bluesky_posts" here
+│   │   └── stage=raw/dt=2026-07-16/run_123.parquet
+│   └── follows/             <-- Point Glue Table "bluesky_follows" here
+│       └── stage=raw/dt=2026-07-16/run_123.parquet
+├── twitter/
+│   ├── posts/               <-- Point Glue Table "twitter_posts" here
+│   │   └── stage=raw/dt=2026-07-16/run_456.parquet
+│   └── likes/               <-- Point Glue Table "twitter_likes" here
+│       └── stage=raw/dt=2026-07-16/run_456.parquet
+└── reddit/
+    └── posts/               <-- Point Glue Table "reddit_posts" here
+        └── stage=raw/dt=2026-07-16/run_789.parquet
 ```
 
 Corresponding Glue table properties:
@@ -131,30 +141,22 @@ Corresponding Glue table properties:
 -- 1. Enable Projection
 'projection.enabled' = 'true',
 
--- 2. Platform (Enum)
-'projection.platform.type' = 'enum',
-'projection.platform.values' = 'bluesky,twitter,mastodon', -- list the platforms you support
-
--- 3. Stage (Enum)
+-- 2. Stage (Enum)
 'projection.stage.type' = 'enum',
 'projection.stage.values' = 'raw,preprocessed,features,curated',
 
--- 4. Table (Enum)
-'projection.table.type' = 'enum',
-'projection.table.values' = 'posts,likes,reposts,follows',
-
--- 5. Date (Date type)
+-- 3. Date (Date type)
 'projection.dt.type' = 'date',
 'projection.dt.range' = '2025-01-01,NOW',
 'projection.dt.format' = 'yyyy-MM-dd',
 
--- 6. Hour (Integer type with zero-padding)
+-- 4. Hour (Integer type with zero-padding)
 'projection.hour.type' = 'integer',
 'projection.hour.range' = '0,23',
-'projection.hour.digits' = '2', -- Ensures 9 becomes '09' to match S3 'hour=09'
+'projection.hour.digits' = '2',
 
--- 7. The exact S3 path structure template
-'storage.location.template' = 's3://lab-data-integrations-interface/platform=${platform}/stage=${stage}/table=${table}/dt=${dt}/hour=${hour}/'
+-- 5. The exact S3 path structure template (Notice platform and table are hardcoded)
+'storage.location.template' = 's3://lab-data-integrations-interface/bluesky/posts/stage=${stage}/dt=${dt}/hour=${hour}/'
 ```
 
 If we flush more/less often than hourly, `hour` could be dropped in favor of `dt` alone, or split further into `minute=` buckets — worth revisiting once we settle the flush interval from the open question below.
