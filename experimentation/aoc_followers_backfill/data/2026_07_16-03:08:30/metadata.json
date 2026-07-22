@@ -1,0 +1,88 @@
+{
+  "run_timestamp": "2026-07-16T03:08:30.372012+00:00",
+  "target_account": {
+    "handle": "aoc.bsky.social",
+    "did": "did:plc:p7gxyfr5vii5ntpwo7f6dhe2"
+  },
+  "selection_criteria": {
+    "min_followers": 1000,
+    "min_posts_last_7_days": 5
+  },
+  "time_window": {
+    "start": "2026-06-18T03:08:30.372012+00:00",
+    "end": "2026-07-16T03:08:30.372012+00:00"
+  },
+  "users_requested": 10,
+  "users_found": 10,
+  "followers_evaluated": 177,
+  "users": [
+    {
+      "handle": "sparkyomatic.bsky.social",
+      "did": "did:plc:pn3yjtajmrjl6dvhisvimbol",
+      "followers_count": 21572,
+      "posts_last_7_days": 30
+    },
+    {
+      "handle": "just--bruno.bsky.social",
+      "did": "did:plc:lu3yyb7kchssv5oovqgoraly",
+      "followers_count": 2660,
+      "posts_last_7_days": 30
+    },
+    {
+      "handle": "anitaschultz.bsky.social",
+      "did": "did:plc:v3lf2xkaixnsfkudzlspvstx",
+      "followers_count": 2689,
+      "posts_last_7_days": 7
+    },
+    {
+      "handle": "mkg-sd.bsky.social",
+      "did": "did:plc:rau2tcsrb4epifp6pz3otat3",
+      "followers_count": 2161,
+      "posts_last_7_days": 28
+    },
+    {
+      "handle": "josluscarvalho1.bsky.social",
+      "did": "did:plc:6u36j63vlaxr56mpctcbpwmk",
+      "followers_count": 9227,
+      "posts_last_7_days": 30
+    },
+    {
+      "handle": "kucukpembekanat.bsky.social",
+      "did": "did:plc:adbgwthzpo3bvfhxk5c7xlal",
+      "followers_count": 21050,
+      "posts_last_7_days": 30
+    },
+    {
+      "handle": "jules1212.bsky.social",
+      "did": "did:plc:uvatjolqplq54o4vqv6b2sjk",
+      "followers_count": 53958,
+      "posts_last_7_days": 30
+    },
+    {
+      "handle": "heatherpaterson.co.uk",
+      "did": "did:plc:532nf55tq5wyicscgrqjbz5f",
+      "followers_count": 174539,
+      "posts_last_7_days": 24
+    },
+    {
+      "handle": "kelper60.bsky.social",
+      "did": "did:plc:pusuok6owviqltvgezmsifng",
+      "followers_count": 31270,
+      "posts_last_7_days": 6
+    },
+    {
+      "handle": "jacquelyne.bsky.social",
+      "did": "did:plc:u7nnv7wluoc3fuuz7e4idccr",
+      "followers_count": 36293,
+      "posts_last_7_days": 30
+    }
+  ],
+  "record_counts": {
+    "posts": 2826,
+    "likes": 12117,
+    "reposts": 2132,
+    "follows": 134621
+  },
+  "source_method": "com.atproto.sync.getRepo",
+  "errors": []
+}
