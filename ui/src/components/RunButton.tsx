@@ -3,9 +3,16 @@
 interface RunButtonProps {
 	onClick: () => void;
 	disabled?: boolean;
+	label?: string;
+	pendingLabel?: string;
 }
 
-export default function RunButton({ onClick, disabled }: RunButtonProps) {
+export default function RunButton({
+	onClick,
+	disabled,
+	label = "Run",
+	pendingLabel = "Running...",
+}: RunButtonProps) {
 	return (
 		<button
 			type="button"
@@ -13,7 +20,7 @@ export default function RunButton({ onClick, disabled }: RunButtonProps) {
 			disabled={disabled}
 			className="w-full rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
 		>
-			{disabled ? "Running..." : "Run"}
+			{disabled ? pendingLabel : label}
 		</button>
 	);
 }

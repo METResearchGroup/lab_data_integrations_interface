@@ -1,80 +1,64 @@
 "use client";
 
-import DataSourceDropdown from "@/components/DataSourceDropdown";
-import ExportButton from "@/components/ExportButton";
-import ParametersInput from "@/components/ParametersInput";
-import ProgressBar from "@/components/ProgressBar";
-import QuerySelector from "@/components/QuerySelector";
-import ResultsTable from "@/components/ResultsTable";
-import RunButton from "@/components/RunButton";
-import { runQuery } from "@/lib/api";
-import { DEFAULT_LIMIT } from "@/lib/constants";
-import type { DataSourceId } from "@/lib/sources";
-import type { CollectionParams, QueryId, QueryState } from "@/lib/types";
+import JobErrorNotice from "@/components/JobErrorNotice";
+import JobResultSummary from "@/components/JobResultSummary";
+import JobStatusPanel from "@/components/JobStatusPanel";
+import QueryForm from "@/components/QueryForm";
+import { useJobPolling } from "@/hooks/useJobPolling";
+import { createSearchJob } from "@/lib/api";
 import { useState } from "react";
 
 export default function Home() {
-	const [source, setSource] = useState<DataSourceId>("bluesky");
-	const [params, setParams] = useState<CollectionParams>({
-		limit: DEFAULT_LIMIT,
-	});
-	const [queryId, setQueryId] = useState<QueryId>("recent-posts");
-	const [queryState, setQueryState] = useState<QueryState>({ status: "idle" });
+	const [jobId, setJobId] = useState<string>();
+	const [createError, setCreateError] = useState<string>();
+	const [isCreating, setIsCreating] = useState(false);
 
-	async function handleRun() {
-		if (queryState.status === "running") return;
-		setQueryState({ status: "running" });
+	const polling = useJobPolling(jobId);
+
+	async function handleSubmit(query: string) {
+		setCreateError(undefined);
+		setIsCreating(true);
 		try {
-			const { rows, downloadUrl } = await runQuery(queryId);
-			setQueryState({ status: "success", rows, downloadUrl });
+			const job = await createSearchJob(query);
+			setJobId(job.jobId);
 		} catch (e) {
-			setQueryState({
-				status: "error",
-				message: e instanceof Error ? e.message : "Something went wrong",
-			});
+			setCreateError(e instanceof Error ? e.message : "Something went wrong");
+		} finally {
+			setIsCreating(false);
 		}
 	}
+
+	const isBusy = isCreating || polling.phase === "polling";
+	const isReady = polling.phase === "done" && polling.job.status === "READY";
+	const isTerminalError =
+		polling.phase === "done" &&
+		(polling.job.status === "REJECTED" ||
+			polling.job.status === "FAILED" ||
+			polling.job.status === "EXPIRED");
 
 	return (
 		<main className="flex min-h-screen flex-col items-center justify-center bg-zinc-50">
 			<div className="w-full max-w-lg rounded-xl bg-white p-8 shadow-sm flex flex-col gap-6">
-				<DataSourceDropdown value={source} onChange={setSource} />
+				<QueryForm onSubmit={handleSubmit} disabled={isBusy} />
 
-				<ParametersInput source={source} value={params} onChange={setParams} />
+				{createError && <p className="text-sm text-red-600">{createError}</p>}
 
-				<div className="flex flex-col gap-2">
-					<label className="text-sm font-medium text-zinc-700">
-						Choose query{" "}
-						<span className="font-normal text-zinc-400">(select one)</span>
-					</label>
-					<QuerySelector value={queryId} onChange={setQueryId} />
-				</div>
-
-				<hr className="border-zinc-200" />
-
-				<div className="mt-4">
-					<RunButton
-						onClick={handleRun}
-						disabled={queryState.status === "running"}
+				{polling.phase === "polling" && (
+					<JobStatusPanel
+						status={polling.job?.status ?? "PENDING"}
+						message={polling.job?.message}
 					/>
-				</div>
-
-				{queryState.status === "running" && <ProgressBar />}
-
-				{queryState.status === "success" && (
-					<ResultsTable rows={queryState.rows} />
 				)}
 
-				<ExportButton
-					downloadUrl={
-						queryState.status === "success" && queryState.downloadUrl
-							? queryState.downloadUrl
-							: undefined
-					}
-				/>
+				{isReady && polling.phase === "done" && (
+					<JobResultSummary job={polling.job} />
+				)}
+				{isTerminalError && polling.phase === "done" && (
+					<JobErrorNotice job={polling.job} />
+				)}
 
-				{queryState.status === "error" && (
-					<p className="text-sm text-red-600">{queryState.message}</p>
+				{polling.phase === "error" && (
+					<p className="text-sm text-red-600">{polling.message}</p>
 				)}
 			</div>
 		</main>
