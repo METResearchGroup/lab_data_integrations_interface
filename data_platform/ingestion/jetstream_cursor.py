@@ -49,9 +49,7 @@ def _require_aware_iso8601(value: str, *, field: str) -> str:
             f"{field} must be timezone-aware ISO-8601, got {value!r}"
         ) from exc
     if parsed.tzinfo is None:
-        raise JetstreamCursorError(
-            f"{field} must be timezone-aware ISO-8601, got {value!r}"
-        )
+        raise JetstreamCursorError(f"{field} must be timezone-aware ISO-8601, got {value!r}")
     return value
 
 

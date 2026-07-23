@@ -15,7 +15,7 @@ Related: [Issue #122](https://github.com/METResearchGroup/lab_data_integrations_
 | HPC disk `cursor.json` | Source of truth for live resume | Frequent (ingestion checkpoints) |
 | DynamoDB table `lab-data-integrations-interface-cursor-backups` | Single-row DR mirror (`backup_key=bluesky_jetstream_cursor_latest`) | Daily scheduled job |
 
-Overwrite / retention: **one logical latest row**. A successful backup replaces the prior item in full via `put_item`. A failed backup never deletes first and never writes a partial item; the previous good row remains.
+overwrite/retention: **one logical latest row**. A successful backup replaces the prior item in full via `put_item`. A failed backup never deletes first and never writes a partial item; the previous good row remains.
 
 Disk JSON contract (`format_version=1`):
 

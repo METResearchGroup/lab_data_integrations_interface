@@ -7,6 +7,7 @@ Provide an example daily schedule and make backup failures observable via exit c
 ## Allowed to change
 
 - `docs/runbooks/HOW_TO_BACKUP_BLUESKY_JETSTREAM_CURSOR.md`
+- `docs/ops/cron/backup_jetstream_cursor.cron.example`
 - `docs/plans/2026-07-23_bluesky_cursor_dynamodb_backup_190886/examples/crontab.example`
 - `data_platform/ingestion/backup_jetstream_cursor.py` — `SUCCESS_MARKER` / `FAILURE_MARKER`
 
@@ -18,6 +19,7 @@ Provide an example daily schedule and make backup failures observable via exit c
 ## Pass / fail
 
 ```bash
+test -f docs/ops/cron/backup_jetstream_cursor.cron.example
 test -f docs/plans/2026-07-23_bluesky_cursor_dynamodb_backup_190886/examples/crontab.example
 rg 'jetstream_cursor_backup_(succeeded|failed)' data_platform/ingestion/backup_jetstream_cursor.py docs/runbooks/HOW_TO_BACKUP_BLUESKY_JETSTREAM_CURSOR.md
 ```

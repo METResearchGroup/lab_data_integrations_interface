@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -65,6 +67,27 @@ def test_run_backup_dynamodb_failure_leaves_no_second_write(cursor_path: Path) -
     assert not result.ok
     assert "dynamodb write failed" in result.message
     assert dynamodb.put_item.call_count == 1
+    dynamodb.delete_item.assert_not_called()
+
+
+def test_run_backup_logs_success_marker(
+    cursor_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    dynamodb = MagicMock()
+    with caplog.at_level(logging.INFO):
+        assert run_backup(cursor_path, dynamodb).ok
+    assert SUCCESS_MARKER in caplog.text
+
+
+def test_run_backup_logs_failure_marker_for_missing_disk(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    dynamodb = MagicMock()
+    with caplog.at_level(logging.ERROR):
+        assert not run_backup(tmp_path / "missing.json", dynamodb).ok
+    assert FAILURE_MARKER in caplog.text
+    dynamodb.put_item.assert_not_called()
+    dynamodb.delete_item.assert_not_called()
 
 
 def test_cli_backup_exit_codes(cursor_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -94,7 +117,7 @@ def test_cli_restore_from_item_file(tmp_path: Path, cursor_path: Path) -> None:
         backed_up_at="2026-07-23T14:00:00+00:00",
     )
     item_path = tmp_path / "backup_item.json"
-    item_path.write_text(__import__("json").dumps(item), encoding="utf-8")
+    item_path.write_text(json.dumps(item), encoding="utf-8")
     dest = tmp_path / "restored.json"
     result = runner.invoke(
         app,

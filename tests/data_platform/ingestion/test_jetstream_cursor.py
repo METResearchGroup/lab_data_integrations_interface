@@ -97,3 +97,21 @@ def test_restore_from_backup_item(tmp_path: Path) -> None:
     disk = restore_disk_cursor_from_backup_item(item, dest)
     assert disk.cursor == 1_700_000_000_000_000
     assert read_disk_cursor(dest) == disk
+
+
+def test_restore_rejects_checksum_mismatch(tmp_path: Path) -> None:
+    path = tmp_path / "cursor.json"
+    path.write_text("keep-me", encoding="utf-8")
+    item = {
+        "backup_key": "bluesky_jetstream_cursor_latest",
+        "cursor": 1,
+        "format_version": DISK_FORMAT_VERSION,
+        "schema_version": 1,
+        "backed_up_at": "2026-07-23T14:00:00+00:00",
+        "disk_updated_at": "2026-07-23T12:00:00+00:00",
+        "source_path": "/tmp/cursor.json",
+        "content_sha256": "deadbeef",
+    }
+    with pytest.raises(JetstreamCursorError, match="content_sha256"):
+        restore_disk_cursor_from_backup_item(item, path)
+    assert path.read_text(encoding="utf-8") == "keep-me"
