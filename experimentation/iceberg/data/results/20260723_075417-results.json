@@ -1,0 +1,428 @@
+{
+  "run_id": "20260723_075417",
+  "capture": "experimentation/iceberg/data/captures/jetstream-20260723-070252.jsonl.gz",
+  "flush_seconds": 60,
+  "batches": 10,
+  "ingest_seconds": 333.7401512910146,
+  "rows_by_type": {
+    "posts": 19440,
+    "likes": 86742,
+    "reposts": 13666,
+    "follows": 11977
+  },
+  "total_rows": 131825,
+  "created_at_fallback_delete_rows": 6658,
+  "created_at_fallback_malformed_rows": 445,
+  "raw_bytes_written": 18113241,
+  "raw_objects_written": 50,
+  "pre_maintenance": {
+    "posts": {
+      "file_count": 19,
+      "total_bytes": 3524422,
+      "record_count": 19440,
+      "avg_file_bytes": 185495.8947368421,
+      "snapshots": 10
+    },
+    "likes": {
+      "file_count": 11,
+      "total_bytes": 11621247,
+      "record_count": 86742,
+      "avg_file_bytes": 1056477.0,
+      "snapshots": 10
+    },
+    "reposts": {
+      "file_count": 10,
+      "total_bytes": 1935969,
+      "record_count": 13666,
+      "avg_file_bytes": 193596.9,
+      "snapshots": 10
+    },
+    "follows": {
+      "file_count": 10,
+      "total_bytes": 1031079,
+      "record_count": 11977,
+      "avg_file_bytes": 103107.9,
+      "snapshots": 10
+    }
+  },
+  "post_maintenance": {
+    "posts": {
+      "file_count": 2,
+      "total_bytes": 3152810,
+      "record_count": 17123,
+      "avg_file_bytes": 1576405.0,
+      "snapshots": 1
+    },
+    "likes": {
+      "file_count": 2,
+      "total_bytes": 10237942,
+      "record_count": 84950,
+      "avg_file_bytes": 5118971.0,
+      "snapshots": 1
+    },
+    "reposts": {
+      "file_count": 1,
+      "total_bytes": 1632368,
+      "record_count": 13057,
+      "avg_file_bytes": 1632368.0,
+      "snapshots": 1
+    },
+    "follows": {
+      "file_count": 1,
+      "total_bytes": 848702,
+      "record_count": 8984,
+      "avg_file_bytes": 848702.0,
+      "snapshots": 1
+    }
+  },
+  "compaction": {
+    "posts": {
+      "skipped": false,
+      "file_count_before": 19,
+      "file_count_after": 2,
+      "bytes_before": 3524422,
+      "bytes_after": 3152810,
+      "rows_before": 19440,
+      "rows_after": 17123,
+      "tombstones_dropped": 2105,
+      "tombstone_pct": 10.828189300411523,
+      "redelivered_duplicates": 0,
+      "lifecycle_collapses": 212
+    },
+    "likes": {
+      "skipped": false,
+      "file_count_before": 11,
+      "file_count_after": 2,
+      "bytes_before": 11621247,
+      "bytes_after": 10237942,
+      "rows_before": 86742,
+      "rows_after": 84950,
+      "tombstones_dropped": 1169,
+      "tombstone_pct": 1.3476747135182494,
+      "redelivered_duplicates": 0,
+      "lifecycle_collapses": 623
+    },
+    "reposts": {
+      "skipped": false,
+      "file_count_before": 10,
+      "file_count_after": 1,
+      "bytes_before": 1935969,
+      "bytes_after": 1632368,
+      "rows_before": 13666,
+      "rows_after": 13057,
+      "tombstones_dropped": 532,
+      "tombstone_pct": 3.8928728230645393,
+      "redelivered_duplicates": 0,
+      "lifecycle_collapses": 77
+    },
+    "follows": {
+      "skipped": false,
+      "file_count_before": 10,
+      "file_count_after": 1,
+      "bytes_before": 1031079,
+      "bytes_after": 848702,
+      "rows_before": 11977,
+      "rows_after": 8984,
+      "tombstones_dropped": 2850,
+      "tombstone_pct": 23.79560824914419,
+      "redelivered_duplicates": 0,
+      "lifecycle_collapses": 143
+    }
+  },
+  "expiry": {
+    "posts": {
+      "snapshots_before": 12,
+      "snapshots_after": 1,
+      "expired": 11,
+      "objects_listed": 58,
+      "objects_referenced": 17,
+      "orphans_deleted": 41,
+      "orphan_bytes_reclaimed": 3625714
+    },
+    "likes": {
+      "snapshots_before": 12,
+      "snapshots_after": 1,
+      "expired": 11,
+      "objects_listed": 50,
+      "objects_referenced": 17,
+      "orphans_deleted": 33,
+      "orphan_bytes_reclaimed": 11709348
+    },
+    "reposts": {
+      "snapshots_before": 12,
+      "snapshots_after": 1,
+      "expired": 11,
+      "objects_listed": 48,
+      "objects_referenced": 16,
+      "orphans_deleted": 32,
+      "orphan_bytes_reclaimed": 2022997
+    },
+    "follows": {
+      "snapshots_before": 12,
+      "snapshots_after": 1,
+      "expired": 11,
+      "objects_listed": 48,
+      "objects_referenced": 16,
+      "orphans_deleted": 32,
+      "orphan_bytes_reclaimed": 1117046
+    }
+  },
+  "warehouse": "s3://lab-data-integrations-interface/experiments/iceberg/20260723_075417/warehouse",
+  "phases": {
+    "unattributed": {
+      "wall_seconds": 0.0,
+      "calls": 181,
+      "attempts": 181,
+      "request_bytes": 17840,
+      "response_bytes": 845541,
+      "cost_usd": 0.00034920000000000003,
+      "by_tier": {
+        "glue": 25,
+        "get": 148,
+        "put": 8,
+        "delete": 0
+      },
+      "by_operation": {
+        "glue:CreateDatabase": 1,
+        "s3:HeadObject": 76,
+        "s3:ListObjectsV2": 4,
+        "s3:PutObject": 4,
+        "glue:CreateTable": 4,
+        "glue:GetTable": 20,
+        "s3:GetObject": 72
+      },
+      "by_key_class": {
+        "other": 29,
+        "metadata-json": 48,
+        "manifest-list": 16,
+        "manifest": 88
+      },
+      "by_key_class_operation": {
+        "other": {
+          "CreateDatabase": 1,
+          "ListObjectsV2": 4,
+          "CreateTable": 4,
+          "GetTable": 20
+        },
+        "metadata-json": {
+          "HeadObject": 24,
+          "PutObject": 4,
+          "GetObject": 20
+        },
+        "manifest-list": {
+          "HeadObject": 8,
+          "GetObject": 8
+        },
+        "manifest": {
+          "HeadObject": 44,
+          "GetObject": 44
+        }
+      },
+      "latency_p50_ms": 352.1348328795284,
+      "latency_p95_ms": 1159.5164169557393,
+      "latency_p99_ms": 1713.4401248767972,
+      "latency_max_ms": 2389.246250037104
+    },
+    "raw_write": {
+      "wall_seconds": 50.6769603791181,
+      "calls": 50,
+      "attempts": 50,
+      "request_bytes": 18113241,
+      "response_bytes": 0,
+      "cost_usd": 0.00025,
+      "by_tier": {
+        "put": 50,
+        "get": 0,
+        "delete": 0,
+        "glue": 0
+      },
+      "by_operation": {
+        "s3:PutObject": 50
+      },
+      "by_key_class": {
+        "raw": 50
+      },
+      "by_key_class_operation": {
+        "raw": {
+          "PutObject": 50
+        }
+      },
+      "latency_p50_ms": 783.4664168767631,
+      "latency_p95_ms": 2133.2394171040505,
+      "latency_p99_ms": 3207.422041101381,
+      "latency_max_ms": 3207.422041101381
+    },
+    "iceberg_append": {
+      "wall_seconds": 282.1545720384456,
+      "calls": 572,
+      "attempts": 572,
+      "request_bytes": 18793945,
+      "response_bytes": 19055222,
+      "cost_usd": 0.0019628000000000002,
+      "by_tier": {
+        "put": 210,
+        "get": 282,
+        "glue": 80,
+        "delete": 0
+      },
+      "by_operation": {
+        "s3:PutObject": 170,
+        "s3:HeadObject": 206,
+        "glue:GetTable": 40,
+        "s3:GetObject": 76,
+        "s3:ListObjectsV2": 40,
+        "glue:UpdateTable": 40
+      },
+      "by_key_class": {
+        "data": 100,
+        "manifest": 80,
+        "manifest-list": 112,
+        "other": 120,
+        "metadata-json": 160
+      },
+      "by_key_class_operation": {
+        "data": {
+          "PutObject": 50,
+          "HeadObject": 50
+        },
+        "manifest": {
+          "PutObject": 40,
+          "HeadObject": 40
+        },
+        "manifest-list": {
+          "PutObject": 40,
+          "HeadObject": 36,
+          "GetObject": 36
+        },
+        "other": {
+          "GetTable": 40,
+          "ListObjectsV2": 40,
+          "UpdateTable": 40
+        },
+        "metadata-json": {
+          "HeadObject": 80,
+          "GetObject": 40,
+          "PutObject": 40
+        }
+      },
+      "latency_p50_ms": 372.5530421361327,
+      "latency_p95_ms": 1144.6151249110699,
+      "latency_p99_ms": 2016.860333038494,
+      "latency_max_ms": 8757.476707920432
+    },
+    "compact_dedup": {
+      "wall_seconds": 144.8584561671596,
+      "calls": 516,
+      "attempts": 516,
+      "request_bytes": 16016901,
+      "response_bytes": 56568988,
+      "cost_usd": 0.0004980000000000001,
+      "by_tier": {
+        "glue": 16,
+        "get": 470,
+        "put": 30,
+        "delete": 0
+      },
+      "by_operation": {
+        "glue:GetTable": 12,
+        "s3:HeadObject": 224,
+        "s3:GetObject": 246,
+        "s3:PutObject": 26,
+        "s3:ListObjectsV2": 4,
+        "glue:UpdateTable": 4
+      },
+      "by_key_class": {
+        "other": 20,
+        "metadata-json": 32,
+        "manifest-list": 48,
+        "manifest": 264,
+        "data": 152
+      },
+      "by_key_class_operation": {
+        "other": {
+          "GetTable": 12,
+          "ListObjectsV2": 4,
+          "UpdateTable": 4
+        },
+        "metadata-json": {
+          "HeadObject": 16,
+          "GetObject": 12,
+          "PutObject": 4
+        },
+        "manifest-list": {
+          "HeadObject": 20,
+          "GetObject": 20,
+          "PutObject": 8
+        },
+        "manifest": {
+          "HeadObject": 132,
+          "GetObject": 124,
+          "PutObject": 8
+        },
+        "data": {
+          "HeadObject": 56,
+          "GetObject": 90,
+          "PutObject": 6
+        }
+      },
+      "latency_p50_ms": 351.57895809970796,
+      "latency_p95_ms": 871.2102919816971,
+      "latency_p99_ms": 1294.8067081160843,
+      "latency_max_ms": 7199.553833110258
+    },
+    "expire_metadata": {
+      "wall_seconds": 47.621370207984,
+      "calls": 88,
+      "attempts": 88,
+      "request_bytes": 52589,
+      "response_bytes": 379172,
+      "cost_usd": 0.0002808,
+      "by_tier": {
+        "glue": 20,
+        "get": 52,
+        "put": 12,
+        "delete": 4
+      },
+      "by_operation": {
+        "glue:GetTable": 16,
+        "s3:HeadObject": 28,
+        "s3:GetObject": 24,
+        "s3:ListObjectsV2": 8,
+        "s3:PutObject": 4,
+        "glue:UpdateTable": 4,
+        "s3:DeleteObjects": 4
+      },
+      "by_key_class": {
+        "other": 32,
+        "metadata-json": 40,
+        "manifest-list": 8,
+        "manifest": 8
+      },
+      "by_key_class_operation": {
+        "other": {
+          "GetTable": 16,
+          "ListObjectsV2": 8,
+          "UpdateTable": 4,
+          "DeleteObjects": 4
+        },
+        "metadata-json": {
+          "HeadObject": 20,
+          "GetObject": 16,
+          "PutObject": 4
+        },
+        "manifest-list": {
+          "HeadObject": 4,
+          "GetObject": 4
+        },
+        "manifest": {
+          "HeadObject": 4,
+          "GetObject": 4
+        }
+      },
+      "latency_p50_ms": 350.61270906589925,
+      "latency_p95_ms": 1204.7317079268396,
+      "latency_p99_ms": 1340.9220839384943,
+      "latency_max_ms": 2339.2392091918737
+    }
+  }
+}

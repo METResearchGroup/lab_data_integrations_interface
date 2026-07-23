@@ -1,0 +1,9 @@
+# Isolated interpreter for this experiment (see requirements.txt).
+.venv/
+__pycache__/
+
+# Jetstream captures are ~21 MiB per 10 minutes and are reproducible by
+# re-running capture.py. The report and results JSON are committed; the
+# per-call CSV is not, since it holds one row per AWS request.
+data/captures/
+data/results/*-calls.csv

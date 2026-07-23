@@ -1,0 +1,15 @@
+# Isolated environment for the Iceberg experiment.
+#
+# This is deliberately NOT wired into the root pyproject.toml: pyiceberg caps
+# rich at <15.0.0 and the main project requires rich>=15.0.0, so the two cannot
+# share a resolution. Build with:
+#
+#   uv venv --python 3.11 experimentation/iceberg/.venv
+#   uv pip install --python experimentation/iceberg/.venv -r experimentation/iceberg/requirements.txt
+# pyiceberg-core supplies the Rust partition transforms; writing to a
+# partitioned table fails without it on 0.11.
+pyiceberg[glue,s3fs,sql-sqlite,pyiceberg-core]>=0.10.0
+pyarrow>=14.0.0
+boto3>=1.35.0
+websockets>=15.0.1
+pytest>=8.0.0
