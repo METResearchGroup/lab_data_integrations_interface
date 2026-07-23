@@ -1,48 +1,29 @@
-# Step 3: Schedule example and observable failures
+# Step 3: Document HPC schedule and failure observability
 
-## Goal
+## Objective
 
-Document (example only) how to run the backup daily on HPC via cron, and ensure failed runs are observable via logs + non-zero exit. Do **not** require deploying to HPC or live AWS credentials.
+Provide an example daily schedule and make backup failures observable via exit code and log markers. Do not deploy to a real HPC host in this example PR.
 
-## Files to inspect
+## Allowed to change
 
-- [`data_platform/ingestion/backup_jetstream_cursor.py`](../../../../data_platform/ingestion/backup_jetstream_cursor.py) (CLI exit codes + log markers from Step 2)
-- [`steps/step1.md`](step1.md) / [`steps/step2.md`](step2.md)
+- `docs/runbooks/HOW_TO_BACKUP_BLUESKY_JETSTREAM_CURSOR.md`
+- `docs/plans/2026-07-23_bluesky_cursor_dynamodb_backup_190886/examples/crontab.example`
+- `data_platform/ingestion/backup_jetstream_cursor.py` — `SUCCESS_MARKER` / `FAILURE_MARKER`
 
-## Files allowed to change
+## Forbidden
 
-- [`docs/ops/cron/backup_jetstream_cursor.cron.example`](../../../../docs/ops/cron/backup_jetstream_cursor.cron.example) — **new** example crontab snippet
-- Optionally a thin shell wrapper under [`scripts/backup_jetstream_cursor.sh.example`](../../../../scripts/backup_jetstream_cursor.sh.example) if helpful
-- Plan step docs only as needed for accuracy
+- Committing AWS keys or host secrets
+- Changing ingestion hot-path modules
 
-## Files forbidden to change
+## Pass / fail
 
-- Production cron on any host
-- AWS IAM / account config in-repo secrets
-- Hot-path ingestion modules
+```bash
+test -f docs/plans/2026-07-23_bluesky_cursor_dynamodb_backup_190886/examples/crontab.example
+rg 'jetstream_cursor_backup_(succeeded|failed)' data_platform/ingestion/backup_jetstream_cursor.py docs/runbooks/HOW_TO_BACKUP_BLUESKY_JETSTREAM_CURSOR.md
+```
 
-## Deliverables
+Expected: example crontab exists; both markers documented and present in code.
 
-1. **Example cron** (daily, e.g. `15 6 * * *`) that:
-   - `cd`s to repo root
-   - sets `PYTHONPATH=.`
-   - invokes `uv run python data_platform/ingestion/backup_jetstream_cursor.py --cursor-path ...`
-   - redirects stdout/stderr to a log file path placeholder
-2. **Observability contract** (documented in example comments + runbook Step 4):
-   - Success log substring: `jetstream_cursor_backup_succeeded`
-   - Failure log substring: `jetstream_cursor_backup_failed`
-   - Process exit code `0` success / non-zero failure (cron mail / monitoring can key off this)
-3. Env placeholders only: `AWS_REGION`, `AWS_PROFILE` or instance role note, `JETSTREAM_CURSOR_PATH` — no real secrets committed
+## Done when
 
-## What must pass / fail
-
-**Pass**
-
-- Example file exists and references the real CLI module path.
-- Comments state this is **example / not deployed** by this PR.
-- `rg -n "jetstream_cursor_backup_(succeeded|failed)" data_platform/ingestion/backup_jetstream_cursor.py` finds both markers.
-
-**Fail**
-
-- Committing real hostnames, keys, or `.env` values.
-- Requiring live DynamoDB for the example to be considered complete.
+Operators can wire cron from the example and alert on exit code / failure marker without reading DynamoDB.

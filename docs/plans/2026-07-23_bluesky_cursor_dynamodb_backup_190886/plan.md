@@ -55,7 +55,7 @@ Add a runbook that explains how to inspect backup freshness, restore or select t
 
 Detail: [`steps/step4.md`](steps/step4.md)
 
-Runbook: [`docs/runbooks/HOW_TO_RECOVER_JETSTREAM_CURSOR_FROM_DYNAMODB.md`](../../runbooks/HOW_TO_RECOVER_JETSTREAM_CURSOR_FROM_DYNAMODB.md)
+Runbook: [`docs/runbooks/HOW_TO_BACKUP_BLUESKY_JETSTREAM_CURSOR.md`](../../runbooks/HOW_TO_BACKUP_BLUESKY_JETSTREAM_CURSOR.md)
 
 ## What "done" looks like
 
@@ -63,8 +63,10 @@ Runbook: [`docs/runbooks/HOW_TO_RECOVER_JETSTREAM_CURSOR_FROM_DYNAMODB.md`](../.
 2. DynamoDB backups include metadata sufficient to judge freshness and validity.
 3. Failed backup runs are observable and do not corrupt an existing good backup.
 4. Normal Jetstream ingestion remains disk-first and performs no DynamoDB writes per cursor update.
-5. A documented recovery procedure explains post-outage restore/selection from DynamoDB.
+5. A documented recovery procedure explains post-outage restore/selection from DynamoDB — see [`docs/runbooks/HOW_TO_BACKUP_BLUESKY_JETSTREAM_CURSOR.md`](../../runbooks/HOW_TO_BACKUP_BLUESKY_JETSTREAM_CURSOR.md).
 6. Automated tests cover backup success and non-corrupting failure modes.
+
+Step details: [`steps/`](steps/).
 
 ## Prerequisites / out of scope
 

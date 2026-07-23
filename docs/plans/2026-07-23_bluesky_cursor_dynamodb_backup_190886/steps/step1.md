@@ -2,82 +2,78 @@
 
 ## Objective
 
-Lock the on-disk Jetstream cursor format, the DynamoDB backup item shape, overwrite semantics, and recovery selection rules so Steps 2–4 implement against a fixed contract. This step is documentation + constants only (no backup behavior yet).
+Lock the on-disk Jetstream cursor format, the DynamoDB backup item shape, overwrite semantics, and recovery selection rules so Steps 2–4 implement against a fixed contract.
 
 ## Inspect
 
 - `docs/plans/2026-07-23_bluesky_cursor_dynamodb_backup_190886/plan.md`
-- `docs/design_docs/2026-07-13_bluesky_backfill_app.md` (on PR `backfill_design_doc` if absent locally)
 - `data_platform/aws/constants.py`
 - `data_platform/aws/dynamodb.py`
-- `data_platform/orchestration/pipeline_run.py` (existing DynamoDB item pattern)
+- `data_platform/orchestration/pipeline_run.py`
 
 ## Allowed to change
 
-- `docs/plans/2026-07-23_bluesky_cursor_dynamodb_backup_190886/plan.md` (contract table only if needed)
-- `docs/plans/2026-07-23_bluesky_cursor_dynamodb_backup_190886/steps/step1.md` (this file)
-- `data_platform/aws/constants.py` — add table name constant only
-- **New** `data_platform/ingestion/jetstream_cursor.py` — dataclasses + format_version constants + path helpers; stub read/write raising `NotImplementedError` is OK until Step 2
+- `data_platform/aws/constants.py` — `CURSOR_BACKUP_TABLE`, `JETSTREAM_CURSOR_BACKUP_KEY`
+- `data_platform/ingestion/jetstream_cursor.py` — disk + backup item contracts
 
 ## Forbidden
 
-- `data_platform/ingestion/sync_bluesky.py` and all other sync scripts
-- Real AWS table creation / Terraform / console changes
-- Any DynamoDB write from an ingestion hot path
+- `data_platform/ingestion/sync_bluesky.py` and other sync scripts
+- Real AWS table creation
+- DynamoDB writes from the ingestion hot path
 
 ## Contracts (frozen)
 
 ### Disk cursor file
 
-- Default relative path (example / HPC): `$JETSTREAM_CURSOR_PATH` or default `data_platform/data/bluesky/jetstream/jetstream_cursor.json`
-- JSON object, UTF-8, atomic replace on write (write temp + rename) when writer is implemented
-- Required fields:
+- Example path: `$JETSTREAM_CURSOR_PATH` or `data_platform/data/bluesky/jetstream/cursor.json`
+- JSON object, UTF-8, atomic write (`tmp` + `os.replace`)
 
 | Field | Type | Rules |
 | ----- | ---- | ----- |
-| `cursor_us` | int | Jetstream Unix microseconds; must be `> 0` |
-| `format_version` | int | Must equal `CURSOR_FORMAT_VERSION` (1) |
-| `updated_at` | str | ISO-8601 UTC timestamp of last successful disk checkpoint |
-| `source` | str | Must be `"jetstream"` |
+| `format_version` | int | Must equal `DISK_FORMAT_VERSION` (`1`) |
+| `cursor` | int | Non-negative Jetstream Unix microseconds |
+| `updated_at` | str | Timezone-aware ISO-8601 |
 
 ### DynamoDB backup item (single latest row)
 
-- Table constant: `JETSTREAM_CURSOR_BACKUP_TABLE = "lab-data-integrations-interface-jetstream-cursor-backup"`
-- Partition key: `backup_id` (string). Canonical value: `"bluesky_jetstream_cursor"`
-- Overwrite policy: **one row**; successful backup replaces the previous item in full via `put_item`
-- Failure policy: never call `put_item` with a partial/invalid item; a failed `put_item` leaves the prior item unchanged
+- Table: `CURSOR_BACKUP_TABLE = "lab-data-integrations-interface-cursor-backups"`
+- Partition key field: `backup_key` — canonical value `JETSTREAM_CURSOR_BACKUP_KEY = "bluesky_jetstream_cursor_latest"`
+- Overwrite: successful `put_item` replaces the prior item in full
+- Failure: never delete-then-put; never `put_item` with an unvalidated/partial item
 
 | Field | Type | Notes |
 | ----- | ---- | ----- |
-| `backup_id` | str | PK; always `bluesky_jetstream_cursor` |
-| `cursor_us` | number | Copied from disk |
-| `format_version` | number | Copied from disk |
+| `backup_key` | str | PK |
+| `cursor` | number/int | From disk |
+| `format_version` | number/int | From disk |
+| `schema_version` | number/int | `BACKUP_SCHEMA_VERSION` (`1`) |
 | `disk_updated_at` | str | Disk `updated_at` |
-| `backed_up_at` | str | ISO-8601 UTC when backup job succeeded |
-| `source_path` | str | Absolute path of disk file read |
-| `status` | str | Always `"valid"` for written items |
+| `backed_up_at` | str | When backup job succeeded |
+| `source_path` | str | Absolute path read |
+| `content_sha256` | str | Hash of `format_version:cursor:disk_updated_at` |
 
 ### Recovery selection
 
-1. Prefer HPC disk cursor when present and valid.
-2. If disk missing/corrupt, load DynamoDB backup where `status == "valid"` and `format_version == CURSOR_FORMAT_VERSION`.
-3. Reject backup if `backed_up_at` is older than 48 hours unless operator passes an explicit `--force-stale` flag (documented in runbook).
-4. Restore writes a new valid disk cursor file; does not mutate DynamoDB.
+1. Prefer valid HPC disk cursor.
+2. Else restore from DynamoDB backup item (or exported JSON via `restore-from-item-file`).
+3. Prefer backups with `backed_up_at` within ~48h; older only after operator review.
+4. Restore writes disk only; does not mutate DynamoDB.
 
 ## Pass / fail
 
 ```bash
-rg 'JETSTREAM_CURSOR_BACKUP_TABLE' data_platform/aws/constants.py
+rg 'CURSOR_BACKUP_TABLE|JETSTREAM_CURSOR_BACKUP_KEY' data_platform/aws/constants.py
 ```
 
-Expected: one match with the table name above.
+Expected: both constants present.
 
 ```bash
-python -c "from data_platform.ingestion.jetstream_cursor import CURSOR_FORMAT_VERSION, BACKUP_ID; assert CURSOR_FORMAT_VERSION == 1; assert BACKUP_ID == 'bluesky_jetstream_cursor'"
+PYTHONPATH=. uv run python -c "from data_platform.ingestion.jetstream_cursor import DISK_FORMAT_VERSION, BACKUP_SCHEMA_VERSION; assert DISK_FORMAT_VERSION == 1 and BACKUP_SCHEMA_VERSION == 1"
 ```
 
-Expected: exit 0 (after Step 1 scaffolding lands).
+Expected: exit 0.
 
 ## Done when
 
-Contracts above are written here and mirrored by constants/types in `jetstream_cursor.py`; no backup CLI behavior required yet.
+Contracts above match `jetstream_cursor.py` and constants.
