@@ -33,19 +33,29 @@ Treat DynamoDB as a cold disaster-recovery mirror of the disk cursor: one schedu
 
 ### Step 1: Freeze backup and recovery contracts
 
-Lock the disk-cursor source of truth the backup job will read, the DynamoDB item shape (cursor value, backup timestamp, format/version, validation fields), overwrite vs retain semantics, and the recovery decision rules used when disk is missing or stale. Gate start on disk cursor persistence already being available.
+Lock the disk-cursor source of truth the backup job will read, the DynamoDB item shape (cursor value, backup timestamp, format/version, validation fields), overwrite vs retain semantics, and the recovery decision rules used when disk is missing or stale. This example PR **defines** the on-disk JSON contract so the backup job is testable even before production Jetstream writers land.
+
+Detail: [`steps/step1.md`](steps/step1.md)
 
 ### Step 2: Implement the daily backup job with safe writes and tests
 
-Build a standalone job that reads the latest disk cursor, validates it, writes DynamoDB only on success, leaves the prior backup intact on failure, and emits clear success/failure logs. Cover happy path, missing/corrupt disk cursor, and DynamoDB write failure with tests first.
+Build a standalone job that reads the latest disk cursor, validates it, writes DynamoDB only on success, leaves the prior backup intact on failure, and emits clear success/failure logs. Cover happy path, missing/corrupt disk cursor, and DynamoDB write failure with tests first. Mock boto3; no live AWS.
+
+Detail: [`steps/step2.md`](steps/step2.md)
 
 ### Step 3: Schedule the job on HPC and make failures observable
 
-Add the daily scheduler entry (cron or equivalent HPC schedule), required environment and AWS credentials assumptions, and an observable failure signal operators can monitor without inspecting DynamoDB by hand.
+Add an **example** daily cron snippet (not deployed by this PR), required environment/credential assumptions as placeholders, and observable failure signals (log markers + non-zero exit).
+
+Detail: [`steps/step3.md`](steps/step3.md)
 
 ### Step 4: Document operational recovery and retention
 
-Add a runbook that explains how to inspect backup freshness, restore or select the DynamoDB cursor after HPC loss, how overwrite/retention works, and how to confirm ingestion resumed from the recovered checkpoint. Link the runbook from the Bluesky backfill design materials.
+Add a runbook that explains how to inspect backup freshness, restore or select the DynamoDB cursor after HPC loss, how overwrite/retention works, and how to confirm ingestion resumed from the recovered checkpoint.
+
+Detail: [`steps/step4.md`](steps/step4.md)
+
+Runbook: [`docs/runbooks/HOW_TO_RECOVER_JETSTREAM_CURSOR_FROM_DYNAMODB.md`](../../runbooks/HOW_TO_RECOVER_JETSTREAM_CURSOR_FROM_DYNAMODB.md)
 
 ## What "done" looks like
 
@@ -58,5 +68,6 @@ Add a runbook that explains how to inspect backup freshness, restore or select t
 
 ## Prerequisites / out of scope
 
-- **Prerequisite:** HPC disk-based cursor persistence for Bluesky Jetstream backfill must already be implemented and readable by path/contract frozen in Step 1.
-- **Out of scope:** Changing hot-path cursor cadence; per-record or frequent DynamoDB cursor writes; Jetstream ingestion feature work unrelated to backup/restore; UI changes.
+- **Example PR scope:** Ships contracts, backup/restore helpers, unit tests (mocked DynamoDB), example cron, and recovery runbook. Does **not** provision the DynamoDB table, install HPC cron, or require live AWS/HPC credentials.
+- **Disk contract:** Step 1 freezes the on-disk JSON schema the backup job reads/writes for restore. Production Jetstream ingestion should adopt that schema when its disk writer lands; this PR does not modify the hot path.
+- **Out of scope:** Changing hot-path cursor cadence; per-record or frequent DynamoDB cursor writes; Jetstream ingestion feature work unrelated to backup/restore; UI changes; live AWS wiring.
