@@ -33,6 +33,7 @@ dependencies = [
     "opentelemetry-instrumentation-fastapi~=0.64b0",
     "opentelemetry-instrumentation-logging~=0.64b0",
     "opentelemetry-instrumentation-botocore~=0.64b0",
+    "pyjwt>=2.13.0",
 ]
 
 [project.optional-dependencies]
