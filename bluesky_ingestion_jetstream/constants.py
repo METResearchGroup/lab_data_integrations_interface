@@ -41,3 +41,8 @@ MAX_BUFFER_SIZE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_BUFFER_AGE_SECONDS = 300.0
 
 DATA_DIR = Path(__file__).parent / "data"
+
+# Reconnect backoff, doubling from the first to the second.
+INITIAL_BACKOFF_SECONDS = 1.0
+MAX_BACKOFF_SECONDS = 60.0
+BACKOFF_MULTIPLIER = 2.0

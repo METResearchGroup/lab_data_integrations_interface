@@ -1,16 +1,21 @@
 """Jetstream WebSocket connection."""
 
+import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterable, AsyncIterator
 from urllib.parse import urlencode
 
 import websockets
+from websockets.exceptions import WebSocketException
 
 from bluesky_ingestion_jetstream.constants import (
+    BACKOFF_MULTIPLIER,
     COLLECTION_TO_RECORD_TYPE,
     FOLLOWS,
+    INITIAL_BACKOFF_SECONDS,
     JETSTREAM_ENDPOINT,
     LIKES,
+    MAX_BACKOFF_SECONDS,
     POSTS,
     REPOSTS,
     REQUIRED_KEYS,
@@ -40,25 +45,30 @@ def is_commit(event: object) -> bool:
     return isinstance(event, dict) and event.get("kind") == "commit"
 
 
-async def stream_events() -> AsyncIterator[tuple[str, dict]]:
-    """Connect to Jetstream and yield (record_type, row) pairs for commits."""
+async def process_all_websocket_events(
+    messages: AsyncIterable[str | bytes],
+) -> AsyncIterator[tuple[str, dict]]:
+    """Yield (record_type, row) pairs for the commits in a stream of raw messages.
 
-    async with websockets.connect(build_url()) as socket:
-        async for message in socket:
-            # Frames arrive as raw text, so this is the one place we deserialize.
-            try:
-                event = json.loads(message)
-            except json.JSONDecodeError:
-                continue
+    Takes any async iterable rather than a socket, so it can be exercised with a
+    plain list of messages.
+    """
 
-            # only want posts/reposts/likes/follows
-            if not is_commit(event):
-                continue
+    async for message in messages:
+        # Frames arrive as raw text, so this is the one place we deserialize.
+        try:
+            event = json.loads(message)
+        except json.JSONDecodeError:
+            continue
 
-            # off-chance that data has a null field
-            parsed = process_commit_event(event)
-            if parsed is not None:
-                yield parsed
+        # only want posts/reposts/likes/follows
+        if not is_commit(event):
+            continue
+
+        # off-chance that data has a null field
+        parsed = process_commit_event(event)
+        if parsed is not None:
+            yield parsed
 
 
 def process_commit_event(event: dict) -> tuple[str, dict] | None:
@@ -89,3 +99,25 @@ def process_commit_event(event: dict) -> tuple[str, dict] | None:
     if not validate_non_null_fields(row, REQUIRED_KEYS[record_type]):
         return None
     return record_type, row
+
+
+async def stream_events() -> AsyncIterator[tuple[str, dict]]:
+    """Connect to Jetstream and yield (record_type, row) pairs for commits.
+
+    Reconnects with exponential backoff. The backoff resets only once a row has
+    actually come through, not merely on a successful connect -- a server that
+    accepts and then immediately drops us would otherwise spin at full speed.
+    """
+
+    backoff = INITIAL_BACKOFF_SECONDS
+    while True:
+        try:
+            async with websockets.connect(build_url()) as socket:
+                async for parsed in process_all_websocket_events(socket):
+                    backoff = INITIAL_BACKOFF_SECONDS
+                    yield parsed
+        # Narrow on purpose: a blanket `except Exception` would swallow bugs in
+        # the parsing path and retry them forever instead of raising.
+        except (WebSocketException, OSError):
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF_SECONDS)
