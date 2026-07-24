@@ -84,7 +84,10 @@ pythonVersion = "3.11"
 typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
-exclude = ["tests", "experiments"]
+# experimentation/iceberg resolves against its own venv (pyiceberg pins
+# rich<15, the root project requires rich>=15), so the root interpreter cannot
+# type-check it.
+exclude = ["tests", "experiments", "experimentation/iceberg"]
 
 [tool.vulture]
 exclude = ["*venv*", "temp.py"]
