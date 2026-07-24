@@ -37,7 +37,7 @@ REQUIRED_KEYS = {
 
 # Flush when the buffers hold this many serialized bytes in total, or when the
 # oldest rows have been waiting this long.
-MAX_BUFFER_SIZE_BYTES = 50 * 1024 * 1024
+MAX_BUFFER_SIZE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_BUFFER_AGE_SECONDS = 300.0
 
 DATA_DIR = Path(__file__).parent / "data"
