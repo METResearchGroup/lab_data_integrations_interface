@@ -2,6 +2,8 @@
 
 import pyarrow as pa
 
+from bluesky_ingestion_jetstream.constants import FOLLOWS, LIKES, POSTS, REPOSTS
+
 # Present in all four tables.
 COMMON_FIELDS = [
     pa.field("uri", pa.string()),
@@ -33,3 +35,10 @@ LIKE_SCHEMA: pa.Schema = pa.schema(
 REPOST_SCHEMA: pa.Schema = LIKE_SCHEMA
 
 FOLLOW_SCHEMA: pa.Schema = pa.schema([*COMMON_FIELDS, pa.field("subject_did", pa.string())])
+
+RECORD_TYPE_TO_SCHEMA: dict[str, pa.Schema] = {
+    POSTS: POST_SCHEMA,
+    LIKES: LIKE_SCHEMA,
+    REPOSTS: REPOST_SCHEMA,
+    FOLLOWS: FOLLOW_SCHEMA,
+}
