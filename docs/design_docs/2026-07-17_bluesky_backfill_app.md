@@ -11,11 +11,12 @@
     - [Periodically Flush to S3](#periodically-flush-to-s3)
     - [Update cursor](#update-cursor)
     - [Ingestion pipeline](#ingestion-pipeline)
-    - [Buffer max capacity](#buffer-max-capacity)
     - [Clearing the buffer/uploading to S3](#clearing-the-bufferuploading-to-s3)
-  - [Splitting Data into Individual Tables](#splitting-data-into-individual-tables)
-    - [Proposed S3 Layout for Partition Projection](#proposed-s3-layout-for-partition-projection)
-  - [Deduplication](#deduplication)
+    - [Splitting Data into Individual Tables](#splitting-data-into-individual-tables)
+    - [Proposed S3 Layout](#proposed-s3-layout)
+    - [Deduplication](#deduplication)
+    - [Storing the list of Users](#storing-the-list-of-users)
+    - [Parallelization](#parallelization)
   - [Open Questions:](#open-questions)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -68,11 +69,6 @@ flowchart LR
     F -. "Until all users processed" .-> B
 ```
 
-### Buffer max capacity
-We want to flush all 4 buffers once any reach their capacity. However, some events are more likeley than others. 
-Therefore, we will set a ratio of posts:likes:follows:reposts such that the amount of each event should be similar 
-every time we flush each event the S3 table. 
-
 ### Clearing the buffer/uploading to S3
 Use a retry + deadletter pattern for S3 uploads.
 
@@ -81,34 +77,26 @@ accurately place the data into their respective files.
 
 Provenance: We can consider adding in json files with run_id + created_at timestamps. 
 
-## Splitting Data into Individual Tables
+### Splitting Data into Individual Tables
 
-This should follow similar logic as `docs/design_docs/2026-07-13_bluesky_backfill_app.md`. 
+This should follow similar logic as `docs/design_docs/2026-07-13_bluesky_ingestion_jetstream.md`. 
 
 The one potential difference could be in the S3 layout. 
 
-### Proposed S3 Layout for Partition Projection
-This S3 layout should match `docs/design_docs/2026-07-13_bluesky_backfill_app.md`. 
+### Proposed S3 Layout
+This S3 layout should match `docs/design_docs/2026-07-13_bluesky_ingestion_jetstream.md`. 
 
-However, we are even less likely to use hour as a partition key for this and keep as only dt, 
-as we will likely not get enough data such that it is worth partitioning by hour. 
+### Deduplication
+Should follow `docs/design_docs/2026-07-13_bluesky_ingestion_jetstream.md`
 
-## Deduplication
-Since the jetstream gets up to a few days back of data, and getRepo gets all data, there is some small intersection between
-the data collected between the two apps. 
+### Storing the list of Users
+We will store the list in DynamoDB, under the statuses:
+in_queue/processing/finished/failed
 
-In addition, cursors that are behind our database could also cause duplication. Imagine the scenario:
-1. Cursor is at user 1.
-2. Ingestion + S3 sync runs for user 1-10. 
-3. Server crashes before cursor can update. 
-4. Next time around, server processes user 1-10 again. 
-
-We most likely do both, and follow the pattern in 
-`docs/design_docs/2026-07-13_bluesky_backfill_app.md`. 
-
+### Parallelization
+- Have multiple workers receiving users from a queue (SQS)
+- ACK when finished processing a user
+- Update DynamoDB from in_queue -> processing -> finished/failed along the way
 
 ## Open Questions:
-1. Should we write our cursor to disk or DynamoDB? This applies to the jetstream app as well, could disk be a possible solution for
-cursor writes?
-2. How should we even store the list of users that we want to get data for? On disk?
-3. How large is our VM? This will probably determine how much data our system collects before flushing to S3. 
+1. How are we getting list of users that we want to get data for?
