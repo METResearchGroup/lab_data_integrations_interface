@@ -8,7 +8,6 @@ COMMON_FIELDS = [
     pa.field("did", pa.string()),
     pa.field("cid", pa.string()),
     pa.field("created_at", pa.timestamp("us", tz="UTC")),
-    pa.field("ingested_at", pa.timestamp("us", tz="UTC")),
 ]
 
 POST_SCHEMA: pa.Schema = pa.schema(
