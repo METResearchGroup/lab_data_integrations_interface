@@ -1,3 +1,4 @@
+import SignOutButton from "@/components/SignOutButton";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -20,5 +21,19 @@ export default async function ProtectedLayout({
 
 	if (!user) redirect("/login");
 
-	return <>{children}</>;
+	return (
+		<div className="flex min-h-screen flex-col">
+			<header className="flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-3">
+				<span className="text-sm font-medium text-zinc-900">
+					Lab Data Integrations
+				</span>
+				<div className="flex items-center gap-4">
+					<span className="text-sm text-zinc-500">{user.email}</span>
+					<SignOutButton />
+				</div>
+			</header>
+
+			{children}
+		</div>
+	);
 }
