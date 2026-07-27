@@ -33,7 +33,7 @@ Use the Bluesky getRepo API call to access a user's entire past history. Then we
 # Implementation Plan
 
 System design diagram:
-https://www.tldraw.com/f/N4eyVuGQjtQ1MBSSVKxly?d=v-606.-633.4292.2822.page
+https://www.tldraw.com/f/Pau4SS84LG1WNbbCmFuFm?d=v-739.-33.3245.2133.nHxItvhZgKCZEjbymrBa2
 
 ## Ingestion
 
