@@ -9,6 +9,7 @@ from bluesky_ingestion_jetstream.event_parsing.shared import (
     as_str,
     as_str_list,
     parse_created_at,
+    parse_ingested_at,
     parse_shared,
     validate_non_null_fields,
 )
@@ -17,8 +18,11 @@ from tests.bluesky_ingestion_jetstream.conftest import (
     CREATED_AT,
     CREATED_AT_STR,
     DID,
+    INGESTED_AT,
     POST_COLLECTION,
+    REV,
     RKEY,
+    TIME_US,
     make_event,
     post_record,
 )
@@ -98,6 +102,43 @@ class TestParseCreatedAt:
         assert parse_created_at("20260723") == datetime(2026, 7, 23, tzinfo=UTC)
 
 
+class TestParseIngestedAt:
+    def test_converts_microseconds_to_utc(self):
+        assert parse_ingested_at(TIME_US) == INGESTED_AT
+
+    def test_microsecond_precision_is_exact(self):
+        """A float division would round at this magnitude; the timedelta path does not."""
+
+        parsed = parse_ingested_at(TIME_US)
+
+        assert parsed is not None
+        assert parsed.microsecond == TIME_US % 1_000_000
+
+    def test_result_is_utc(self):
+        parsed = parse_ingested_at(TIME_US)
+
+        assert parsed is not None
+        assert parsed.tzinfo == UTC
+
+    def test_epoch_is_zero(self):
+        assert parse_ingested_at(0) == datetime(1970, 1, 1, tzinfo=UTC)
+
+    @pytest.mark.parametrize("value", ["1784533137411372", None, [], {}, 1.5])
+    def test_non_integers_become_none(self, value):
+        assert parse_ingested_at(value) is None
+
+    @pytest.mark.parametrize("value", [True, False])
+    def test_bools_become_none(self, value):
+        """`isinstance(True, int)` is True, so bools need excluding explicitly."""
+
+        assert parse_ingested_at(value) is None
+
+    def test_out_of_range_becomes_none(self):
+        """Client junk must null the column, not raise out of the parse path."""
+
+        assert parse_ingested_at(10**20) is None
+
+
 class TestParseShared:
     def test_extracts_every_common_column(self, post_event):
         row = parse_shared(post_event)
@@ -106,8 +147,32 @@ class TestParseShared:
             "uri": f"at://{DID}/{POST_COLLECTION}/{RKEY}",
             "did": DID,
             "cid": CID,
+            "rev": REV,
             "created_at": CREATED_AT,
+            "ingested_at": INGESTED_AT,
         }
+
+    def test_rev_comes_from_the_commit(self, post_event):
+        assert parse_shared(post_event)["rev"] == REV
+
+    def test_missing_rev_is_null(self, post_event):
+        del post_event["commit"]["rev"]
+
+        assert parse_shared(post_event)["rev"] is None
+
+    def test_the_two_clocks_are_read_from_different_places(self, post_event):
+        """`created_at` is the client's, `ingested_at` the broker's. Never the same field."""
+
+        row = parse_shared(post_event)
+
+        assert row["created_at"] == CREATED_AT
+        assert row["ingested_at"] == INGESTED_AT
+        assert row["created_at"] != row["ingested_at"]
+
+    def test_missing_time_us_nulls_ingested_at(self, post_event):
+        del post_event["time_us"]
+
+        assert parse_shared(post_event)["ingested_at"] is None
 
     def test_uri_is_reconstructed_from_the_parts(self, post_event):
         """`uri` is not on the wire -- Jetstream sends did, collection, and rkey."""
@@ -141,11 +206,20 @@ class TestParseShared:
 
         assert parse_shared(event)["uri"] is None
 
-    def test_missing_commit_yields_all_nulls_but_did(self):
+    def test_missing_commit_leaves_only_the_envelope_columns(self):
+        """`did` and `ingested_at` live on the envelope, so they outlive a bad commit."""
+
         event = make_event(POST_COLLECTION, post_record(), drop_commit=True)
         row = parse_shared(event)
 
-        assert row == {"uri": None, "did": DID, "cid": None, "created_at": None}
+        assert row == {
+            "uri": None,
+            "did": DID,
+            "cid": None,
+            "rev": None,
+            "created_at": None,
+            "ingested_at": INGESTED_AT,
+        }
 
     @pytest.mark.parametrize("record", ["a string", 42, None, []])
     def test_record_of_the_wrong_type_nulls_created_at(self, record):

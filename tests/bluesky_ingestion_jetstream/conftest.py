@@ -8,9 +8,15 @@ import pytest
 DID = "did:plc:eygmaihciaxprqvxrfvl6flk"
 RKEY = "3l3qo2vuowo2b"
 CID = "bafyreidc6sykmtx7dbepnvdyzsjmyzpqfsn3fzo7lgvxfwbfjhqtwrxnfu"
+REV = "3l3qo2vutsw2b"
 
 CREATED_AT_STR = "2026-07-23T06:48:11.102Z"
 CREATED_AT = datetime(2026, 7, 23, 6, 48, 11, 102000, tzinfo=UTC)
+
+# Deliberately earlier than CREATED_AT: the two clocks are independent, and a test
+# that shared one instant could not catch them being swapped.
+TIME_US = 1784533137411372
+INGESTED_AT = datetime(2026, 7, 20, 7, 38, 57, 411372, tzinfo=UTC)
 
 SUBJECT_DID = "did:plc:targetaccount0000000000"
 SUBJECT_URI = "at://did:plc:abc/app.bsky.feed.post/3l3qtarget"
@@ -29,17 +35,20 @@ def make_event(
     did: object = DID,
     rkey: object = RKEY,
     cid: object = CID,
+    rev: object = REV,
+    time_us: object = TIME_US,
     operation: str = "create",
     kind: str = "commit",
     drop_commit: bool = False,
 ) -> dict:
     """Build a Jetstream envelope, with hooks for the malformed variants."""
 
-    event: dict = {"did": did, "kind": kind}
+    event: dict = {"did": did, "kind": kind, "time_us": time_us}
     if drop_commit:
         return event
 
     event["commit"] = {
+        "rev": rev,
         "operation": operation,
         "collection": collection,
         "rkey": rkey,

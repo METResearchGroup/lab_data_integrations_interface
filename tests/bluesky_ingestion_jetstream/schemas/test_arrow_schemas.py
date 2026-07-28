@@ -12,7 +12,7 @@ from bluesky_ingestion_jetstream.schemas.arrow_schemas import (
     REPOST_SCHEMA,
 )
 
-COMMON_COLUMNS = {"uri", "did", "cid", "created_at"}
+COMMON_COLUMNS = {"uri", "did", "cid", "rev", "created_at", "ingested_at"}
 
 
 class TestRecordTypeToSchema:
@@ -34,16 +34,19 @@ class TestCommonColumns:
         assert COMMON_COLUMNS.issubset(set(RECORD_TYPE_TO_SCHEMA[record_type].names))
 
     @pytest.mark.parametrize("record_type", RECORD_TYPES)
-    def test_created_at_is_microsecond_utc(self, record_type):
+    @pytest.mark.parametrize("column", ["created_at", "ingested_at"])
+    def test_timestamps_are_microsecond_utc(self, record_type, column):
+        """Both clocks share a type, so `ingested_at - created_at` is a plain subtraction."""
+
         schema = RECORD_TYPE_TO_SCHEMA[record_type]
 
-        assert schema.field("created_at").type == pa.timestamp("us", tz="UTC")
+        assert schema.field(column).type == pa.timestamp("us", tz="UTC")
 
     @pytest.mark.parametrize("record_type", RECORD_TYPES)
     def test_identifier_columns_are_strings(self, record_type):
         schema = RECORD_TYPE_TO_SCHEMA[record_type]
 
-        for column in ("uri", "did", "cid"):
+        for column in ("uri", "did", "cid", "rev"):
             assert schema.field(column).type == pa.string()
 
     @pytest.mark.parametrize("record_type", RECORD_TYPES)
