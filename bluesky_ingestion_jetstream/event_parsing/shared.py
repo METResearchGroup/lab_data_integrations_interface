@@ -51,11 +51,14 @@ def parse_ingested_at(value: object) -> datetime | None:
     """Turn the envelope's `time_us` into a UTC timestamp.
 
     Added to the epoch as an integer `timedelta` rather than divided into a float
-    and passed to `fromtimestamp`: a microsecond epoch is already 16 significant
-    digits, which is past what float64 represents exactly.
+    and handed to `fromtimestamp`, so the arithmetic is exact by construction. The
+    float route happens to round-trip at today's magnitudes, but only because a
+    microsecond epoch still fits inside float64's exact-integer range.
 
     Unlike `created_at` this is the broker's clock, not the client's, so it is the
-    trustworthy end of an `ingested_at - created_at` lag calculation.
+    trustworthy end of an `ingested_at - created_at` lag calculation. It is also
+    stable under replay: a cursor rewind redelivers the same `time_us`, where a
+    locally-stamped clock would give the same event a new value each time.
     """
 
     # bools are ints, and a `True` timestamp is junk rather than 1 microsecond.

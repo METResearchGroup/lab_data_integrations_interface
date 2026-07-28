@@ -106,8 +106,8 @@ class TestParseIngestedAt:
     def test_converts_microseconds_to_utc(self):
         assert parse_ingested_at(TIME_US) == INGESTED_AT
 
-    def test_microsecond_precision_is_exact(self):
-        """A float division would round at this magnitude; the timedelta path does not."""
+    def test_microseconds_are_preserved(self):
+        """Integer arithmetic throughout, so the sub-second part cannot be rounded off."""
 
         parsed = parse_ingested_at(TIME_US)
 
