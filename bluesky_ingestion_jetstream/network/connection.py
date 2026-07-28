@@ -61,7 +61,6 @@ async def process_all_websocket_events(
         except json.JSONDecodeError:
             continue
 
-        # only want posts/reposts/likes/follows
         if not is_commit(event):
             continue
 
