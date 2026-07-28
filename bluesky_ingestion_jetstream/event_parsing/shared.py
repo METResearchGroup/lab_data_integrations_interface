@@ -1,7 +1,9 @@
 """Fields common to all commit types."""
 
 from collections.abc import Iterable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+
+EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 def as_dict(value: object) -> dict:
@@ -45,6 +47,27 @@ def parse_created_at(value: object) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
+def parse_ingested_at(value: object) -> datetime | None:
+    """Turn the envelope's `time_us` into a UTC timestamp.
+
+    Added to the epoch as an integer `timedelta` rather than divided into a float
+    and passed to `fromtimestamp`: a microsecond epoch is already 16 significant
+    digits, which is past what float64 represents exactly.
+
+    Unlike `created_at` this is the broker's clock, not the client's, so it is the
+    trustworthy end of an `ingested_at - created_at` lag calculation.
+    """
+
+    # bools are ints, and a `True` timestamp is junk rather than 1 microsecond.
+    if not isinstance(value, int) or isinstance(value, bool):
+        return None
+
+    try:
+        return EPOCH + timedelta(microseconds=value)
+    except OverflowError:
+        return None
+
+
 def parse_shared(event: dict) -> dict:
     """Extract the columns every commit type has."""
 
@@ -60,7 +83,9 @@ def parse_shared(event: dict) -> dict:
         "uri": f"at://{did}/{collection}/{rkey}" if did and collection and rkey else None,
         "did": did,
         "cid": as_str(commit.get("cid")),
+        "rev": as_str(commit.get("rev")),
         "created_at": parse_created_at(record.get("createdAt")),
+        "ingested_at": parse_ingested_at(event.get("time_us")),
     }
 
 
