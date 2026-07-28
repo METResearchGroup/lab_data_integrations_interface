@@ -162,6 +162,14 @@ the broker clock. A repaired row is then identifiable by `created_at == ingested
 separate fallback flag is needed. Iceberg's partition evolution means the `day()`
 granularity can change later without rewriting history.
 
+**`ingested_at` means the broker clock only on this path.** The backfill app reads whole
+repos through `getRepo()`, which carries no per-record receive time, so a backfilled row can
+only be stamped with `datetime.now()` at fetch. The two writers also overlap by
+construction — backfilling an account re-fetches posts the live stream already captured —
+producing two rows per `uri` that differ in `ingested_at` and are otherwise
+indistinguishable. A `source` column (`jetstream` | `backfill`) is what makes that
+resolvable, and should land before backfill writes to these tables.
+
 ## Posts Table
 
 `app.bsky.feed.post`
