@@ -18,7 +18,7 @@ def wired(monkeypatch, rows_factory):
     def fake_flush(buffers, data_dir):
         flushes.append({rt: len(b.rows) for rt, b in buffers.buffers.items() if b.rows})
         for buffer in buffers.buffers.values():
-            buffer.drain()
+            buffer.clear()
         buffers.mark_flushed()
 
     monkeypatch.setattr(main_module, "flush", fake_flush)

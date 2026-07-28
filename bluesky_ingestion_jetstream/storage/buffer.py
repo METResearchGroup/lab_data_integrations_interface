@@ -43,13 +43,15 @@ class Buffer:
         self.rows.append(row)
         self.size += row_bytes(row)
 
-    def drain(self) -> list[dict]:
-        """Return the buffered rows and empty the buffer."""
+    def clear(self) -> None:
+        """Empty the buffer.
 
-        drained = self.rows
+        Rebinds `rows` rather than mutating it in place, so a reference already
+        handed to the writer is not emptied underneath it.
+        """
+
         self.rows = []
         self.size = 0
-        return drained
 
 
 class BufferSet:
@@ -73,7 +75,7 @@ class BufferSet:
     def size(self) -> int:
         """Serialized bytes held across every buffer.
 
-        Summed from the children rather than kept as a fifth counter, so it
+        Summed from the children buffers rather than kept as another counter, so it
         cannot drift out of sync with them.
         """
 
@@ -103,12 +105,12 @@ class BufferSet:
 def flush(buffers: BufferSet, data_dir: Path) -> None:
     """Write every non-empty buffer to disk and empty it.
 
-    Each buffer is drained only after its write succeeds; draining first would
+    Each buffer is cleared only after its write succeeds; clearing first would
     lose the batch if the write raised.
     """
 
     for record_type, buffer in buffers.buffers.items():
         if buffer.rows:
             write(record_type, buffer.rows, data_dir)
-            buffer.drain()
+            buffer.clear()
     buffers.mark_flushed()

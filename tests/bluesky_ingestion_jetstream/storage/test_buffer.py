@@ -69,39 +69,29 @@ class TestBuffer:
 
             assert buffer.size == expected
 
-    def test_drain_returns_the_rows(self, rows_factory):
-        buffer = Buffer()
-        rows = rows_factory("likes", 3)
-        for row in rows:
-            buffer.add(row)
-
-        assert buffer.drain() == rows
-
-    def test_drain_resets_rows_and_size(self, rows_factory):
+    def test_clear_resets_rows_and_size(self, rows_factory):
         buffer = Buffer()
         buffer.add(rows_factory("likes", 1)[0])
-        buffer.drain()
+        buffer.clear()
 
         assert buffer.rows == []
         assert buffer.size == 0
 
-    def test_drain_does_not_alias_the_returned_list(self, rows_factory):
-        """The writer holds the drained rows; a later add must not mutate them."""
+    def test_clear_rebinds_rather_than_mutating(self, rows_factory):
+        """`flush` hands the writer `buffer.rows` and clears afterward. Rebinding
+        is what leaves that reference intact instead of emptying it."""
 
         buffer = Buffer()
         buffer.add(rows_factory("likes", 1)[0])
-        drained = buffer.drain()
-        buffer.add(rows_factory("likes", 1)[0])
+        held = buffer.rows
+        buffer.clear()
 
-        assert len(drained) == 1
+        assert len(held) == 1
 
-    def test_drain_of_an_empty_buffer(self):
-        assert Buffer().drain() == []
-
-    def test_refills_after_draining(self, rows_factory):
+    def test_refills_after_clearing(self, rows_factory):
         buffer = Buffer()
         buffer.add(rows_factory("likes", 1)[0])
-        buffer.drain()
+        buffer.clear()
         row = rows_factory("likes", 1)[0]
         buffer.add(row)
 
@@ -134,12 +124,12 @@ class TestBufferSet:
         assert BufferSet().size == 0
 
     def test_size_cannot_drift_from_its_children(self, rows_factory):
-        """Derived rather than counted, so draining one buffer stays consistent."""
+        """Derived rather than counted, so clearing one buffer stays consistent."""
 
         buffer_set = BufferSet()
         for record_type in RECORD_TYPES:
             buffer_set.add(record_type, rows_factory(record_type, 1)[0])
-        buffer_set.buffers["likes"].drain()
+        buffer_set.buffers["likes"].clear()
 
         assert buffer_set.size == sum(b.size for b in buffer_set.buffers.values())
 
@@ -280,7 +270,7 @@ class TestFlush:
         assert buffer_set.last_flush == 500.0
 
     def test_rows_survive_a_write_failure(self, filled, monkeypatch, tmp_path):
-        """Draining before the write succeeds would lose the batch."""
+        """Clearing before the write succeeds would lose the batch."""
 
         def boom(record_type, rows, data_dir):
             raise OSError("disk full")
