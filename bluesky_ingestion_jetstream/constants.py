@@ -21,7 +21,7 @@ COLLECTION_TO_RECORD_TYPE = {
 # Filtering server-side means the rest of the firehose never reaches us.
 WANTED_COLLECTIONS = tuple(COLLECTION_TO_RECORD_TYPE)
 
-COMMON_REQUIRED_KEYS = ("uri", "did", "created_at")
+COMMON_REQUIRED_KEYS = ("uri", "did", "created_at", "ingested_at")
 
 POST_REQUIRED_KEYS = COMMON_REQUIRED_KEYS
 LIKE_REQUIRED_KEYS = (*COMMON_REQUIRED_KEYS, "subject_uri")
