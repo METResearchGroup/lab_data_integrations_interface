@@ -14,12 +14,17 @@ dependencies = [
     "websockets>=15.0.1",
     "numpy>=2.4.4",
     "scikit-learn>=1.8.0",
-    "rich>=15.0.0",
+    # Capped below 15 because pyiceberg pins rich<15 for its CLI's table output.
+    # Nothing here needs 15: the highest floor in the tree is pydocket's 13.9.4.
+    "rich>=13.9.4,<15",
     "tenacity>=9.0.0",
     "spacy>=3.7.0",
     "pandas>=2.0.0",
     "duckdb>=1.0.0",
     "pyarrow>=14.0.0",
+    # pyiceberg-core supplies the Rust partition transforms; partitioned writes
+    # are unsupported without it.
+    "pyiceberg[glue,pyiceberg-core]>=0.10.0",
     "praw>=7.7.0",
     "prefect>=3.0.0",
     "pyyaml>=6.0.0",
