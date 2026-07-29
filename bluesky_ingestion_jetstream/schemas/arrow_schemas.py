@@ -4,6 +4,15 @@ import pyarrow as pa
 
 from bluesky_ingestion_jetstream.constants import FOLLOWS, LIKES, POSTS, REPOSTS
 
+# Filled in by the writer rather than the parsers, because the value is fixed for
+# the life of the process. Threading it through every parser signature would be
+# churn for a column that cannot vary per row, so the parsers stay unaware of it
+# and `write` stamps it on. Kept as a named list so tests can state which columns
+# are expected to be absent from parser output.
+WRITE_STAMPED_FIELDS = [
+    pa.field("run_id", pa.string()),
+]
+
 # Present in all four tables.
 COMMON_FIELDS = [
     pa.field("uri", pa.string()),
@@ -12,6 +21,7 @@ COMMON_FIELDS = [
     pa.field("rev", pa.string()),
     pa.field("created_at", pa.timestamp("us", tz="UTC")),
     pa.field("ingested_at", pa.timestamp("us", tz="UTC")),
+    *WRITE_STAMPED_FIELDS,
 ]
 
 POST_SCHEMA: pa.Schema = pa.schema(
