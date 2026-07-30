@@ -7,18 +7,26 @@ import pytest
 from bluesky_ingestion_jetstream.constants import RECORD_TYPES
 from bluesky_ingestion_jetstream.storage import buffer as buffer_module
 from bluesky_ingestion_jetstream.storage.buffer import Buffer, BufferSet, flush, row_bytes
-from tests.bluesky_ingestion_jetstream.conftest import RUN_ID
+
+
+class RecordingSink:
+    """A sink that remembers what it was handed, and can be told to fail."""
+
+    def __init__(self, error: Exception | None = None):
+        self.calls: list[tuple[str, list[dict]]] = []
+        self.error = error
+
+    def write(self, record_type: str, rows: list[dict]) -> None:
+        if self.error is not None:
+            raise self.error
+        self.calls.append((record_type, list(rows)))
 
 
 @pytest.fixture
-def recorded_writes(monkeypatch, tmp_path):
-    """Replace the writer so flush tests never touch Parquet."""
+def sink():
+    """The flush tests need a destination, not a filesystem."""
 
-    calls: list[tuple[str, int]] = []
-    monkeypatch.setattr(
-        buffer_module, "write", lambda rt, rows, data_dir, run_id: calls.append((rt, len(rows)))
-    )
-    return calls
+    return RecordingSink()
 
 
 @pytest.fixture
@@ -226,74 +234,71 @@ class TestMarkFlushed:
 
 
 class TestFlush:
-    def test_writes_every_non_empty_buffer(self, filled, recorded_writes, tmp_path):
-        flush(filled, tmp_path, RUN_ID)
+    def test_writes_every_non_empty_buffer(self, filled, sink):
+        flush(filled, sink)
 
-        assert dict(recorded_writes) == dict(zip(RECORD_TYPES, [1, 2, 3, 4]))
+        assert {rt: len(rows) for rt, rows in sink.calls} == dict(zip(RECORD_TYPES, [1, 2, 3, 4]))
 
-    def test_empty_buffers_write_nothing(self, rows_factory, recorded_writes, tmp_path):
+    def test_empty_buffers_write_nothing(self, rows_factory, sink):
         buffer_set = BufferSet()
         buffer_set.add("posts", rows_factory("posts", 1)[0])
 
-        flush(buffer_set, tmp_path, RUN_ID)
+        flush(buffer_set, sink)
 
-        assert [record_type for record_type, _ in recorded_writes] == ["posts"]
+        assert [record_type for record_type, _ in sink.calls] == ["posts"]
 
-    def test_nothing_buffered_writes_nothing(self, recorded_writes, tmp_path):
-        flush(BufferSet(), tmp_path, RUN_ID)
+    def test_nothing_buffered_writes_nothing(self, sink):
+        flush(BufferSet(), sink)
 
-        assert recorded_writes == []
+        assert sink.calls == []
 
-    def test_buffers_are_empty_afterward(self, filled, recorded_writes, tmp_path):
-        flush(filled, tmp_path, RUN_ID)
+    def test_buffers_are_empty_afterward(self, filled, sink):
+        flush(filled, sink)
 
         assert filled.size == 0
         for buffer in filled.buffers.values():
             assert buffer.rows == []
 
-    def test_restarts_the_age_timer(self, filled, recorded_writes, tmp_path, monkeypatch):
+    def test_restarts_the_age_timer(self, filled, sink, monkeypatch):
         clock = [500.0]
         monkeypatch.setattr(buffer_module.time, "monotonic", lambda: clock[0])
 
-        flush(filled, tmp_path, RUN_ID)
+        flush(filled, sink)
 
         assert filled.last_flush == 500.0
 
-    def test_timer_restarts_with_nothing_to_write(self, recorded_writes, tmp_path, monkeypatch):
+    def test_timer_restarts_with_nothing_to_write(self, sink, monkeypatch):
         """A size-triggered flush must not leave a stale timer that fires next tick."""
 
         clock = [500.0]
         monkeypatch.setattr(buffer_module.time, "monotonic", lambda: clock[0])
         buffer_set = BufferSet()
 
-        flush(buffer_set, tmp_path, RUN_ID)
+        flush(buffer_set, sink)
 
         assert buffer_set.last_flush == 500.0
 
-    def test_rows_survive_a_write_failure(self, filled, monkeypatch, tmp_path):
-        """Clearing before the write succeeds would lose the batch."""
+    def test_rows_survive_a_write_failure(self, filled):
+        """Clearing before the write returns would lose the batch.
 
-        def boom(record_type, rows, data_dir, run_id):
-            raise OSError("disk full")
+        A sink that dead-letters has handled the batch and returns normally, so
+        this is the case where even that failed and the rows are still ours.
+        """
 
-        monkeypatch.setattr(buffer_module, "write", boom)
+        failing = RecordingSink(error=OSError("s3 unreachable"))
         expected = {rt: len(b.rows) for rt, b in filled.buffers.items()}
 
-        with pytest.raises(OSError, match="disk full"):
-            flush(filled, tmp_path, RUN_ID)
+        with pytest.raises(OSError, match="s3 unreachable"):
+            flush(filled, failing)
 
         assert {rt: len(b.rows) for rt, b in filled.buffers.items()} == expected
 
-    def test_write_receives_the_rows_it_should(self, rows_factory, monkeypatch, tmp_path):
-        seen: list[list[dict]] = []
-        monkeypatch.setattr(
-            buffer_module, "write", lambda rt, rows, data_dir, run_id: seen.append(list(rows))
-        )
+    def test_the_sink_receives_the_rows_it_should(self, rows_factory, sink):
         rows = rows_factory("follows", 2)
         buffer_set = BufferSet()
         for row in rows:
             buffer_set.add("follows", row)
 
-        flush(buffer_set, tmp_path, RUN_ID)
+        flush(buffer_set, sink)
 
-        assert seen == [rows]
+        assert sink.calls == [("follows", rows)]

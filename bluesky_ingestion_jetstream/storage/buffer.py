@@ -3,14 +3,13 @@
 import json
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from bluesky_ingestion_jetstream.constants import (
     MAX_BUFFER_AGE_SECONDS,
     MAX_BUFFER_SIZE_BYTES,
     RECORD_TYPES,
 )
-from bluesky_ingestion_jetstream.writer import write
+from bluesky_ingestion_jetstream.sinks.base import Sink
 
 
 def row_bytes(row: dict) -> int:
@@ -102,15 +101,17 @@ class BufferSet:
         self.last_flush = time.monotonic()
 
 
-def flush(buffers: BufferSet, data_dir: Path, run_id: str) -> None:
-    """Write every non-empty buffer to disk and empty it.
+def flush(buffers: BufferSet, sink: Sink) -> None:
+    """Write every non-empty buffer to the sink and empty it.
 
-    Each buffer is cleared only after its write succeeds; clearing first would
-    lose the batch if the write raised.
+    Each buffer is cleared only after its write returns; clearing first would
+    lose the batch if the write raised. A sink that dead-letters a batch has
+    dealt with it and returns normally, so those rows are cleared too -- keeping
+    them would write them twice on the next flush.
     """
 
     for record_type, buffer in buffers.buffers.items():
         if buffer.rows:
-            write(record_type, buffer.rows, data_dir, run_id)
+            sink.write(record_type, buffer.rows)
             buffer.clear()
     buffers.mark_flushed()

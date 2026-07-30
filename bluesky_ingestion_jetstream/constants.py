@@ -1,7 +1,6 @@
 """Shared constants."""
 
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 POSTS = "posts"
 LIKES = "likes"
@@ -59,8 +58,6 @@ REQUIRED_KEYS = {
 # oldest rows have been waiting this long.
 MAX_BUFFER_SIZE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_BUFFER_AGE_SECONDS = 30.0
-
-DATA_DIR = Path(__file__).parent / "data"
 
 # Reconnect backoff, doubling from the first to the second.
 INITIAL_BACKOFF_SECONDS = 1.0
