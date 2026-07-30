@@ -37,7 +37,7 @@ export default function Home() {
 			polling.job.status === "EXPIRED");
 
 	return (
-		<main className="flex min-h-screen flex-col items-center justify-center bg-zinc-50">
+		<main className="flex flex-1 flex-col items-center justify-center bg-zinc-50">
 			<div className="w-full max-w-lg rounded-xl bg-white p-8 shadow-sm flex flex-col gap-6">
 				<QueryForm onSubmit={handleSubmit} disabled={isBusy} />
 

@@ -19,8 +19,13 @@ export function useJobPolling(jobId: string | undefined): JobPollingState {
 		let cancelled = false;
 		let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-		async function poll() {
-			setState({ phase: "polling" });
+		// Only the first poll clears `job`. Doing it on every iteration would
+		// blank the status out mid-poll, and once getJobStatus is a real network
+		// call that gap is long enough for React to paint the empty state — the
+		// panel would flicker back to PENDING every 1.5s.
+		async function poll(isFirstPoll = false) {
+			if (isFirstPoll) setState({ phase: "polling" });
+
 			try {
 				const job = await getJobStatus(jobId as string);
 				if (cancelled) return;
@@ -29,7 +34,7 @@ export function useJobPolling(jobId: string | undefined): JobPollingState {
 					return;
 				}
 				setState({ phase: "polling", job });
-				timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
+				timeoutId = setTimeout(() => poll(), POLL_INTERVAL_MS);
 			} catch (e) {
 				if (cancelled) return;
 				setState({
@@ -39,7 +44,7 @@ export function useJobPolling(jobId: string | undefined): JobPollingState {
 			}
 		}
 
-		poll();
+		poll(true);
 
 		return () => {
 			cancelled = true;
