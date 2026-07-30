@@ -10,6 +10,9 @@ experiments/database_experiments_2026_05_23/data/
 experiments/dedup_comparison_2026_06_12/mock_data/
 experiments/dedup_comparison_2026_06_12/data/
 
+# bluesky_ingestion_jetstream dev
+bluesky_ingestion_jetstream/data
+
 # Terraform
 **/.terraform/
 **/terraform.tfstate
