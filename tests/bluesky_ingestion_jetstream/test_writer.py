@@ -8,6 +8,7 @@ import pytest
 from bluesky_ingestion_jetstream.constants import RECORD_TYPES
 from bluesky_ingestion_jetstream.schemas.arrow_schemas import RECORD_TYPE_TO_SCHEMA
 from bluesky_ingestion_jetstream.writer import build_path, write
+from tests.bluesky_ingestion_jetstream.conftest import RUN_ID
 
 
 @pytest.fixture
@@ -106,7 +107,7 @@ class TestWrite:
     @pytest.mark.parametrize("record_type", RECORD_TYPES)
     def test_writes_a_readable_file(self, record_type, rows_factory, tmp_path):
         rows = rows_factory(record_type, 5)
-        path = write(record_type, rows, tmp_path)
+        path = write(record_type, rows, tmp_path, RUN_ID)
 
         table = pq.read_table(path)
 
@@ -115,7 +116,7 @@ class TestWrite:
 
     @pytest.mark.parametrize("record_type", RECORD_TYPES)
     def test_file_matches_the_declared_schema(self, record_type, rows_factory, tmp_path):
-        path = write(record_type, rows_factory(record_type, 3), tmp_path)
+        path = write(record_type, rows_factory(record_type, 3), tmp_path, RUN_ID)
 
         table = pq.read_table(path)
 
@@ -123,7 +124,7 @@ class TestWrite:
 
     def test_values_survive_the_round_trip(self, rows_factory, tmp_path):
         rows = rows_factory("follows", 3)
-        path = write("follows", rows, tmp_path)
+        path = write("follows", rows, tmp_path, RUN_ID)
 
         table = pq.read_table(path)
 
@@ -132,7 +133,7 @@ class TestWrite:
         assert table.column("created_at").to_pylist() == [row["created_at"] for row in rows]
 
     def test_langs_round_trips_as_a_list(self, rows_factory, tmp_path):
-        path = write("posts", rows_factory("posts", 2), tmp_path)
+        path = write("posts", rows_factory("posts", 2), tmp_path, RUN_ID)
 
         assert pq.read_table(path).column("langs").to_pylist() == [["en"], ["en"]]
 
@@ -147,21 +148,21 @@ class TestWrite:
         )
         assert parsed is not None
 
-        table = pq.read_table(write("posts", [parsed[1]], tmp_path))
+        table = pq.read_table(write("posts", [parsed[1]], tmp_path, RUN_ID))
 
         assert table.num_rows == 1
         assert table.column("text").to_pylist() == [None]
         assert table.column("langs").to_pylist() == [None]
 
     def test_returns_the_written_path(self, rows_factory, tmp_path):
-        path = write("likes", rows_factory("likes", 1), tmp_path)
+        path = write("likes", rows_factory("likes", 1), tmp_path, RUN_ID)
 
         assert path.parent == tmp_path / "likes"
         assert path.suffix == ".parquet"
 
     def test_successive_writes_do_not_overwrite(self, rows_factory, tmp_path):
-        first = write("likes", rows_factory("likes", 2), tmp_path)
-        second = write("likes", rows_factory("likes", 3), tmp_path)
+        first = write("likes", rows_factory("likes", 2), tmp_path, RUN_ID)
+        second = write("likes", rows_factory("likes", 3), tmp_path, RUN_ID)
 
         assert first != second
         assert pq.read_table(first).num_rows == 2
@@ -170,10 +171,30 @@ class TestWrite:
     def test_empty_rows_write_an_empty_file(self, tmp_path):
         """flush() guards against this, but the writer must not raise on it."""
 
-        table = pq.read_table(write("likes", [], tmp_path))
+        table = pq.read_table(write("likes", [], tmp_path, RUN_ID))
 
         assert table.num_rows == 0
 
     def test_unknown_record_type_raises(self, rows_factory, tmp_path):
         with pytest.raises(KeyError):
-            write("blocks", rows_factory("likes", 1), tmp_path)
+            write("blocks", rows_factory("likes", 1), tmp_path, RUN_ID)
+
+
+class TestRunIdStamping:
+    """The parsers never set `run_id`; it would be silently null if write skipped it."""
+
+    @pytest.mark.parametrize("record_type", RECORD_TYPES)
+    def test_every_row_carries_the_run_id(self, record_type, rows_factory, tmp_path):
+        table = pq.read_table(write(record_type, rows_factory(record_type, 3), tmp_path, RUN_ID))
+
+        assert table.column("run_id").to_pylist() == [RUN_ID] * 3
+
+    def test_successive_runs_are_distinguishable(self, rows_factory, tmp_path):
+        """The whole point of the column: separating one process's rows from another's."""
+
+        other = "9f8e7d6c-5b4a-4938-8271-6a5b4c3d2e1f"
+        first = pq.read_table(write("likes", rows_factory("likes", 2), tmp_path, RUN_ID))
+        second = pq.read_table(write("likes", rows_factory("likes", 2), tmp_path, other))
+
+        assert set(first.column("run_id").to_pylist()) == {RUN_ID}
+        assert set(second.column("run_id").to_pylist()) == {other}

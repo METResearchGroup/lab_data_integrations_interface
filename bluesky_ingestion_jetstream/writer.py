@@ -30,8 +30,18 @@ def build_path(record_type: str, data_dir: Path) -> Path:
     return path
 
 
-def write(record_type: str, rows: list[dict], data_dir: Path) -> Path:
-    """Write rows to a file under `data_dir` and return the path."""
+def write(record_type: str, rows: list[dict], data_dir: Path, run_id: str) -> Path:
+    """Write rows to a file under `data_dir` and return the path.
+
+    `run_id` is stamped here rather than in the parsers, because it is fixed for
+    the life of the process and threading it through every parser signature would
+    be churn for a column that cannot vary per row. The rows are mutated in place:
+    a flush batch can hold millions of dicts, and copying all of them to add one
+    key is a real cost for no benefit -- the buffer clears immediately after.
+    """
+
+    for row in rows:
+        row["run_id"] = run_id
 
     table = pa.Table.from_pylist(rows, schema=RECORD_TYPE_TO_SCHEMA[record_type])
     path = build_path(record_type, data_dir)

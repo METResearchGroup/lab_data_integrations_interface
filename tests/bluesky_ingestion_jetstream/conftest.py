@@ -13,10 +13,17 @@ REV = "3l3qo2vutsw2b"
 CREATED_AT_STR = "2026-07-23T06:48:11.102Z"
 CREATED_AT = datetime(2026, 7, 23, 6, 48, 11, 102000, tzinfo=UTC)
 
-# Deliberately earlier than CREATED_AT: the two clocks are independent, and a test
-# that shared one instant could not catch them being swapped.
-TIME_US = 1784533137411372
-INGESTED_AT = datetime(2026, 7, 20, 7, 38, 57, 411372, tzinfo=UTC)
+# A distinct instant from CREATED_AT -- the two clocks are independent, and a test
+# that shared one instant could not catch them being swapped. Shortly *after* it,
+# rather than before: a create reaches the firehose after it is made, and
+# `is_created_at_in_range` now rejects a `created_at` more than
+# MAX_CREATED_AT_SKEW ahead of the broker's clock, so a fixture ordered the other
+# way would be dropped by every parser test that uses it.
+TIME_US = 1784789293411372
+INGESTED_AT = datetime(2026, 7, 23, 6, 48, 13, 411372, tzinfo=UTC)
+
+# Fixed, so a test can assert the stamped value rather than merely its presence.
+RUN_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d479"
 
 SUBJECT_DID = "did:plc:targetaccount0000000000"
 SUBJECT_URI = "at://did:plc:abc/app.bsky.feed.post/3l3qtarget"

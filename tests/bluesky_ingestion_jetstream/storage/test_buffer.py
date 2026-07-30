@@ -7,6 +7,7 @@ import pytest
 from bluesky_ingestion_jetstream.constants import RECORD_TYPES
 from bluesky_ingestion_jetstream.storage import buffer as buffer_module
 from bluesky_ingestion_jetstream.storage.buffer import Buffer, BufferSet, flush, row_bytes
+from tests.bluesky_ingestion_jetstream.conftest import RUN_ID
 
 
 @pytest.fixture
@@ -15,7 +16,7 @@ def recorded_writes(monkeypatch, tmp_path):
 
     calls: list[tuple[str, int]] = []
     monkeypatch.setattr(
-        buffer_module, "write", lambda rt, rows, data_dir: calls.append((rt, len(rows)))
+        buffer_module, "write", lambda rt, rows, data_dir, run_id: calls.append((rt, len(rows)))
     )
     return calls
 
@@ -226,7 +227,7 @@ class TestMarkFlushed:
 
 class TestFlush:
     def test_writes_every_non_empty_buffer(self, filled, recorded_writes, tmp_path):
-        flush(filled, tmp_path)
+        flush(filled, tmp_path, RUN_ID)
 
         assert dict(recorded_writes) == dict(zip(RECORD_TYPES, [1, 2, 3, 4]))
 
@@ -234,17 +235,17 @@ class TestFlush:
         buffer_set = BufferSet()
         buffer_set.add("posts", rows_factory("posts", 1)[0])
 
-        flush(buffer_set, tmp_path)
+        flush(buffer_set, tmp_path, RUN_ID)
 
         assert [record_type for record_type, _ in recorded_writes] == ["posts"]
 
     def test_nothing_buffered_writes_nothing(self, recorded_writes, tmp_path):
-        flush(BufferSet(), tmp_path)
+        flush(BufferSet(), tmp_path, RUN_ID)
 
         assert recorded_writes == []
 
     def test_buffers_are_empty_afterward(self, filled, recorded_writes, tmp_path):
-        flush(filled, tmp_path)
+        flush(filled, tmp_path, RUN_ID)
 
         assert filled.size == 0
         for buffer in filled.buffers.values():
@@ -254,7 +255,7 @@ class TestFlush:
         clock = [500.0]
         monkeypatch.setattr(buffer_module.time, "monotonic", lambda: clock[0])
 
-        flush(filled, tmp_path)
+        flush(filled, tmp_path, RUN_ID)
 
         assert filled.last_flush == 500.0
 
@@ -265,34 +266,34 @@ class TestFlush:
         monkeypatch.setattr(buffer_module.time, "monotonic", lambda: clock[0])
         buffer_set = BufferSet()
 
-        flush(buffer_set, tmp_path)
+        flush(buffer_set, tmp_path, RUN_ID)
 
         assert buffer_set.last_flush == 500.0
 
     def test_rows_survive_a_write_failure(self, filled, monkeypatch, tmp_path):
         """Clearing before the write succeeds would lose the batch."""
 
-        def boom(record_type, rows, data_dir):
+        def boom(record_type, rows, data_dir, run_id):
             raise OSError("disk full")
 
         monkeypatch.setattr(buffer_module, "write", boom)
         expected = {rt: len(b.rows) for rt, b in filled.buffers.items()}
 
         with pytest.raises(OSError, match="disk full"):
-            flush(filled, tmp_path)
+            flush(filled, tmp_path, RUN_ID)
 
         assert {rt: len(b.rows) for rt, b in filled.buffers.items()} == expected
 
     def test_write_receives_the_rows_it_should(self, rows_factory, monkeypatch, tmp_path):
         seen: list[list[dict]] = []
         monkeypatch.setattr(
-            buffer_module, "write", lambda rt, rows, data_dir: seen.append(list(rows))
+            buffer_module, "write", lambda rt, rows, data_dir, run_id: seen.append(list(rows))
         )
         rows = rows_factory("follows", 2)
         buffer_set = BufferSet()
         for row in rows:
             buffer_set.add("follows", row)
 
-        flush(buffer_set, tmp_path)
+        flush(buffer_set, tmp_path, RUN_ID)
 
         assert seen == [rows]

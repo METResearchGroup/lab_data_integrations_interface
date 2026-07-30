@@ -7,6 +7,7 @@ import pytest
 from bluesky_ingestion_jetstream import main as main_module
 from bluesky_ingestion_jetstream.constants import RECORD_TYPES
 from bluesky_ingestion_jetstream.main import run
+from tests.bluesky_ingestion_jetstream.conftest import RUN_ID
 
 
 @pytest.fixture
@@ -15,7 +16,7 @@ def wired(monkeypatch, rows_factory):
 
     flushes: list[dict[str, int]] = []
 
-    def fake_flush(buffers, data_dir):
+    def fake_flush(buffers, data_dir, run_id):
         flushes.append({rt: len(b.rows) for rt, b in buffers.buffers.items() if b.rows})
         for buffer in buffers.buffers.values():
             buffer.clear()
@@ -45,7 +46,7 @@ class TestRun:
             main_module.BufferSet, "should_flush", lambda self: False, raising=False
         )
 
-        asyncio.run(run(tmp_path))
+        asyncio.run(run(tmp_path, RUN_ID))
 
         assert flushes == []
 
@@ -59,7 +60,7 @@ class TestRun:
 
         monkeypatch.setattr(main_module.BufferSet, "should_flush", every_other, raising=False)
 
-        asyncio.run(run(tmp_path))
+        asyncio.run(run(tmp_path, RUN_ID))
 
         assert flushes == [{"likes": 2}]
 
@@ -73,14 +74,14 @@ class TestRun:
             raising=False,
         )
 
-        asyncio.run(run(tmp_path))
+        asyncio.run(run(tmp_path, RUN_ID))
 
         assert flushes == [dict.fromkeys(RECORD_TYPES, 2)]
 
     def test_empty_stream_never_flushes(self, wired, tmp_path):
         flushes = wired([])
 
-        asyncio.run(run(tmp_path))
+        asyncio.run(run(tmp_path, RUN_ID))
 
         assert flushes == []
 
@@ -89,11 +90,11 @@ class TestRun:
 
         flushes = wired(rows_for(rows_factory, "likes", 10))
 
-        asyncio.run(run(tmp_path))
+        asyncio.run(run(tmp_path, RUN_ID))
 
         assert flushes == []
 
-    def test_passes_the_data_dir_through(self, monkeypatch, rows_factory, tmp_path):
+    def test_passes_the_data_dir_and_run_id_through(self, monkeypatch, rows_factory, tmp_path):
         seen: list = []
 
         async def fake_stream():
@@ -101,9 +102,18 @@ class TestRun:
                 yield parsed
 
         monkeypatch.setattr(main_module, "stream_events", fake_stream)
-        monkeypatch.setattr(main_module, "flush", lambda buffers, data_dir: seen.append(data_dir))
+        monkeypatch.setattr(
+            main_module, "flush", lambda buffers, data_dir, run_id: seen.append((data_dir, run_id))
+        )
         monkeypatch.setattr(main_module.BufferSet, "should_flush", lambda self: True, raising=False)
 
-        asyncio.run(run(tmp_path))
+        asyncio.run(run(tmp_path, RUN_ID))
 
-        assert seen == [tmp_path]
+        assert seen == [(tmp_path, RUN_ID)]
+
+
+class TestNewRunId:
+    def test_is_a_distinct_value_each_call(self):
+        """Two processes must not share a run id, or the column cannot separate them."""
+
+        assert main_module.new_run_id() != main_module.new_run_id()

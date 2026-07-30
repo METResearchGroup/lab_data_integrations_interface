@@ -102,7 +102,7 @@ class BufferSet:
         self.last_flush = time.monotonic()
 
 
-def flush(buffers: BufferSet, data_dir: Path) -> None:
+def flush(buffers: BufferSet, data_dir: Path, run_id: str) -> None:
     """Write every non-empty buffer to disk and empty it.
 
     Each buffer is cleared only after its write succeeds; clearing first would
@@ -111,6 +111,6 @@ def flush(buffers: BufferSet, data_dir: Path) -> None:
 
     for record_type, buffer in buffers.buffers.items():
         if buffer.rows:
-            write(record_type, buffer.rows, data_dir)
+            write(record_type, buffer.rows, data_dir, run_id)
             buffer.clear()
     buffers.mark_flushed()
