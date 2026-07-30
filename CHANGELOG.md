@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-07-30
+
+1. Gated the UI behind Supabase email/password auth (issue #124): a login page, a protected route group that redirects unauthenticated visitors to sign-in and returns them to their intended destination, and a sign-out control showing the signed-in user's email. Access is invite-only, with users added directly in Supabase. Also removed job-polling status flicker. [PR #140](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/140)
+
+## 2026-07-29
+
+1. Added Bluesky Jetstream live ingestion (`bluesky_ingestion_jetstream/`): a reconnecting WebSocket client that parses posts, likes, reposts, and follows into typed schemas, buffers them in PyArrow by record type, and flushes size- and time-bounded batches to compressed Parquet on disk (issue #131). [PR #139](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/139)
+
 ## 2026-07-19
 
 1. Added a short-term Bluesky AOC-followers backfill experiment under `experimentation/aoc_followers_backfill/` (issue #115 / #111): discover 10 qualifying followers of AOC (AppView; >1,000 followers and ≥5 posts in the past week), then backfill each user's posts, likes, reposts, and follows for a configurable window via relay `getRepo` (CAR/MST decode) with CSV + `metadata.json` outputs and timing/date-window scalability experiments. Strategy notes on `getRepo` return types in `strategy_planning/2026-07-15_getrepo_return_type.md`. [PR #119](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/119)
