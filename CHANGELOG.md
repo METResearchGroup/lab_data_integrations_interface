@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-07-30
+
+1. Gated the UI behind Supabase email/password auth (issue #124): a login page, a protected route group that redirects unauthenticated visitors to sign-in and returns them to their intended destination, and a sign-out control showing the signed-in user's email. Access is invite-only, with users added directly in Supabase. Also removed job-polling status flicker. [PR #140](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/140)
+
 ## 2026-07-29
 
 1. Added Bluesky Jetstream live ingestion (`bluesky_ingestion_jetstream/`): a reconnecting WebSocket client that parses posts, likes, reposts, and follows into typed schemas, buffers them in PyArrow by record type, and flushes size- and time-bounded batches to compressed Parquet on disk (issue #131). [PR #139](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/139)
