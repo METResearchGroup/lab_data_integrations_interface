@@ -1,0 +1,28 @@
+# EXAMPLE ONLY — not installed by this PR. Copy/adapt on the HPC host after the
+# DynamoDB table exists and AWS credentials/role are available.
+#
+# Observability:
+#   - Success log marker: jetstream_cursor_backup_succeeded
+#   - Failure log marker: jetstream_cursor_backup_failed
+#   - Non-zero exit code on failure (useful for cron mail / monitoring)
+#
+# Placeholders:
+#   /path/to/lab_data_integrations_interface
+#   /path/to/logs/jetstream_cursor_backup.log
+#   /path/to/data_platform/data/bluesky/jetstream/cursor.json
+#
+# Optional env (do not commit secrets):
+#   AWS_REGION=us-east-2
+#   AWS_PROFILE=...   # or rely on instance/task role
+#   JETSTREAM_CURSOR_PATH=...
+
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# Daily at 06:15 local time
+15 6 * * * cd /path/to/lab_data_integrations_interface && \
+  export PYTHONPATH=. && \
+  export JETSTREAM_CURSOR_PATH=/path/to/data_platform/data/bluesky/jetstream/cursor.json && \
+  uv run python data_platform/ingestion/backup_jetstream_cursor.py backup \
+    --cursor-path "${JETSTREAM_CURSOR_PATH}" \
+  >> /path/to/logs/jetstream_cursor_backup.log 2>&1
