@@ -31,24 +31,46 @@ class IsToxicTieredModel(BaseModel):
     )
 
 
-def toxicity_tier_from_prob(toxicity_prob: float) -> ToxicityTier:
+def toxicity_tier_from_prob(
+    toxicity_prob: float,
+    *,
+    low_max: float = LOW_MAX,
+    high_min: float = HIGH_MIN,
+) -> ToxicityTier:
     """Map a toxicity probability to low, medium, or high tier."""
-    if toxicity_prob <= LOW_MAX:
+    if toxicity_prob <= low_max:
         return "low"
-    if toxicity_prob >= HIGH_MIN:
+    if toxicity_prob >= high_min:
         return "high"
     return "medium"
 
 
+def make_generate_feature(
+    *,
+    low_max: float = LOW_MAX,
+    high_min: float = HIGH_MIN,
+):
+    """Build a generate_fn that uses custom tier thresholds."""
+
+    def generate_feature(uri: str, text: str) -> IsToxicTieredModel:
+        toxicity_prob = get_toxicity_prob(text)
+        return IsToxicTieredModel(
+            uri=uri,
+            label_timestamp=get_current_timestamp(),
+            toxicity_prob=toxicity_prob,
+            toxicity_tier=toxicity_tier_from_prob(
+                toxicity_prob,
+                low_max=low_max,
+                high_min=high_min,
+            ),
+        )
+
+    return generate_feature
+
+
 def generate_feature(uri: str, text: str) -> IsToxicTieredModel:
-    """Score text toxicity and return the tiered label."""
-    toxicity_prob = get_toxicity_prob(text)
-    return IsToxicTieredModel(
-        uri=uri,
-        label_timestamp=get_current_timestamp(),
-        toxicity_prob=toxicity_prob,
-        toxicity_tier=toxicity_tier_from_prob(toxicity_prob),
-    )
+    """Score text toxicity and return the tiered label using module defaults."""
+    return make_generate_feature()(uri, text)
 
 
 if __name__ == "__main__":
