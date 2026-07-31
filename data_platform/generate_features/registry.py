@@ -54,6 +54,12 @@ from data_platform.generate_features.is_toxic_tiered.generate_feature import IsT
 from data_platform.generate_features.is_toxic_tiered.generate_feature import (
     generate_feature as generate_is_toxic_tiered,
 )
+from data_platform.generate_features.is_toxic_tiered_v2.generate_feature import (
+    IsToxicTieredV2Model,
+)
+from data_platform.generate_features.is_toxic_tiered_v2.generate_feature import (
+    generate_feature as generate_is_toxic_tiered_v2,
+)
 from data_platform.generate_features.models import FeatureSpec
 from data_platform.generate_features.political_stance.generate_feature import (
     SYSTEM_PROMPT as POLITICAL_STANCE_SYSTEM_PROMPT,
@@ -113,6 +119,12 @@ FEATURE_REGISTRY: dict[str, FeatureSpec] = {
         engine_type="thread_pool",
         generate_fn=generate_is_toxic_tiered,
     ),
+    "is_toxic_tiered_v2": FeatureSpec(
+        name="is_toxic_tiered_v2",
+        model=IsToxicTieredV2Model,
+        engine_type="thread_pool",
+        generate_fn=generate_is_toxic_tiered_v2,
+    ),
     "political_stance": FeatureSpec(
         name="political_stance",
         model=PoliticalStanceModel,
@@ -122,3 +134,9 @@ FEATURE_REGISTRY: dict[str, FeatureSpec] = {
         llm_output_schema=LlmPoliticalStanceModel,
     ),
 }
+
+OPT_IN_FEATURE_NAMES = frozenset({"is_toxic_tiered_v2"})
+
+
+def default_feature_registry() -> dict[str, FeatureSpec]:
+    return {k: v for k, v in FEATURE_REGISTRY.items() if k not in OPT_IN_FEATURE_NAMES}

@@ -21,7 +21,10 @@ from data_platform.generate_features.platform_cli import (
     generate_feature_subset,
     run_feature_generation,
 )
-from data_platform.generate_features.registry import FEATURE_REGISTRY
+from data_platform.generate_features.registry import (
+    FEATURE_REGISTRY,
+    default_feature_registry,
+)
 from data_platform.models.sync import SyncTwitterPostModel
 from data_platform.utils.dataset import validate_dataset_id
 from data_platform.utils.feature_labels import FeatureLabelQuery
@@ -41,9 +44,11 @@ def twitter_feature_config(
 ) -> FeatureGenerationConfig:
     """Build a FeatureGenerationConfig for Twitter flat feature CSV output."""
     dataset_id = validate_dataset_id(dataset_id)
-    registry = FEATURE_REGISTRY
-    if features_subset:
-        registry = {name: FEATURE_REGISTRY[name] for name in features_subset}
+    registry = (
+        {name: FEATURE_REGISTRY[name] for name in features_subset}
+        if features_subset
+        else default_feature_registry()
+    )
 
     binding = TWITTER_BINDING
     feature_label_storage = StorageManager(
