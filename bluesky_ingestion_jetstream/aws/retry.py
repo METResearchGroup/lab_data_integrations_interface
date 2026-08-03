@@ -60,12 +60,7 @@ def retry_iceberg_commit(
     initial_delay: float = COMMIT_INITIAL_DELAY_SECONDS,
     max_delay: float = COMMIT_MAX_DELAY_SECONDS,
 ) -> Callable[[Callable[P, R]], Callable[P, R]]:
-    """Retry a commit on transient failures, with jittered exponential backoff.
-
-    The jitter is not decoration: all four tables flush together, so an unjittered
-    schedule would have four commits fail together and then retry in lockstep,
-    turning one Glue throttling episode into a synchronised second one.
-    """
+    """Retry a commit on transient failures, with jittered exponential backoff."""
 
     return retry(
         stop=stop_after_attempt(max_attempts),

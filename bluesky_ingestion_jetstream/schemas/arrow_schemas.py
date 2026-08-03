@@ -4,11 +4,8 @@ import pyarrow as pa
 
 from bluesky_ingestion_jetstream.constants import FOLLOWS, LIKES, POSTS, REPOSTS
 
-# Filled in by the writer rather than the parsers, because the value is fixed for
-# the life of the process. Threading it through every parser signature would be
-# churn for a column that cannot vary per row, so the parsers stay unaware of it
-# and `write` stamps it on. Kept as a named list so tests can state which columns
-# are expected to be absent from parser output.
+# Common fields that are stamped on by the writer at flush time rather than
+# produced by the parsers.
 WRITE_STAMPED_FIELDS = [
     pa.field("run_id", pa.string()),
 ]

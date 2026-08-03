@@ -1,10 +1,4 @@
-"""The contract between the buffers and wherever their rows end up.
-
-Narrow on purpose. `storage/buffer.py` decides *when* to flush and holds the
-rows; it should not know that the destination is Iceberg, or that it is remote,
-or that a write can be retried. Keeping the seam here is what lets the buffer
-tests run without pyiceberg, boto3, or a network.
-"""
+"""The contract between the buffers and wherever their rows end up."""
 
 from typing import Protocol
 
@@ -21,14 +15,3 @@ class Sink(Protocol):
         abandoned and the buffer keeps them.
         """
         ...
-
-
-class MemorySink:
-    """Collects writes in a list. For tests and for wiring work in isolation."""
-
-    def __init__(self) -> None:
-        self.writes: list[tuple[str, list[dict]]] = []
-
-    def write(self, record_type: str, rows: list[dict]) -> None:
-        # Copied, so a later `Buffer.clear()` cannot empty what was recorded.
-        self.writes.append((record_type, list(rows)))

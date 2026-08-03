@@ -76,14 +76,8 @@ def parse_ingested_at(value: object) -> datetime | None:
         return None
 
 
-def is_created_at_in_range(created_at: datetime, ingested_at: datetime | None) -> bool:
-    """Whether a client-supplied `created_at` is plausible enough to partition on.
-
-    Checked against `ingested_at` rather than the wall clock so the result does
-    not depend on when the code runs. With no `ingested_at` to compare against
-    only the floor can be applied -- but such a row is dropped anyway, since
-    `ingested_at` is itself required.
-    """
+def is_created_at_valid(created_at: datetime, ingested_at: datetime | None) -> bool:
+    """Whether a client-supplied `created_at` is plausible enough to partition on."""
 
     if created_at < EARLIEST_VALID_CREATED_AT:
         return False
@@ -105,10 +99,9 @@ def parse_shared(event: dict) -> dict:
     ingested_at = parse_ingested_at(event.get("time_us"))
     created_at = parse_created_at(record.get("createdAt"))
 
-    # Nulled rather than flagged, so an out-of-range timestamp leaves by the same
-    # door as an unparseable one: `created_at` is a required key, so
-    # `validate_non_null_fields` drops the row without a second code path.
-    if created_at is not None and not is_created_at_in_range(created_at, ingested_at):
+    # An invalid timestamp is nulled, not flagged: `created_at` is a required
+    # key, so `validate_non_null_fields` then drops the row downstream.
+    if created_at is not None and not is_created_at_valid(created_at, ingested_at):
         created_at = None
 
     return {
