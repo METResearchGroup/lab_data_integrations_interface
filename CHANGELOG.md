@@ -3,6 +3,7 @@
 ## 2026-07-30
 
 1. Gated the UI behind Supabase email/password auth (issue #124): a login page, a protected route group that redirects unauthenticated visitors to sign-in and returns them to their intended destination, and a sign-out control showing the signed-in user's email. Access is invite-only, with users added directly in Supabase. Also removed job-polling status flicker. [PR #140](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/140)
+2. Bluesky Jetstream ingestion now commits to Iceberg tables in the Glue catalog (`bluesky_raw`) instead of writing Parquet to disk, retrying transient commit failures and dead-lettering batches to `s3://lab-data-integrations-interface/dead_letter/` when they cannot land. Replaced the `data_platform` Terraform stack with `terraform/bluesky_ingestion_jetstream/`, which destroyed the previous Glue database, both Athena workgroups, and the pipeline-runs DynamoDB table that `backend/routes/posts.py` still references. [PR #141](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/141)
 
 ## 2026-07-29
 

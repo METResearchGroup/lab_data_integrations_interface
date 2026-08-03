@@ -1,6 +1,6 @@
 """Shared constants."""
 
-from pathlib import Path
+from datetime import UTC, datetime, timedelta
 
 POSTS = "posts"
 LIKES = "likes"
@@ -23,6 +23,14 @@ WANTED_COLLECTIONS = tuple(COLLECTION_TO_RECORD_TYPE)
 
 COMMON_REQUIRED_KEYS = ("uri", "did", "created_at", "ingested_at")
 
+# `created_at` is the client's clock and the Iceberg partition key, so a row
+# claiming 1970 mints a permanent one-file partition. Dropped, not clamped.
+EARLIEST_VALID_CREATED_AT = datetime(2022, 1, 1, tzinfo=UTC)
+
+# How far ahead of `ingested_at` a `created_at` may be before the row is dropped.
+# Compared against the broker's clock, not ours, so replays stay deterministic.
+MAX_CREATED_AT_SKEW = timedelta(days=1)
+
 POST_REQUIRED_KEYS = COMMON_REQUIRED_KEYS
 LIKE_REQUIRED_KEYS = (*COMMON_REQUIRED_KEYS, "subject_uri")
 REPOST_REQUIRED_KEYS = LIKE_REQUIRED_KEYS
@@ -39,8 +47,6 @@ REQUIRED_KEYS = {
 # oldest rows have been waiting this long.
 MAX_BUFFER_SIZE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_BUFFER_AGE_SECONDS = 30.0
-
-DATA_DIR = Path(__file__).parent / "data"
 
 # Reconnect backoff, doubling from the first to the second.
 INITIAL_BACKOFF_SECONDS = 1.0

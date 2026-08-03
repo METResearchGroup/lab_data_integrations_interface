@@ -4,6 +4,11 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from bluesky_ingestion_jetstream.constants import (
+    COMMON_REQUIRED_KEYS,
+    EARLIEST_VALID_CREATED_AT,
+    MAX_CREATED_AT_SKEW,
+)
 from bluesky_ingestion_jetstream.event_parsing.shared import (
     as_dict,
     as_str,
@@ -137,6 +142,70 @@ class TestParseIngestedAt:
         """Client junk must null the column, not raise out of the parse path."""
 
         assert parse_ingested_at(10**20) is None
+
+
+class TestCreatedAtRange:
+    """`created_at` is client-supplied and is the Iceberg partition key.
+
+    An out-of-range value is nulled by `parse_shared`, which makes the row fail
+    the required-key check and be dropped. These assert on `parse_shared` rather
+    than on `is_created_at_valid` alone, because the nulling is the part that
+    actually keeps junk out of the table.
+    """
+
+    def test_a_plausible_timestamp_survives(self, post_event):
+        assert parse_shared(post_event)["created_at"] == CREATED_AT
+
+    @pytest.mark.parametrize("createdAt", ["1970-01-01T00:00:00Z", "2021-12-31T23:59:59Z"])
+    def test_timestamps_before_the_floor_are_nulled(self, post_event, createdAt):
+        post_event["commit"]["record"]["createdAt"] = createdAt
+
+        assert parse_shared(post_event)["created_at"] is None
+
+    def test_the_floor_itself_is_accepted(self, post_event):
+        """A boundary that rejected its own limit would be off by one day of data."""
+
+        post_event["commit"]["record"]["createdAt"] = EARLIEST_VALID_CREATED_AT.isoformat()
+
+        assert parse_shared(post_event)["created_at"] == EARLIEST_VALID_CREATED_AT
+
+    def test_timestamps_far_ahead_of_the_broker_are_nulled(self, post_event):
+        far_future = INGESTED_AT + MAX_CREATED_AT_SKEW + timedelta(seconds=1)
+        post_event["commit"]["record"]["createdAt"] = far_future.isoformat()
+
+        assert parse_shared(post_event)["created_at"] is None
+
+    def test_a_clock_within_the_skew_allowance_is_kept(self, post_event):
+        """A misconfigured device clock is not junk, and dropping it loses real posts."""
+
+        ahead = INGESTED_AT + MAX_CREATED_AT_SKEW - timedelta(seconds=1)
+        post_event["commit"]["record"]["createdAt"] = ahead.isoformat()
+
+        assert parse_shared(post_event)["created_at"] == ahead
+
+    def test_the_ceiling_follows_the_broker_clock_not_the_wall_clock(self, post_event):
+        """Replay redelivers old events to a much later wall clock; they must survive."""
+
+        post_event["time_us"] = TIME_US
+        post_event["commit"]["record"]["createdAt"] = CREATED_AT.isoformat()
+
+        assert parse_shared(post_event)["created_at"] == CREATED_AT
+
+    def test_a_null_ingested_at_leaves_only_the_floor(self, post_event):
+        """With no broker clock the ceiling cannot be applied -- the row dies anyway."""
+
+        del post_event["time_us"]
+        post_event["commit"]["record"]["createdAt"] = "2099-01-01T00:00:00Z"
+        row = parse_shared(post_event)
+
+        assert row["created_at"] == datetime(2099, 1, 1, tzinfo=UTC)
+        assert not validate_non_null_fields(row, ["ingested_at"])
+
+    def test_an_out_of_range_row_is_dropped_by_the_required_key_check(self, post_event):
+        post_event["commit"]["record"]["createdAt"] = "1999-01-01T00:00:00Z"
+        row = parse_shared(post_event)
+
+        assert not validate_non_null_fields(row, COMMON_REQUIRED_KEYS)
 
 
 class TestParseShared:

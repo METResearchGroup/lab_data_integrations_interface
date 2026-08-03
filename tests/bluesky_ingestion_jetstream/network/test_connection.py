@@ -195,6 +195,18 @@ class TestValidationGate:
 
         assert process_commit_event(make_event(POST_COLLECTION, record)) is None
 
+    @pytest.mark.parametrize("time_us", [None, "1725911162329308", True])
+    def test_unusable_time_us_drops_the_row(self, time_us):
+        """`ingested_at` is derived from `time_us`, so junk there drops the row.
+
+        It is the one required column the broker supplies rather than the client,
+        so a null here means a malformed envelope rather than a careless poster.
+        """
+
+        event = make_event(POST_COLLECTION, post_record(), time_us=time_us)
+
+        assert process_commit_event(event) is None
+
     def test_like_without_subject_uri_drops_the_row(self):
         record = interaction_record(subject={"cid": "bafyx"})
 

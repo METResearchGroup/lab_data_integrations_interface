@@ -143,6 +143,7 @@ Present in all four tables. Each table adds its own columns on top of these.
 | `rev` | `string` | `commit.rev` | Orders writes to one `uri`. Nothing to order today, since only creates are ingested — captured now because Jetstream's retention window makes it unbackfillable later. |
 | `created_at` | `timestamp[us, tz=UTC]` | `record.createdAt` | Client-supplied. Iceberg partition source, `day()` granularity. |
 | `ingested_at` | `timestamp[us, tz=UTC]` | `time_us` | Broker clock, so the trustworthy end of `ingested_at - created_at` ingest lag. Microseconds are held exactly. |
+| `run_id` | `string` | Generated at process start | Identifies the ingestion process that wrote the row. Not on the wire, and not produced by the parsers — the writer stamps it. |
 
 `did` is derivable from `uri`, and is stored anyway for three reasons: it is the join and
 group key for nearly every query; deriving it means a string split on every row of every
@@ -153,6 +154,19 @@ Note that this is *not* an argument about min/max pruning. Events arrive interle
 the whole firehose, so within any row group the DID range spans nearly the entire DID
 space and prunes nothing. Min/max pruning belongs to the timestamps, which are clustered
 by arrival.
+
+**`run_id` is a column, not a filename, because filenames do not survive.** Iceberg names
+its own data files (`00000-0-<uuid>.parquet`), so per-run traceability cannot be encoded in
+the path. Compaction then makes the question permanently unanswerable from the layout: a
+`BIN_PACK` rewrite merges files by size with no regard for content, so one post-compaction
+file spans many runs. As a column it survives that rewrite, Iceberg keeps min/max stats for
+it per file, and `table.inspect.files()` gives the file↔run mapping directly.
+
+It is stamped by the writer rather than the parsers. The value is fixed for the life of a
+process, so passing it down through every parser signature would be churn for something
+that cannot vary per row. The consequence worth knowing is that the buffer's byte
+accounting does not see it — `row_bytes` measures parser output, which is already
+documented as a proxy rather than a measurement.
 
 **Partitioning on `created_at` depends on clamping it.** A client-supplied timestamp is
 unbounded, so a single junk `"0001-01-01"` permanently mints a year-0001 partition, and

@@ -10,9 +10,11 @@ from bluesky_ingestion_jetstream.schemas.arrow_schemas import (
     POST_SCHEMA,
     RECORD_TYPE_TO_SCHEMA,
     REPOST_SCHEMA,
+    WRITE_STAMPED_FIELDS,
 )
 
-COMMON_COLUMNS = {"uri", "did", "cid", "rev", "created_at", "ingested_at"}
+WRITE_STAMPED_COLUMNS = {field.name for field in WRITE_STAMPED_FIELDS}
+COMMON_COLUMNS = {"uri", "did", "cid", "rev", "created_at", "ingested_at"} | WRITE_STAMPED_COLUMNS
 
 
 class TestRecordTypeToSchema:
@@ -95,8 +97,20 @@ class TestFollowSchema:
 class TestSchemasMatchParsedRows:
     @pytest.mark.parametrize("record_type", RECORD_TYPES)
     def test_parsed_rows_have_exactly_the_schema_columns(self, record_type, rows_factory):
-        """A drifted column would silently null out or fail the Parquet write."""
+        """A drifted column would silently null out or fail the Parquet write.
+
+        The write-stamped columns are the one legitimate gap: the writer adds them,
+        so a parser that produced them would be the bug.
+        """
 
         row = rows_factory(record_type, 1)[0]
 
-        assert set(row) == set(RECORD_TYPE_TO_SCHEMA[record_type].names)
+        expected = set(RECORD_TYPE_TO_SCHEMA[record_type].names) - WRITE_STAMPED_COLUMNS
+
+        assert set(row) == expected
+
+    @pytest.mark.parametrize("record_type", RECORD_TYPES)
+    def test_write_stamped_columns_are_in_every_schema(self, record_type):
+        """They are absent from parser output, so nothing else would catch a typo."""
+
+        assert WRITE_STAMPED_COLUMNS.issubset(set(RECORD_TYPE_TO_SCHEMA[record_type].names))

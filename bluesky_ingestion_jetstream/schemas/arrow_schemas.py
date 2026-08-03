@@ -4,6 +4,12 @@ import pyarrow as pa
 
 from bluesky_ingestion_jetstream.constants import FOLLOWS, LIKES, POSTS, REPOSTS
 
+# Common fields that are stamped on by the writer at flush time rather than
+# produced by the parsers.
+WRITE_STAMPED_FIELDS = [
+    pa.field("run_id", pa.string()),
+]
+
 # Present in all four tables.
 COMMON_FIELDS = [
     pa.field("uri", pa.string()),
@@ -12,6 +18,7 @@ COMMON_FIELDS = [
     pa.field("rev", pa.string()),
     pa.field("created_at", pa.timestamp("us", tz="UTC")),
     pa.field("ingested_at", pa.timestamp("us", tz="UTC")),
+    *WRITE_STAMPED_FIELDS,
 ]
 
 POST_SCHEMA: pa.Schema = pa.schema(

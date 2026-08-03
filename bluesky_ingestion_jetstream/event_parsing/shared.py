@@ -3,6 +3,11 @@
 from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 
+from bluesky_ingestion_jetstream.constants import (
+    EARLIEST_VALID_CREATED_AT,
+    MAX_CREATED_AT_SKEW,
+)
+
 EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
@@ -71,6 +76,16 @@ def parse_ingested_at(value: object) -> datetime | None:
         return None
 
 
+def is_created_at_valid(created_at: datetime, ingested_at: datetime | None) -> bool:
+    """Whether a client-supplied `created_at` is plausible enough to partition on."""
+
+    if created_at < EARLIEST_VALID_CREATED_AT:
+        return False
+    if ingested_at is not None and created_at > ingested_at + MAX_CREATED_AT_SKEW:
+        return False
+    return True
+
+
 def parse_shared(event: dict) -> dict:
     """Extract the columns every commit type has."""
 
@@ -81,14 +96,22 @@ def parse_shared(event: dict) -> dict:
     collection = as_str(commit.get("collection"))
     rkey = as_str(commit.get("rkey"))
 
+    ingested_at = parse_ingested_at(event.get("time_us"))
+    created_at = parse_created_at(record.get("createdAt"))
+
+    # An invalid timestamp is nulled, not flagged: `created_at` is a required
+    # key, so `validate_non_null_fields` then drops the row downstream.
+    if created_at is not None and not is_created_at_valid(created_at, ingested_at):
+        created_at = None
+
     return {
         # Not on the wire: Jetstream sends the parts, so the AT-URI is rebuilt.
         "uri": f"at://{did}/{collection}/{rkey}" if did and collection and rkey else None,
         "did": did,
         "cid": as_str(commit.get("cid")),
         "rev": as_str(commit.get("rev")),
-        "created_at": parse_created_at(record.get("createdAt")),
-        "ingested_at": parse_ingested_at(event.get("time_us")),
+        "created_at": created_at,
+        "ingested_at": ingested_at,
     }
 
 
