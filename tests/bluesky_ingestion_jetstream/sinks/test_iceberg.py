@@ -11,7 +11,7 @@ import pyarrow as pa
 import pytest
 from pyiceberg.exceptions import CommitFailedException, NoSuchTableError
 
-from bluesky_ingestion_jetstream.aws.constants import COMMIT_MAX_ATTEMPTS, FLUSH_ID_PROPERTY
+from bluesky_ingestion_jetstream.aws.constants import COMMIT_MAX_ATTEMPTS, SNAPSHOT_FLUSH_ID_TAG
 from bluesky_ingestion_jetstream.constants import RECORD_TYPES
 from bluesky_ingestion_jetstream.schemas.arrow_schemas import RECORD_TYPE_TO_SCHEMA
 from bluesky_ingestion_jetstream.sinks.iceberg import IcebergSink
@@ -52,15 +52,15 @@ class FakeTable:
         return Schema(self._schema)
 
     def append(self, arrow: pa.Table, snapshot_properties: dict | None = None) -> None:
-        flush_id = (snapshot_properties or {}).get(FLUSH_ID_PROPERTY, "")
+        flush_id = (snapshot_properties or {}).get(SNAPSHOT_FLUSH_ID_TAG, "")
         if self.fail_times > 0:
             self.fail_times -= 1
             if self.committed_despite_failing:
-                self._snapshots.append(FakeSnapshot({FLUSH_ID_PROPERTY: flush_id}))
+                self._snapshots.append(FakeSnapshot({SNAPSHOT_FLUSH_ID_TAG: flush_id}))
             raise self.error
         self.appends.append(arrow)
         self.flush_ids.append(flush_id)
-        self._snapshots.append(FakeSnapshot({FLUSH_ID_PROPERTY: flush_id}))
+        self._snapshots.append(FakeSnapshot({SNAPSHOT_FLUSH_ID_TAG: flush_id}))
 
     def refresh(self) -> None:
         self.refreshes += 1

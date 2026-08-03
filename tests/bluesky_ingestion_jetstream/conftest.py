@@ -16,7 +16,7 @@ CREATED_AT = datetime(2026, 7, 23, 6, 48, 11, 102000, tzinfo=UTC)
 # A distinct instant from CREATED_AT -- the two clocks are independent, and a test
 # that shared one instant could not catch them being swapped. Shortly *after* it,
 # rather than before: a create reaches the firehose after it is made, and
-# `is_created_at_in_range` now rejects a `created_at` more than
+# `is_created_at_valid` now rejects a `created_at` more than
 # MAX_CREATED_AT_SKEW ahead of the broker's clock, so a fixture ordered the other
 # way would be dropped by every parser test that uses it.
 TIME_US = 1784789293411372
@@ -128,6 +128,17 @@ def as_messages(events: list) -> list[str]:
     """Serialize events the way they arrive on the wire."""
 
     return [json.dumps(event) for event in events]
+
+
+class MemorySink:
+    """A `Sink` that collects writes in a list."""
+
+    def __init__(self) -> None:
+        self.writes: list[tuple[str, list[dict]]] = []
+
+    def write(self, record_type: str, rows: list[dict]) -> None:
+        # Copied, so a later `Buffer.clear()` cannot empty what was recorded.
+        self.writes.append((record_type, list(rows)))
 
 
 @pytest.fixture

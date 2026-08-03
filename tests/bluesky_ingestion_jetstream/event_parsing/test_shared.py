@@ -149,7 +149,7 @@ class TestCreatedAtRange:
 
     An out-of-range value is nulled by `parse_shared`, which makes the row fail
     the required-key check and be dropped. These assert on `parse_shared` rather
-    than on `is_created_at_in_range` alone, because the nulling is the part that
+    than on `is_created_at_valid` alone, because the nulling is the part that
     actually keeps junk out of the table.
     """
 

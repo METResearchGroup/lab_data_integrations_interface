@@ -7,7 +7,7 @@ import pytest
 from bluesky_ingestion_jetstream import main as main_module
 from bluesky_ingestion_jetstream.constants import RECORD_TYPES
 from bluesky_ingestion_jetstream.main import run
-from bluesky_ingestion_jetstream.sinks.base import MemorySink
+from tests.bluesky_ingestion_jetstream.conftest import MemorySink
 
 
 @pytest.fixture
