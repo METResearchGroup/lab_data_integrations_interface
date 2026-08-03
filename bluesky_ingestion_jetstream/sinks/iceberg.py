@@ -21,7 +21,7 @@ from bluesky_ingestion_jetstream.aws.dead_letter import write_dead_letter
 from bluesky_ingestion_jetstream.aws.iceberg_writer import (
     already_committed,
     append_once,
-    build_arrow,
+    build_append_table,
 )
 from bluesky_ingestion_jetstream.aws.retry import retry_iceberg_commit
 
@@ -77,7 +77,7 @@ class IcebergSink:
         """Append with retries, skipping the work if a retry finds it already done."""
 
         table = self.tables[record_type]
-        arrow = build_arrow(table, rows)
+        append_table = build_append_table(table, rows)
         flush_id = str(uuid4())
         attempts = 0
 
@@ -96,6 +96,6 @@ class IcebergSink:
                 )
                 return
 
-            append_once(table, arrow, flush_id)
+            append_once(table, append_table, flush_id)
 
         commit()
