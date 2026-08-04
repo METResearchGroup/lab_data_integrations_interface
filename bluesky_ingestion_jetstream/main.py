@@ -23,8 +23,8 @@ def build_sink(run_id: str) -> IcebergSink:
     return IcebergSink(load_tables(build_catalog()), run_id)
 
 
-def build_tracker(run_id: str) -> CursorTracker:
-    return CursorTracker(DynamoCursorStore(run_id))
+def build_tracker() -> CursorTracker:
+    return CursorTracker(DynamoCursorStore())
 
 
 async def run(sink: Sink, tracker: CursorTracker) -> None:
@@ -52,7 +52,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
     run_id = new_run_id()
     logger.info("starting ingestion run %s", run_id)
-    tracker = build_tracker(run_id)
+    tracker = build_tracker()
     logger.info("resuming from cursor %s", tracker.resume_from())
     asyncio.run(run(build_sink(run_id), tracker))
 

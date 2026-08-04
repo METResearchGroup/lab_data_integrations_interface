@@ -44,12 +44,10 @@ class DynamoCursorStore:
 
     def __init__(
         self,
-        run_id: str,
         client=None,
         table: str = CURSOR_TABLE,
         stream_id: str = CURSOR_STREAM_ID,
     ) -> None:
-        self.run_id = run_id
         self.client = client if client is not None else build_dynamodb_client()
         self.table = table
         self.stream_id = stream_id
@@ -79,16 +77,13 @@ class DynamoCursorStore:
             self.client.update_item(
                 TableName=self.table,
                 Key=self.key,
-                UpdateExpression=(
-                    f"SET {CURSOR_ATTRIBUTE} = :cursor, updated_at = :updated_at, run_id = :run_id"
-                ),
+                UpdateExpression=f"SET {CURSOR_ATTRIBUTE} = :cursor, updated_at = :updated_at",
                 ConditionExpression=(
                     f"attribute_not_exists({CURSOR_ATTRIBUTE}) OR {CURSOR_ATTRIBUTE} < :cursor"
                 ),
                 ExpressionAttributeValues={
                     ":cursor": {"N": str(time_us)},
                     ":updated_at": {"S": datetime.now(UTC).isoformat()},
-                    ":run_id": {"S": self.run_id},
                 },
             )
         except ClientError as error:

@@ -1,29 +1,16 @@
 """Tracks how far the stream can safely be resumed from."""
 
 import logging
-from typing import Protocol
 
 from bluesky_ingestion_jetstream.constants import CURSOR_REWIND_MICROSECONDS
 
 logger = logging.getLogger(__name__)
 
 
-class CursorStore(Protocol):
-    """Durable home for the resume cursor."""
-
-    def read(self) -> int | None:
-        """Return the stored cursor, or None if nothing has been stored yet."""
-        ...
-
-    def write(self, time_us: int) -> None:
-        """Persist `time_us` as the resume cursor."""
-        ...
-
-
 class CursorTracker:
     """Holds the resume cursor, advancing it only once the buffers have flushed."""
 
-    def __init__(self, store: CursorStore) -> None:
+    def __init__(self, store) -> None:
         self.store = store
         self.committed = store.read()
         self.pending = self.committed
@@ -46,8 +33,6 @@ class CursorTracker:
         try:
             self.store.write(self.pending)
         except Exception:
-            # Costs a longer replay on restart, nothing more, and the next flush
-            # writes a newer cursor that supersedes this one.
             logger.warning("cursor write failed at %d", self.pending, exc_info=True)
             return
 
