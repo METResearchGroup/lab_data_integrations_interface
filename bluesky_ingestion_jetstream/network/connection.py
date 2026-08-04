@@ -35,7 +35,12 @@ from bluesky_ingestion_jetstream.event_parsing.shared import (
 
 @dataclass(frozen=True, slots=True)
 class StreamEvent:
-    """One event's position in the stream, and its row when we store that kind."""
+    """One event's position in the stream, and its row when we store that kind.
+
+    Examples:
+        StreamEvent(1784789293411372, ("likes", {"uri": ..., "did": ...}))
+        StreamEvent(1784789293411373, None)
+    """
 
     time_us: int
     parsed: tuple[str, dict] | None
