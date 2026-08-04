@@ -8,7 +8,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-07-16T02:50:59.165364Z"
+exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -1141,6 +1141,7 @@ dependencies = [
     { name = "langchain" },
     { name = "langchain-openai" },
     { name = "langdetect" },
+    { name = "langgraph" },
     { name = "numpy" },
     { name = "opentelemetry-distro" },
     { name = "opentelemetry-exporter-otlp" },
@@ -1205,6 +1206,7 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=1.2.1" },
     { name = "langdetect", specifier = ">=1.0.9" },
     { name = "langdetect", marker = "extra == 'preprocessing'", specifier = ">=1.0.9" },
+    { name = "langgraph", specifier = ">=1.2.0" },
     { name = "numpy", specifier = ">=2.4.4" },
     { name = "opentelemetry-distro", specifier = "~=0.64b0" },
     { name = "opentelemetry-exporter-otlp", specifier = "~=1.43.0" },

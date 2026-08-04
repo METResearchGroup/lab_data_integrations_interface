@@ -34,6 +34,7 @@ dependencies = [
     "opentelemetry-instrumentation-logging~=0.64b0",
     "opentelemetry-instrumentation-botocore~=0.64b0",
     "pyjwt>=2.13.0",
+    "langgraph>=1.2.0",
 ]
 
 [project.optional-dependencies]
