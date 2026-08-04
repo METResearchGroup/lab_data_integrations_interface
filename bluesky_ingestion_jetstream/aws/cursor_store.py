@@ -57,11 +57,10 @@ class DynamoCursorStore:
         return {CURSOR_PARTITION_KEY: {"S": self.stream_id}}
 
     def read(self) -> int | None:
-        """Load the stored cursor, raising rather than silently starting live.
+        """Load the stored cursor, or None if no item has been written yet.
 
-        No item is a cold start and returns None; a failed read is not, and
-        treating the two alike would skip everything since the last run. The
-        client's own retries cover a blip; past those, exiting is the recovery.
+        `get_item` raises if the table is missing, the credentials lack access,
+        or the client exhausts its retries on a transport failure.
         """
 
         response = self.client.get_item(TableName=self.table, Key=self.key, ConsistentRead=True)
