@@ -2,7 +2,8 @@
 
 import asyncio
 import json
-from collections.abc import AsyncIterable, AsyncIterator
+from collections.abc import AsyncIterable, AsyncIterator, Callable
+from dataclasses import dataclass
 from urllib.parse import urlencode
 
 import websockets
@@ -32,10 +33,20 @@ from bluesky_ingestion_jetstream.event_parsing.shared import (
 )
 
 
-def build_url() -> str:
+@dataclass(frozen=True, slots=True)
+class StreamEvent:
+    """One event's position in the stream, and its row when we store that kind."""
+
+    time_us: int
+    parsed: tuple[str, dict] | None
+
+
+def build_url(cursor: int | None = None) -> str:
     """The subscribe URL, filtered server-side to the collections we store."""
 
     params = [("wantedCollections", collection) for collection in WANTED_COLLECTIONS]
+    if cursor is not None:
+        params.append(("cursor", str(cursor)))
     return f"{JETSTREAM_ENDPOINT}?{urlencode(params)}"
 
 
@@ -45,10 +56,26 @@ def is_commit(event: object) -> bool:
     return isinstance(event, dict) and event.get("kind") == "commit"
 
 
+def event_time_us(event: object) -> int | None:
+    """The broker's timestamp for an event, or None if the frame has no usable one."""
+
+    if not isinstance(event, dict):
+        return None
+    time_us = event.get("time_us")
+    # bools are ints, and a `True` position is junk rather than 1 microsecond.
+    if not isinstance(time_us, int) or isinstance(time_us, bool):
+        return None
+    return time_us
+
+
 async def process_all_websocket_events(
     messages: AsyncIterable[str | bytes],
-) -> AsyncIterator[tuple[str, dict]]:
-    """Yield (record_type, row) pairs for the commits in a stream of raw messages.
+) -> AsyncIterator[StreamEvent]:
+    """Yield a StreamEvent per frame we can place, stored or dropped.
+
+    Dropped events are yielded too, with `parsed` None, so the cursor keeps
+    moving when little of what we store is flowing. A frame with no usable
+    `time_us` is skipped entirely: there is no position to record.
 
     Takes any async iterable rather than a socket, so it can be exercised with a
     plain list of messages.
@@ -61,13 +88,13 @@ async def process_all_websocket_events(
         except json.JSONDecodeError:
             continue
 
-        if not is_commit(event):
+        time_us = event_time_us(event)
+        if time_us is None:
             continue
 
         # off-chance that data has a null field
-        parsed = process_commit_event(event)
-        if parsed is not None:
-            yield parsed
+        parsed = process_commit_event(event) if is_commit(event) else None
+        yield StreamEvent(time_us, parsed)
 
 
 def process_commit_event(event: dict) -> tuple[str, dict] | None:
@@ -100,21 +127,18 @@ def process_commit_event(event: dict) -> tuple[str, dict] | None:
     return record_type, row
 
 
-async def stream_events() -> AsyncIterator[tuple[str, dict]]:
-    """Connect to Jetstream and yield (record_type, row) pairs for commits.
-
-    Reconnects with exponential backoff. The backoff resets only once a row has
-    actually come through, not merely on a successful connect -- a server that
-    accepts and then immediately drops us would otherwise spin at full speed.
-    """
+async def stream_events(
+    resume_from: Callable[[], int | None] = lambda: None,
+) -> AsyncIterator[StreamEvent]:
+    """Connect to Jetstream and yield its events, reconnecting with exponential backoff."""
 
     backoff = INITIAL_BACKOFF_SECONDS
     while True:
         try:
-            async with websockets.connect(build_url()) as socket:
-                async for parsed in process_all_websocket_events(socket):
+            async with websockets.connect(build_url(resume_from())) as socket:
+                async for event in process_all_websocket_events(socket):
                     backoff = INITIAL_BACKOFF_SECONDS
-                    yield parsed
+                    yield event
         # Narrow on purpose: a blanket `except Exception` would swallow bugs in
         # the parsing path and retry them forever instead of raising.
         except (WebSocketException, OSError):
