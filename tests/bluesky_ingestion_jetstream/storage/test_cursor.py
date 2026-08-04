@@ -21,7 +21,7 @@ class TestObserve:
         tracker.observe(LATE)
 
         assert store.writes == []
-        assert tracker.committed is None
+        assert tracker.cursor_value is None
 
     def test_keeps_the_high_water_mark(self):
         tracker = CursorTracker(MemoryCursorStore())
@@ -29,7 +29,7 @@ class TestObserve:
         tracker.observe(LATE)
         tracker.observe(EARLY)
 
-        assert tracker.pending == LATE
+        assert tracker.most_recent_event_timestamp == LATE
 
     def test_a_replay_does_not_drag_the_cursor_backwards(self):
         """A reconnect redelivers events already accounted for."""
@@ -54,7 +54,7 @@ class TestMarkFlushed:
         tracker.mark_flushed()
 
         assert store.writes == [EARLY]
-        assert tracker.committed == EARLY
+        assert tracker.cursor_value == EARLY
 
     def test_an_empty_stream_writes_nothing(self):
         store = MemoryCursorStore()
@@ -75,7 +75,7 @@ class TestMarkFlushed:
 
         assert store.writes == [EARLY]
 
-    def test_a_failed_write_leaves_the_committed_cursor_alone(self, caplog):
+    def test_a_failed_write_leaves_the_stored_cursor_alone(self, caplog):
         """Costs a longer replay, not correctness, so it must not raise."""
 
         tracker = CursorTracker(MemoryCursorStore(error=RuntimeError("dynamodb down")))
@@ -84,7 +84,7 @@ class TestMarkFlushed:
         with caplog.at_level(logging.WARNING):
             tracker.mark_flushed()
 
-        assert tracker.committed is None
+        assert tracker.cursor_value is None
         assert "cursor write failed" in caplog.text
 
     def test_a_later_flush_supersedes_a_failed_one(self):
@@ -109,7 +109,7 @@ class TestResumeFrom:
 
         assert tracker.resume_from() == LATE - CURSOR_REWIND_MICROSECONDS
 
-    def test_rewinds_behind_the_committed_cursor(self):
+    def test_rewinds_behind_the_stored_cursor(self):
         """Buys duplicates rather than risking a gap at the boundary."""
 
         tracker = CursorTracker(MemoryCursorStore())

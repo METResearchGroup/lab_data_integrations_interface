@@ -12,7 +12,6 @@ from bluesky_ingestion_jetstream.aws.constants import (
     CURSOR_TABLE,
 )
 from bluesky_ingestion_jetstream.aws.cursor_store import DynamoCursorStore
-from tests.bluesky_ingestion_jetstream.conftest import RUN_ID
 
 CURSOR = 1784789293411372
 
@@ -44,7 +43,7 @@ class FakeClient:
 
 
 def build_store(client: FakeClient) -> DynamoCursorStore:
-    return DynamoCursorStore(RUN_ID, client=client)
+    return DynamoCursorStore(client=client)
 
 
 class TestRead:
@@ -110,7 +109,7 @@ class TestWrite:
 
         values = client.update_calls[0]["ExpressionAttributeValues"]
         assert values[":cursor"] == {"N": str(CURSOR)}
-        assert values[":run_id"] == {"S": RUN_ID}
+        assert client.update_calls[0]["Key"] == {CURSOR_PARTITION_KEY: {"S": CURSOR_STREAM_ID}}
 
     def test_refuses_to_move_the_cursor_backwards(self):
         client = FakeClient()

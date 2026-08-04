@@ -10,37 +10,43 @@ logger = logging.getLogger(__name__)
 class CursorTracker:
     """Holds the resume cursor, advancing it only once the buffers have flushed."""
 
-    def __init__(self, store) -> None:
-        self.store = store
-        self.committed = store.read()
-        self.pending = self.committed
+    def __init__(self, cursor_store) -> None:
+        self.cursor_store = cursor_store
+        self.cursor_value = cursor_store.read()
+        self.most_recent_event_timestamp = self.cursor_value
 
-    def observe(self, time_us: int) -> None:
-        """Record an event as seen, whether or not we store it.
+    def observe(self, jetstream_event_timestamp: int) -> None:
+        """Take the highest timestamp of seen events."""
 
-        A high water mark rather than an assignment, because a reconnect replays
-        events we have already accounted for.
-        """
-
-        self.pending = time_us if self.pending is None else max(self.pending, time_us)
+        if self.most_recent_event_timestamp is None:
+            self.most_recent_event_timestamp = jetstream_event_timestamp
+        else:
+            self.most_recent_event_timestamp = max(
+                self.most_recent_event_timestamp, jetstream_event_timestamp
+            )
 
     def mark_flushed(self) -> None:
-        """Persist the cursor now that everything seen is written."""
+        """Persist the cursor after all buffers are flushed."""
 
-        if self.pending is None or self.pending == self.committed:
+        if (
+            self.most_recent_event_timestamp is None
+            or self.most_recent_event_timestamp == self.cursor_value
+        ):
             return
 
         try:
-            self.store.write(self.pending)
+            self.cursor_store.write(self.most_recent_event_timestamp)
         except Exception:
-            logger.warning("cursor write failed at %d", self.pending, exc_info=True)
+            logger.warning(
+                "cursor write failed at %d", self.most_recent_event_timestamp, exc_info=True
+            )
             return
 
-        self.committed = self.pending
+        self.cursor_value = self.most_recent_event_timestamp
 
     def resume_from(self) -> int | None:
-        """Cursor to reconnect with, rewound so a boundary event is replayed, not skipped."""
+        """Cursor to reconnect with, rewound by CURSOR_REWIND_MICROSECONDS to avoid skips."""
 
-        if self.committed is None:
+        if self.cursor_value is None:
             return None
-        return max(0, self.committed - CURSOR_REWIND_MICROSECONDS)
+        return max(0, self.cursor_value - CURSOR_REWIND_MICROSECONDS)

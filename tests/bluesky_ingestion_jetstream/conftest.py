@@ -142,7 +142,7 @@ class MemorySink:
 
 
 class MemoryCursorStore:
-    """A `CursorStore` holding the cursor in memory, with hooks for failure."""
+    """A cursor store holding the cursor in memory, with hooks for failure."""
 
     def __init__(self, stored: int | None = None, error: Exception | None = None) -> None:
         self.stored = stored
