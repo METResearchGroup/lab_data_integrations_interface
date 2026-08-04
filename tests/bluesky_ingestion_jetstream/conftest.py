@@ -141,6 +141,24 @@ class MemorySink:
         self.writes.append((record_type, list(rows)))
 
 
+class MemoryCursorStore:
+    """A `CursorStore` holding the cursor in memory, with hooks for failure."""
+
+    def __init__(self, stored: int | None = None, error: Exception | None = None) -> None:
+        self.stored = stored
+        self.error = error
+        self.writes: list[int] = []
+
+    def read(self) -> int | None:
+        return self.stored
+
+    def write(self, time_us: int) -> None:
+        if self.error is not None:
+            raise self.error
+        self.writes.append(time_us)
+        self.stored = time_us
+
+
 @pytest.fixture
 def post_event() -> dict:
     return make_event(POST_COLLECTION, post_record())
