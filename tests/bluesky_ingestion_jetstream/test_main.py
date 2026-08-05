@@ -1,19 +1,43 @@
 """Tests for the run loop wiring."""
 
 import asyncio
+from contextlib import suppress
 
 import pytest
 
 from bluesky_ingestion_jetstream import main as main_module
 from bluesky_ingestion_jetstream.constants import CURSOR_REWIND_MICROSECONDS, RECORD_TYPES
-from bluesky_ingestion_jetstream.main import run
+from bluesky_ingestion_jetstream.main import flush_loop, run
 from bluesky_ingestion_jetstream.network.connection import StreamEvent
+from bluesky_ingestion_jetstream.storage.buffer import BufferSet
 from bluesky_ingestion_jetstream.storage.cursor import CursorTracker
 from tests.bluesky_ingestion_jetstream.conftest import TIME_US, MemoryCursorStore, MemorySink
 
 
+def stream_of(events):
+    """A stream that yields to the loop between events, letting flush ticks land.
+
+    Without the sleeps the read loop would consume the whole list in one step and
+    the flush task would never get to run.
+    """
+
+    async def fake_stream(resume_from=lambda: None):
+        for event in events:
+            await asyncio.sleep(0)
+            yield event
+        await asyncio.sleep(0)
+
+    return fake_stream
+
+
+def drive(sink, tracker):
+    """Run with a zero flush interval, so one tick lands between events."""
+
+    asyncio.run(run(sink, tracker, flush_interval=0))
+
+
 @pytest.fixture
-def wired(monkeypatch, rows_factory):
+def wired(monkeypatch):
     """Drive `run` with a canned stream and record every flush."""
 
     flushes: list[dict[str, int]] = []
@@ -26,15 +50,11 @@ def wired(monkeypatch, rows_factory):
 
     monkeypatch.setattr(main_module, "flush", fake_flush)
 
-    def drive(stream_events):
-        async def fake_stream(resume_from=lambda: None):
-            for event in stream_events:
-                yield event
-
-        monkeypatch.setattr(main_module, "stream_events", fake_stream)
+    def wire(stream_events):
+        monkeypatch.setattr(main_module, "stream_events", stream_of(stream_events))
         return flushes
 
-    return drive
+    return wire
 
 
 @pytest.fixture
@@ -61,6 +81,18 @@ def rows_for(rows_factory, record_type, count):
     ]
 
 
+async def tick(buffers, sink, tracker, times=1):
+    """Run `flush_loop` for `times` checks, then stop it."""
+
+    task = asyncio.create_task(flush_loop(buffers, sink, tracker, 0))
+    # Two yields per check: one for the task's sleep, one for the check itself.
+    for _ in range(2 * times):
+        await asyncio.sleep(0)
+    task.cancel()
+    with suppress(asyncio.CancelledError):
+        await task
+
+
 class TestRun:
     def test_consumes_the_whole_stream(self, wired, rows_factory, sink, tracker, monkeypatch):
         flushes = wired(rows_for(rows_factory, "likes", 5))
@@ -68,7 +100,7 @@ class TestRun:
             main_module.BufferSet, "should_flush", lambda self: False, raising=False
         )
 
-        asyncio.run(run(sink, tracker))
+        drive(sink, tracker)
 
         assert flushes == []
 
@@ -82,7 +114,7 @@ class TestRun:
 
         monkeypatch.setattr(main_module.BufferSet, "should_flush", every_other, raising=False)
 
-        asyncio.run(run(sink, tracker))
+        drive(sink, tracker)
 
         assert flushes == [{"likes": 2}]
 
@@ -98,14 +130,14 @@ class TestRun:
             raising=False,
         )
 
-        asyncio.run(run(sink, tracker))
+        drive(sink, tracker)
 
         assert flushes == [dict.fromkeys(RECORD_TYPES, 2)]
 
     def test_empty_stream_never_flushes(self, wired, sink, tracker):
         flushes = wired([])
 
-        asyncio.run(run(sink, tracker))
+        drive(sink, tracker)
 
         assert flushes == []
 
@@ -114,24 +146,79 @@ class TestRun:
 
         flushes = wired(rows_for(rows_factory, "likes", 10))
 
-        asyncio.run(run(sink, tracker))
+        drive(sink, tracker)
 
         assert flushes == []
 
     def test_passes_the_sink_through_to_flush(self, monkeypatch, rows_factory, sink, tracker):
         seen: list = []
 
-        async def fake_stream(resume_from=lambda: None):
-            for event in rows_for(rows_factory, "likes", 1):
-                yield event
-
-        monkeypatch.setattr(main_module, "stream_events", fake_stream)
+        monkeypatch.setattr(
+            main_module, "stream_events", stream_of(rows_for(rows_factory, "likes", 1))
+        )
         monkeypatch.setattr(main_module, "flush", lambda buffers, s: seen.append(s))
         monkeypatch.setattr(main_module.BufferSet, "should_flush", lambda self: True, raising=False)
 
-        asyncio.run(run(sink, tracker))
+        drive(sink, tracker)
 
-        assert seen == [sink]
+        assert sink in seen
+
+    def test_hands_the_resume_cursor_to_the_stream(self, monkeypatch, rows_factory, sink):
+        seen: list = []
+        events = rows_for(rows_factory, "likes", 1)
+
+        async def fake_stream(resume_from=lambda: None):
+            seen.append(resume_from())
+            for event in events:
+                await asyncio.sleep(0)
+                yield event
+
+        monkeypatch.setattr(main_module, "stream_events", fake_stream)
+        tracker = CursorTracker(MemoryCursorStore(stored=TIME_US))
+
+        drive(sink, tracker)
+
+        assert seen == [TIME_US - CURSOR_REWIND_MICROSECONDS]
+
+
+class TestFlushLoop:
+    """The timer path, driven without a stream at all."""
+
+    def test_flushes_a_quiet_buffer(self, rows_factory, sink, tracker, monkeypatch):
+        """The point of the timer: rows land with no further events arriving."""
+
+        rows = rows_factory("likes", 2)
+        buffers = BufferSet()
+        for row in rows:
+            buffers.add("likes", row)
+        monkeypatch.setattr(BufferSet, "should_flush", lambda self: True, raising=False)
+
+        asyncio.run(tick(buffers, sink, tracker))
+
+        assert sink.writes == [("likes", rows)]
+        assert buffers.buffers["likes"].rows == []
+
+    def test_does_not_flush_below_the_thresholds(self, rows_factory, sink, tracker):
+        buffers = BufferSet()
+        for row in rows_factory("likes", 2):
+            buffers.add("likes", row)
+
+        asyncio.run(tick(buffers, sink, tracker, times=3))
+
+        assert sink.writes == []
+        assert len(buffers.buffers["likes"].rows) == 2
+
+    def test_advances_the_cursor_after_flushing(self, rows_factory, sink, store, monkeypatch):
+        tracker = CursorTracker(store)
+        tracker.observe(TIME_US)
+        buffers = BufferSet()
+        for row in rows_factory("likes", 1):
+            buffers.add("likes", row)
+        monkeypatch.setattr(BufferSet, "should_flush", lambda self: True, raising=False)
+
+        asyncio.run(tick(buffers, sink, tracker))
+
+        assert store.writes == [TIME_US]
 
 
 class TestCursor:
@@ -145,7 +232,7 @@ class TestCursor:
             main_module.BufferSet, "should_flush", lambda self: False, raising=False
         )
 
-        asyncio.run(run(sink, tracker))
+        drive(sink, tracker)
 
         assert store.writes == []
 
@@ -156,28 +243,26 @@ class TestCursor:
         wired(stream)
         monkeypatch.setattr(main_module.BufferSet, "should_flush", lambda self: True, raising=False)
 
-        asyncio.run(run(sink, tracker))
+        drive(sink, tracker)
 
         assert store.writes[-1] == stream[-1].time_us
 
-    def test_a_failed_flush_leaves_the_cursor_behind(
+    def test_a_failed_flush_stops_the_run_and_leaves_the_cursor_behind(
         self, monkeypatch, rows_factory, sink, tracker, store
     ):
         """Rows that reached neither Iceberg nor the dead letter must be replayed."""
 
-        async def fake_stream(resume_from=lambda: None):
-            for event in rows_for(rows_factory, "likes", 2):
-                yield event
-
         def boom(buffers, s):
             raise RuntimeError("dead letter unavailable")
 
-        monkeypatch.setattr(main_module, "stream_events", fake_stream)
+        monkeypatch.setattr(
+            main_module, "stream_events", stream_of(rows_for(rows_factory, "likes", 2))
+        )
         monkeypatch.setattr(main_module, "flush", boom)
         monkeypatch.setattr(main_module.BufferSet, "should_flush", lambda self: True, raising=False)
 
         with pytest.raises(RuntimeError, match="dead letter unavailable"):
-            asyncio.run(run(sink, tracker))
+            drive(sink, tracker)
 
         assert store.writes == []
 
@@ -189,24 +274,9 @@ class TestCursor:
         wired([StreamEvent(TIME_US, None), StreamEvent(TIME_US + 1, None)])
         monkeypatch.setattr(main_module.BufferSet, "should_flush", lambda self: True, raising=False)
 
-        asyncio.run(run(sink, tracker))
+        drive(sink, tracker)
 
         assert store.writes == [TIME_US, TIME_US + 1]
-
-    def test_hands_the_resume_cursor_to_the_stream(self, monkeypatch, rows_factory, sink):
-        seen: list = []
-
-        async def fake_stream(resume_from=lambda: None):
-            seen.append(resume_from())
-            for event in rows_for(rows_factory, "likes", 1):
-                yield event
-
-        monkeypatch.setattr(main_module, "stream_events", fake_stream)
-        tracker = CursorTracker(MemoryCursorStore(stored=TIME_US))
-
-        asyncio.run(run(sink, tracker))
-
-        assert seen == [TIME_US - CURSOR_REWIND_MICROSECONDS]
 
 
 class TestNewRunId:

@@ -2,10 +2,12 @@
 
 import asyncio
 import logging
+from contextlib import suppress
 from uuid import uuid4
 
 from bluesky_ingestion_jetstream.aws.catalog import build_catalog, load_tables
 from bluesky_ingestion_jetstream.aws.cursor_store import DynamoCursorStore
+from bluesky_ingestion_jetstream.constants import FLUSH_CHECK_INTERVAL_SECONDS
 from bluesky_ingestion_jetstream.network.connection import stream_events
 from bluesky_ingestion_jetstream.sinks.base import Sink
 from bluesky_ingestion_jetstream.sinks.iceberg import IcebergSink
@@ -27,23 +29,42 @@ def build_tracker() -> CursorTracker:
     return CursorTracker(DynamoCursorStore())
 
 
-async def run(sink: Sink, tracker: CursorTracker) -> None:
-    """Consume the stream, buffering rows and committing them when full.
+async def flush_loop(
+    buffers: BufferSet, sink: Sink, tracker: CursorTracker, interval: float
+) -> None:
+    """Flush on a timer, so the age threshold fires even with no events arriving."""
 
-    The cursor advances only after `flush` returns, so it is never ahead of an
-    event that is not yet written.
-    """
-
-    buffers = BufferSet()
-
-    async for event in stream_events(tracker.resume_from):
-        tracker.observe(event.time_us)
-        if event.parsed is not None:
-            buffers.add(*event.parsed)
-
+    while True:
+        await asyncio.sleep(interval)
+        # Neither call awaits, so the read loop cannot add to a buffer between
+        # the write and the cursor advancing past it.
         if buffers.should_flush():
             flush(buffers, sink)
             tracker.mark_flushed()
+
+
+async def run(
+    sink: Sink, tracker: CursorTracker, flush_interval: float = FLUSH_CHECK_INTERVAL_SECONDS
+) -> None:
+    """Consume the stream into the buffers while `flush_loop` drains them."""
+
+    buffers = BufferSet()
+    flusher = asyncio.create_task(flush_loop(buffers, sink, tracker, flush_interval))
+
+    try:
+        async for event in stream_events(tracker.resume_from):
+            # Nothing is draining the buffers if it died; they would grow unbounded.
+            if flusher.done():
+                flusher.result()
+
+            tracker.observe(event.time_us)
+            if event.parsed is not None:
+                buffers.add(*event.parsed)
+    finally:
+        flusher.cancel()
+        # Re-raises a failure, so a flush that broke on the last event still surfaces.
+        with suppress(asyncio.CancelledError):
+            await flusher
 
 
 def main() -> None:

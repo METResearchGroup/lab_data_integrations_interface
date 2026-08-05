@@ -48,6 +48,9 @@ REQUIRED_KEYS = {
 MAX_BUFFER_SIZE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_BUFFER_AGE_SECONDS = 30.0
 
+# How often the flush task re-checks the thresholds.
+FLUSH_CHECK_INTERVAL_SECONDS = 1.0
+
 # Reconnect backoff, doubling from the first to the second.
 INITIAL_BACKOFF_SECONDS = 1.0
 MAX_BACKOFF_SECONDS = 60.0
