@@ -52,3 +52,7 @@ MAX_BUFFER_AGE_SECONDS = 30.0
 INITIAL_BACKOFF_SECONDS = 1.0
 MAX_BACKOFF_SECONDS = 60.0
 BACKOFF_MULTIPLIER = 2.0
+
+# How far behind the stored cursor a reconnect resumes. Buys duplicate events
+# rather than risking a gap at the boundary.
+CURSOR_REWIND_MICROSECONDS = 5_000_000

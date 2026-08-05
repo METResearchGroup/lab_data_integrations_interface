@@ -14,7 +14,7 @@ provider "aws" {
 # ---------------------------------------------------------------------------
 # Variables
 #
-# These four values are duplicated in `bluesky_ingestion_jetstream/aws/constants.py`.
+# These values are duplicated in `bluesky_ingestion_jetstream/aws/constants.py`.
 # Terraform creates the container; PyIceberg addresses it by name at runtime, so
 # a change here is only half a change until that file matches.
 # ---------------------------------------------------------------------------
@@ -35,6 +35,11 @@ variable "s3_prefix" {
 variable "glue_database" {
   description = "Glue database names cannot contain `/`, so this is independent of s3_prefix."
   default     = "bluesky_raw"
+}
+
+variable "cursor_table" {
+  description = "Holds the Jetstream resume cursor: one item, keyed by stream."
+  default     = "bluesky_jetstream_cursor"
 }
 
 # ---------------------------------------------------------------------------
@@ -77,6 +82,25 @@ resource "aws_glue_catalog_database" "bluesky_raw" {
 }
 
 # ---------------------------------------------------------------------------
+# DynamoDB — the resume cursor
+#
+# Unlike the Iceberg tables this is a Terraform resource: nothing rewrites its
+# shape at runtime, only the one item it holds. On-demand billing because the
+# load is two requests a minute.
+# ---------------------------------------------------------------------------
+
+resource "aws_dynamodb_table" "jetstream_cursor" {
+  name         = var.cursor_table
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "stream_id"
+
+  attribute {
+    name = "stream_id"
+    type = "S"
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Outputs
 # ---------------------------------------------------------------------------
 
@@ -90,4 +114,8 @@ output "warehouse_uri" {
 
 output "glue_database_name" {
   value = aws_glue_catalog_database.bluesky_raw.name
+}
+
+output "cursor_table_name" {
+  value = aws_dynamodb_table.jetstream_cursor.name
 }

@@ -65,6 +65,23 @@ COMMIT_MAX_DELAY_SECONDS = 8.0
 SNAPSHOT_FLUSH_ID_TAG = "flush_id"
 
 # ---------------------------------------------------------------------------
+# Resume cursor
+#
+# One DynamoDB item, keyed by stream. Created by Terraform.
+# ---------------------------------------------------------------------------
+
+CURSOR_TABLE = "bluesky_jetstream_cursor"
+CURSOR_STREAM_ID = "bluesky_jetstream"
+CURSOR_PARTITION_KEY = "stream_id"
+CURSOR_ATTRIBUTE = "cursor_time_us"
+
+# The client retries transient failures itself, and nothing here retries above
+# it: a failed write costs a longer replay, and a failed read exits the process.
+DYNAMODB_MAX_ATTEMPTS = 3
+DYNAMODB_CONNECT_TIMEOUT_SECONDS = 3.0
+DYNAMODB_READ_TIMEOUT_SECONDS = 5.0
+
+# ---------------------------------------------------------------------------
 # Dead letter
 #
 # Outside `S3_PREFIX`: orphan cleanup deletes unreferenced files under the

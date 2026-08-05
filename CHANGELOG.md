@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-08-04
+
+1. Bluesky Jetstream ingestion now resumes from its last position after a dropped connection instead of restarting live, persisting the stream cursor to a new `bluesky_jetstream_cursor` DynamoDB table. The cursor advances only after all four buffers flush, so it never moves past an event that has not been written; reconnects replay from the last durable position, making delivery at-least-once. [PR #142](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/142)
+
 ## 2026-07-30
 
 1. Gated the UI behind Supabase email/password auth (issue #124): a login page, a protected route group that redirects unauthenticated visitors to sign-in and returns them to their intended destination, and a sign-out control showing the signed-in user's email. Access is invite-only, with users added directly in Supabase. Also removed job-polling status flicker. [PR #140](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/140)

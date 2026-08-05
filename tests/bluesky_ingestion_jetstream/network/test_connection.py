@@ -16,6 +16,7 @@ from bluesky_ingestion_jetstream.constants import (
 from bluesky_ingestion_jetstream.network import connection as c
 from bluesky_ingestion_jetstream.network.connection import (
     build_url,
+    event_time_us,
     is_commit,
     process_all_websocket_events,
     process_commit_event,
@@ -33,6 +34,7 @@ from tests.bluesky_ingestion_jetstream.conftest import (
     RKEY,
     SUBJECT_DID,
     SUBJECT_URI,
+    TIME_US,
     follow_record,
     interaction_record,
     make_event,
@@ -83,6 +85,39 @@ class TestBuildUrl:
         query = parse_qs(urlparse(build_url()).query)
 
         assert len(query["wantedCollections"]) == len(RECORD_TYPES)
+
+    def test_carries_the_cursor_when_there_is_one(self):
+        query = parse_qs(urlparse(build_url(TIME_US)).query)
+
+        assert query["cursor"] == [str(TIME_US)]
+
+    def test_omits_the_cursor_on_a_cold_start(self):
+        """A cursor param at all would be read as a position, so it has to be absent."""
+
+        assert "cursor" not in parse_qs(urlparse(build_url()).query)
+
+    def test_a_zero_cursor_is_still_sent(self):
+        """Falsy but meaningful; only None means "no cursor"."""
+
+        assert parse_qs(urlparse(build_url(0)).query)["cursor"] == ["0"]
+
+
+class TestEventTimeUs:
+    def test_reads_the_brokers_timestamp(self):
+        assert event_time_us({"time_us": TIME_US}) == TIME_US
+
+    @pytest.mark.parametrize("time_us", [None, "1725911162329308", True, 1.5, []])
+    def test_unusable_timestamps_have_no_position(self, time_us):
+        """bools are ints, and a `True` position is junk rather than 1 microsecond."""
+
+        assert event_time_us({"time_us": time_us}) is None
+
+    @pytest.mark.parametrize("event", ["a string", 42, None, []])
+    def test_non_dict_frames_have_no_position(self, event):
+        assert event_time_us(event) is None
+
+    def test_a_missing_timestamp_has_no_position(self):
+        assert event_time_us({"kind": "commit"}) is None
 
 
 class TestIsCommit:
@@ -236,19 +271,28 @@ class TestValidationGate:
 
 class TestProcessAllWebsocketEvents:
     async def collect(self, messages):
-        return [parsed async for parsed in process_all_websocket_events(aiter_list(messages))]
+        return [event async for event in process_all_websocket_events(aiter_list(messages))]
+
+    def record_types(self, events):
+        return [event.parsed[0] for event in events if event.parsed is not None]
 
     def test_yields_a_row_per_commit(self):
         messages = [json.dumps(make_event(POST_COLLECTION, post_record())) for _ in range(3)]
-        parsed = asyncio.run(self.collect(messages))
+        events = asyncio.run(self.collect(messages))
 
-        assert [record_type for record_type, _ in parsed] == ["posts"] * 3
+        assert self.record_types(events) == ["posts"] * 3
 
     def test_accepts_bytes_frames(self):
         message = json.dumps(make_event(LIKE_COLLECTION, interaction_record())).encode()
-        parsed = asyncio.run(self.collect([message]))
+        events = asyncio.run(self.collect([message]))
 
-        assert [record_type for record_type, _ in parsed] == ["likes"]
+        assert self.record_types(events) == ["likes"]
+
+    def test_carries_the_position_of_every_event(self):
+        message = json.dumps(make_event(LIKE_COLLECTION, interaction_record()))
+        events = asyncio.run(self.collect([message]))
+
+        assert [event.time_us for event in events] == [TIME_US]
 
     @pytest.mark.parametrize("message", ["NOT JSON", "{unclosed", "", "<html>"])
     def test_malformed_json_is_skipped(self, message):
@@ -256,26 +300,37 @@ class TestProcessAllWebsocketEvents:
 
         assert asyncio.run(self.collect([message])) == []
 
-    def test_non_commit_events_are_skipped(self):
-        messages = [json.dumps({"kind": "identity", "did": DID})]
+    def test_frames_without_a_position_are_skipped(self):
+        """Nothing to record and nothing to store, so there is no event to yield."""
+
+        messages = [json.dumps(make_event(POST_COLLECTION, post_record(), time_us=None))]
 
         assert asyncio.run(self.collect(messages)) == []
 
-    def test_unstorable_commits_are_skipped(self):
+    def test_non_commit_events_are_yielded_unparsed(self):
+        """They advance the cursor even though there is nothing to store."""
+
+        messages = [json.dumps({"kind": "identity", "did": DID, "time_us": TIME_US})]
+        events = asyncio.run(self.collect(messages))
+
+        assert [(event.time_us, event.parsed) for event in events] == [(TIME_US, None)]
+
+    def test_unstorable_commits_are_yielded_unparsed(self):
         messages = [json.dumps(make_event(POST_COLLECTION, post_record(), operation="delete"))]
+        events = asyncio.run(self.collect(messages))
 
-        assert asyncio.run(self.collect(messages)) == []
+        assert [event.parsed for event in events] == [None]
 
     def test_bad_frames_do_not_stop_later_good_ones(self):
         messages = [
             "NOT JSON",
-            json.dumps({"kind": "identity"}),
+            json.dumps({"kind": "identity", "time_us": TIME_US}),
             json.dumps(make_event(POST_COLLECTION, post_record(), operation="delete")),
             json.dumps(make_event(FOLLOW_COLLECTION, follow_record())),
         ]
-        parsed = asyncio.run(self.collect(messages))
+        events = asyncio.run(self.collect(messages))
 
-        assert [record_type for record_type, _ in parsed] == ["follows"]
+        assert self.record_types(events) == ["follows"]
 
     def test_empty_stream_yields_nothing(self):
         assert asyncio.run(self.collect([])) == []
@@ -285,10 +340,10 @@ class TestReconnectBackoff:
     """The retry loop, driven through the real generator with a fake socket."""
 
     def run_until(self, monkeypatch, messages_per_connection, sleep_limit, error=None):
-        """Reconnect repeatedly, returning (yielded rows, sleep intervals)."""
+        """Reconnect repeatedly, returning (yielded events, sleep intervals)."""
 
         sleeps: list[float] = []
-        rows: list[tuple[str, dict]] = []
+        events: list = []
 
         async def fake_sleep(seconds):
             sleeps.append(seconds)
@@ -307,13 +362,13 @@ class TestReconnectBackoff:
 
         async def go():
             try:
-                async for parsed in c.stream_events():
-                    rows.append(parsed)
+                async for event in c.stream_events():
+                    events.append(event)
             except StopLoop:
                 pass
 
         asyncio.run(go())
-        return rows, sleeps
+        return events, sleeps
 
     def test_backoff_doubles_and_caps(self, monkeypatch):
         _, sleeps = self.run_until(monkeypatch, messages_per_connection=0, sleep_limit=9)
@@ -324,17 +379,17 @@ class TestReconnectBackoff:
     def test_backoff_resets_once_rows_flow(self, monkeypatch):
         """A connection that delivered data then died retries immediately."""
 
-        rows, sleeps = self.run_until(monkeypatch, messages_per_connection=2, sleep_limit=5)
+        events, sleeps = self.run_until(monkeypatch, messages_per_connection=2, sleep_limit=5)
 
         assert sleeps == [INITIAL_BACKOFF_SECONDS] * 5
-        assert len(rows) == 10
+        assert len(events) == 10
 
     def test_accept_then_drop_does_not_hot_loop(self, monkeypatch):
         """Resetting on connect instead of on data would spin here at full speed."""
 
-        rows, sleeps = self.run_until(monkeypatch, messages_per_connection=0, sleep_limit=5)
+        events, sleeps = self.run_until(monkeypatch, messages_per_connection=0, sleep_limit=5)
 
-        assert rows == []
+        assert events == []
         assert sleeps == [1.0, 2.0, 4.0, 8.0, 16.0]
 
     def test_websocket_errors_are_retried(self, monkeypatch):
@@ -375,6 +430,64 @@ class TestReconnectBackoff:
         asyncio.run(go())
 
         assert sleeps == [1.0, 2.0, 4.0]
+
+    def test_each_reconnect_reads_the_cursor_again(self, monkeypatch):
+        """Read once at startup instead, and every reconnect replays from the same point."""
+
+        urls: list[str] = []
+        cursors = iter([100, 200, 300])
+        sleeps: list[float] = []
+
+        async def fake_sleep(seconds):
+            sleeps.append(seconds)
+            if len(sleeps) >= 3:
+                raise StopLoop
+
+        def record(url, *args, **kwargs):
+            urls.append(url)
+            return FakeConnection([])
+
+        monkeypatch.setattr(c.asyncio, "sleep", fake_sleep)
+        monkeypatch.setattr(c.websockets, "connect", record)
+
+        async def go():
+            try:
+                async for _ in c.stream_events(lambda: next(cursors)):
+                    pass
+            except StopLoop:
+                pass
+
+        asyncio.run(go())
+
+        assert [parse_qs(urlparse(url).query)["cursor"] for url in urls] == [
+            ["100"],
+            ["200"],
+            ["300"],
+        ]
+
+    def test_a_cold_start_connects_without_a_cursor(self, monkeypatch):
+        urls: list[str] = []
+
+        async def fake_sleep(seconds):
+            raise StopLoop
+
+        def record(url, *args, **kwargs):
+            urls.append(url)
+            return FakeConnection([])
+
+        monkeypatch.setattr(c.asyncio, "sleep", fake_sleep)
+        monkeypatch.setattr(c.websockets, "connect", record)
+
+        async def go():
+            try:
+                async for _ in c.stream_events():
+                    pass
+            except StopLoop:
+                pass
+
+        asyncio.run(go())
+
+        assert "cursor" not in parse_qs(urlparse(urls[0]).query)
 
     def test_parsing_bugs_are_not_swallowed(self, monkeypatch):
         """A blanket `except Exception` would retry a code bug forever."""
