@@ -5,6 +5,8 @@ import time
 from dataclasses import dataclass, field
 
 from bluesky_ingestion_jetstream.constants import (
+    FLUSH_REASON_AGE,
+    FLUSH_REASON_SIZE,
     MAX_BUFFER_AGE_SECONDS,
     MAX_BUFFER_SIZE_BYTES,
     RECORD_TYPES,
@@ -95,10 +97,46 @@ class BufferSet:
             or time.monotonic() - self.last_flush >= self.max_age_seconds
         )
 
+    def flush_reason(self) -> str:
+        """Which of the two thresholds tripped. Size wins when both have.
+
+        Only meaningful once `should_flush` is true, and raises otherwise rather
+        than naming a threshold that was never hit.
+        """
+
+        if not self.should_flush():
+            raise ValueError("no flush threshold has been hit")
+        if self.size >= self.max_size_bytes:
+            return FLUSH_REASON_SIZE
+        return FLUSH_REASON_AGE
+
     def mark_flushed(self) -> None:
         """Restart the age timer. Called after a flush, however it was triggered."""
 
         self.last_flush = time.monotonic()
+
+
+@dataclass(frozen=True, slots=True)
+class FlushSummary:
+    """What one flush wrote, keyed by record type."""
+
+    reason: str
+    rows: dict[str, int]
+    sizes: dict[str, int]
+
+
+def get_flush_summary(buffers: BufferSet, reason: str) -> FlushSummary:
+    """What the buffers hold. Call before `flush`, which zeroes both counts."""
+
+    rows: dict[str, int] = {}
+    sizes: dict[str, int] = {}
+
+    for record_type, buffer in buffers.buffers.items():
+        if buffer.rows:
+            rows[record_type] = len(buffer.rows)
+            sizes[record_type] = buffer.size
+
+    return FlushSummary(reason=reason, rows=rows, sizes=sizes)
 
 
 def flush(buffers: BufferSet, sink: Sink) -> None:

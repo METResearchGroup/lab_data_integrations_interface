@@ -45,8 +45,18 @@ class CursorTracker:
         self.cursor_value = self.most_recent_event_timestamp
 
     def resume_from(self) -> int | None:
-        """Cursor to reconnect with, rewound by CURSOR_REWIND_MICROSECONDS to avoid skips."""
+        """Cursor to reconnect with, rewound by CURSOR_REWIND_MICROSECONDS to avoid skips.
 
-        if self.cursor_value is None:
+        Reads the observed position, not the persisted one. A reconnect happens
+        inside `stream_events`, below the buffers, so rows seen since the last
+        flush are still in memory and still get written -- replaying them would
+        only duplicate them. A *restart* is what needs the persisted cursor, and
+        `__init__` seeds this from it, so that path is unchanged.
+
+        Only correct while a reconnect leaves the buffers intact. Rebuilding the
+        BufferSet per connection would turn this into silent data loss.
+        """
+
+        if self.most_recent_event_timestamp is None:
             return None
-        return max(0, self.cursor_value - CURSOR_REWIND_MICROSECONDS)
+        return max(0, self.most_recent_event_timestamp - CURSOR_REWIND_MICROSECONDS)

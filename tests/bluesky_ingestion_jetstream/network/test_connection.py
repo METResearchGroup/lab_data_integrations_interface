@@ -431,6 +431,38 @@ class TestReconnectBackoff:
 
         assert sleeps == [1.0, 2.0, 4.0]
 
+    def test_tracks_whether_the_socket_is_up(self, monkeypatch):
+        """The gauge reads this flag; nothing else observes connect or drop."""
+
+        seen: list[bool] = []
+        sleeps: list[float] = []
+
+        async def fake_sleep(seconds):
+            sleeps.append(seconds)
+            # After the drop, before the next connect.
+            seen.append(c.STREAM_STATE.connected)
+            raise StopLoop
+
+        def connect(*args, **kwargs):
+            seen.append(c.STREAM_STATE.connected)
+            return FakeConnection([])
+
+        monkeypatch.setattr(c.asyncio, "sleep", fake_sleep)
+        monkeypatch.setattr(c.websockets, "connect", connect)
+        monkeypatch.setattr(c.STREAM_STATE, "connected", False)
+
+        async def go():
+            try:
+                async for _ in c.stream_events():
+                    pass
+            except StopLoop:
+                pass
+
+        asyncio.run(go())
+
+        # False before connecting, then False again once the socket dropped.
+        assert seen == [False, False]
+
     def test_each_reconnect_reads_the_cursor_again(self, monkeypatch):
         """Read once at startup instead, and every reconnect replays from the same point."""
 
