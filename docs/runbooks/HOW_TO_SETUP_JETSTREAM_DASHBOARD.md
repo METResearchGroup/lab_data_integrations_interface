@@ -1,4 +1,4 @@
-# How to Set Up the Grafana Dashboard
+# How to Set Up the Jetstream Dashboard
 
 ## Overview
 
