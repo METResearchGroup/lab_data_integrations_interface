@@ -35,6 +35,7 @@ from bluesky_ingestion_jetstream.aws.constants import (
     S3_REQUEST_TIMEOUT_SECONDS,
 )
 from bluesky_ingestion_jetstream.schemas.arrow_schemas import RECORD_TYPE_TO_SCHEMA
+from bluesky_ingestion_jetstream.telemetry.instruments import record_dead_letter, record_dropped
 from lib.timestamp_utils import CREATED_AT_FORMAT
 
 logger = logging.getLogger(__name__)
@@ -125,10 +126,12 @@ def write_dead_letter(
                 record_type,
                 path,
             )
+            record_dead_letter(record_type, len(rows))
             return path
 
     # Both the commit and its fallback failed, which in practice means S3 itself
     # is unreachable. Nothing durable is left to try.
+    record_dropped(record_type, len(rows))
     raise DeadLetterError(
         f"dropped {len(rows)} {record_type} rows: dead letter write to {path} failed twice"
     )

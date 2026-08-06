@@ -51,6 +51,10 @@ MAX_BUFFER_AGE_SECONDS = 30.0
 # How often the flush task re-checks the thresholds.
 FLUSH_CHECK_INTERVAL_SECONDS = 1.0
 
+# Which threshold tripped a flush. Reported per flush, so the two are separable.
+FLUSH_REASON_SIZE = "size"
+FLUSH_REASON_AGE = "age"
+
 # Reconnect backoff, doubling from the first to the second.
 INITIAL_BACKOFF_SECONDS = 1.0
 MAX_BACKOFF_SECONDS = 60.0

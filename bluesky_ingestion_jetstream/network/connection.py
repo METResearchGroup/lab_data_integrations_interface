@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from urllib.parse import urlencode
 
 import websockets
-from websockets.exceptions import WebSocketException
+from websockets.exceptions import ConnectionClosed, WebSocketException
 
 from bluesky_ingestion_jetstream.constants import (
     BACKOFF_MULTIPLIER,
@@ -31,6 +31,7 @@ from bluesky_ingestion_jetstream.event_parsing.shared import (
     parse_shared,
     validate_non_null_fields,
 )
+from bluesky_ingestion_jetstream.telemetry.instruments import record_reconnect
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +133,20 @@ def process_commit_event(event: dict) -> tuple[str, dict] | None:
     return record_type, row
 
 
+def disconnect_reason(error: BaseException) -> str:
+    """A label for why the socket dropped.
+
+    Close code or exception class, never the message: an unbounded label value
+    turns one series into thousands.
+    """
+
+    if isinstance(error, ConnectionClosed):
+        close = error.rcvd or error.sent
+        if close is not None:
+            return f"close_{close.code}"
+    return type(error).__name__
+
+
 async def stream_events(
     resume_from: Callable[[], int | None] = lambda: None,
 ) -> AsyncIterator[StreamEvent]:
@@ -146,6 +161,8 @@ async def stream_events(
                     yield event
         # Narrow on purpose: a blanket `except Exception` would swallow bugs in
         # the parsing path and retry them forever instead of raising.
-        except (WebSocketException, OSError):
+        except (WebSocketException, OSError) as error:
+            # The only place a drop is observable; the loop hides it from callers.
+            record_reconnect(disconnect_reason(error))
             await asyncio.sleep(backoff)
             backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF_SECONDS)
