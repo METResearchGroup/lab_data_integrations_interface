@@ -132,3 +132,30 @@ class TestResumeFrom:
         tracker.mark_flushed()
 
         assert tracker.resume_from() == LATE - CURSOR_REWIND_MICROSECONDS
+
+    def test_does_not_replay_events_still_held_in_the_buffers(self):
+        """A reconnect keeps the buffers, so re-reading what they hold only duplicates it."""
+
+        tracker = CursorTracker(MemoryCursorStore(stored=EARLY))
+        tracker.observe(LATE)
+
+        assert tracker.resume_from() == LATE - CURSOR_REWIND_MICROSECONDS
+
+    def test_a_restart_resumes_from_the_persisted_cursor(self):
+        """Nothing is in memory yet, so the durable position is the only safe one."""
+
+        tracker = CursorTracker(MemoryCursorStore(stored=EARLY))
+
+        assert tracker.resume_from() == EARLY - CURSOR_REWIND_MICROSECONDS
+
+    def test_a_failed_cursor_write_does_not_widen_the_replay(self):
+        """The rows flushed during the outage are committed; re-reading them is waste."""
+
+        tracker = CursorTracker(
+            MemoryCursorStore(stored=EARLY, error=RuntimeError("dynamodb down"))
+        )
+        tracker.observe(LATE)
+        tracker.mark_flushed()
+
+        assert tracker.cursor_value == EARLY
+        assert tracker.resume_from() == LATE - CURSOR_REWIND_MICROSECONDS
