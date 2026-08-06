@@ -25,7 +25,7 @@
       "id": 1,
       "type": "stat",
       "title": "Socket",
-      "description": "1 while the Jetstream websocket is up. Set on connect and in the except that catches the drop -- nothing polls it, the library's 20s ping keepalive is what surfaces a dead socket. \"Not reporting\" means no export in the last few minutes: the process itself is gone.",
+      "description": "1 while the Jetstream socket is up. \"Not reporting\" means the process stopped exporting, not that the socket dropped.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -116,7 +116,7 @@
       "id": 2,
       "type": "stat",
       "title": "Cursor value",
-      "description": "Stream position last written to DynamoDB. Advances only on a flush, so it sawtooths up to one flush interval behind -- a freshness number, not a liveness one. last_over_time keeps the final position visible after the ingester stops.",
+      "description": "Stream position last written to DynamoDB.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -173,7 +173,7 @@
       "id": 3,
       "type": "stat",
       "title": "Socket disconnects",
-      "description": "Connections that dropped or never formed, over the selected range. Every failure is followed by a retry, so this is also the reconnect count. No series at all means it has never fired.",
+      "description": "Connections that dropped or never formed.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -243,7 +243,7 @@
       "id": 4,
       "type": "stat",
       "title": "Dead letters",
-      "description": "Rows that missed Iceberg but were saved to s3://.../dead_letter/. Recoverable -- the log line below carries the path.",
+      "description": "Rows that missed Iceberg but were saved to S3.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -313,7 +313,7 @@
       "id": 5,
       "type": "stat",
       "title": "Dropped rows",
-      "description": "Rows nothing durable accepted -- neither Iceberg nor the dead letter. Gone. Anything above 0 is worth alerting on.",
+      "description": "Rows nothing durable accepted.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -383,7 +383,7 @@
       "id": 6,
       "type": "piechart",
       "title": "Data Ingested",
-      "description": "Serialized JSON bytes committed over the selected range, split by record type. A volume proxy -- not parquet-on-disk. Iceberg's snapshot summary carries the real footprint.",
+      "description": "Serialized JSON bytes committed, split by record type. A volume proxy, not parquet-on-disk.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -723,13 +723,14 @@
             "renameByName": {}
           }
         }
-      ]
+      ],
+      "description": "Rows and serialized JSON bytes per record type."
     },
     {
       "id": 8,
       "type": "table",
       "title": "Per-flush detail",
-      "description": "One row per flush, from the JSON log line that record_flush emits alongside the counters -- so this table and the totals above cannot disagree. Every record type appears every time, zeroed when it wrote nothing. reason is size or age.",
+      "description": "One row per flush, from the JSON log line the ingester emits alongside the counters.",
       "datasource": {
         "type": "loki",
         "uid": "grafanacloud-logs"
@@ -1011,7 +1012,6 @@
           "id": 9,
           "type": "timeseries",
           "title": "Socket disconnects by reason",
-          "description": "reason is a websocket close code -- close_1006 (keepalive timeout or dropped network), close_1011 (server error), close_1000 (clean close) -- or an exception class such as OSError for a DNS/TCP failure.",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
@@ -1101,13 +1101,14 @@
               "legendFormat": "{{reason}}",
               "range": true
             }
-          ]
+          ],
+          "description": "Close codes mean a connection existed and ended; exception classes mean one never formed."
         },
         {
           "id": 10,
           "type": "logs",
           "title": "Disconnects",
-          "description": "Use the log, not the counter, to answer \"why is it down right now\": the newest line is the current reason, timestamped. topk over the counter gives most-frequent, which is a different question.",
+          "description": "Newest line is the current reason, timestamped.",
           "datasource": {
             "type": "loki",
             "uid": "grafanacloud-logs"
@@ -1145,7 +1146,7 @@
           "id": 11,
           "type": "logs",
           "title": "Dead letter writes",
-          "description": "The only pointer to rows that missed Iceberg: each line carries the S3 path they were written to.",
+          "description": "Each line carries the S3 path the rows landed in.",
           "datasource": {
             "type": "loki",
             "uid": "grafanacloud-logs"
