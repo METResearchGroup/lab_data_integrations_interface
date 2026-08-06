@@ -175,8 +175,8 @@
       "title": "Socket disconnects",
       "description": "Connections that dropped or never formed.",
       "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "type": "loki",
+        "uid": "grafanacloud-logs"
       },
       "gridPos": {
         "h": 4,
@@ -228,13 +228,12 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "type": "loki",
+            "uid": "grafanacloud-logs"
           },
           "editorMode": "code",
-          "expr": "sum(increase(bluesky_jetstream_connection_failures_total[$__range]))",
-          "instant": true,
-          "range": false,
+          "expr": "sum(count_over_time({service_name=\"bluesky-ingestion-jetstream\"} |= \"jetstream disconnected\" [$__range]))",
+          "queryType": "instant",
           "legendFormat": "__auto"
         }
       ]
@@ -1014,8 +1013,8 @@
           "title": "Socket disconnects by reason",
           "description": "Close codes mean a connection existed and ended; exception classes mean one never formed.",
           "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "type": "loki",
+            "uid": "grafanacloud-logs"
           },
           "gridPos": {
             "h": 8,
@@ -1071,14 +1070,30 @@
             {
               "refId": "A",
               "datasource": {
-                "type": "prometheus",
-                "uid": "grafanacloud-prom"
+                "type": "loki",
+                "uid": "grafanacloud-logs"
               },
               "editorMode": "code",
-              "expr": "sum by (reason) (increase(bluesky_jetstream_connection_failures_total[$__range]))",
-              "instant": true,
-              "range": false,
+              "expr": "sum by (reason) (count_over_time({service_name=\"bluesky-ingestion-jetstream\"} |= \"jetstream disconnected\" | pattern \"jetstream disconnected: <reason>\" [$__range]))",
+              "queryType": "instant",
               "legendFormat": "{{reason}}"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "includeByName": {},
+                "indexByName": {},
+                "renameByName": {}
+              }
+            },
+            {
+              "id": "rowsToFields",
+              "options": {}
             }
           ]
         },
