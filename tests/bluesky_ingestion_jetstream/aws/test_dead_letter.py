@@ -172,3 +172,53 @@ class TestWriteDeadLetter:
 
         assert "DEAD LETTER" in caplog.text
         assert "2 follows rows" in caplog.text
+
+
+class TestCounters:
+    """These branches only run once a commit has already failed, so the wiring
+    cannot be checked by watching a healthy process."""
+
+    @pytest.fixture
+    def counted(self, monkeypatch):
+        recorded: dict[str, list] = {"dead_letter": [], "dropped": []}
+        monkeypatch.setattr(
+            dead_letter_module,
+            "record_dead_letter",
+            lambda rt, rows: recorded["dead_letter"].append((rt, rows)),
+        )
+        monkeypatch.setattr(
+            dead_letter_module,
+            "record_dropped",
+            lambda rt, rows: recorded["dropped"].append((rt, rows)),
+        )
+        return recorded
+
+    def test_counts_rows_that_landed_in_the_dead_letter(self, counted, rows_factory, local_root):
+        write_dead_letter(
+            "likes", rows_factory("likes", 2), RUN_ID, filesystem=LocalFileSystem(), root=local_root
+        )
+
+        assert counted["dead_letter"] == [("likes", 2)]
+        assert counted["dropped"] == []
+
+    def test_counts_rows_nothing_durable_accepted(
+        self, counted, rows_factory, local_root, monkeypatch
+    ):
+        """The one metric that means data is gone, not merely misplaced."""
+
+        def always_fails(*args, **kwargs):
+            raise OSError("s3 unreachable")
+
+        monkeypatch.setattr(dead_letter_module.pq, "write_table", always_fails)
+
+        with pytest.raises(DeadLetterError):
+            write_dead_letter(
+                "posts",
+                rows_factory("posts", 3),
+                RUN_ID,
+                filesystem=LocalFileSystem(),
+                root=local_root,
+            )
+
+        assert counted["dropped"] == [("posts", 3)]
+        assert counted["dead_letter"] == []

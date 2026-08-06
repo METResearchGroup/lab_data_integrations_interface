@@ -1,13 +1,15 @@
 """Tests for the run loop wiring."""
 
 import asyncio
+import logging
+import signal
 from contextlib import suppress
 
 import pytest
 
 from bluesky_ingestion_jetstream import main as main_module
 from bluesky_ingestion_jetstream.constants import CURSOR_REWIND_MICROSECONDS, RECORD_TYPES
-from bluesky_ingestion_jetstream.main import flush_loop, run
+from bluesky_ingestion_jetstream.main import consume_stream, flush_loop
 from bluesky_ingestion_jetstream.network.connection import StreamEvent
 from bluesky_ingestion_jetstream.storage.buffer import BufferSet
 from bluesky_ingestion_jetstream.storage.cursor import CursorTracker
@@ -33,12 +35,12 @@ def stream_of(events):
 def drive(sink, tracker):
     """Run with a zero flush interval, so one tick lands between events."""
 
-    asyncio.run(run(sink, tracker, flush_interval=0))
+    asyncio.run(consume_stream(sink, tracker, flush_interval=0))
 
 
 @pytest.fixture
 def wired(monkeypatch):
-    """Drive `run` with a canned stream and record every flush."""
+    """Drive `consume_stream` with a canned stream and record every flush."""
 
     flushes: list[dict[str, int]] = []
 
@@ -59,7 +61,7 @@ def wired(monkeypatch):
 
 @pytest.fixture
 def sink() -> MemorySink:
-    """`run` needs a destination; these tests stub `flush`, so it is never used."""
+    """`consume_stream` needs a destination; these tests stub `flush`, so it is never used."""
 
     return MemorySink()
 
@@ -93,7 +95,7 @@ async def tick(buffers, sink, tracker, times=1):
         await task
 
 
-class TestRun:
+class TestConsumeStream:
     def test_consumes_the_whole_stream(self, wired, rows_factory, sink, tracker, monkeypatch):
         flushes = wired(rows_for(rows_factory, "likes", 5))
         monkeypatch.setattr(
@@ -105,14 +107,15 @@ class TestRun:
         assert flushes == []
 
     def test_flushes_when_the_buffers_say_so(self, wired, rows_factory, sink, tracker, monkeypatch):
+        """Keyed on buffer contents, not a call count: `flush_reason` also asks."""
+
         flushes = wired(rows_for(rows_factory, "likes", 3))
-        calls = {"n": 0}
-
-        def every_other(self):
-            calls["n"] += 1
-            return calls["n"] % 2 == 0
-
-        monkeypatch.setattr(main_module.BufferSet, "should_flush", every_other, raising=False)
+        monkeypatch.setattr(
+            main_module.BufferSet,
+            "should_flush",
+            lambda self: len(self.buffers["likes"].rows) == 2,
+            raising=False,
+        )
 
         drive(sink, tracker)
 
@@ -277,6 +280,109 @@ class TestCursor:
         drive(sink, tracker)
 
         assert store.writes == [TIME_US, TIME_US + 1]
+
+
+class TestStartRun:
+    """Startup failures are the ones a fresh environment actually hits."""
+
+    @pytest.fixture
+    def built(self, monkeypatch, sink, tracker):
+        monkeypatch.setattr(main_module, "build_sink", lambda run_id: sink)
+        monkeypatch.setattr(main_module, "build_tracker", lambda: tracker)
+        monkeypatch.setattr(main_module, "stream_events", stream_of([]))
+        return sink, tracker
+
+    def test_consumes_with_the_built_collaborators(self, built, monkeypatch):
+        seen: list = []
+
+        async def fake_consume(sink, tracker, flush_interval):
+            seen.append((sink, tracker))
+
+        monkeypatch.setattr(main_module, "consume_stream", fake_consume)
+
+        asyncio.run(main_module.start_run())
+
+        assert seen == [built]
+
+    def test_reports_a_failure_to_build(self, monkeypatch, caplog):
+        """MissingTablesError here means the Iceberg bootstrap was never run."""
+
+        def boom():
+            raise RuntimeError("no such table")
+
+        monkeypatch.setattr(main_module, "build_tracker", boom)
+
+        with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError, match="no such table"):
+            asyncio.run(main_module.start_run())
+
+        assert "could not start run" in caplog.text
+
+    def test_reports_a_failure_while_consuming(self, built, monkeypatch, caplog):
+        async def boom(sink, tracker, flush_interval):
+            raise RuntimeError("stream exploded")
+
+        monkeypatch.setattr(main_module, "consume_stream", boom)
+
+        with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError, match="stream exploded"):
+            asyncio.run(main_module.start_run())
+
+        assert "died" in caplog.text
+        assert "could not start run" not in caplog.text
+
+
+class TestRunUntilStopped:
+    @pytest.fixture
+    def flushed(self, monkeypatch):
+        """Records flushes, and puts SIGTERM back so the disposition does not leak."""
+
+        calls: list = []
+        monkeypatch.setattr(main_module, "force_telemetry_flush", lambda: calls.append(1))
+        original = signal.getsignal(signal.SIGTERM)
+        yield calls
+        signal.signal(signal.SIGTERM, original)
+
+    def test_exports_telemetry_when_the_run_dies(self, flushed, monkeypatch):
+        """Otherwise the log saying why it died never leaves the process."""
+
+        async def boom(flush_interval=None):
+            raise RuntimeError("died")
+
+        monkeypatch.setattr(main_module, "start_run", boom)
+
+        with pytest.raises(RuntimeError, match="died"):
+            main_module.run_until_stopped()
+
+        assert flushed == [1]
+
+    def test_a_stop_is_not_a_failure(self, flushed, monkeypatch):
+        """SIGTERM and Ctrl-C arrive here; a supervisor restart must not look like a crash."""
+
+        async def stopped(flush_interval=None):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(main_module, "start_run", stopped)
+
+        main_module.run_until_stopped()
+
+        assert flushed == [1]
+
+    def test_registers_the_sigterm_handler(self, flushed, monkeypatch):
+        async def noop(flush_interval=None):
+            return None
+
+        monkeypatch.setattr(main_module, "start_run", noop)
+
+        main_module.run_until_stopped()
+
+        assert signal.getsignal(signal.SIGTERM) is main_module.sigterm_handler
+
+
+class TestSigtermHandler:
+    def test_raises_so_finally_blocks_run(self):
+        """Left at its default, SIGTERM neither raises nor runs atexit handlers."""
+
+        with pytest.raises(KeyboardInterrupt):
+            main_module.sigterm_handler(signal.SIGTERM, None)
 
 
 class TestNewRunId:

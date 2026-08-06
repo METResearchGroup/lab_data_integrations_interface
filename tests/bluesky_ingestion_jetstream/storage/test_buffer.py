@@ -4,9 +4,19 @@ import json
 
 import pytest
 
-from bluesky_ingestion_jetstream.constants import RECORD_TYPES
+from bluesky_ingestion_jetstream.constants import (
+    FLUSH_REASON_AGE,
+    FLUSH_REASON_SIZE,
+    RECORD_TYPES,
+)
 from bluesky_ingestion_jetstream.storage import buffer as buffer_module
-from bluesky_ingestion_jetstream.storage.buffer import Buffer, BufferSet, flush, row_bytes
+from bluesky_ingestion_jetstream.storage.buffer import (
+    Buffer,
+    BufferSet,
+    flush,
+    get_flush_summary,
+    row_bytes,
+)
 
 
 class RecordingSink:
@@ -217,6 +227,65 @@ class TestShouldFlush:
         buffer_set.add("posts", rows_factory("posts", 1)[0])
 
         assert buffer_set.should_flush() is True
+
+
+class TestFlushReason:
+    def test_raises_when_no_threshold_is_hit(self):
+        """Naming a threshold that never tripped would put a lie on the dashboard."""
+
+        with pytest.raises(ValueError, match="no flush threshold"):
+            BufferSet().flush_reason()
+
+    def test_size_when_the_size_threshold_trips(self, rows_factory):
+        row = rows_factory("likes", 1)[0]
+        buffer_set = BufferSet(max_size_bytes=row_bytes(row), max_age_seconds=10**9)
+        buffer_set.add("likes", row)
+
+        assert buffer_set.flush_reason() == FLUSH_REASON_SIZE
+
+    def test_age_when_only_the_timer_trips(self, rows_factory, monkeypatch):
+        clock = [100.0]
+        monkeypatch.setattr(buffer_module.time, "monotonic", lambda: clock[0])
+        buffer_set = BufferSet(max_size_bytes=10**9, max_age_seconds=30.0)
+        buffer_set.add("posts", rows_factory("posts", 1)[0])
+
+        clock[0] = 130.0
+        assert buffer_set.flush_reason() == FLUSH_REASON_AGE
+
+    def test_size_wins_when_both_trip(self, rows_factory, monkeypatch):
+        clock = [100.0]
+        monkeypatch.setattr(buffer_module.time, "monotonic", lambda: clock[0])
+        row = rows_factory("likes", 1)[0]
+        buffer_set = BufferSet(max_size_bytes=row_bytes(row), max_age_seconds=30.0)
+        buffer_set.add("likes", row)
+
+        clock[0] = 130.0
+        assert buffer_set.flush_reason() == FLUSH_REASON_SIZE
+
+
+class TestGetFlushSummary:
+    def test_counts_rows_and_bytes_per_record_type(self, filled):
+        summary = get_flush_summary(filled, FLUSH_REASON_AGE)
+
+        assert summary.reason == FLUSH_REASON_AGE
+        assert summary.rows == dict(zip(RECORD_TYPES, [1, 2, 3, 4]))
+        assert summary.sizes == {rt: filled.buffers[rt].size for rt in RECORD_TYPES}
+
+    def test_omits_empty_buffers(self, rows_factory):
+        buffer_set = BufferSet()
+        buffer_set.add("posts", rows_factory("posts", 1)[0])
+
+        summary = get_flush_summary(buffer_set, FLUSH_REASON_SIZE)
+
+        assert summary.rows == {"posts": 1}
+        assert set(summary.sizes) == {"posts"}
+
+    def test_reads_zero_once_the_buffers_are_flushed(self, filled, sink):
+        """Taken after a flush it reports nothing, which is why order matters."""
+
+        flush(filled, sink)
+
+        assert get_flush_summary(filled, FLUSH_REASON_AGE).rows == {}
 
 
 class TestMarkFlushed:
