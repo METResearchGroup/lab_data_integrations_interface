@@ -288,7 +288,7 @@ class TestStartRun:
     @pytest.fixture
     def built(self, monkeypatch, sink, tracker):
         monkeypatch.setattr(main_module, "build_sink", lambda run_id: sink)
-        monkeypatch.setattr(main_module, "build_tracker", lambda: tracker)
+        monkeypatch.setattr(main_module, "build_cursor_tracker", lambda: tracker)
         monkeypatch.setattr(main_module, "stream_events", stream_of([]))
         return sink, tracker
 
@@ -310,7 +310,7 @@ class TestStartRun:
         def boom():
             raise RuntimeError("no such table")
 
-        monkeypatch.setattr(main_module, "build_tracker", boom)
+        monkeypatch.setattr(main_module, "build_cursor_tracker", boom)
 
         with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError, match="no such table"):
             asyncio.run(main_module.start_run())

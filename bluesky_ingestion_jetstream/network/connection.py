@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterable, AsyncIterator, Callable
 from dataclasses import dataclass
 from urllib.parse import urlencode
@@ -31,7 +32,10 @@ from bluesky_ingestion_jetstream.event_parsing.shared import (
     parse_shared,
     validate_non_null_fields,
 )
-from bluesky_ingestion_jetstream.telemetry.instruments import record_reconnect
+from bluesky_ingestion_jetstream.telemetry.instruments import record_connection_failure
+from bluesky_ingestion_jetstream.telemetry.state import STREAM_STATE
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,13 +160,18 @@ async def stream_events(
     while True:
         try:
             async with websockets.connect(build_url(resume_from())) as socket:
+                STREAM_STATE.connected = True
                 async for event in process_all_websocket_events(socket):
                     backoff = INITIAL_BACKOFF_SECONDS
                     yield event
         # Narrow on purpose: a blanket `except Exception` would swallow bugs in
         # the parsing path and retry them forever instead of raising.
         except (WebSocketException, OSError) as error:
-            # The only place a drop is observable; the loop hides it from callers.
-            record_reconnect(disconnect_reason(error))
+            # Logged as well as counted: the counter says how often, the log line
+            # says when, which is what the dashboard needs to name a live outage.
+            reason = disconnect_reason(error)
+            STREAM_STATE.connected = False
+            logger.warning("jetstream disconnected: %s", reason)
+            record_connection_failure(reason)
             await asyncio.sleep(backoff)
             backoff = min(backoff * BACKOFF_MULTIPLIER, MAX_BACKOFF_SECONDS)

@@ -3,7 +3,8 @@
 import asyncio
 import logging
 import signal
-from contextlib import suppress
+from collections.abc import Generator
+from contextlib import contextmanager, suppress
 from uuid import uuid4
 
 from dotenv import load_dotenv
@@ -19,6 +20,7 @@ from bluesky_ingestion_jetstream.storage.cursor import CursorTracker
 from bluesky_ingestion_jetstream.telemetry import (
     force_telemetry_flush,
     record_flush,
+    register_cursor_tracker,
     setup_telemetry,
 )
 
@@ -33,7 +35,7 @@ def build_sink(run_id: str) -> IcebergSink:
     return IcebergSink(load_tables(build_catalog()), run_id)
 
 
-def build_tracker() -> CursorTracker:
+def build_cursor_tracker() -> CursorTracker:
     return CursorTracker(DynamoCursorStore())
 
 
@@ -77,26 +79,32 @@ async def consume_stream(
             await flusher
 
 
+@contextmanager
+def reporting_failure(message: str, run_id: str) -> Generator[None, None, None]:
+    """Log a failure before letting it propagate."""
+
+    try:
+        yield
+    except Exception:
+        logger.exception(message, run_id)
+        raise
+
+
 async def start_run(flush_interval: float = FLUSH_CHECK_INTERVAL_SECONDS) -> None:
     """Build the real collaborators and consume until something stops us."""
 
     run_id = new_run_id()
     logger.info("starting ingestion run %s", run_id)
 
-    try:
-        tracker = build_tracker()
+    with reporting_failure("could not start run %s; check the Glue tables and DynamoDB", run_id):
+        tracker = build_cursor_tracker()
         sink = build_sink(run_id)
-    except Exception:
-        logger.exception("could not start run %s; check the Glue tables and DynamoDB", run_id)
-        raise
 
     logger.info("resuming from cursor %s", tracker.resume_from())
+    register_cursor_tracker(tracker)
 
-    try:
+    with reporting_failure("ingestion run %s died", run_id):
         await consume_stream(sink, tracker, flush_interval)
-    except Exception:
-        logger.exception("ingestion run %s died", run_id)
-        raise
 
 
 def sigterm_handler(_signum: int, _frame: object) -> None:

@@ -1,8 +1,9 @@
-"""Counters, and the calls that record to them.
-
-Instruments are built at import. Until `setup_telemetry` installs a provider the
-meter is a proxy that discards what it is given, so importing this module never
-requires telemetry to be configured.
+"""Counters, recorded when something happens.
+- `rows.written` / `bytes.written` by record type -- what each flush committed
+  to Iceberg, summed for the 24h totals.
+- `connection_failures` by reason -- sockets that dropped or never formed.
+- `dead_letters` / `dropped` by record type -- rows saved to S3 after missing
+  Iceberg, versus rows nothing durable accepted.
 """
 
 import json
@@ -34,10 +35,10 @@ bytes_written = meter.create_counter(
     unit="By",
     description="Serialized JSON bytes committed, by record type. A proxy for volume.",
 )
-reconnects = meter.create_counter(
-    "bluesky_jetstream.reconnects",
-    unit="{disconnect}",
-    description="Jetstream socket drops, by reason.",
+connection_failures = meter.create_counter(
+    "bluesky_jetstream.connection_failures",
+    unit="{failure}",
+    description="Jetstream connections that dropped or never formed, by reason.",
 )
 dead_letters = meter.create_counter(
     "bluesky_jetstream.dead_letters",
@@ -91,10 +92,10 @@ def get_flush_payload(summary: FlushSummary) -> dict[str, str | int | float]:
     return payload
 
 
-def record_reconnect(reason: str) -> None:
-    """Count a socket drop under a bounded reason."""
+def record_connection_failure(reason: str) -> None:
+    """Count a connection that dropped or never formed, under a bounded reason."""
 
-    reconnects.add(1, {REASON: reason})
+    connection_failures.add(1, {REASON: reason})
 
 
 def record_dead_letter(record_type: str, rows: int) -> None:
