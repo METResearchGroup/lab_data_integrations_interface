@@ -6,6 +6,8 @@ import signal
 from contextlib import suppress
 from uuid import uuid4
 
+from dotenv import load_dotenv
+
 from bluesky_ingestion_jetstream.aws.catalog import build_catalog, load_tables
 from bluesky_ingestion_jetstream.aws.cursor_store import DynamoCursorStore
 from bluesky_ingestion_jetstream.constants import FLUSH_CHECK_INTERVAL_SECONDS
@@ -120,6 +122,7 @@ def run_until_stopped() -> None:
 def main() -> None:
     """CLI entry point."""
 
+    load_dotenv()
     logging.basicConfig(level=logging.INFO)
     setup_telemetry()
     run_until_stopped()

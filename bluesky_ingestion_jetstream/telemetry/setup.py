@@ -15,8 +15,10 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.semconv.attributes.service_attributes import SERVICE_NAME as SERVICE_NAME_KEY
 
 from bluesky_ingestion_jetstream.telemetry.constants import (
-    ENDPOINT_VARIABLE,
+    AUTH_TOKEN_VARIABLE,
+    LOGS_ENDPOINT,
     METRIC_EXPORT_INTERVAL_MILLIS,
+    METRICS_ENDPOINT,
     SERVICE_NAME,
 )
 
@@ -29,9 +31,9 @@ _logger_provider: LoggerProvider | None = None
 
 
 def is_configured() -> bool:
-    """Whether an OTLP endpoint is set."""
+    """Whether the Grafana Cloud token is set."""
 
-    return bool(os.getenv(ENDPOINT_VARIABLE))
+    return bool(os.getenv(AUTH_TOKEN_VARIABLE))
 
 
 def build_resource() -> Resource:
@@ -48,7 +50,8 @@ def build_meter_provider(resource: Resource) -> MeterProvider:
     """
 
     reader = PeriodicExportingMetricReader(
-        OTLPMetricExporter(), export_interval_millis=METRIC_EXPORT_INTERVAL_MILLIS
+        OTLPMetricExporter(endpoint=METRICS_ENDPOINT),
+        export_interval_millis=METRIC_EXPORT_INTERVAL_MILLIS,
     )
     return MeterProvider(resource=resource, metric_readers=[reader])
 
@@ -57,7 +60,9 @@ def build_logger_provider(resource: Resource) -> LoggerProvider:
     """Logs, so the per-flush lines are queryable next to the metrics."""
 
     provider = LoggerProvider(resource=resource)
-    provider.add_log_record_processor(BatchLogRecordProcessor(OTLPLogExporter()))
+    provider.add_log_record_processor(
+        BatchLogRecordProcessor(OTLPLogExporter(endpoint=LOGS_ENDPOINT))
+    )
     return provider
 
 
@@ -67,7 +72,7 @@ def setup_telemetry() -> bool:
     global _meter_provider, _logger_provider
 
     if not is_configured():
-        logger.info("%s unset; running without telemetry", ENDPOINT_VARIABLE)
+        logger.info("%s unset; running without telemetry", AUTH_TOKEN_VARIABLE)
         return False
 
     resource = build_resource()
