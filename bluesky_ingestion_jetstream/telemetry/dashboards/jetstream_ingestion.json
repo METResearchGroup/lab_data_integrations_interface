@@ -180,7 +180,7 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
+        "w": 4,
         "x": 10,
         "y": 0
       },
@@ -249,8 +249,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 15,
+        "w": 5,
+        "x": 14,
         "y": 0
       },
       "fieldConfig": {
@@ -311,7 +311,7 @@
     {
       "id": 5,
       "type": "stat",
-      "title": "Dropped rows",
+      "title": "Dropped",
       "description": "Rows nothing durable accepted.",
       "datasource": {
         "type": "prometheus",
