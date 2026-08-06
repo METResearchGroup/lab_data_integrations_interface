@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-08-05
+
+1. Added scheduled Iceberg compaction and cleanup for the `bluesky_raw` tables, via Athena and EventBridge: daily and monthly `OPTIMIZE` to bin-pack small files and weekly `VACUUM` to expire snapshots and delete orphaned files, on a dedicated Athena workgroup with a CloudWatch/SNS alarm on failures. [PR #146](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/146)
+
 ## 2026-08-04
 
 1. Bluesky Jetstream ingestion now resumes from its last position after a dropped connection instead of restarting live, persisting the stream cursor to a new `bluesky_jetstream_cursor` DynamoDB table. The cursor advances only after all four buffers flush, so it never moves past an event that has not been written; reconnects replay from the last durable position, making delivery at-least-once. [PR #142](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/142)
