@@ -25,7 +25,7 @@
       "id": 1,
       "type": "stat",
       "title": "Socket",
-      "description": "1 while the Jetstream socket is up. \"Not reporting\" means the process stopped exporting, not that the socket dropped.",
+      "description": "\"Not reporting\" means the process stopped exporting, not that the socket dropped.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -258,7 +258,6 @@
           "color": {
             "mode": "thresholds"
           },
-          "decimals": 0,
           "mappings": [],
           "noValue": "0",
           "thresholds": {
@@ -274,7 +273,7 @@
               }
             ]
           },
-          "unit": "locale"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -328,7 +327,6 @@
           "color": {
             "mode": "thresholds"
           },
-          "decimals": 0,
           "mappings": [],
           "noValue": "0",
           "thresholds": {
@@ -344,7 +342,7 @@
               }
             ]
           },
-          "unit": "locale"
+          "unit": "short"
         },
         "overrides": []
       },
