@@ -24,22 +24,29 @@ class TestFlushPayload:
 
         for record_type in RECORD_TYPES:
             assert f"{record_type}_rows" in payload
-            assert f"{record_type}_bytes" in payload
+            assert f"{record_type}_mb" in payload
 
     def test_zeroes_a_record_type_that_wrote_nothing(self):
         payload = get_flush_payload(summary(rows={"posts": 3}, sizes={"posts": 90}))
 
         assert payload["posts_rows"] == 3
         assert payload["likes_rows"] == 0
-        assert payload["likes_bytes"] == 0
+        assert payload["likes_mb"] == 0
+
+    def test_reports_megabytes_to_two_decimals(self):
+        """The table reads in MB; the exact byte counts stay on the counter."""
+
+        payload = get_flush_payload(summary(rows={"posts": 1}, sizes={"posts": 4_246_732}))
+
+        assert payload["posts_mb"] == 4.25
 
     def test_totals_across_record_types(self):
         payload = get_flush_payload(
-            summary(rows={"posts": 3, "likes": 4}, sizes={"posts": 90, "likes": 120})
+            summary(rows={"posts": 3, "likes": 4}, sizes={"posts": 1_500_000, "likes": 2_000_000})
         )
 
         assert payload["total_rows"] == 7
-        assert payload["total_bytes"] == 210
+        assert payload["total_mb"] == 3.5
 
     def test_carries_the_reason(self):
         assert get_flush_payload(summary(reason=FLUSH_REASON_SIZE))["reason"] == FLUSH_REASON_SIZE
@@ -49,7 +56,7 @@ class TestFlushPayload:
 
         payload = get_flush_payload(summary(rows={"posts": 3}, sizes={"posts": 90}))
 
-        assert all(isinstance(value, str | int) for value in payload.values())
+        assert all(isinstance(value, str | int | float) for value in payload.values())
 
 
 class TestRecordFlush:

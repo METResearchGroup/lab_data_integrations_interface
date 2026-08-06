@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 RECORD_TYPE = "record_type"
 REASON = "reason"
 
+# SI, matching how Grafana's byte units scale.
+BYTES_PER_MEGABYTE = 1_000_000
+
 meter = metrics.get_meter(METER_NAME)
 
 rows_written = meter.create_counter(
@@ -63,21 +66,28 @@ def record_flush(summary: FlushSummary) -> None:
     logger.info(json.dumps(get_flush_payload(summary)))
 
 
-def get_flush_payload(summary: FlushSummary) -> dict[str, str | int]:
+def megabytes(byte_count: int) -> float:
+    """Bytes as MB. Rounded for reading, not for arithmetic -- the exact counts
+    stay on `bytes_written`."""
+
+    return round(byte_count / BYTES_PER_MEGABYTE, 2)
+
+
+def get_flush_payload(summary: FlushSummary) -> dict[str, str | int | float]:
     """One flat JSON object per flush, for LogQL's `| json` to column out.
 
     Every record type appears, zeroed when it wrote nothing: a table whose
     columns come and go with whatever happened to be buffered is unreadable.
     """
 
-    payload: dict[str, str | int] = {"event": "flush", REASON: summary.reason}
+    payload: dict[str, str | int | float] = {"event": "flush", REASON: summary.reason}
 
     for record_type in RECORD_TYPES:
         payload[f"{record_type}_rows"] = summary.rows.get(record_type, 0)
-        payload[f"{record_type}_bytes"] = summary.sizes.get(record_type, 0)
+        payload[f"{record_type}_mb"] = megabytes(summary.sizes.get(record_type, 0))
 
     payload["total_rows"] = sum(summary.rows.values())
-    payload["total_bytes"] = sum(summary.sizes.values())
+    payload["total_mb"] = megabytes(sum(summary.sizes.values()))
     return payload
 
 
