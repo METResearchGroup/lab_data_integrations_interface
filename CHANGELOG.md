@@ -2,8 +2,7 @@
 
 ## 2026-08-05
 
-1. Added scheduled Iceberg table maintenance for the `bluesky_raw` tables in `terraform/bluesky_ingestion_jetstream/maintenance.tf`: EventBridge Scheduler triggers a Step Functions state machine that runs Athena `OPTIMIZE` and `VACUUM` across all four tables, since PyIceberg can do neither. Daily `OPTIMIZE` bin-packs the trailing three closed days and excludes the current partition, which the ingester commits into continuously; weekly `VACUUM` expires snapshots past Athena's 5-day default and deletes the files they orphaned; a monthly unbounded `OPTIMIZE` reaches partitions the trailing window cannot, for rows a skewed client clock wrote into a long-closed day. Any job also runs on demand via `start-execution` with `{"job": "optimize" | "vacuum" | "optimize_full"}`.
-2. Added a dedicated `bluesky_raw_maintenance` Athena workgroup, with its results prefix a sibling of the warehouse root rather than a child (orphan cleanup treats anything beneath the root as deletable) on a 7-day lifecycle rule, since failed `OPTIMIZE` runs leave staging files Athena will not reclaim. A CloudWatch alarm on failed executions publishes to SNS; subscribing an address is documented in `docs/runbooks/HOW_TO_ADD_MAINTENANCE_ALARM_EMAIL.md`.
+1. Added scheduled Iceberg compaction and cleanup for the `bluesky_raw` tables, via Athena and EventBridge: daily and monthly `OPTIMIZE` to bin-pack small files and weekly `VACUUM` to expire snapshots and delete orphaned files, on a dedicated Athena workgroup with a CloudWatch/SNS alarm on failures. [PR #146](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/146)
 
 ## 2026-08-04
 
