@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-08-06
+
+1. Bluesky Jetstream ingestion now reports to Grafana Cloud over OpenTelemetry: rows and bytes committed per record type, socket disconnects by reason, dead-lettered and dropped rows, stream cursor position, and live connection state, plus one JSON log line per flush. Ships with a checked-in dashboard (`bluesky_ingestion_jetstream/telemetry/dashboards/jetstream_ingestion.json`) and a setup runbook. [PR #147](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/147)
+
 ## 2026-08-05
 
 1. Added scheduled Iceberg compaction and cleanup for the `bluesky_raw` tables, via Athena and EventBridge: daily and monthly `OPTIMIZE` to bin-pack small files and weekly `VACUUM` to expire snapshots and delete orphaned files, on a dedicated Athena workgroup with a CloudWatch/SNS alarm on failures. [PR #146](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/146)
