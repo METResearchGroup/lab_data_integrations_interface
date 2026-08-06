@@ -1199,7 +1199,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Bluesky Jetstream Ingestion",
+  "title": "Bluesky Jetstream Ingestion - Lab Data Integrations",
   "uid": "bluesky-jetstream-ingestion",
   "version": 1,
   "weekStart": ""
