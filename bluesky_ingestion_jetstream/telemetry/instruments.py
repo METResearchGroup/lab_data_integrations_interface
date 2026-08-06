@@ -10,6 +10,7 @@ import logging
 
 from opentelemetry import metrics
 
+from bluesky_ingestion_jetstream.constants import RECORD_TYPES
 from bluesky_ingestion_jetstream.storage.buffer import FlushSummary
 from bluesky_ingestion_jetstream.telemetry.constants import METER_NAME
 
@@ -59,14 +60,25 @@ def record_flush(summary: FlushSummary) -> None:
         rows_written.add(rows, attributes)
         bytes_written.add(summary.sizes[record_type], attributes)
 
-    # Flat keys and a bare JSON object, so LogQL's `| json` gives one column per
-    # field without further parsing.
-    payload: dict[str, str | int] = {"event": "flush", REASON: summary.reason}
-    for record_type, rows in summary.rows.items():
-        payload[f"{record_type}_rows"] = rows
-        payload[f"{record_type}_bytes"] = summary.sizes[record_type]
+    logger.info(json.dumps(get_flush_payload(summary)))
 
-    logger.info(json.dumps(payload))
+
+def get_flush_payload(summary: FlushSummary) -> dict[str, str | int]:
+    """One flat JSON object per flush, for LogQL's `| json` to column out.
+
+    Every record type appears, zeroed when it wrote nothing: a table whose
+    columns come and go with whatever happened to be buffered is unreadable.
+    """
+
+    payload: dict[str, str | int] = {"event": "flush", REASON: summary.reason}
+
+    for record_type in RECORD_TYPES:
+        payload[f"{record_type}_rows"] = summary.rows.get(record_type, 0)
+        payload[f"{record_type}_bytes"] = summary.sizes.get(record_type, 0)
+
+    payload["total_rows"] = sum(summary.rows.values())
+    payload["total_bytes"] = sum(summary.sizes.values())
+    return payload
 
 
 def record_reconnect(reason: str) -> None:
