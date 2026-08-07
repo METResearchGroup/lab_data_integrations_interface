@@ -15,7 +15,7 @@ flowchart LR
   subgraph Process["bluesky_ingestion_jetstream — one process"]
     Net[network — connect,<br/>reconnect w/ backoff]
     Parse[event_parsing — commit → row]
-    Buf[storage — 4 buffers<br/>flush @ 2GB or 30s]
+    Buf[storage — 4 buffers<br/>flush @ 2GB or 3min]
     Sink[sinks — IcebergSink<br/>retry, then dead-letter]
     Cur[storage — CursorTracker]
     Net --> Parse --> Buf --> Sink
@@ -47,7 +47,7 @@ flowchart LR
   Process -. OTel .-> Graf[Grafana Cloud<br/>metrics + logs]
 ```
 
-**Flushing:** buffers are flushed together to Iceberg on S3 once the set hits 2GB or 30s, whichever comes first. Each record type commits separately, and a batch that fails its retries is dead-lettered to S3.
+**Flushing:** buffers are flushed together to Iceberg on S3 once the set hits 2GB or 3 minutes, whichever comes first. Each record type commits separately, and a batch that fails its retries is dead-lettered to S3.
 
 **Cursor checkpointing:** the cursor is written to DynamoDB after every flush, so it never gets ahead of a row that is not yet durable.
 
@@ -66,5 +66,3 @@ flowchart LR
 | `bluesky_ingestion_jetstream/aws` | Glue catalog, table bootstrap, DynamoDB cursor store, S3 dead letter, commit retry |
 | `bluesky_ingestion_jetstream/telemetry` | OTLP metrics/logs to Grafana Cloud + the ingestion dashboard |
 | `terraform/bluesky_ingestion_jetstream` | S3 bucket, Glue database, cursor table; Athena/Step Functions maintenance + alarm |
-
-Iceberg tables are **not** Terraform resources — Iceberg rewrites schema, partition spec, and snapshot pointer on every commit, which Terraform would read as drift. They are created once by `python -m bluesky_ingestion_jetstream.aws.bootstrap`; the ingester never issues DDL.
