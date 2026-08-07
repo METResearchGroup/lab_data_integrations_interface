@@ -40,8 +40,8 @@ pyiceberg pins `rich<15` and the root project requires `rich>=15`, so this
 experiment cannot share the root venv:
 
 ```bash
-uv venv --python 3.11 experimentation/iceberg/.venv
-uv pip install --python experimentation/iceberg/.venv -r experimentation/iceberg/requirements.txt
+uv venv --python 3.11 experiments/experimentation/iceberg/.venv
+uv pip install --python experiments/experimentation/iceberg/.venv -r experiments/experimentation/iceberg/requirements.txt
 ```
 
 ## Running
@@ -50,13 +50,16 @@ Capture and replay are separate on purpose. A 10-minute firehose capture is neve
 reproducible, so it is recorded once and replayed as many times as needed — that
 way every write-path variant is measured against byte-identical input.
 
+Package imports still use the `experimentation.iceberg` module name; set
+`PYTHONPATH=experiments` when running from the repo root.
+
 ```bash
 # 1. Capture (writes data/captures/jetstream-<stamp>.jsonl.gz)
-./experimentation/iceberg/.venv/bin/python -m experimentation.iceberg.capture --seconds 600
+PYTHONPATH=experiments ./experiments/experimentation/iceberg/.venv/bin/python -m experimentation.iceberg.capture --seconds 600
 
 # 2. Replay through both write paths
-./experimentation/iceberg/.venv/bin/python -m experimentation.iceberg.run_experiment \
-    --capture experimentation/iceberg/data/captures/jetstream-<stamp>.jsonl.gz
+PYTHONPATH=experiments ./experiments/experimentation/iceberg/.venv/bin/python -m experimentation.iceberg.run_experiment \
+    --capture experiments/experimentation/iceberg/data/captures/jetstream-<stamp>.jsonl.gz
 ```
 
 Useful flags: `--flush-seconds` (default 60), `--max-batches`, `--skip-raw`,
@@ -116,14 +119,14 @@ deletes or merge-on-read to work properly.
 
 ```bash
 aws s3 rm s3://lab-data-integrations-interface/experiments/iceberg/<run_id>/ --recursive
-python -c "from experimentation.iceberg import catalog; \
+PYTHONPATH=experiments python -c "from experimentation.iceberg import catalog; \
   catalog.drop_tables(catalog.build_catalog('<run_id>'), '<run_id>')"
 ```
 
 ## Tests
 
 ```bash
-./experimentation/iceberg/.venv/bin/python -m pytest experimentation/iceberg/tests
+PYTHONPATH=experiments ./experiments/experimentation/iceberg/.venv/bin/python -m pytest experiments/experimentation/iceberg/tests
 ```
 
 The suite is offline — no AWS, no network. A `conftest.py` skips collection when
