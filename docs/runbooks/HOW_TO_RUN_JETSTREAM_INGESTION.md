@@ -32,8 +32,9 @@ breaks it. Grafana Cloud shows a ready-made value on the stack's
 **OpenTelemetry** page.
 
 The service name and OTLP endpoints are set in
-`bluesky_ingestion_jetstream/telemetry/constants.py`, not by env var, so the
-shared `OTEL_SERVICE_NAME` in `.env` (which names the backend) does not apply.
+`bluesky_ingestion_jetstream/telemetry/constants.py`, not by env var. The
+backend does the same in `backend/telemetry/constants.py`, so the two share
+this token without colliding on identity in Grafana.
 
 ## Run
 
@@ -63,3 +64,7 @@ no-ops. Ingestion is unaffected — nothing is exported, and nothing crashes.
 
 See [HOW_TO_SETUP_JETSTREAM_DASHBOARD.md](HOW_TO_SETUP_JETSTREAM_DASHBOARD.md)
 for the Grafana dashboard over these metrics and logs.
+
+## Deploying
+
+See [HOW_TO_DEPLOY_JETSTREAM_TO_RAILWAY.md](HOW_TO_DEPLOY_JETSTREAM_TO_RAILWAY.md).

@@ -32,36 +32,41 @@ present):
 uv add opentelemetry-distro opentelemetry-exporter-otlp opentelemetry-instrumentation-fastapi opentelemetry-instrumentation-logging opentelemetry-instrumentation-botocore
 ```
 
-- `opentelemetry-distro` — core SDK + the `opentelemetry-instrument` CLI that
-  bootstraps everything below from env vars.
+- `opentelemetry-distro` — core SDK.
 - `opentelemetry-exporter-otlp` — ships spans/logs/metrics to Grafana Cloud's
   OTLP Gateway.
-- `opentelemetry-instrumentation-fastapi` — auto-instruments `backend/main.py`'s
-  routes.
+- `opentelemetry-instrumentation-fastapi` — instruments `backend/main.py`'s
+  routes, applied in code by `backend/telemetry/setup.py`.
 - `opentelemetry-instrumentation-logging` — forwards Python `logging` calls.
-- `opentelemetry-instrumentation-botocore` — auto-instruments the boto3/Athena/S3
-  calls in `backend/routes/posts.py` (`data_platform/aws/*`), since that's the
-  app's only outbound I/O.
+- `opentelemetry-instrumentation-botocore` — auto-instruments boto3 calls in
+  `data_platform/aws/*`.
 
 ## Environment variables
 
-Set these (already present in the root `.env` for local dev — mirror them in
-Railway's **Variables** tab for the deployed backend, see
-[backend-railway-deploy.md](backend-railway-deploy.md)):
+Both services build their providers in code rather than through the
+`opentelemetry-instrument` CLI, so service names and OTLP endpoints are
+constants (`backend/telemetry/constants.py`,
+`bluesky_ingestion_jetstream/telemetry/constants.py`), not env vars. Only the
+credential is environmental:
 
 | Variable | Value | Notes |
 |---|---|---|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `https://otlp-gateway-<region>.grafana.net/otlp` | Base gateway URL — the SDK appends `/v1/traces`, `/v1/logs`, `/v1/metrics` per signal automatically. Don't point this at a signal-specific path. |
-| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | Required. `opentelemetry-distro` defaults this to `grpc` if unset (see `opentelemetry/distro/__init__.py`'s `os.environ.setdefault(...)` calls) — Grafana Cloud's gateway needs `http/protobuf`, so this is the one var that must be set explicitly. |
 | `OTEL_EXPORTER_OTLP_HEADERS` | `Authorization=Basic%20<base64(instanceID:token)>` | Note the `%20` — the Python OTLP exporter needs the header value URL-encoded, a literal space breaks it. |
-| `OTEL_SERVICE_NAME` | `backend` | add this so the service shows up with a clear name in Grafana instead of a default. |
 
-`OTEL_TRACES_EXPORTER`, `OTEL_METRICS_EXPORTER`, and `OTEL_LOGS_EXPORTER` do
-**not** need to be set — `opentelemetry-distro` defaults all three to `otlp`
-via `os.environ.setdefault(...)` before the SDK reads them (verified in the
-installed package source and empirically by inspecting the configured
-providers under `opentelemetry-instrument`). All three signals export by
-default; only the protocol needs overriding.
+It lives in the root `.env` for local dev; mirror it into Railway's
+**Variables** tab per service — each is its own project with its own
+variables, so it must be set twice. See
+[HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md](HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md) and
+[HOW_TO_DEPLOY_JETSTREAM_TO_RAILWAY.md](HOW_TO_DEPLOY_JETSTREAM_TO_RAILWAY.md).
+
+Setting it is also the on/off switch: `setup_telemetry()` returns early when
+the token is absent, so an unconfigured process exports nothing rather than
+defaulting to localhost.
+
+Importing the HTTP exporter pins the protocol, which is why
+`OTEL_EXPORTER_OTLP_PROTOCOL` is no longer needed — Grafana Cloud's gateway
+requires `http/protobuf`, and the choice is now made by the import rather than
+by an env var the deployment could forget.
 
 ## Viewing data in Grafana Cloud
 
@@ -69,7 +74,7 @@ default; only the protocol needs overriding.
    Grafana Cloud stack, go to **Observability → Application**. Once the app
    has sent data (see
    [HOW_TO_RUN_BACKEND_APP.md](HOW_TO_RUN_BACKEND_APP.md)), a
-   service card appears named after `OTEL_SERVICE_NAME`, with RED metrics,
+   service card appears named after the `SERVICE_NAME` constant, with RED metrics,
    trace search, and correlated logs pre-wired.
 2. **Explore** (raw queries): pick the Tempo/Loki/Mimir datasource from the
    dropdown — they're already provisioned as part of the stack, no manual
