@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-08-10
+
+1. Bluesky Jetstream ingestion now deploys to Railway as its own project alongside the backend, with per-service config files under `railway/` and watch patterns that keep a push to one from redeploying the other. The backend was reduced to `/health` — its Athena-backed post routes referenced infrastructure destroyed in #141 — and its telemetry moved out of the `opentelemetry-instrument` wrapper into `backend/telemetry/`, matching the ingester's in-code setup and leaving the Grafana Cloud token as the only telemetry variable. [PR #153](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/153)
+
 ## 2026-08-06
 
 1. Bluesky Jetstream ingestion now reports to Grafana Cloud over OpenTelemetry: rows and bytes committed per record type, socket disconnects by reason, dead-lettered and dropped rows, stream cursor position, and live connection state, plus one JSON log line per flush. Ships with a checked-in dashboard (`bluesky_ingestion_jetstream/telemetry/dashboards/jetstream_ingestion.json`) and a setup runbook. [PR #147](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/147)
