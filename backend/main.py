@@ -1,13 +1,28 @@
 import logging
 import os
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.telemetry import force_telemetry_flush, setup_telemetry
+
+load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    """Export what is buffered on shutdown, so a redeploy still reports."""
+
+    yield
+    force_telemetry_flush()
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,3 +37,6 @@ def health():
     """Health check endpoint. Returns 200 when the service is up."""
     logger.debug("health check called")
     return {"status": "ok"}
+
+
+setup_telemetry(app)
