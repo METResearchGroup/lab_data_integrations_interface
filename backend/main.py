@@ -4,8 +4,6 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.routes.posts import router as posts_router
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -24,6 +22,3 @@ def health():
     """Health check endpoint. Returns 200 when the service is up."""
     logger.debug("health check called")
     return {"status": "ok"}
-
-
-app.include_router(posts_router, tags=["posts"])
