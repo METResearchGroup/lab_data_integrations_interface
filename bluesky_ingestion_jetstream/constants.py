@@ -46,7 +46,7 @@ REQUIRED_KEYS = {
 # Flush when the buffers hold this many serialized bytes in total, or when the
 # oldest rows have been waiting this long.
 MAX_BUFFER_SIZE_BYTES = 2 * 1024 * 1024 * 1024
-MAX_BUFFER_AGE_SECONDS = 30.0
+MAX_BUFFER_AGE_SECONDS = 30.0 * 60.0
 
 # How often the flush task re-checks the thresholds.
 FLUSH_CHECK_INTERVAL_SECONDS = 1.0
