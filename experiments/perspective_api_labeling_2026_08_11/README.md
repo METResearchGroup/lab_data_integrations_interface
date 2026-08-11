@@ -55,7 +55,7 @@ PYTHONPATH=. uv run python experiments/perspective_api_labeling_2026_08_11/label
   experiments/perspective_api_labeling_2026_08_11/data/2026-08-09.parquet --limit 1000
 ```
 
-At ~90 QPS, a full day (~3M posts) takes on the order of many hours. Use `--limit` for a smoke test first.
+Use `--batch-size 20 --delay-seconds 0.25` for stable throughput (~60-70 QPS). Larger batches (e.g. 90) produce frequent 503s and slow retries. A full day (~3M posts) takes on the order of many hours. Use `--limit` for a smoke test first.
 
 3. Consolidate tmp chunks into a single day file and clear the tmp dir:
 
