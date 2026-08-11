@@ -41,6 +41,7 @@ dependencies = [
     "pyjwt>=2.13.0",
     "google-api-python-client>=2.198.0",
     "matplotlib>=3.11.1",
+    "tabulate>=0.10.0",
 ]
 
 [project.optional-dependencies]
