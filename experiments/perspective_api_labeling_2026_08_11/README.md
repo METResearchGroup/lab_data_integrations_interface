@@ -13,3 +13,24 @@ The model for the Perspective API is defined in `feature_generation/perspective_
 Our current posts Athena table prunes to a given day partition (e.g., `WHERE created_at_day = ...`), which makes queries more efficient.
 
 We'll fetch just posts that were created 2026-08-09 and 2026-08-10.
+
+## Post counts (2026-08-09 and 2026-08-10)
+
+Queried via `get_post_count_by_day.py` against `bluesky_raw.posts`:
+
+```markdown
+database: bluesky_raw
+workgroup: bluesky_raw_maintenance
+
+created_at_day	post_count
+2026-08-09	3124215
+2026-08-10	3463641
+
+total: 6587856
+```
+
+Run from repo root:
+
+```bash
+PYTHONPATH=. uv run python experiments/perspective_api_labeling_2026_08_11/get_post_count_by_day.py
+```
