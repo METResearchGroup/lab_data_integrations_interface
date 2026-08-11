@@ -1,6 +1,7 @@
 """Model for the classify_perspective_api service."""
 
 import asyncio
+import concurrent.futures
 import json
 from typing import Literal
 
@@ -229,12 +230,21 @@ async def process_perspective_batch(requests: list[dict]) -> list[dict | None]:
         batch.add(google_client.comments().analyze(body=request), callback=callback)
 
     try:
-        # Run sync httplib2 I/O off the event loop with a hard timeout so a
-        # hung socket cannot stall the labeling run forever.
-        await asyncio.wait_for(
-            asyncio.to_thread(batch.execute),
-            timeout=BATCH_EXECUTE_TIMEOUT_SECONDS,
-        )
+        # Run sync httplib2 I/O in a worker thread with a hard timeout.
+        # Future.result(timeout=...) raises after N seconds even when the
+        # underlying socket call is wedged (we previously saw ~2h hangs).
+        # shutdown(wait=False) is critical: a wedged execute must not block
+        # the caller when the timeout fires.
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        try:
+            fut = pool.submit(batch.execute)
+            await asyncio.to_thread(fut.result, BATCH_EXECUTE_TIMEOUT_SECONDS)
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
+    except concurrent.futures.TimeoutError as exc:
+        print(f"Perspective batch execute timed out after {BATCH_EXECUTE_TIMEOUT_SECONDS}s: {exc}")
+        while len(responses) < len(requests):
+            responses.append(None)
     except (TimeoutError, OSError, HttpError) as exc:
         print(f"Perspective batch execute failed: {exc}")
         # Treat the whole batch as failed so retries can recover.
