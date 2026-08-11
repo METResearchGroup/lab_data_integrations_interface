@@ -34,3 +34,38 @@ Run from repo root:
 ```bash
 PYTHONPATH=. uv run python experiments/perspective_api_labeling_2026_08_11/get_post_count_by_day.py
 ```
+
+## Labeling
+
+1. Download posts (one Parquet per day under `data/`):
+
+```bash
+PYTHONPATH=. uv run python experiments/perspective_api_labeling_2026_08_11/download_posts_by_day.py
+```
+
+2. Label with Perspective API. Progress is flushed every 10k rows to
+   `labels/tmp/{date}/{hash}.parquet`. Re-runs skip URIs already present in that tmp dir.
+
+```bash
+PYTHONPATH=. uv run python experiments/perspective_api_labeling_2026_08_11/label_posts.py \
+  experiments/perspective_api_labeling_2026_08_11/data/2026-08-09.parquet
+
+# Optional: smoke-test a small slice
+PYTHONPATH=. uv run python experiments/perspective_api_labeling_2026_08_11/label_posts.py \
+  experiments/perspective_api_labeling_2026_08_11/data/2026-08-09.parquet --limit 1000
+```
+
+3. Consolidate tmp chunks into a single day file and clear the tmp dir:
+
+```bash
+PYTHONPATH=. uv run python experiments/perspective_api_labeling_2026_08_11/consolidate_labels.py \
+  --date 2026-08-09
+```
+
+Output layout:
+
+```
+data/{date}.parquet
+labels/tmp/{date}/{hash}.parquet   # mid-run flushes
+labels/{date}.parquet              # consolidated
+```
