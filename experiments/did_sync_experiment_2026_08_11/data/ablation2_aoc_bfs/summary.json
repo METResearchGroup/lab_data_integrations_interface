@@ -1,0 +1,42 @@
+{
+  "ablation": "ablation2_aoc_bfs",
+  "did_count": 5,
+  "valid_did_count": 1,
+  "invalid_did_count": 4,
+  "discovery": {
+    "request_count": 2,
+    "runtime_seconds": 0.4274880329999746,
+    "rate_limit_event_count": 0,
+    "extra": {
+      "seed_handle": "aoc.bsky.social",
+      "seed_did": "did:plc:p7gxyfr5vii5ntpwo7f6dhe2",
+      "seed_followers_count": 2209741,
+      "max_depth_reached": 1,
+      "pages_by_depth": {
+        "0": 1
+      },
+      "followers_page_size": 100,
+      "note": "BFS over getFollowers: level 0 is AOC, collected DIDs are followers encountered while expanding the queue. AOC herself is not counted."
+    }
+  },
+  "analysis": {
+    "cutoff_iso": "2026-02-09T13:14:58.632962+00:00",
+    "days_back": 183,
+    "workers": 4,
+    "appview_seconds": 0.14120036100001698,
+    "getrepo_seconds": 2.0361836380000113,
+    "getrepo_request_count": 5,
+    "rate_limited_count": 0,
+    "error_count": 0,
+    "valid_count": 1,
+    "did_count": 5,
+    "validity_thresholds": {
+      "min_followers": 10,
+      "min_followees": 10,
+      "min_original_posts_6m": 20,
+      "min_interactions_6m": 20,
+      "interactions_definition": "like + save/bookmark + quote + repost + reply in window"
+    }
+  },
+  "validity_rate": 0.2
+}

@@ -1,0 +1,25 @@
+{
+  "ablation": "ablation2_aoc_bfs",
+  "did_count": 5,
+  "dids": [
+    "did:plc:zxyodtthvyndwtbibywanhkz",
+    "did:plc:n26cmjpxrbxq4o4kemihyapv",
+    "did:plc:otvuwjpp7hygpqmhfo5iu2a7",
+    "did:plc:2now4susbhbrt64uwhm4ktkg",
+    "did:plc:25ijthqu2fskqt5wb5nwriis"
+  ],
+  "request_count": 2,
+  "runtime_seconds": 0.4274880329999746,
+  "rate_limit_events": [],
+  "extra": {
+    "seed_handle": "aoc.bsky.social",
+    "seed_did": "did:plc:p7gxyfr5vii5ntpwo7f6dhe2",
+    "seed_followers_count": 2209741,
+    "max_depth_reached": 1,
+    "pages_by_depth": {
+      "0": 1
+    },
+    "followers_page_size": 100,
+    "note": "BFS over getFollowers: level 0 is AOC, collected DIDs are followers encountered while expanding the queue. AOC herself is not counted."
+  }
+}

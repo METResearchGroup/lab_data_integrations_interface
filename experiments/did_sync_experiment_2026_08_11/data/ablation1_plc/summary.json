@@ -1,0 +1,39 @@
+{
+  "ablation": "ablation1_plc",
+  "did_count": 5,
+  "valid_did_count": 3,
+  "invalid_did_count": 2,
+  "discovery": {
+    "request_count": 1,
+    "runtime_seconds": 0.07018315400000574,
+    "rate_limit_event_count": 0,
+    "extra": {
+      "endpoint": "https://plc.directory/export",
+      "pages": 1,
+      "page_size": 1000,
+      "final_after_cursor": "2022-11-17T03:30:47.787Z",
+      "last_rate_limit_headers": {},
+      "note": "PLC export returns NDJSON operations chronologically from genesis. Multiple ops can share a DID; we collect unique DIDs."
+    }
+  },
+  "analysis": {
+    "cutoff_iso": "2026-02-09T13:14:48.232610+00:00",
+    "days_back": 183,
+    "workers": 4,
+    "appview_seconds": 0.17181371099997023,
+    "getrepo_seconds": 9.790058405000025,
+    "getrepo_request_count": 5,
+    "rate_limited_count": 1,
+    "error_count": 1,
+    "valid_count": 3,
+    "did_count": 5,
+    "validity_thresholds": {
+      "min_followers": 10,
+      "min_followees": 10,
+      "min_original_posts_6m": 20,
+      "min_interactions_6m": 20,
+      "interactions_definition": "like + save/bookmark + quote + repost + reply in window"
+    }
+  },
+  "validity_rate": 0.6
+}

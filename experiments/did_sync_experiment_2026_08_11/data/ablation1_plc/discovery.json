@@ -1,0 +1,22 @@
+{
+  "ablation": "ablation1_plc",
+  "did_count": 5,
+  "dids": [
+    "did:plc:ragtjsm2j2vknwkz3zp4oxrd",
+    "did:plc:l3rouwludahu3ui3bt66mfvj",
+    "did:plc:vpkhqolt662uhesyj6nxm7ys",
+    "did:plc:yk4dd2qkboz2yv6tpubpc6co",
+    "did:plc:6uow4ajxchftgyvvppnqa6uj"
+  ],
+  "request_count": 1,
+  "runtime_seconds": 0.07018315400000574,
+  "rate_limit_events": [],
+  "extra": {
+    "endpoint": "https://plc.directory/export",
+    "pages": 1,
+    "page_size": 1000,
+    "final_after_cursor": "2022-11-17T03:30:47.787Z",
+    "last_rate_limit_headers": {},
+    "note": "PLC export returns NDJSON operations chronologically from genesis. Multiple ops can share a DID; we collect unique DIDs."
+  }
+}
