@@ -12,14 +12,19 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections import deque
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Callable
 
 from atproto import Client
 
+from experimentation.aoc_followers_backfill.client import create_public_client
 from experiments.did_sync_experiment_2026_08_11.constants import (
     ABLATION1_NAME,
+    ABLATION2_NAME,
+    AOC_HANDLE,
+    FOLLOWERS_PAGE_SIZE,
     PLC_EXPORT_URL,
     PLC_MAX_LOOKBACK_HOURS,
     PLC_PAGE_SIZE,
@@ -215,8 +220,52 @@ def discover_plc_dids(
     )
 
 
-def discover_aoc_bfs_dids(target: int, client: Client | None = None) -> DiscoveryResult:
+def _is_rate_limited_error(exc: Exception) -> bool:
+    status_code = getattr(getattr(exc, "response", None), "status_code", None)
+    if status_code == 429:
+        return True
+    message = str(exc).lower()
+    return "429" in message or "ratelimit" in message or "rate limit" in message
+
+
+def _get_followers_page(
+    client: Client,
+    actor: str,
+    cursor: str | None,
+    rate_limit_events: list[RateLimitEvent],
+    sleep: Callable[[float], None],
+):
+    """Fetch one followers page with retry on rate limits."""
+    params: dict[str, Any] = {"actor": actor, "limit": FOLLOWERS_PAGE_SIZE}
+    if cursor:
+        params["cursor"] = cursor
+    while True:
+        try:
+            return client.app.bsky.graph.get_followers(params)
+        except Exception as exc:
+            if not _is_rate_limited_error(exc):
+                raise
+            rate_limit_events.append(
+                RateLimitEvent(
+                    source="app.bsky.graph.getFollowers",
+                    at_unix=time.time(),
+                    status_code=429,
+                    detail=str(exc),
+                    retry_after=None,
+                )
+            )
+            sleep(5.0)
+
+
+def discover_aoc_bfs_dids(
+    target: int,
+    client: Client | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+) -> DiscoveryResult:
     """Collect unique DIDs by breadth first search over AOC followers.
+
+    Stops as soon as ``target`` unique follower DIDs are collected. The seed
+    account itself is not included in the result list.
 
     Parameters
     ----------
@@ -224,10 +273,78 @@ def discover_aoc_bfs_dids(target: int, client: Client | None = None) -> Discover
         Number of unique DIDs to collect.
     client
         Optional AppView client. When omitted, a public client is created.
+    sleep
+        Sleep callable used after rate limit errors.
 
     Returns
     -------
     DiscoveryResult
         Ordered unique DIDs and discovery metrics.
     """
-    raise NotImplementedError("discover_aoc_bfs_dids is implemented in step 3")
+    start = time.perf_counter()
+    appview = client if client is not None else create_public_client()
+    rate_limit_events: list[RateLimitEvent] = []
+    request_count = 0
+
+    seed_profile = appview.app.bsky.actor.get_profile({"actor": AOC_HANDLE})
+    request_count += 1
+    seed_did = seed_profile.did
+    seed_followers_count = getattr(seed_profile, "followers_count", None)
+
+    dids: list[str] = []
+    seen: set[str] = set()
+    queue: deque[tuple[str, int]] = deque([(seed_did, 0)])
+    enqueued: set[str] = {seed_did}
+    pages_by_depth: dict[int, int] = {}
+    max_depth_reached = 0
+
+    while len(dids) < target and queue:
+        expand_did, depth = queue.popleft()
+        max_depth_reached = max(max_depth_reached, depth)
+        cursor: str | None = None
+
+        while len(dids) < target:
+            request_count += 1
+            pages_by_depth[depth] = pages_by_depth.get(depth, 0) + 1
+            response = _get_followers_page(
+                appview, expand_did, cursor, rate_limit_events, sleep
+            )
+            followers = list(response.followers or [])
+            if not followers:
+                break
+
+            for follower in followers:
+                follower_did = follower.did
+                if follower_did in seen or follower_did == seed_did:
+                    continue
+                seen.add(follower_did)
+                dids.append(follower_did)
+                if follower_did not in enqueued:
+                    queue.append((follower_did, depth + 1))
+                    enqueued.add(follower_did)
+                if len(dids) >= target:
+                    break
+
+            cursor = getattr(response, "cursor", None)
+            if not cursor or len(dids) >= target:
+                break
+
+    runtime = time.perf_counter() - start
+    extra: dict[str, Any] = {
+        "seed_handle": AOC_HANDLE,
+        "seed_did": seed_did,
+        "seed_followers_count": seed_followers_count,
+        "max_depth_reached": max_depth_reached,
+        "pages_by_depth": {str(k): v for k, v in sorted(pages_by_depth.items())},
+    }
+    if len(dids) < target:
+        extra["shortfall"] = target - len(dids)
+
+    return DiscoveryResult(
+        ablation=ABLATION2_NAME,
+        dids=dids,
+        request_count=request_count,
+        runtime_seconds=runtime,
+        rate_limit_events=rate_limit_events,
+        extra=extra,
+    )
