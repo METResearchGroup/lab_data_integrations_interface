@@ -55,6 +55,8 @@ PYTHONPATH=. uv run python experiments/perspective_api_labeling_2026_08_11/label
   experiments/perspective_api_labeling_2026_08_11/data/2026-08-09.parquet --limit 1000
 ```
 
+At ~90 QPS, a full day (~3M posts) takes on the order of many hours. Use `--limit` for a smoke test first.
+
 3. Consolidate tmp chunks into a single day file and clear the tmp dir:
 
 ```bash

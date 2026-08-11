@@ -24,6 +24,7 @@ import time
 from pathlib import Path
 
 import pandas as pd
+from tqdm import tqdm
 
 from feature_generation.perspective_api.model import (
     DEFAULT_BATCH_SIZE,
@@ -87,11 +88,15 @@ def posts_for_api(frame: pd.DataFrame) -> list[dict]:
     return posts
 
 
-def flush_labels(buffer: list[dict], tmp_dir: Path) -> Path:
-    """Write buffered labels to labels/tmp/{date}/{sha256_16}.parquet and clear buffer."""
+def flush_labels(buffer: list[dict], tmp_dir: Path) -> tuple[Path, int]:
+    """Write buffered labels to labels/tmp/{date}/{sha256_16}.parquet and clear buffer.
+
+    Returns (output_path, rows_flushed).
+    """
     if not buffer:
         raise ValueError("flush_labels called with empty buffer")
 
+    rows_flushed = len(buffer)
     tmp_dir.mkdir(parents=True, exist_ok=True)
     frame = pd.DataFrame(buffer)
     partial = tmp_dir / f".partial-{hashlib.sha256(str(time.time_ns()).encode()).hexdigest()[:8]}.parquet"
@@ -105,9 +110,8 @@ def flush_labels(buffer: list[dict], tmp_dir: Path) -> Path:
     else:
         partial.replace(output_path)
 
-    print(f"flushed {len(buffer):,} labels -> {output_path.relative_to(EXPERIMENT_DIR)}")
     buffer.clear()
-    return output_path
+    return output_path, rows_flushed
 
 
 async def label_posts(
@@ -121,28 +125,30 @@ async def label_posts(
     buffer: list[dict] = []
     labeled = 0
 
-    for start in range(0, len(posts), batch_size):
-        batch = posts[start : start + batch_size]
-        requests = [create_perspective_request(post["text"]) for post in batch]
-        responses = await process_perspective_batch_with_retries(requests)
-        labels = create_labels(batch, responses)
-        buffer.extend(labels)
-        labeled += len(labels)
+    with tqdm(total=len(posts), unit="post", desc="labeling") as progress:
+        for start in range(0, len(posts), batch_size):
+            batch = posts[start : start + batch_size]
+            requests = [create_perspective_request(post["text"]) for post in batch]
+            responses = await process_perspective_batch_with_retries(requests)
+            labels = create_labels(batch, responses)
+            buffer.extend(labels)
+            labeled += len(labels)
 
-        print(
-            f"labeled {labeled:,}/{len(posts):,} "
-            f"(buffer={len(buffer):,}/{flush_size:,})"
-        )
+            if len(buffer) >= flush_size:
+                output_path, rows_flushed = flush_labels(buffer, tmp_dir)
+                progress.update(rows_flushed)
+                progress.set_postfix_str(
+                    f"flushed {output_path.relative_to(EXPERIMENT_DIR)}"
+                )
 
-        if len(buffer) >= flush_size:
-            flush_labels(buffer, tmp_dir)
+            # Stay under Perspective QPS between batches (skip delay after last batch).
+            if start + batch_size < len(posts):
+                await asyncio.sleep(delay_seconds)
 
-        # Stay under Perspective QPS between batches (skip delay after last batch).
-        if start + batch_size < len(posts):
-            await asyncio.sleep(delay_seconds)
-
-    if buffer:
-        flush_labels(buffer, tmp_dir)
+        if buffer:
+            output_path, rows_flushed = flush_labels(buffer, tmp_dir)
+            progress.update(rows_flushed)
+            progress.set_postfix_str(f"flushed {output_path.relative_to(EXPERIMENT_DIR)}")
 
     return labeled
 
