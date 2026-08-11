@@ -51,9 +51,7 @@ class TestDiscoverCohort:
     def test_short_follower_list_does_not_pad(self):
         """Fewer than 50 followers yields 1 + available members."""
         client = MagicMock()
-        client.app.bsky.actor.get_profile.return_value = _profile(
-            "did:plc:aoc", "aoc.bsky.social"
-        )
+        client.app.bsky.actor.get_profile.return_value = _profile("did:plc:aoc", "aoc.bsky.social")
         client.app.bsky.graph.get_followers.return_value = SimpleNamespace(
             followers=[
                 _follower("did:plc:u0", "u0.bsky.social"),
@@ -77,9 +75,7 @@ class TestDiscoverCohort:
     def test_stops_at_fifty_across_pages(self):
         """Paging stops once 50 followers are collected."""
         client = MagicMock()
-        client.app.bsky.actor.get_profile.return_value = _profile(
-            "did:plc:aoc", "aoc.bsky.social"
-        )
+        client.app.bsky.actor.get_profile.return_value = _profile("did:plc:aoc", "aoc.bsky.social")
         page1 = [_follower(f"did:plc:p1_{i}", f"p1_{i}.bsky.social") for i in range(100)]
         page2 = [_follower(f"did:plc:p2_{i}", f"p2_{i}.bsky.social") for i in range(20)]
         client.app.bsky.graph.get_followers.side_effect = [
@@ -118,15 +114,11 @@ class TestDiscoverCohort:
     def test_does_not_construct_relay_client(self):
         """Discovery never builds a relay client."""
         client = MagicMock()
-        client.app.bsky.actor.get_profile.return_value = _profile(
-            "did:plc:aoc", "aoc.bsky.social"
-        )
+        client.app.bsky.actor.get_profile.return_value = _profile("did:plc:aoc", "aoc.bsky.social")
         client.app.bsky.graph.get_followers.return_value = SimpleNamespace(
             followers=[], cursor=None
         )
 
-        with patch(
-            "experimentation.aoc_followers_backfill.client.create_relay_client"
-        ) as relay:
+        with patch("experimentation.aoc_followers_backfill.client.create_relay_client") as relay:
             discover_cohort(client)
             relay.assert_not_called()

@@ -96,6 +96,14 @@ def write_outputs(
     """
     timestamp = run_start.strftime("%Y_%m_%d-%H:%M:%S")
     output_dir = OUTPUT_ROOT / timestamp
+    suffix = 0
+    while True:
+        try:
+            output_dir.mkdir(parents=True, exist_ok=False)
+            break
+        except FileExistsError:
+            suffix += 1
+            output_dir = OUTPUT_ROOT / f"{timestamp}_{suffix}"
     raw_dir = output_dir / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
 
@@ -109,9 +117,7 @@ def write_outputs(
 
     derived_path = output_dir / "derived_stats.json"
     derived_path.write_text(json.dumps(derived_stats, indent=2), encoding="utf-8")
-    _derived_stats_dataframe(derived_stats).to_csv(
-        output_dir / "derived_stats.csv", index=False
-    )
+    _derived_stats_dataframe(derived_stats).to_csv(output_dir / "derived_stats.csv", index=False)
 
     errors = [
         {"did": bundle.did, "handle": bundle.handle, "reason": bundle.error}
@@ -153,7 +159,5 @@ def write_outputs(
             "parent_post_body",
         ],
     }
-    (output_dir / "metadata.json").write_text(
-        json.dumps(metadata, indent=2), encoding="utf-8"
-    )
+    (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     return output_dir

@@ -139,16 +139,21 @@ def build_profile_record(record: dict[str, Any]) -> ProfileRecord:
     )
 
 
-def created_at_in_window(created_at: str | None, window_start: datetime) -> bool:
-    """Return True when ``created_at`` parses and is at or after ``window_start``."""
+def created_at_in_window(
+    created_at: str | None, window_start: datetime, window_end: datetime
+) -> bool:
+    """Return True when ``created_at`` is timezone-aware and inside the window."""
     if not created_at:
         return False
     try:
-        return parse_bsky_datetime(created_at) >= window_start
+        created_dt = parse_bsky_datetime(created_at)
     except ValueError:
         return False
+    if created_dt.tzinfo is None:
+        return False
+    return window_start <= created_dt <= window_end
 
 
-def filter_rows_by_window(rows: list, window_start: datetime) -> list:
+def filter_rows_by_window(rows: list, window_start: datetime, window_end: datetime) -> list:
     """Keep rows whose ``created_at`` falls inside the trailing window."""
-    return [row for row in rows if created_at_in_window(row.created_at, window_start)]
+    return [row for row in rows if created_at_in_window(row.created_at, window_start, window_end)]

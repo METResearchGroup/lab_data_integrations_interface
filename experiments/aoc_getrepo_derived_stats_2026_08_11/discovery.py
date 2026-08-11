@@ -47,9 +47,7 @@ def _member_from_detailed_profile(profile, is_seed: bool) -> CohortMember:
     )
 
 
-def _fetch_recent_followers(
-    client: Client, target_did: str, limit: int
-) -> list[tuple[str, str]]:
+def _fetch_recent_followers(client: Client, target_did: str, limit: int) -> list[tuple[str, str]]:
     """Return up to ``limit`` newest followers as (did, handle) pairs."""
     followers: list[tuple[str, str]] = []
     cursor = None

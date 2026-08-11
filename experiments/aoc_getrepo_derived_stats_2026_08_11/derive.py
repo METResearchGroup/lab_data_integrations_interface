@@ -19,15 +19,17 @@ from experiments.aoc_getrepo_derived_stats_2026_08_11.schemas import (
 )
 
 
-def _original_posts(posts: list[PostRow], window_start: datetime) -> list[dict[str, Any]]:
+def _original_posts(
+    posts: list[PostRow], window_start: datetime, window_end: datetime
+) -> list[dict[str, Any]]:
     return [
         {"uri": post.uri, "created_at": post.created_at, "text": post.text}
-        for post in filter_rows_by_window(posts, window_start)
+        for post in filter_rows_by_window(posts, window_start, window_end)
         if not post.is_reply
     ]
 
 
-def _liked_or_reposted(rows, window_start: datetime) -> list[dict[str, Any]]:
+def _liked_or_reposted(rows, window_start: datetime, window_end: datetime) -> list[dict[str, Any]]:
     return [
         {
             "uri": row.uri,
@@ -35,11 +37,13 @@ def _liked_or_reposted(rows, window_start: datetime) -> list[dict[str, Any]]:
             "subject_uri": row.subject_uri,
             "subject_cid": row.subject_cid,
         }
-        for row in filter_rows_by_window(rows, window_start)
+        for row in filter_rows_by_window(rows, window_start, window_end)
     ]
 
 
-def _quoted_posts(posts: list[PostRow], window_start: datetime) -> list[dict[str, Any]]:
+def _quoted_posts(
+    posts: list[PostRow], window_start: datetime, window_end: datetime
+) -> list[dict[str, Any]]:
     return [
         {
             "uri": post.uri,
@@ -48,12 +52,14 @@ def _quoted_posts(posts: list[PostRow], window_start: datetime) -> list[dict[str
             "quoted_post_uri": post.quoted_post_uri,
             "quoted_post_body": None,
         }
-        for post in filter_rows_by_window(posts, window_start)
+        for post in filter_rows_by_window(posts, window_start, window_end)
         if post.quoted_post_uri
     ]
 
 
-def _replied_posts(posts: list[PostRow], window_start: datetime) -> list[dict[str, Any]]:
+def _replied_posts(
+    posts: list[PostRow], window_start: datetime, window_end: datetime
+) -> list[dict[str, Any]]:
     return [
         {
             "uri": post.uri,
@@ -63,12 +69,14 @@ def _replied_posts(posts: list[PostRow], window_start: datetime) -> list[dict[st
             "reply_root_uri": post.reply_root_uri,
             "parent_post_body": None,
         }
-        for post in filter_rows_by_window(posts, window_start)
+        for post in filter_rows_by_window(posts, window_start, window_end)
         if post.is_reply
     ]
 
 
-def _follow_actions(follows: list[FollowRow], window_start: datetime) -> list[dict[str, Any]]:
+def _follow_actions(
+    follows: list[FollowRow], window_start: datetime, window_end: datetime
+) -> list[dict[str, Any]]:
     return [
         {
             "uri": follow.uri,
@@ -76,7 +84,7 @@ def _follow_actions(follows: list[FollowRow], window_start: datetime) -> list[di
             "followed_did": follow.followed_did,
         }
         for follow in follows
-        if created_at_in_window(follow.created_at, window_start)
+        if created_at_in_window(follow.created_at, window_start, window_end)
     ]
 
 
@@ -94,14 +102,14 @@ def _cohort_follower_map(
     bundles_by_did: dict[str, RepoBundle], cohort_dids: set[str]
 ) -> dict[str, list[str]]:
     """Map each DID to cohort members who still follow them."""
-    followers: dict[str, list[str]] = {did: [] for did in cohort_dids}
+    followers: dict[str, set[str]] = {did: set() for did in cohort_dids}
     for source_did, bundle in bundles_by_did.items():
         if bundle.error is not None:
             continue
         for follow in bundle.follows:
             target = follow.followed_did
             if target in cohort_dids and target != source_did:
-                followers[target].append(source_did)
+                followers[target].add(source_did)
     return {did: sorted(sources) for did, sources in followers.items()}
 
 
@@ -131,16 +139,17 @@ def _derive_one(
     if profile is not None:
         shell["display_name"] = profile.display_name
         shell["bio"] = profile.description
+        # Profile record createdAt only; never infer from earliest post.
         shell["account_created_at"] = profile.created_at
 
-    shell["original_posts"] = _original_posts(bundle.posts, window_start)
-    shell["liked_posts"] = _liked_or_reposted(bundle.likes, window_start)
-    shell["reposted_posts"] = _liked_or_reposted(bundle.reposts, window_start)
-    shell["quoted_posts"] = _quoted_posts(bundle.posts, window_start)
-    shell["replied_posts"] = _replied_posts(bundle.posts, window_start)
+    shell["original_posts"] = _original_posts(bundle.posts, window_start, window_end)
+    shell["liked_posts"] = _liked_or_reposted(bundle.likes, window_start, window_end)
+    shell["reposted_posts"] = _liked_or_reposted(bundle.reposts, window_start, window_end)
+    shell["quoted_posts"] = _quoted_posts(bundle.posts, window_start, window_end)
+    shell["replied_posts"] = _replied_posts(bundle.posts, window_start, window_end)
     shell["cohort_followees"] = _cohort_followees(bundle.follows, cohort_dids)
     shell["followees_count"] = len(bundle.follows)
-    shell["follow_actions"] = _follow_actions(bundle.follows, window_start)
+    shell["follow_actions"] = _follow_actions(bundle.follows, window_start, window_end)
     return shell
 
 

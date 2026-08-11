@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 
 from atproto import Client
@@ -44,7 +43,9 @@ def _empty_bundle(member: CohortMember, error: str | None = None) -> RepoBundle:
     return RepoBundle(did=member.did, handle=member.handle, error=error)
 
 
-def classify_records(records: dict[str, dict[str, Any]]) -> tuple[
+def classify_records(
+    records: dict[str, dict[str, Any]],
+) -> tuple[
     list[PostRow],
     list[LikeOrRepostRow],
     list[LikeOrRepostRow],
@@ -101,7 +102,11 @@ def fetch_one_repo(member: CohortMember, relay_client: Client) -> RepoBundle:
     except Exception as exc:
         return _empty_bundle(member, error=f"CAR/MST decode failed: {exc}")
 
-    posts, likes, reposts, follows, profile = classify_records(records)
+    try:
+        posts, likes, reposts, follows, profile = classify_records(records)
+    except Exception as exc:
+        return _empty_bundle(member, error=f"record classification failed: {exc}")
+
     return RepoBundle(
         did=member.did,
         handle=member.handle,

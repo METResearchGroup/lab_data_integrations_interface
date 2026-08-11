@@ -84,9 +84,7 @@ class TestQuoteAndReplyExtraction:
 
         nested = {
             "$type": "app.bsky.embed.recordWithMedia",
-            "record": {
-                "record": {"uri": "at://did:plc:bob/app.bsky.feed.post/qm", "cid": "bafym"}
-            },
+            "record": {"record": {"uri": "at://did:plc:bob/app.bsky.feed.post/qm", "cid": "bafym"}},
         }
         assert extract_quoted_post_uri(nested) == "at://did:plc:bob/app.bsky.feed.post/qm"
 
@@ -129,7 +127,8 @@ class TestFilterRowsByWindow:
         }
         posts, _, _, _, profile = classify_records(records)
         window_start = datetime(2026, 1, 1, tzinfo=UTC)
-        filtered = filter_rows_by_window(posts, window_start)
+        window_end = datetime(2026, 7, 2, tzinfo=UTC)
+        filtered = filter_rows_by_window(posts, window_start, window_end)
 
         assert [row.text for row in filtered] == ["new"]
         assert profile is not None
@@ -181,6 +180,30 @@ class TestFetchOneRepo:
         assert bundle.posts == []
         assert bundle.profile is None
 
+    def test_classification_failure_sets_error(self):
+        """Malformed records become per-DID errors without stopping the caller."""
+        member = _member()
+        relay = MagicMock()
+        relay.com.atproto.sync.get_repo.return_value = b"car-bytes"
+        malformed = {
+            "at://did:plc:alice/app.bsky.feed.post/1": {
+                "$type": "app.bsky.feed.post",
+                "text": "bad reply",
+                "createdAt": "2026-07-01T00:00:00.000Z",
+                "reply": {"parent": "not-a-strong-ref"},
+            }
+        }
+
+        with patch(
+            "experiments.aoc_getrepo_derived_stats_2026_08_11.fetch_repos.decode_repo",
+            return_value=("did:plc:alice", malformed),
+        ):
+            bundle = fetch_one_repo(member, relay)
+
+        assert bundle.error is not None
+        assert "record classification failed" in bundle.error
+        assert bundle.posts == []
+
 
 class TestFetchCohortRepos:
     """Tests for fetch_cohort_repos()."""
@@ -222,8 +245,8 @@ class TestImportsDecodeRepo:
 
     def test_fetch_module_imports_shared_mst(self):
         """fetch_repos.py must import decode_repo from the shared MST module."""
-        source = Path(
-            "experiments/aoc_getrepo_derived_stats_2026_08_11/fetch_repos.py"
-        ).read_text(encoding="utf-8")
+        source = Path("experiments/aoc_getrepo_derived_stats_2026_08_11/fetch_repos.py").read_text(
+            encoding="utf-8"
+        )
         assert "from experimentation.aoc_followers_backfill.mst import decode_repo" in source
         assert "def _walk_node" not in source

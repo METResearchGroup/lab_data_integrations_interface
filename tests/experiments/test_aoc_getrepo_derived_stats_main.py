@@ -2,7 +2,6 @@
 
 import json
 from datetime import UTC, datetime
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -79,9 +78,7 @@ class TestWriteOutputs:
             for member in members
         ]
 
-        output_dir = write_outputs(
-            members, bundles, derived, run_start, window_start, run_start
-        )
+        output_dir = write_outputs(members, bundles, derived, run_start, window_start, run_start)
 
         assert (output_dir / "metadata.json").is_file()
         assert (output_dir / "derived_stats.json").is_file()
@@ -98,6 +95,32 @@ class TestWriteOutputs:
         assert pd.isna(frame.loc[0, "unfollow_actions"])
         assert frame.loc[0, "saved_posts"] != "[]"
         assert frame.loc[0, "unfollow_actions"] != "[]"
+
+    def test_same_run_start_does_not_overwrite(self, tmp_path, monkeypatch):
+        """Two writes with the same run_start keep both artifact directories."""
+        monkeypatch.setattr(
+            "experiments.aoc_getrepo_derived_stats_2026_08_11.output.OUTPUT_ROOT",
+            tmp_path,
+        )
+        run_start = datetime(2026, 8, 11, 12, 0, 0, tzinfo=UTC)
+        window_start = datetime(2026, 2, 10, 12, 0, 0, tzinfo=UTC)
+        members = [_member("did:plc:aoc", "aoc.bsky.social", is_seed=True)]
+        bundles = [RepoBundle(did="did:plc:aoc", handle="aoc.bsky.social")]
+        derived = [
+            empty_derived_stats_shell(
+                did="did:plc:aoc",
+                handle="aoc.bsky.social",
+                window_start=window_start.isoformat(),
+                window_end=run_start.isoformat(),
+            )
+        ]
+
+        first = write_outputs(members, bundles, derived, run_start, window_start, run_start)
+        second = write_outputs(members, bundles, derived, run_start, window_start, run_start)
+
+        assert first != second
+        assert (first / "metadata.json").is_file()
+        assert (second / "metadata.json").is_file()
 
 
 class TestRun:

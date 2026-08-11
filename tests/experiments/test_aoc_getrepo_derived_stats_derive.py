@@ -151,12 +151,69 @@ class TestDeriveStats:
             RepoBundle(did="did:plc:c", handle="c.bsky.social", follows=[]),
         ]
 
-        results = {row["did"]: row for row in derive_stats([a, b, c], bundles, WINDOW_START, WINDOW_END)}
+        results = {
+            row["did"]: row for row in derive_stats([a, b, c], bundles, WINDOW_START, WINDOW_END)
+        }
 
         assert results["did:plc:a"]["cohort_followees"] == ["did:plc:b"]
         assert results["did:plc:a"]["cohort_followers"] == ["did:plc:b"]
         assert results["did:plc:b"]["cohort_followees"] == ["did:plc:a", "did:plc:c"]
         assert results["did:plc:c"]["cohort_followers"] == ["did:plc:b"]
+
+    def test_duplicate_follow_records_dedupe_cohort_followers(self):
+        """Multiple follow records from one source to one target appear once."""
+        a = _member("did:plc:a", "a.bsky.social")
+        b = _member("did:plc:b", "b.bsky.social")
+        bundles = [
+            RepoBundle(
+                did="did:plc:a",
+                handle="a.bsky.social",
+                follows=[
+                    FollowRow(
+                        uri="at://did:plc:a/app.bsky.graph.follow/1",
+                        created_at="2026-02-01T00:00:00.000Z",
+                        followed_did="did:plc:b",
+                    ),
+                    FollowRow(
+                        uri="at://did:plc:a/app.bsky.graph.follow/2",
+                        created_at="2026-03-01T00:00:00.000Z",
+                        followed_did="did:plc:b",
+                    ),
+                ],
+            ),
+            RepoBundle(did="did:plc:b", handle="b.bsky.social", follows=[]),
+        ]
+
+        results = {
+            row["did"]: row for row in derive_stats([a, b], bundles, WINDOW_START, WINDOW_END)
+        }
+
+        assert results["did:plc:b"]["cohort_followers"] == ["did:plc:a"]
+        assert results["did:plc:a"]["cohort_followees"] == ["did:plc:b"]
+
+    def test_excludes_activity_after_window_end(self):
+        """Timestamps after window_end are excluded from activity lists."""
+        member = _member("did:plc:a", "a.bsky.social")
+        bundle = RepoBundle(
+            did="did:plc:a",
+            handle="a.bsky.social",
+            posts=[
+                _post(
+                    uri="at://did:plc:a/app.bsky.feed.post/future",
+                    text="future",
+                    created_at="2026-08-01T00:00:00.000Z",
+                ),
+                _post(
+                    uri="at://did:plc:a/app.bsky.feed.post/ok",
+                    text="ok",
+                    created_at="2026-06-01T00:00:00.000Z",
+                ),
+            ],
+        )
+
+        result = derive_stats([member], [bundle], WINDOW_START, WINDOW_END)[0]
+
+        assert [post["text"] for post in result["original_posts"]] == ["ok"]
 
     def test_follow_actions_window_and_followees_count(self):
         """follow_actions are windowed; followees_count counts all still-present."""
