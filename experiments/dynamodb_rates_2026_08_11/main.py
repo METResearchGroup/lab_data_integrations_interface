@@ -120,6 +120,11 @@ def main() -> None:
                     f"(teardown={teardown_error!r}, write={write_error!r})"
                 ) from ablation_error
             raise ablation_error
+        if teardown_error is not None and write_error is not None:
+            raise RuntimeError(
+                "Teardown and result persistence failed "
+                f"(teardown={teardown_error!r}, write={write_error!r})"
+            ) from teardown_error
         if teardown_error is not None:
             raise teardown_error
         if write_error is not None:
