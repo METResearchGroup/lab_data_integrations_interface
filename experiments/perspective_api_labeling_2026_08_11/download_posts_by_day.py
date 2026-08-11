@@ -30,10 +30,15 @@ S3_EXPORT_PREFIX = "athena-results/perspective-api-labeling"
 
 
 def _build_unload_query(day: str) -> str:
+    # Athena UNLOAD to Parquet does not support timestamp with time zone.
+    # Cast created_at and keep only columns needed for labeling + analysis.
     s3_uri = f"s3://{S3_BUCKET}/{S3_EXPORT_PREFIX}/{day}/"
     return f"""
 UNLOAD (
-    SELECT *
+    SELECT
+        uri,
+        text,
+        CAST(created_at AS TIMESTAMP) AS created_at
     FROM posts
     WHERE CAST(created_at AS DATE) = DATE '{day}'
 )
