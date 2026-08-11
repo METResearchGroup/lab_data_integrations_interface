@@ -182,6 +182,38 @@ class TestFetchRepoBytes:
         assert sleeps[0] == 3.0
         assert relay.com.atproto.sync.get_repo.call_count == 2
 
+    def test_retries_network_error_then_succeeds(self):
+        """Verifies NetworkError-style failures are retried until getRepo succeeds."""
+        from experiments.did_sync_experiment_2026_08_11.analyze import (
+            RelayRequestPacer,
+            _fetch_repo_bytes,
+        )
+
+        class FakeNetworkError(Exception):
+            """Stand-in for atproto NetworkError without importing the SDK type."""
+
+        FakeNetworkError.__name__ = "NetworkError"
+        relay = MagicMock()
+        relay.com.atproto.sync.get_repo.side_effect = [
+            FakeNetworkError("RequestException"),
+            b"car-bytes",
+        ]
+        sleeps: list[float] = []
+        pacer = RelayRequestPacer(0.0)
+
+        repo_bytes, error, was_rate_limited = _fetch_repo_bytes(
+            "did:plc:x",
+            relay,
+            pacer,
+            sleeps.append,
+        )
+
+        assert repo_bytes == b"car-bytes"
+        assert error is None
+        assert was_rate_limited is False
+        assert sleeps[0] == 3.0
+        assert relay.com.atproto.sync.get_repo.call_count == 2
+
 
 class TestAnalyzeDids:
     """Tests for analyze_dids()."""

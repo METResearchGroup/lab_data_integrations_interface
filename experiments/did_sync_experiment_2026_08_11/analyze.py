@@ -10,7 +10,6 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -82,10 +81,27 @@ class AnalyzeMeta:
     getrepo_rate_limit_event_count: int
     getrepo_runtime_seconds: float
     appview_profile_request_count: int
+    getrepo_error_breakdown: dict[str, int] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize analysis metrics for summary JSON."""
         return asdict(self)
+
+
+def classify_getrepo_error(error: str | None) -> str | None:
+    """Bucket a getRepo failure string for rollup reporting."""
+    if not error:
+        return None
+    lowered = error.lower()
+    if "reponotfound" in lowered or "repo not found" in lowered:
+        return "repo_not_found"
+    if "429" in lowered or "ratelimit" in lowered or "rate limit" in lowered:
+        return "rate_limit"
+    if "network" in lowered or "requestexception" in lowered or "timeout" in lowered:
+        return "network"
+    if "decode" in lowered:
+        return "decode"
+    return "other"
 
 
 @dataclass
@@ -165,28 +181,39 @@ def _is_retryable_getrepo_error(exc: Exception) -> bool:
     status_code = _exception_status_code(exc)
     if status_code in {500, 502, 503, 504}:
         return True
+    type_name = type(exc).__name__.lower()
+    if "network" in type_name:
+        return True
     message = str(exc).lower()
     return any(
-        token in message for token in ("timeout", "temporarily", "connection reset", "broken pipe")
+        token in message
+        for token in ("timeout", "temporarily", "connection reset", "broken pipe", "network")
     )
 
 
 class RelayRequestPacer:
-    """Serialize relay getRepo spacing across worker threads."""
+    """Space and serialize relay getRepo calls on one shared client."""
 
     def __init__(self, min_interval_seconds: float):
         self._min_interval_seconds = min_interval_seconds
         self._lock = threading.Lock()
         self._next_allowed_at = 0.0
 
-    def wait_turn(self, sleep: Callable[[float], None] = time.sleep) -> None:
-        """Block until the next getRepo slot is available."""
+    def call(
+        self,
+        fn: Callable[[], bytes],
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> bytes:
+        """Run ``fn`` after waiting for the next slot. Only one call runs at a time."""
         with self._lock:
             now = time.monotonic()
             wait_for = max(0.0, self._next_allowed_at - now)
-            self._next_allowed_at = max(now, self._next_allowed_at) + self._min_interval_seconds
-        if wait_for > 0:
-            sleep(wait_for)
+            if wait_for > 0:
+                sleep(wait_for)
+            try:
+                return fn()
+            finally:
+                self._next_allowed_at = time.monotonic() + self._min_interval_seconds
 
     def note_rate_limit(self) -> None:
         """Delay the shared relay schedule after a 429 so the budget can recover."""
@@ -342,9 +369,12 @@ def _fetch_repo_bytes(
     last_error: Exception | None = None
     rate_limited = False
     for attempt in range(GETREPO_MAX_ATTEMPTS):
-        pacer.wait_turn(sleep)
         try:
-            return relay_client.com.atproto.sync.get_repo({"did": did}), None, rate_limited
+            repo_bytes = pacer.call(
+                lambda: relay_client.com.atproto.sync.get_repo({"did": did}),
+                sleep,
+            )
+            return repo_bytes, None, rate_limited
         except Exception as exc:
             last_error = exc
             if _is_rate_limited(exc):
@@ -438,7 +468,8 @@ def analyze_dids(
     dids
         Unique account IDs to enrich.
     workers
-        Parallel getRepo worker count.
+        Retained for CLI compatibility. getRepo enrichment runs sequentially
+        under a shared paced client to avoid rate-limit skew and session races.
     relay_client
         Optional relay client for getRepo. Created when omitted.
     public_client
@@ -460,25 +491,28 @@ def analyze_dids(
     rows_by_did: dict[str, ProfileStats] = {}
     error_count = 0
     rate_limit_count = 0
+    error_breakdown: dict[str, int] = {}
     pacer = RelayRequestPacer(GETREPO_MIN_INTERVAL_SECONDS)
 
-    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        futures = {pool.submit(_analyze_one_did, did, relay, cutoff, pacer): did for did in dids}
-        completed = 0
-        for future in as_completed(futures):
-            row = future.result()
-            rows_by_did[row.did] = row
-            completed += 1
-            if row.error:
-                error_count += 1
-            if row.rate_limited:
-                rate_limit_count += 1
-            if completed % 50 == 0 or completed == len(dids):
-                print(
-                    f"getRepo progress {completed}/{len(dids)} "
-                    f"(errors={error_count}, rate_limited={rate_limit_count})",
-                    flush=True,
-                )
+    # getRepo uses one shared client; run sequentially so session use stays safe
+    # under pacing. ``workers`` is retained for CLI compatibility.
+    _ = workers
+    for index, did in enumerate(dids, start=1):
+        row = _analyze_one_did(did, relay, cutoff, pacer)
+        rows_by_did[did] = row
+        if row.error:
+            error_count += 1
+            bucket = classify_getrepo_error(row.error) or "other"
+            error_breakdown[bucket] = error_breakdown.get(bucket, 0) + 1
+        if row.rate_limited:
+            rate_limit_count += 1
+        if index % 25 == 0 or index == len(dids):
+            print(
+                f"getRepo progress {index}/{len(dids)} "
+                f"(errors={error_count}, rate_limited={rate_limit_count}, "
+                f"breakdown={error_breakdown})",
+                flush=True,
+            )
 
     ordered = [rows_by_did[did] for did in dids if did in rows_by_did]
     appview_requests = _overlay_appview_profiles(ordered, public)
@@ -492,5 +526,6 @@ def analyze_dids(
         getrepo_rate_limit_event_count=rate_limit_count,
         getrepo_runtime_seconds=time.perf_counter() - start,
         appview_profile_request_count=appview_requests,
+        getrepo_error_breakdown=error_breakdown,
     )
     return ordered, meta
