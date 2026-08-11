@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-08-11
+
+1. Added an experiment that resolves AOC and her 50 most recent followers, downloads each full Bluesky repo with getRepo, and writes 6-month derived profile stats while leaving unknowable fields such as saves and unfollows as null. [PR #157](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/157)
+
 ## 2026-08-10
 
 1. Bluesky Jetstream ingestion now deploys to Railway as its own project alongside the backend, with per-service config files under `railway/` and watch patterns that keep a push to one from redeploying the other. The backend was reduced to `/health` — its Athena-backed post routes referenced infrastructure destroyed in #141 — and its telemetry moved out of the `opentelemetry-instrument` wrapper into `backend/telemetry/`, matching the ingester's in-code setup and leaving the Grafana Cloud token as the only telemetry variable. [PR #153](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/153)
