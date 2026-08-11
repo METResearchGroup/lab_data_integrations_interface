@@ -304,12 +304,13 @@ async def process_perspective_batch_with_retries(
             requests, responses, max_retries=max_retries, initial_delay=initial_delay
         )
 
-    final_success_count = len(responses) - _none_count(responses)
     final_failure_count = _none_count(responses)
-    print(
-        f"Final results after retries: "
-        f"{final_success_count} successful, {final_failure_count} failed"
-    )
+    if final_failure_count:
+        final_success_count = len(responses) - final_failure_count
+        print(
+            f"Final results after retries: "
+            f"{final_success_count} successful, {final_failure_count} failed"
+        )
     return responses
 
 
