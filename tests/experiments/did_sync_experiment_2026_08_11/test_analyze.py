@@ -152,6 +152,53 @@ class TestParseBskyDatetime:
         assert "original_posts_6m<20" in result.invalid_reasons
 
 
+class TestIsRateLimited:
+    """Tests for _is_rate_limited()."""
+
+    def test_status_429_is_rate_limited(self):
+        """Verifies HTTP 429 is treated as a rate limit."""
+        from experiments.did_sync_experiment_2026_08_11.analyze import _is_rate_limited
+
+        exc = Exception("boom")
+        exc.status_code = 429
+        assert _is_rate_limited(exc) is True
+
+    def test_xrpc_rate_limit_exceeded_is_rate_limited(self):
+        """Verifies XRPC RateLimitExceeded is treated as a rate limit."""
+        from experiments.did_sync_experiment_2026_08_11.analyze import _is_rate_limited
+
+        content = SimpleNamespace(error="RateLimitExceeded", message="Too Many Requests")
+        response = SimpleNamespace(status_code=429, content=content)
+        exc = Exception("wrapped")
+        exc.response = response
+        assert _is_rate_limited(exc) is True
+
+    def test_does_not_treat_ratelimit_headers_as_rate_limit(self):
+        """Verifies ordinary errors whose str() dumps RateLimit headers are not 429s."""
+        from experiments.did_sync_experiment_2026_08_11.analyze import _is_rate_limited
+
+        content = SimpleNamespace(
+            error="RepoTakendown",
+            message="Repo has been takendown: did:plc:x",
+        )
+        response = SimpleNamespace(
+            status_code=400,
+            content=content,
+            headers={
+                "ratelimit-limit": "6000",
+                "ratelimit-remaining": "5999",
+                "ratelimit-policy": "6000;w=300",
+            },
+        )
+        exc = Exception(
+            "Response(success=False, status_code=400, content=XrpcError("
+            "error='RepoTakendown', message='Repo has been takendown'), "
+            "headers={'ratelimit-limit': '6000', 'ratelimit-remaining': '5999'})"
+        )
+        exc.response = response
+        assert _is_rate_limited(exc) is False
+
+
 class TestFetchRepoBytes:
     """Tests for _fetch_repo_bytes()."""
 

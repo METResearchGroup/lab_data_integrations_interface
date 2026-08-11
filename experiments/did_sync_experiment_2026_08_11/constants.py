@@ -22,9 +22,9 @@ PROFILES_BATCH_SIZE = _aoc_constants.PROFILES_BATCH_SIZE
 ABLATION1_NAME = "ablation1_plc"
 ABLATION2_NAME = "ablation2_aoc_bfs"
 
-# Relay getRepo budget is about 3000 calls / 5 minutes (~10/s). Stay well under that.
+# Relay advertises ~6000 getRepo / 300s (~20/s). Stay well under that.
 DEFAULT_WORKERS = 2
-GETREPO_MIN_INTERVAL_SECONDS = 0.35
+GETREPO_MIN_INTERVAL_SECONDS = 0.15
 GETREPO_MAX_ATTEMPTS = 5
 GETREPO_BASE_BACKOFF_SECONDS = 3.0
 GETREPO_MAX_BACKOFF_SECONDS = 60.0

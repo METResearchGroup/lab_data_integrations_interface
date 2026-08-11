@@ -95,7 +95,11 @@ def classify_getrepo_error(error: str | None) -> str | None:
     lowered = error.lower()
     if "reponotfound" in lowered or "repo not found" in lowered:
         return "repo_not_found"
-    if "429" in lowered or "ratelimit" in lowered or "rate limit" in lowered:
+    if "repotakendown" in lowered or "takendown" in lowered:
+        return "repo_takendown"
+    if "repodeactivated" in lowered or "deactivated" in lowered:
+        return "repo_deactivated"
+    if "429" in lowered or "ratelimitexceeded" in lowered or "rate limit exceeded" in lowered:
         return "rate_limit"
     if "network" in lowered or "requestexception" in lowered or "timeout" in lowered:
         return "network"
@@ -153,32 +157,73 @@ def _exception_status_code(exc: Exception) -> int | None:
     return None
 
 
+def _xrpc_error_name(exc: Exception) -> str | None:
+    """Return the XRPC error name from an atproto response, when present."""
+    response = getattr(exc, "response", None)
+    content = getattr(response, "content", None)
+    error = getattr(content, "error", None)
+    if isinstance(error, str) and error.strip():
+        return error.strip()
+    return None
+
+
 def _format_exception(exc: Exception) -> str:
     status_code = _exception_status_code(exc)
-    message = str(exc).strip() or type(exc).__name__
+    xrpc_error = _xrpc_error_name(exc)
+    if xrpc_error is not None:
+        response = getattr(exc, "response", None)
+        content = getattr(response, "content", None)
+        detail = getattr(content, "message", None) or xrpc_error
+        message = f"{xrpc_error}: {detail}"
+    else:
+        message = str(exc).strip() or type(exc).__name__
     if status_code is None:
         return message
     return f"{message} (status={status_code})"
 
 
 def _is_rate_limited(exc: Exception) -> bool:
+    """Detect true relay 429 / RateLimitExceeded without matching RateLimit headers.
+
+    atproto stringifies the whole Response, including ``ratelimit-*`` headers on
+    ordinary 400 errors. Matching the substring ``ratelimit`` there falsely
+    triggers multi-minute cooldowns and contaminates rate-limit metrics.
+    """
     status_code = _exception_status_code(exc)
     if status_code == 429:
         return True
-    message = str(exc).lower()
+    xrpc_error = (_xrpc_error_name(exc) or "").lower()
+    if xrpc_error in {"ratelimitexceeded", "rate_limit_exceeded"}:
+        return True
     type_name = type(exc).__name__.lower()
-    return (
-        "429" in message
-        or "ratelimit" in message
-        or "rate limit" in message
-        or "ratelimit" in type_name
-    )
+    if "ratelimit" in type_name:
+        return True
+    # Prefer short messages without header dumps; still catch bare SDK strings.
+    message = str(exc).strip().lower()
+    if len(message) <= 80 and (
+        "ratelimitexceeded" in message or message in {"429", "rate limit exceeded"}
+    ):
+        return True
+    return False
 
 
 def _is_retryable_getrepo_error(exc: Exception) -> bool:
     if _is_rate_limited(exc):
         return True
+    # Permanent account/repo outcomes must not burn retry budget.
+    xrpc_error = (_xrpc_error_name(exc) or "").lower()
+    if xrpc_error in {
+        "reponotfound",
+        "repotakendown",
+        "repodeactivated",
+        "reposuspended",
+        "accountnotfound",
+        "invalidrequest",
+    }:
+        return False
     status_code = _exception_status_code(exc)
+    if status_code in {400, 401, 403, 404}:
+        return False
     if status_code in {500, 502, 503, 504}:
         return True
     type_name = type(exc).__name__.lower()
@@ -506,7 +551,7 @@ def analyze_dids(
             error_breakdown[bucket] = error_breakdown.get(bucket, 0) + 1
         if row.rate_limited:
             rate_limit_count += 1
-        if index % 25 == 0 or index == len(dids):
+        if index % 5 == 0 or index == len(dids):
             print(
                 f"getRepo progress {index}/{len(dids)} "
                 f"(errors={error_count}, rate_limited={rate_limit_count}, "
