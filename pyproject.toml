@@ -39,6 +39,7 @@ dependencies = [
     "opentelemetry-instrumentation-logging~=0.64b0",
     "opentelemetry-instrumentation-botocore~=0.64b0",
     "pyjwt>=2.13.0",
+    "google-api-python-client>=2.198.0",
 ]
 
 [project.optional-dependencies]
