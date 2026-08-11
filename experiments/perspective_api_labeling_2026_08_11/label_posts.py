@@ -66,10 +66,14 @@ def resolve_date(posts_path: Path, date_arg: str | None) -> str:
     raise ValueError(f"Could not infer date from {posts_path.name}; pass --date YYYY-MM-DD")
 
 
-def load_already_labeled_uris(tmp_dir: Path) -> set[str]:
-    if not tmp_dir.exists():
-        return set()
+def load_already_labeled_uris(tmp_dir: Path, date: str) -> set[str]:
     uris: set[str] = set()
+    consolidated = LABELS_DIR / f"{date}.parquet"
+    if consolidated.exists():
+        frame = pd.read_parquet(consolidated, columns=["uri"])
+        uris.update(str(uri) for uri in frame["uri"].tolist() if uri)
+    if not tmp_dir.exists():
+        return uris
     for path in sorted(tmp_dir.glob("*.parquet")):
         if path.name.startswith("."):
             continue
@@ -237,8 +241,8 @@ def main() -> None:
     print(f"date: {date}")
     print(f"tmp dir: {tmp_dir}")
 
-    already = load_already_labeled_uris(tmp_dir)
-    print(f"already labeled in tmp: {len(already):,}")
+    already = load_already_labeled_uris(tmp_dir, date)
+    print(f"already labeled: {len(already):,}")
 
     frame = pd.read_parquet(posts_path, columns=["uri", "text", "created_at"])
     if already:

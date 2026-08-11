@@ -220,7 +220,13 @@ async def process_perspective_batch(requests: list[dict]) -> list[dict | None]:
     for request in requests:
         batch.add(google_client.comments().analyze(body=request), callback=callback)
 
-    batch.execute()
+    try:
+        batch.execute()
+    except (TimeoutError, OSError, HttpError) as exc:
+        print(f"Perspective batch execute failed: {exc}")
+        # Treat the whole batch as failed so retries can recover.
+        while len(responses) < len(requests):
+            responses.append(None)
     return responses
 
 
