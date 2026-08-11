@@ -35,10 +35,25 @@ from feature_generation.perspective_api.model import (
     create_perspective_request,
     process_perspective_batch_with_retries,
 )
+from feature_generation.perspective_api.schemas import PerspectiveApiLabelsModel
+from lib.timestamp_utils import get_current_timestamp
 
 EXPERIMENT_DIR = Path(__file__).resolve().parent
 LABELS_DIR = EXPERIMENT_DIR / "labels"
 FLUSH_SIZE = 10_000
+EMPTY_TEXT_REASON = "Comment must be non-empty."
+
+
+def empty_text_label(post: dict) -> dict:
+    """Build a failed label row for posts with empty text (no API call)."""
+    return PerspectiveApiLabelsModel(
+        uri=post["uri"],
+        text=post["text"],
+        preprocessing_timestamp=post["preprocessing_timestamp"],
+        was_successfully_labeled=False,
+        reason=EMPTY_TEXT_REASON,
+        label_timestamp=get_current_timestamp(),
+    ).model_dump()
 
 
 def resolve_date(posts_path: Path, date_arg: str | None) -> str:
@@ -131,9 +146,15 @@ async def label_posts(
     with tqdm(total=len(posts), unit="post", desc="labeling") as progress:
         for start in range(0, len(posts), batch_size):
             batch = posts[start : start + batch_size]
-            requests = [create_perspective_request(post["text"]) for post in batch]
-            responses = await process_perspective_batch_with_retries(requests)
-            labels = create_labels(batch, responses)
+            nonempty = [post for post in batch if post["text"].strip()]
+            empty = [post for post in batch if not post["text"].strip()]
+
+            labels: list[dict] = [empty_text_label(post) for post in empty]
+            if nonempty:
+                requests = [create_perspective_request(post["text"]) for post in nonempty]
+                responses = await process_perspective_batch_with_retries(requests)
+                labels.extend(create_labels(nonempty, responses))
+
             buffer.extend(labels)
             labeled += len(labels)
 
@@ -143,7 +164,7 @@ async def label_posts(
                 progress.set_postfix_str(f"flushed {output_path.relative_to(EXPERIMENT_DIR)}")
 
             # Stay under Perspective QPS between batches (skip delay after last batch).
-            if start + batch_size < len(posts):
+            if start + batch_size < len(posts) and nonempty:
                 await asyncio.sleep(delay_seconds)
 
         if buffer:
