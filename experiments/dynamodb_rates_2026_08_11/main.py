@@ -78,9 +78,7 @@ def main() -> None:
         )
     finally:
         teardown_result = teardown_keys(client, single_keys + batch_keys)
-        print(
-            f"Teardown complete, {teardown_result['items_deleted']} keys deleted"
-        )
+        print(f"Teardown complete, {teardown_result['items_deleted']} keys deleted")
         write_results(
             output_dir,
             {
