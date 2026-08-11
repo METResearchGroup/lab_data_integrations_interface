@@ -1,5 +1,6 @@
 """Constants for the AOC getAuthorFeed + getRepo metrics experiment."""
 
+from enum import Enum
 from pathlib import Path
 
 TARGET_HANDLE = "aoc.bsky.social"
@@ -10,6 +11,18 @@ PUBLIC_APPVIEW_BASE_URL = "https://public.api.bsky.app"
 OUTPUT_ROOT = Path(__file__).parent / "data"
 POST_COLLECTION = "app.bsky.feed.post"
 DELETED_STATUS_UNKNOWN = "unknown"
+EMBED_IMAGES = "app.bsky.embed.images"
+EMBED_VIDEO = "app.bsky.embed.video"
+EMBED_RECORD_WITH_MEDIA = "app.bsky.embed.recordWithMedia"
+METRICS_CSV_FILENAME = "posts_metrics.csv"
+METADATA_FILENAME = "metadata.json"
+
+
+class PostType(str, Enum):
+    """Whether a post starts a thread or replies inside one."""
+
+    ORIGINAL = "original"
+    REPLY = "reply"
 
 CSV_FIELDNAMES = [
     "post_uri",
