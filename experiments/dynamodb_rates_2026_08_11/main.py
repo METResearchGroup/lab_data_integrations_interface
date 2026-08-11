@@ -50,6 +50,101 @@ def write_results(output_dir: Path, payload: dict[str, Any]) -> Path:
     return results_path
 
 
+def _run_ablations(
+    client: Any,
+    single_keys: list[str],
+    batch_keys: list[str],
+) -> tuple[dict[str, float | int] | None, dict[str, float | int] | None, BaseException | None]:
+    """Run both timed write ablations and return results plus any failure."""
+    single_result: dict[str, float | int] | None = None
+    batch_result: dict[str, float | int] | None = None
+    try:
+        single_result = run_single_puts(client, single_keys)
+        print(
+            f"Ablation 1 ({ITEM_COUNT} PutItem) took "
+            f"{single_result['duration_seconds']:.3f}s across "
+            f"{single_result['http_calls']} HTTP calls"
+        )
+
+        batch_result = run_batch_writes(client, batch_keys)
+        print(
+            f"Ablation 2 ({ITEM_COUNT} BatchWriteItem) took "
+            f"{batch_result['duration_seconds']:.3f}s across "
+            f"{batch_result['http_calls']} HTTP calls"
+        )
+        return single_result, batch_result, None
+    except BaseException as exc:
+        return single_result, batch_result, exc
+
+
+def _teardown_and_write_results(
+    client: Any,
+    output_dir: Path,
+    run_id: str,
+    single_keys: list[str],
+    batch_keys: list[str],
+    single_result: dict[str, float | int] | None,
+    batch_result: dict[str, float | int] | None,
+) -> tuple[BaseException | None, BaseException | None]:
+    """Delete experiment keys, persist results, and return cleanup errors."""
+    teardown_error: BaseException | None = None
+    try:
+        teardown_result: dict[str, int | str] = teardown_keys(client, single_keys + batch_keys)
+        print(f"Teardown complete, {teardown_result['items_deleted']} keys deleted")
+    except BaseException as exc:
+        teardown_error = exc
+        teardown_result = {
+            "http_calls": 0,
+            "items_deleted": 0,
+            "error": str(exc),
+        }
+
+    write_error: BaseException | None = None
+    try:
+        write_results(
+            output_dir,
+            {
+                "run_id": run_id,
+                "table_name": TABLE_NAME,
+                "region": AWS_REGION,
+                "item_count": ITEM_COUNT,
+                "ablation_1_single_put": single_result,
+                "ablation_2_batch_write": batch_result,
+                "single_key_count": len(single_keys),
+                "batch_key_count": len(batch_keys),
+                "teardown": teardown_result,
+            },
+        )
+    except BaseException as exc:
+        write_error = exc
+
+    return teardown_error, write_error
+
+
+def _reraise_run_errors(
+    ablation_error: BaseException | None,
+    teardown_error: BaseException | None,
+    write_error: BaseException | None,
+) -> None:
+    """Re-raise the primary failure while preserving cleanup failure context."""
+    if ablation_error is not None:
+        if teardown_error is not None or write_error is not None:
+            raise RuntimeError(
+                "Ablation failed and cleanup also failed "
+                f"(teardown={teardown_error!r}, write={write_error!r})"
+            ) from ablation_error
+        raise ablation_error
+    if teardown_error is not None and write_error is not None:
+        raise RuntimeError(
+            "Teardown and result persistence failed "
+            f"(teardown={teardown_error!r}, write={write_error!r})"
+        ) from teardown_error
+    if teardown_error is not None:
+        raise teardown_error
+    if write_error is not None:
+        raise write_error
+
+
 def main() -> None:
     """Time both write ablations, persist results, and always tear down keys."""
     client = make_client()
@@ -64,71 +159,20 @@ def main() -> None:
     ablation_error: BaseException | None = None
 
     try:
-        try:
-            single_result = run_single_puts(client, single_keys)
-            print(
-                f"Ablation 1 ({ITEM_COUNT} PutItem) took "
-                f"{single_result['duration_seconds']:.3f}s across "
-                f"{single_result['http_calls']} HTTP calls"
-            )
-
-            batch_result = run_batch_writes(client, batch_keys)
-            print(
-                f"Ablation 2 ({ITEM_COUNT} BatchWriteItem) took "
-                f"{batch_result['duration_seconds']:.3f}s across "
-                f"{batch_result['http_calls']} HTTP calls"
-            )
-        except BaseException as exc:
-            ablation_error = exc
+        single_result, batch_result, ablation_error = _run_ablations(
+            client, single_keys, batch_keys
+        )
     finally:
-        teardown_result: dict[str, int | str] | None = None
-        teardown_error: BaseException | None = None
-        try:
-            teardown_result = teardown_keys(client, single_keys + batch_keys)
-            print(f"Teardown complete, {teardown_result['items_deleted']} keys deleted")
-        except BaseException as exc:
-            teardown_error = exc
-            teardown_result = {
-                "http_calls": 0,
-                "items_deleted": 0,
-                "error": str(exc),
-            }
-
-        write_error: BaseException | None = None
-        try:
-            write_results(
-                output_dir,
-                {
-                    "run_id": run_id,
-                    "table_name": TABLE_NAME,
-                    "region": AWS_REGION,
-                    "item_count": ITEM_COUNT,
-                    "ablation_1_single_put": single_result,
-                    "ablation_2_batch_write": batch_result,
-                    "single_key_count": len(single_keys),
-                    "batch_key_count": len(batch_keys),
-                    "teardown": teardown_result,
-                },
-            )
-        except BaseException as exc:
-            write_error = exc
-
-        if ablation_error is not None:
-            if teardown_error is not None or write_error is not None:
-                raise RuntimeError(
-                    "Ablation failed and cleanup also failed "
-                    f"(teardown={teardown_error!r}, write={write_error!r})"
-                ) from ablation_error
-            raise ablation_error
-        if teardown_error is not None and write_error is not None:
-            raise RuntimeError(
-                "Teardown and result persistence failed "
-                f"(teardown={teardown_error!r}, write={write_error!r})"
-            ) from teardown_error
-        if teardown_error is not None:
-            raise teardown_error
-        if write_error is not None:
-            raise write_error
+        teardown_error, write_error = _teardown_and_write_results(
+            client,
+            output_dir,
+            run_id,
+            single_keys,
+            batch_keys,
+            single_result,
+            batch_result,
+        )
+        _reraise_run_errors(ablation_error, teardown_error, write_error)
 
 
 if __name__ == "__main__":
