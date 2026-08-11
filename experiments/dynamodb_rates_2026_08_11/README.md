@@ -2,7 +2,18 @@
 
 ## Summary
 
-This experiment times two ways of writing 1000 items to the existing DynamoDB table `lab-data-integrations-dedup-experiment-seen-ids` in `us-east-2`. Ablation 1 sends 1000 individual PutItem requests. Ablation 2 writes the same count of items with BatchWriteItem. The script prints wall clock duration and HTTP call counts for each ablation, then deletes every key it wrote.
+This experiment times two ways of writing 1000 items to the DynamoDB table `lab-data-integrations-dedup-experiment-seen-ids` in `us-east-2`. Ablation 1 sends 1000 individual PutItem requests. Ablation 2 writes the same count of items with BatchWriteItem. The script prints wall clock duration and HTTP call counts for each ablation, then deletes every key it wrote.
+
+## Results
+
+Live run `2026_08_11-14:36:12`:
+
+| Condition | Duration (s) | HTTP calls | Items written |
+| --------- | -----------: | ---------: | ------------: |
+| Ablation 1 PutItem | 5.572 | 1000 | 1000 |
+| Ablation 2 BatchWriteItem | 0.291 | 40 | 1000 |
+
+BatchWriteItem finished about 19 times faster than serial PutItem for 1000 items, and used 40 HTTP calls instead of 1000. Prefer BatchWriteItem for write batches of this size.
 
 ## How to run
 
@@ -14,7 +25,7 @@ This experiment times two ways of writing 1000 items to the existing DynamoDB ta
 uv sync
 ```
 
-2. Set AWS credentials that can put and delete items on the experiment table, and use region `us-east-2`.
+2. Set AWS credentials that can put and delete items on the experiment table, and use region `us-east-2`. Temporary credentials also need `AWS_SESSION_TOKEN`.
 
 ```bash
 export AWS_ACCESS_KEY_ID=...
@@ -22,7 +33,7 @@ export AWS_SECRET_ACCESS_KEY=...
 export AWS_DEFAULT_REGION=us-east-2
 ```
 
-3. Confirm the shared experiment table already exists. The table name is `lab-data-integrations-dedup-experiment-seen-ids` (partition key `uri`, pay per request). You do not need new Terraform for this experiment. The table was provisioned with the June 2026 dedup comparison under `experiments/dedup_comparison_2026_06_12/terraform/`.
+3. Confirm the shared experiment table exists. The table name is `lab-data-integrations-dedup-experiment-seen-ids` (partition key `uri`, pay per request). The schema matches `experiments/dedup_comparison_2026_06_12/terraform/main.tf`. If the table is missing, recreate it with that schema before running.
 
 ### Run command
 
