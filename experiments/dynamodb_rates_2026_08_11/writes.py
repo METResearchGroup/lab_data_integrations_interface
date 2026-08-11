@@ -21,6 +21,7 @@ from experiments.dynamodb_rates_2026_08_11.config import (
 )
 
 UNPROCESSED_RETRY_SLEEP_SECONDS = 0.05
+MAX_UNPROCESSED_RETRIES = 100
 
 
 def make_client() -> Any:
@@ -159,12 +160,25 @@ def _batch_write_until_done(client: Any, request_items: dict[str, list[dict[str,
     -------
     int
         Number of ``batch_write_item`` HTTP calls made for this request set.
+
+    Raises
+    ------
+    TimeoutError
+        When unprocessed items remain after ``MAX_UNPROCESSED_RETRIES`` retries.
     """
     http_calls = 0
     response = client.batch_write_item(RequestItems=request_items)
     http_calls += 1
+    retries = 0
     while response.get("UnprocessedItems"):
+        if retries >= MAX_UNPROCESSED_RETRIES:
+            remaining = sum(len(items) for items in response["UnprocessedItems"].values())
+            raise TimeoutError(
+                "BatchWriteItem still had "
+                f"{remaining} unprocessed items after {MAX_UNPROCESSED_RETRIES} retries"
+            )
         time.sleep(UNPROCESSED_RETRY_SLEEP_SECONDS)
         response = client.batch_write_item(RequestItems=response["UnprocessedItems"])
         http_calls += 1
+        retries += 1
     return http_calls

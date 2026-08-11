@@ -61,38 +61,69 @@ def main() -> None:
 
     single_result: dict[str, float | int] | None = None
     batch_result: dict[str, float | int] | None = None
+    ablation_error: BaseException | None = None
 
     try:
-        single_result = run_single_puts(client, single_keys)
-        print(
-            f"Ablation 1 ({ITEM_COUNT} PutItem) took "
-            f"{single_result['duration_seconds']:.3f}s across "
-            f"{single_result['http_calls']} HTTP calls"
-        )
+        try:
+            single_result = run_single_puts(client, single_keys)
+            print(
+                f"Ablation 1 ({ITEM_COUNT} PutItem) took "
+                f"{single_result['duration_seconds']:.3f}s across "
+                f"{single_result['http_calls']} HTTP calls"
+            )
 
-        batch_result = run_batch_writes(client, batch_keys)
-        print(
-            f"Ablation 2 ({ITEM_COUNT} BatchWriteItem) took "
-            f"{batch_result['duration_seconds']:.3f}s across "
-            f"{batch_result['http_calls']} HTTP calls"
-        )
+            batch_result = run_batch_writes(client, batch_keys)
+            print(
+                f"Ablation 2 ({ITEM_COUNT} BatchWriteItem) took "
+                f"{batch_result['duration_seconds']:.3f}s across "
+                f"{batch_result['http_calls']} HTTP calls"
+            )
+        except BaseException as exc:
+            ablation_error = exc
     finally:
-        teardown_result = teardown_keys(client, single_keys + batch_keys)
-        print(f"Teardown complete, {teardown_result['items_deleted']} keys deleted")
-        write_results(
-            output_dir,
-            {
-                "run_id": run_id,
-                "table_name": TABLE_NAME,
-                "region": AWS_REGION,
-                "item_count": ITEM_COUNT,
-                "ablation_1_single_put": single_result,
-                "ablation_2_batch_write": batch_result,
-                "single_key_count": len(single_keys),
-                "batch_key_count": len(batch_keys),
-                "teardown": teardown_result,
-            },
-        )
+        teardown_result: dict[str, int | str] | None = None
+        teardown_error: BaseException | None = None
+        try:
+            teardown_result = teardown_keys(client, single_keys + batch_keys)
+            print(f"Teardown complete, {teardown_result['items_deleted']} keys deleted")
+        except BaseException as exc:
+            teardown_error = exc
+            teardown_result = {
+                "http_calls": 0,
+                "items_deleted": 0,
+                "error": str(exc),
+            }
+
+        write_error: BaseException | None = None
+        try:
+            write_results(
+                output_dir,
+                {
+                    "run_id": run_id,
+                    "table_name": TABLE_NAME,
+                    "region": AWS_REGION,
+                    "item_count": ITEM_COUNT,
+                    "ablation_1_single_put": single_result,
+                    "ablation_2_batch_write": batch_result,
+                    "single_key_count": len(single_keys),
+                    "batch_key_count": len(batch_keys),
+                    "teardown": teardown_result,
+                },
+            )
+        except BaseException as exc:
+            write_error = exc
+
+        if ablation_error is not None:
+            if teardown_error is not None or write_error is not None:
+                raise RuntimeError(
+                    "Ablation failed and cleanup also failed "
+                    f"(teardown={teardown_error!r}, write={write_error!r})"
+                ) from ablation_error
+            raise ablation_error
+        if teardown_error is not None:
+            raise teardown_error
+        if write_error is not None:
+            raise write_error
 
 
 if __name__ == "__main__":
