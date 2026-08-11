@@ -49,7 +49,7 @@ class TestConstants:
         assert PROFILES_BATCH_SIZE == 25
         assert ABLATION1_NAME == "ablation1_plc"
         assert ABLATION2_NAME == "ablation2_aoc_bfs"
-        assert DEFAULT_WORKERS == 8
+        assert DEFAULT_WORKERS == 2
 
 
 class TestDiscoveryResultToDict:

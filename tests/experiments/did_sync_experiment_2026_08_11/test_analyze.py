@@ -152,6 +152,37 @@ class TestParseBskyDatetime:
         assert "original_posts_6m<20" in result.invalid_reasons
 
 
+class TestFetchRepoBytes:
+    """Tests for _fetch_repo_bytes()."""
+
+    def test_retries_rate_limit_then_succeeds(self):
+        """Verifies a 429 is retried until getRepo succeeds."""
+        from experiments.did_sync_experiment_2026_08_11.analyze import (
+            RelayRequestPacer,
+            _fetch_repo_bytes,
+        )
+
+        relay = MagicMock()
+        rate_limited = Exception("RateLimitExceeded")
+        rate_limited.status_code = 429
+        relay.com.atproto.sync.get_repo.side_effect = [rate_limited, b"car-bytes"]
+        sleeps: list[float] = []
+        pacer = RelayRequestPacer(0.0)
+
+        repo_bytes, error, was_rate_limited = _fetch_repo_bytes(
+            "did:plc:x",
+            relay,
+            pacer,
+            sleeps.append,
+        )
+
+        assert repo_bytes == b"car-bytes"
+        assert error is None
+        assert was_rate_limited is True
+        assert sleeps == [2.0]
+        assert relay.com.atproto.sync.get_repo.call_count == 2
+
+
 class TestAnalyzeDids:
     """Tests for analyze_dids()."""
 

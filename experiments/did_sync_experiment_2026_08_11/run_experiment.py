@@ -231,8 +231,10 @@ def write_results_md(summaries: list[dict], run_started: datetime) -> str:
         "Validity requires recent original posting and interactions, so the method "
         "that surfaces currently engaged graph neighborhoods should outperform recent "
         "PLC chronology when newly registered DIDs are inactive or when getRepo fails "
-        "often for that sample. These numbers inform backfill seed choice. They do not "
-        "by themselves prove production readiness."
+        "often for that sample. getRepo calls are paced and retried on rate limits so "
+        "remaining errors are treated as account or decode failures, not quota noise. "
+        "These numbers inform backfill seed choice. They do not by themselves prove "
+        "production readiness."
     )
     lines.append("")
     lines.append("## Artifacts")

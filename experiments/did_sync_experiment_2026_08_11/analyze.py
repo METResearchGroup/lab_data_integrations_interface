@@ -7,7 +7,9 @@ Run from repo root::
 
 from __future__ import annotations
 
+import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -22,6 +24,9 @@ from experimentation.aoc_followers_backfill.client import (
 from experimentation.aoc_followers_backfill.mst import decode_repo
 from experiments.did_sync_experiment_2026_08_11.constants import (
     DAYS_BACK,
+    GETREPO_BASE_BACKOFF_SECONDS,
+    GETREPO_MAX_ATTEMPTS,
+    GETREPO_MIN_INTERVAL_SECONDS,
     MIN_FOLLOWEES,
     MIN_FOLLOWERS,
     MIN_INTERACTIONS_6M,
@@ -119,12 +124,67 @@ def _is_quote_embed(embed: dict | None) -> bool:
     return embed.get("$type", "") in QUOTE_EMBED_TYPES
 
 
+def _exception_status_code(exc: Exception) -> int | None:
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    if status_code is not None:
+        return int(status_code)
+    status_code = getattr(exc, "status_code", None)
+    if status_code is not None:
+        return int(status_code)
+    return None
+
+
+def _format_exception(exc: Exception) -> str:
+    status_code = _exception_status_code(exc)
+    message = str(exc).strip() or type(exc).__name__
+    if status_code is None:
+        return message
+    return f"{message} (status={status_code})"
+
+
 def _is_rate_limited(exc: Exception) -> bool:
-    status_code = getattr(getattr(exc, "response", None), "status_code", None)
+    status_code = _exception_status_code(exc)
     if status_code == 429:
         return True
     message = str(exc).lower()
-    return "429" in message or "ratelimit" in message or "rate limit" in message
+    type_name = type(exc).__name__.lower()
+    return (
+        "429" in message
+        or "ratelimit" in message
+        or "rate limit" in message
+        or "ratelimit" in type_name
+    )
+
+
+def _is_retryable_getrepo_error(exc: Exception) -> bool:
+    if _is_rate_limited(exc):
+        return True
+    status_code = _exception_status_code(exc)
+    if status_code in {500, 502, 503, 504}:
+        return True
+    message = str(exc).lower()
+    return any(
+        token in message for token in ("timeout", "temporarily", "connection reset", "broken pipe")
+    )
+
+
+class RelayRequestPacer:
+    """Serialize relay getRepo spacing across worker threads."""
+
+    def __init__(self, min_interval_seconds: float):
+        self._min_interval_seconds = min_interval_seconds
+        self._lock = threading.Lock()
+        self._next_allowed_at = 0.0
+
+    def wait_turn(self, sleep: Callable[[float], None] = time.sleep) -> None:
+        """Block until the next getRepo slot is available."""
+        with self._lock:
+            now = time.monotonic()
+            wait_for = max(0.0, self._next_allowed_at - now)
+            self._next_allowed_at = max(now, self._next_allowed_at) + self._min_interval_seconds
+        if wait_for > 0:
+            sleep(wait_for)
 
 
 def _track_earliest(current: str | None, candidate: str | None) -> str | None:
@@ -253,33 +313,49 @@ def _activity_to_stats(did: str, activity: ActivityCounts) -> ProfileStats:
     )
 
 
+def _fetch_repo_bytes(
+    did: str,
+    relay_client: Client,
+    pacer: RelayRequestPacer,
+    sleep: Callable[[float], None],
+) -> tuple[bytes | None, str | None, bool]:
+    """Fetch one repo with pacing and retries.
+
+    Returns
+    -------
+    tuple[bytes | None, str | None, bool]
+        Repo bytes (or None), error string (or None), and whether any attempt
+        was rate limited.
+    """
+    last_error: Exception | None = None
+    rate_limited = False
+    for attempt in range(GETREPO_MAX_ATTEMPTS):
+        pacer.wait_turn(sleep)
+        try:
+            return relay_client.com.atproto.sync.get_repo({"did": did}), None, rate_limited
+        except Exception as exc:
+            last_error = exc
+            if _is_rate_limited(exc):
+                rate_limited = True
+            if not _is_retryable_getrepo_error(exc) or attempt + 1 >= GETREPO_MAX_ATTEMPTS:
+                break
+            backoff = GETREPO_BASE_BACKOFF_SECONDS * (2**attempt)
+            sleep(backoff)
+    return None, _format_exception(last_error) if last_error else "unknown error", rate_limited
+
+
 def _analyze_one_did(
     did: str,
     relay_client: Client,
     cutoff: datetime,
-    sleep=time.sleep,
+    pacer: RelayRequestPacer,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> ProfileStats:
-    repo_bytes = None
-    last_error: Exception | None = None
-    rate_limited = False
-    for attempt in range(2):
-        try:
-            repo_bytes = relay_client.com.atproto.sync.get_repo({"did": did})
-            last_error = None
-            break
-        except Exception as exc:
-            last_error = exc
-            if _is_rate_limited(exc) and attempt == 0:
-                rate_limited = True
-                sleep(5.0)
-                continue
-            rate_limited = rate_limited or _is_rate_limited(exc)
-            break
-
+    repo_bytes, fetch_error, rate_limited = _fetch_repo_bytes(did, relay_client, pacer, sleep)
     if repo_bytes is None:
         return ProfileStats(
             did=did,
-            error=f"getRepo failed: {last_error}",
+            error=f"getRepo failed: {fetch_error}",
             valid=False,
             rate_limited=rate_limited,
             invalid_reasons=["getrepo_error"],
@@ -290,7 +366,7 @@ def _analyze_one_did(
     except Exception as exc:
         return ProfileStats(
             did=did,
-            error=f"CAR/MST decode failed: {exc}",
+            error=f"CAR/MST decode failed: {_format_exception(exc)}",
             valid=False,
             invalid_reasons=["decode_error"],
         )
@@ -368,9 +444,10 @@ def analyze_dids(
     rows_by_did: dict[str, ProfileStats] = {}
     error_count = 0
     rate_limit_count = 0
+    pacer = RelayRequestPacer(GETREPO_MIN_INTERVAL_SECONDS)
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        futures = {pool.submit(_analyze_one_did, did, relay, cutoff): did for did in dids}
+        futures = {pool.submit(_analyze_one_did, did, relay, cutoff, pacer): did for did in dids}
         for future in as_completed(futures):
             row = future.result()
             rows_by_did[row.did] = row

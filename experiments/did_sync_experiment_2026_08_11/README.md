@@ -16,10 +16,10 @@ Smoke (50 DIDs per ablation):
 PYTHONPATH=. uv run python -m experiments.did_sync_experiment_2026_08_11.run_experiment --smoke --workers 4
 ```
 
-Full (1000 DIDs per ablation):
+Full (1000 DIDs per ablation, paced getRepo to stay under relay limits):
 
 ```bash
-PYTHONPATH=. uv run python -m experiments.did_sync_experiment_2026_08_11.run_experiment --target 1000 --workers 8
+PYTHONPATH=. uv run python -m experiments.did_sync_experiment_2026_08_11.run_experiment --target 1000 --workers 2
 ```
 
 See `RESULTS.md` after a live run.
