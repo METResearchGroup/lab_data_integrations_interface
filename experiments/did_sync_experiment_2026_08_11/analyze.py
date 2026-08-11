@@ -26,7 +26,9 @@ from experiments.did_sync_experiment_2026_08_11.constants import (
     DAYS_BACK,
     GETREPO_BASE_BACKOFF_SECONDS,
     GETREPO_MAX_ATTEMPTS,
+    GETREPO_MAX_BACKOFF_SECONDS,
     GETREPO_MIN_INTERVAL_SECONDS,
+    GETREPO_RATE_LIMIT_COOLDOWN_SECONDS,
     MIN_FOLLOWEES,
     MIN_FOLLOWERS,
     MIN_INTERACTIONS_6M,
@@ -186,6 +188,16 @@ class RelayRequestPacer:
         if wait_for > 0:
             sleep(wait_for)
 
+    def note_rate_limit(self) -> None:
+        """Delay the shared relay schedule after a 429 so the budget can recover."""
+        with self._lock:
+            now = time.monotonic()
+            self._next_allowed_at = max(
+                self._next_allowed_at,
+                now + GETREPO_RATE_LIMIT_COOLDOWN_SECONDS,
+            )
+            self._min_interval_seconds = max(self._min_interval_seconds, 0.35)
+
 
 def _track_earliest(current: str | None, candidate: str | None) -> str | None:
     if candidate is None:
@@ -337,9 +349,13 @@ def _fetch_repo_bytes(
             last_error = exc
             if _is_rate_limited(exc):
                 rate_limited = True
+                pacer.note_rate_limit()
             if not _is_retryable_getrepo_error(exc) or attempt + 1 >= GETREPO_MAX_ATTEMPTS:
                 break
-            backoff = GETREPO_BASE_BACKOFF_SECONDS * (2**attempt)
+            backoff = min(
+                GETREPO_MAX_BACKOFF_SECONDS,
+                GETREPO_BASE_BACKOFF_SECONDS * (2**attempt),
+            )
             sleep(backoff)
     return None, _format_exception(last_error) if last_error else "unknown error", rate_limited
 
@@ -448,13 +464,21 @@ def analyze_dids(
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
         futures = {pool.submit(_analyze_one_did, did, relay, cutoff, pacer): did for did in dids}
+        completed = 0
         for future in as_completed(futures):
             row = future.result()
             rows_by_did[row.did] = row
+            completed += 1
             if row.error:
                 error_count += 1
             if row.rate_limited:
                 rate_limit_count += 1
+            if completed % 50 == 0 or completed == len(dids):
+                print(
+                    f"getRepo progress {completed}/{len(dids)} "
+                    f"(errors={error_count}, rate_limited={rate_limit_count})",
+                    flush=True,
+                )
 
     ordered = [rows_by_did[did] for did in dids if did in rows_by_did]
     appview_requests = _overlay_appview_profiles(ordered, public)

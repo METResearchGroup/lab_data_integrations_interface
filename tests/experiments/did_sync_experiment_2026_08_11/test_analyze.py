@@ -179,7 +179,7 @@ class TestFetchRepoBytes:
         assert repo_bytes == b"car-bytes"
         assert error is None
         assert was_rate_limited is True
-        assert sleeps == [2.0]
+        assert sleeps[0] == 3.0
         assert relay.com.atproto.sync.get_repo.call_count == 2
 
 
