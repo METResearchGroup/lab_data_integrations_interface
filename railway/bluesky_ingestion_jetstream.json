@@ -1,0 +1,16 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "watchPatterns": [
+      "bluesky_ingestion_jetstream/**",
+      "pyproject.toml",
+      "uv.lock",
+      "railway/bluesky_ingestion_jetstream.json"
+    ]
+  },
+  "deploy": {
+    "startCommand": "python -m bluesky_ingestion_jetstream.main",
+    "numReplicas": 1,
+    "restartPolicyType": "ALWAYS"
+  }
+}

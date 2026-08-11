@@ -1,73 +1,63 @@
-# Running the Backend With and Without Observability
+# Running the Backend App
 
 ## Overview
 
-This runbook covers how to start `backend/` with telemetry exporting to
-Grafana Cloud, and how to run it without — no code branching or feature flag
-involved. See [grafana-cloud-observability-setup.md](grafana-cloud-observability-setup.md)
-for the dependencies/env vars this assumes are already in place.
+This runbook covers starting `backend/` locally and how its telemetry is
+wired. See [HOW_TO_ADD_OBSERVABILITY_GRAFANA.md](HOW_TO_ADD_OBSERVABILITY_GRAFANA.md)
+for the Grafana Cloud stack this exports to.
 
-## How the on/off switch works
-
-The OpenTelemetry SDK is only configured when the process is started through
-the `opentelemetry-instrument` wrapper (installed via `opentelemetry-distro`).
-That wrapper reads the `OTEL_*` env vars at startup and builds the
-`TracerProvider` + OTLP exporter before your app code runs.
-
-If you start the app **without** that wrapper, `trace.get_tracer(__name__)`
-in `backend/main.py` returns a no-op tracer — any manual
-`with tracer.start_as_current_span(...)` blocks silently do nothing. No
-crash, nothing exported, no auto-instrumentation of FastAPI or botocore
-either.
-
-So the switch is just: prefix the start command with `opentelemetry-instrument`,
-or don't.
-
-## Run without telemetry
+## Run
 
 ```bash
 uv run uvicorn backend.main:app --reload --port 8000
 ```
 
-Use this for normal local development when you don't need to look at traces.
+That is the whole command — no `opentelemetry-instrument` wrapper and no
+`--env-file`. `backend/main.py` calls `load_dotenv()` at import, so the root
+`.env` is read before `setup_telemetry()` runs.
 
-## Run with telemetry
+## How telemetry is wired
 
-```bash
-uv run --env-file .env opentelemetry-instrument uvicorn backend.main:app --reload --port 8000
-```
+`backend/telemetry/setup.py` builds the `TracerProvider` and `LoggerProvider`
+in code and instruments the FastAPI app itself, mirroring
+`bluesky_ingestion_jetstream/telemetry/`. Service name and OTLP endpoints are
+constants in `backend/telemetry/constants.py`, not environment variables.
 
-`--env-file .env` matters here: `opentelemetry-instrument` reads the
-`OTEL_*` vars from the process environment *before* `backend/main.py` is
-imported, so relying on `python-dotenv` loading `.env` from inside the app
-would be too late — the SDK would already be configured (or not) by then.
+One env var is left:
+
+| Variable | Value |
+|---|---|
+| `OTEL_EXPORTER_OTLP_HEADERS` | `Authorization=Basic%20<base64(instanceID:token)>` |
+
+The `%20` matters — the Python OTLP exporter needs the header value
+URL-encoded, and a literal space breaks it. Grafana Cloud shows a ready-made
+value on the stack's **OpenTelemetry** page.
+
+## Run without telemetry
+
+Unset `OTEL_EXPORTER_OTLP_HEADERS`. `setup_telemetry()` checks for the token
+and returns early when it is absent, so nothing is exported and nothing
+crashes. The app is otherwise unaffected.
+
+This replaces the old switch, which was whether the process started through
+the `opentelemetry-instrument` wrapper. That wrapper is no longer used.
 
 ## Verifying it worked
 
 1. Hit an endpoint a few times to generate data:
    ```bash
    curl http://localhost:8000/health
-   curl "http://localhost:8000/posts/recent?dataset_id=<id>"
    ```
-2. Check Grafana Cloud (Application Observability or Explore, per
-   [grafana-cloud-observability-setup.md](grafana-cloud-observability-setup.md))
-   for a `backend` service with matching traces/logs.
-3. If nothing shows up, confirm `OTEL_EXPORTER_OTLP_ENDPOINT` /
-   `OTEL_EXPORTER_OTLP_HEADERS` are actually present in the environment the
-   process saw (`opentelemetry-instrument` fails silently/exports nowhere on
-   auth or endpoint misconfiguration — it does not crash the app).
+2. Check Grafana Cloud (Application Observability or Explore) for a `backend`
+   service with matching traces and logs.
+3. If nothing shows up, confirm `OTEL_EXPORTER_OTLP_HEADERS` was actually
+   present in the environment the process saw — the startup log line says
+   which path it took (`telemetry enabled as backend`, or
+   `OTEL_EXPORTER_OTLP_HEADERS unset; running without telemetry`).
 
 ## Deploying
 
-`railway.json`'s `startCommand` runs the `opentelemetry-instrument`-wrapped
-form above, so telemetry is on by default in the deployed backend — no
-`--env-file` needed there, since Railway injects the **Variables** tab
-contents directly into the container's environment.
-
-Make sure to include the env vars from
-[grafana-cloud-observability-setup.md](grafana-cloud-observability-setup.md)
-(`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`,
-`OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_SERVICE_NAME`, `OTEL_LOGS_EXPORTER`,
-`OTEL_METRICS_EXPORTER`) in Railway's **Variables**
-tab (see [backend-railway-deploy.md](backend-railway-deploy.md)) — without
-them, the wrapper runs but exports nowhere.
+See [HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md](HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md).
+`railway/backend.json` runs the same uvicorn command, and Railway injects the
+**Variables** tab contents directly into the container's environment, so the
+token arrives the same way `.env` supplies it locally.
