@@ -1,7 +1,7 @@
 """Download Bluesky posts for selected days from Athena into local Parquet files.
 
-Runs one SELECT * per day via Athena UNLOAD (Parquet on S3), then merges the
-exported files into a single local Parquet file per day.
+Runs one SELECT (uri, text, created_at) per day via Athena UNLOAD (Parquet on
+S3), then merges the exported files into a single local Parquet file per day.
 
 Run from repo root:
 
@@ -96,7 +96,7 @@ def download_day(day: str, *, athena: Athena, s3_client: boto3.client) -> Path:
     _delete_s3_prefix(s3_client, S3_BUCKET, s3_prefix)
 
     query = _build_unload_query(day)
-    print(f"{day}: running UNLOAD (SELECT * ...)")
+    print(f"{day}: running UNLOAD (uri, text, created_at)")
     athena.run_query(query, database=GLUE_DATABASE, workgroup=WORKGROUP)
 
     with tempfile.TemporaryDirectory(prefix=f"posts-{day}-") as tmp_dir:
