@@ -4,6 +4,7 @@ import asyncio
 import json
 from typing import Literal
 
+import httplib2
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
 
@@ -17,14 +18,21 @@ from lib.timestamp_utils import get_current_timestamp
 DEFAULT_BATCH_SIZE = 90
 DEFAULT_DELAY_SECONDS = 1.05  # enough to avoid some overlapping.
 
+# Socket timeout for each HTTP call, and an outer bound for a full batch.execute.
+# Without these, hung Perspective connections can stall labeling indefinitely.
+HTTP_TIMEOUT_SECONDS = 30
+BATCH_EXECUTE_TIMEOUT_SECONDS = 90
+
 
 def get_google_client():
+    http = httplib2.Http(timeout=HTTP_TIMEOUT_SECONDS)
     return discovery.build(
         "commentanalyzer",
         "v1alpha1",
         developerKey=EnvVarsContainer.get_env_var("GOOGLE_API_KEY", required=True),
         discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",  # noqa
         static_discovery=False,
+        http=http,
     )
 
 
@@ -221,7 +229,12 @@ async def process_perspective_batch(requests: list[dict]) -> list[dict | None]:
         batch.add(google_client.comments().analyze(body=request), callback=callback)
 
     try:
-        batch.execute()
+        # Run sync httplib2 I/O off the event loop with a hard timeout so a
+        # hung socket cannot stall the labeling run forever.
+        await asyncio.wait_for(
+            asyncio.to_thread(batch.execute),
+            timeout=BATCH_EXECUTE_TIMEOUT_SECONDS,
+        )
     except (TimeoutError, OSError, HttpError) as exc:
         print(f"Perspective batch execute failed: {exc}")
         # Treat the whole batch as failed so retries can recover.
