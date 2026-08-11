@@ -99,11 +99,7 @@ class ActivityCounts:
     @property
     def interactions_6m(self) -> int:
         return (
-            self.likes_6m
-            + self.reposts_6m
-            + self.replies_6m
-            + self.quotes_6m
-            + self.bookmarks_6m
+            self.likes_6m + self.reposts_6m + self.replies_6m + self.quotes_6m + self.bookmarks_6m
         )
 
 
@@ -145,6 +141,45 @@ def _track_earliest(current: str | None, candidate: str | None) -> str | None:
     return candidate if candidate_dt < current_dt else current
 
 
+def _count_post_activity(counts: ActivityCounts, record: dict, in_window: bool) -> None:
+    counts.posts += 1
+    if not in_window:
+        return
+    is_reply = record.get("reply") is not None
+    if is_reply:
+        counts.replies_6m += 1
+    else:
+        counts.original_posts_6m += 1
+    if _is_quote_embed(record.get("embed")):
+        counts.quotes_6m += 1
+
+
+def _apply_record_to_counts(counts: ActivityCounts, record: dict, cutoff: datetime) -> None:
+    collection = record.get("$type")
+    created_at = record.get("createdAt")
+    counts.earliest_created_at = _track_earliest(counts.earliest_created_at, created_at)
+    created_dt = _parse_bsky_datetime(created_at) if created_at else None
+    in_window = created_dt is not None and created_dt >= cutoff
+
+    if collection == "app.bsky.actor.profile":
+        counts.profile_created_at = created_at
+        return
+    if collection == "app.bsky.feed.post":
+        _count_post_activity(counts, record, in_window)
+        return
+    if collection == "app.bsky.graph.follow":
+        counts.followees += 1
+        return
+    if not in_window:
+        return
+    if collection == "app.bsky.feed.like":
+        counts.likes_6m += 1
+    elif collection == "app.bsky.feed.repost":
+        counts.reposts_6m += 1
+    elif collection in BOOKMARK_TYPES:
+        counts.bookmarks_6m += 1
+
+
 def count_activity_from_records(
     records: dict[str, dict],
     cutoff: datetime,
@@ -165,37 +200,7 @@ def count_activity_from_records(
     """
     counts = ActivityCounts()
     for record in records.values():
-        collection = record.get("$type")
-        created_at = record.get("createdAt")
-        counts.earliest_created_at = _track_earliest(counts.earliest_created_at, created_at)
-        created_dt = _parse_bsky_datetime(created_at) if created_at else None
-        in_window = created_dt is not None and created_dt >= cutoff
-
-        if collection == "app.bsky.actor.profile":
-            counts.profile_created_at = created_at
-            continue
-        if collection == "app.bsky.feed.post":
-            counts.posts += 1
-            if in_window:
-                is_reply = record.get("reply") is not None
-                is_quote = _is_quote_embed(record.get("embed"))
-                if is_reply:
-                    counts.replies_6m += 1
-                else:
-                    counts.original_posts_6m += 1
-                if is_quote:
-                    counts.quotes_6m += 1
-        elif collection == "app.bsky.graph.follow":
-            counts.followees += 1
-        elif collection == "app.bsky.feed.like":
-            if in_window:
-                counts.likes_6m += 1
-        elif collection == "app.bsky.feed.repost":
-            if in_window:
-                counts.reposts_6m += 1
-        elif collection in BOOKMARK_TYPES:
-            if in_window:
-                counts.bookmarks_6m += 1
+        _apply_record_to_counts(counts, record, cutoff)
     return counts
 
 
@@ -365,9 +370,7 @@ def analyze_dids(
     rate_limit_count = 0
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        futures = {
-            pool.submit(_analyze_one_did, did, relay, cutoff): did for did in dids
-        }
+        futures = {pool.submit(_analyze_one_did, did, relay, cutoff): did for did in dids}
         for future in as_completed(futures):
             row = future.result()
             rows_by_did[row.did] = row

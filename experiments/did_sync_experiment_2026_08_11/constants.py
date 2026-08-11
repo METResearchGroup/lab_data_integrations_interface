@@ -1,10 +1,6 @@
 """Frozen constants for the DID sync discovery experiment."""
 
-from experimentation.aoc_followers_backfill.constants import (
-    FOLLOWERS_PAGE_SIZE,
-    PROFILES_BATCH_SIZE,
-    TARGET_HANDLE,
-)
+from experimentation.aoc_followers_backfill import constants as _aoc_constants
 
 TARGET_DIDS = 1000
 SMOKE_TARGET_DIDS = 50
@@ -19,7 +15,9 @@ PLC_PAGE_SIZE = 1000
 PLC_RECENT_LOOKBACK_HOURS = 24
 PLC_MAX_LOOKBACK_HOURS = 24 * 30
 
-AOC_HANDLE = TARGET_HANDLE
+AOC_HANDLE = _aoc_constants.TARGET_HANDLE
+FOLLOWERS_PAGE_SIZE = _aoc_constants.FOLLOWERS_PAGE_SIZE
+PROFILES_BATCH_SIZE = _aoc_constants.PROFILES_BATCH_SIZE
 
 ABLATION1_NAME = "ablation1_plc"
 ABLATION2_NAME = "ablation2_aoc_bfs"

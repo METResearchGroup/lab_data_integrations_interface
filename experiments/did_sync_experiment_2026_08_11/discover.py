@@ -13,9 +13,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import deque
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Any, Callable
+from typing import Any
 
 from atproto import Client
 
@@ -122,6 +123,88 @@ def _fetch_plc_page(
             raise
 
 
+def _append_unique_dids_from_ops(
+    ops: list[dict[str, Any]],
+    dids: list[str],
+    seen: set[str],
+    target: int,
+) -> str | int | None:
+    """Append unseen DIDs from one PLC page. Returns the last createdAt/seq cursor."""
+    last_created_at = None
+    for op in ops:
+        last_created_at = op.get("createdAt") or op.get("seq")
+        did = op.get("did")
+        if not did or did in seen:
+            continue
+        seen.add(did)
+        dids.append(did)
+        if len(dids) >= target:
+            break
+    return last_created_at
+
+
+def _next_plc_lookback(
+    lookback_hours: int,
+    exhausted_lookbacks: set[int],
+    clock: datetime,
+) -> tuple[int, str] | None:
+    """Double lookback and return (new_lookback, after), or None when exhausted."""
+    exhausted_lookbacks.add(lookback_hours)
+    if lookback_hours >= PLC_MAX_LOOKBACK_HOURS:
+        return None
+    lookback_hours = min(lookback_hours * 2, PLC_MAX_LOOKBACK_HOURS)
+    if lookback_hours in exhausted_lookbacks:
+        return None
+    return lookback_hours, _iso_utc(clock - timedelta(hours=lookback_hours))
+
+
+@dataclass
+class _PlcWalkState:
+    dids: list[str]
+    seen: set[str]
+    after: str
+    final_after: str
+    lookback_hours: int
+    exhausted_lookbacks: set[int]
+    pages: int
+    request_count: int
+    last_headers: dict[str, str]
+
+
+def _advance_plc_walk(
+    state: _PlcWalkState,
+    target: int,
+    clock: datetime,
+    urlopen: UrlOpen,
+    rate_limit_events: list[RateLimitEvent],
+    sleep: Callable[[float], None],
+) -> bool:
+    """Process one PLC page. Returns False when the walk should stop."""
+    state.request_count += 1
+    state.pages += 1
+    ops, state.last_headers = _fetch_plc_page(state.after, urlopen, rate_limit_events, sleep)
+    if not ops:
+        expanded = _next_plc_lookback(state.lookback_hours, state.exhausted_lookbacks, clock)
+        if expanded is None:
+            return False
+        state.lookback_hours, state.after = expanded
+        return True
+
+    last_created_at = _append_unique_dids_from_ops(ops, state.dids, state.seen, target)
+    if last_created_at is None or str(last_created_at) == state.after:
+        if len(state.dids) >= target:
+            return False
+        expanded = _next_plc_lookback(state.lookback_hours, state.exhausted_lookbacks, clock)
+        if expanded is None:
+            return False
+        state.lookback_hours, state.after = expanded
+        return True
+
+    state.after = str(last_created_at)
+    state.final_after = state.after
+    return len(state.dids) < target
+
+
 def discover_plc_dids(
     target: int,
     now: datetime | None = None,
@@ -151,69 +234,40 @@ def discover_plc_dids(
     """
     start = time.perf_counter()
     clock = now if now is not None else datetime.now(UTC)
-    dids: list[str] = []
-    seen: set[str] = set()
-    request_count = 0
-    rate_limit_events: list[RateLimitEvent] = []
-    pages = 0
     lookback_hours = PLC_RECENT_LOOKBACK_HOURS
     initial_after = _iso_utc(clock - timedelta(hours=lookback_hours))
-    after = initial_after
-    final_after = after
-    last_headers: dict[str, str] = {}
-    exhausted_lookbacks: set[int] = set()
+    rate_limit_events: list[RateLimitEvent] = []
+    state = _PlcWalkState(
+        dids=[],
+        seen=set(),
+        after=initial_after,
+        final_after=initial_after,
+        lookback_hours=lookback_hours,
+        exhausted_lookbacks=set(),
+        pages=0,
+        request_count=0,
+        last_headers={},
+    )
 
-    while len(dids) < target:
-        request_count += 1
-        pages += 1
-        ops, last_headers = _fetch_plc_page(after, urlopen, rate_limit_events, sleep)
-        if not ops:
-            exhausted_lookbacks.add(lookback_hours)
-            if lookback_hours >= PLC_MAX_LOOKBACK_HOURS:
-                break
-            lookback_hours = min(lookback_hours * 2, PLC_MAX_LOOKBACK_HOURS)
-            if lookback_hours in exhausted_lookbacks:
-                break
-            after = _iso_utc(clock - timedelta(hours=lookback_hours))
-            continue
-
-        last_created_at = None
-        for op in ops:
-            last_created_at = op.get("createdAt") or op.get("seq")
-            did = op.get("did")
-            if not did or did in seen:
-                continue
-            seen.add(did)
-            dids.append(did)
-            if len(dids) >= target:
-                break
-
-        if last_created_at is None or str(last_created_at) == after:
-            exhausted_lookbacks.add(lookback_hours)
-            if lookback_hours >= PLC_MAX_LOOKBACK_HOURS or len(dids) >= target:
-                break
-            lookback_hours = min(lookback_hours * 2, PLC_MAX_LOOKBACK_HOURS)
-            after = _iso_utc(clock - timedelta(hours=lookback_hours))
-            continue
-
-        after = str(last_created_at)
-        final_after = after
+    while len(state.dids) < target:
+        if not _advance_plc_walk(state, target, clock, urlopen, rate_limit_events, sleep):
+            break
 
     runtime = time.perf_counter() - start
     extra: dict[str, Any] = {
         "initial_after": initial_after,
-        "final_after": final_after,
-        "pages": pages,
-        "lookback_hours_final": lookback_hours,
-        "rate_limit_header_sample": last_headers,
+        "final_after": state.final_after,
+        "pages": state.pages,
+        "lookback_hours_final": state.lookback_hours,
+        "rate_limit_header_sample": state.last_headers,
     }
-    if len(dids) < target:
-        extra["shortfall"] = target - len(dids)
+    if len(state.dids) < target:
+        extra["shortfall"] = target - len(state.dids)
 
     return DiscoveryResult(
         ablation=ABLATION1_NAME,
-        dids=dids,
-        request_count=request_count,
+        dids=state.dids,
+        request_count=state.request_count,
         runtime_seconds=runtime,
         rate_limit_events=rate_limit_events,
         extra=extra,
@@ -255,6 +309,61 @@ def _get_followers_page(
                 )
             )
             sleep(5.0)
+
+
+def _ingest_follower_page(
+    followers: list[Any],
+    seed_did: str,
+    dids: list[str],
+    seen: set[str],
+    queue: deque[tuple[str, int]],
+    enqueued: set[str],
+    depth: int,
+    target: int,
+) -> None:
+    """Add unseen followers to the result list and BFS queue."""
+    for follower in followers:
+        follower_did = follower.did
+        if follower_did in seen or follower_did == seed_did:
+            continue
+        seen.add(follower_did)
+        dids.append(follower_did)
+        if follower_did not in enqueued:
+            queue.append((follower_did, depth + 1))
+            enqueued.add(follower_did)
+        if len(dids) >= target:
+            break
+
+
+def _expand_followers_for_did(
+    appview: Client,
+    expand_did: str,
+    depth: int,
+    target: int,
+    seed_did: str,
+    dids: list[str],
+    seen: set[str],
+    queue: deque[tuple[str, int]],
+    enqueued: set[str],
+    pages_by_depth: dict[int, int],
+    rate_limit_events: list[RateLimitEvent],
+    sleep: Callable[[float], None],
+) -> int:
+    """Page followers for one DID. Returns the number of follower page requests."""
+    request_count = 0
+    cursor: str | None = None
+    while len(dids) < target:
+        request_count += 1
+        pages_by_depth[depth] = pages_by_depth.get(depth, 0) + 1
+        response = _get_followers_page(appview, expand_did, cursor, rate_limit_events, sleep)
+        followers = list(response.followers or [])
+        if not followers:
+            break
+        _ingest_follower_page(followers, seed_did, dids, seen, queue, enqueued, depth, target)
+        cursor = getattr(response, "cursor", None)
+        if not cursor or len(dids) >= target:
+            break
+    return request_count
 
 
 def discover_aoc_bfs_dids(
@@ -301,33 +410,20 @@ def discover_aoc_bfs_dids(
     while len(dids) < target and queue:
         expand_did, depth = queue.popleft()
         max_depth_reached = max(max_depth_reached, depth)
-        cursor: str | None = None
-
-        while len(dids) < target:
-            request_count += 1
-            pages_by_depth[depth] = pages_by_depth.get(depth, 0) + 1
-            response = _get_followers_page(
-                appview, expand_did, cursor, rate_limit_events, sleep
-            )
-            followers = list(response.followers or [])
-            if not followers:
-                break
-
-            for follower in followers:
-                follower_did = follower.did
-                if follower_did in seen or follower_did == seed_did:
-                    continue
-                seen.add(follower_did)
-                dids.append(follower_did)
-                if follower_did not in enqueued:
-                    queue.append((follower_did, depth + 1))
-                    enqueued.add(follower_did)
-                if len(dids) >= target:
-                    break
-
-            cursor = getattr(response, "cursor", None)
-            if not cursor or len(dids) >= target:
-                break
+        request_count += _expand_followers_for_did(
+            appview,
+            expand_did,
+            depth,
+            target,
+            seed_did,
+            dids,
+            seen,
+            queue,
+            enqueued,
+            pages_by_depth,
+            rate_limit_events,
+            sleep,
+        )
 
     runtime = time.perf_counter() - start
     extra: dict[str, Any] = {

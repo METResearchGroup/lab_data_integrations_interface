@@ -74,8 +74,7 @@ class TestDiscoverPlcDids:
         """Verifies paging stops once target unique DIDs are collected."""
         now = datetime(2026, 8, 11, 12, 0, 0, tzinfo=UTC)
         ops = [
-            {"did": f"did:plc:{i}", "createdAt": f"2026-08-11T11:0{i}:00.000Z"}
-            for i in range(5)
+            {"did": f"did:plc:{i}", "createdAt": f"2026-08-11T11:0{i}:00.000Z"} for i in range(5)
         ]
         urlopen = MagicMock(return_value=_response(_jsonl(ops)))
 
@@ -97,15 +96,11 @@ class TestDiscoverPlcDids:
             hdrs=headers,
             fp=io.BytesIO(b""),
         )
-        ok = _response(
-            _jsonl([{"did": "did:plc:a", "createdAt": "2026-08-11T11:30:00.000Z"}])
-        )
+        ok = _response(_jsonl([{"did": "did:plc:a", "createdAt": "2026-08-11T11:30:00.000Z"}]))
         urlopen = MagicMock(side_effect=[error, ok])
         sleeps: list[float] = []
 
-        result = discover_plc_dids(
-            target=1, now=now, urlopen=urlopen, sleep=sleeps.append
-        )
+        result = discover_plc_dids(target=1, now=now, urlopen=urlopen, sleep=sleeps.append)
 
         assert result.dids == ["did:plc:a"]
         assert len(result.rate_limit_events) == 1

@@ -10,11 +10,15 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable
 
-from experiments.did_sync_experiment_2026_08_11.analyze import AnalyzeMeta, ProfileStats, analyze_dids
+from experiments.did_sync_experiment_2026_08_11.analyze import (
+    AnalyzeMeta,
+    ProfileStats,
+    analyze_dids,
+)
 from experiments.did_sync_experiment_2026_08_11.constants import (
     ABLATION1_NAME,
     ABLATION2_NAME,
@@ -42,7 +46,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--target",
         type=int,
         default=None,
-        help=f"Unique DIDs per ablation (default {TARGET_DIDS}, or {SMOKE_TARGET_DIDS} with --smoke)",
+        help=(
+            f"Unique DIDs per ablation (default {TARGET_DIDS}, or {SMOKE_TARGET_DIDS} with --smoke)"
+        ),
     )
     parser.add_argument(
         "--workers",
@@ -159,9 +165,7 @@ def write_results_md(summaries: list[dict], run_started: datetime) -> str:
         "Discovery runtime (s) | Discovery rate-limits | getRepo requests | "
         "getRepo rate-limits | getRepo errors |"
     )
-    lines.append(
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
-    )
+    lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
     for summary in summaries:
         discovery = summary["discovery"]
         analysis = summary["analysis"]
