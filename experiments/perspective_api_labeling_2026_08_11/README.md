@@ -6,7 +6,7 @@ Approach:
 
 1. Get Bluesky raw posts, in chunks of ~1M posts.
 2. For each post, run the Perspective API classifier.
-3. Store in a features/perspective_api/created_at={timestamp}/, partitioned like the other records are, on timestamp.
+3. Store locally as labels/{date}.parquet
 
 The model for the Perspective API is defined in `feature_generation/perspective_api/schemas.py`, and the model code is in `feature_generation/perspective_api/model.py`.
 
