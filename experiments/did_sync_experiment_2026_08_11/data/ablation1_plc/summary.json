@@ -1,0 +1,26 @@
+{
+  "ablation": "ablation1_plc",
+  "did_count": 1000,
+  "valid_did_count": 1,
+  "invalid_did_count": 999,
+  "validity_rate": 0.001,
+  "discovery": {
+    "request_count": 2,
+    "runtime_seconds": 0.15514199099970938,
+    "rate_limit_event_count": 0,
+    "extra": {
+      "initial_after": "2026-08-10T14:06:26.286Z",
+      "final_after": "2026-08-10T14:13:26.640Z",
+      "pages": 2,
+      "lookback_hours_final": 24,
+      "rate_limit_header_sample": {}
+    }
+  },
+  "analysis": {
+    "getrepo_request_count": 1000,
+    "getrepo_error_count": 899,
+    "getrepo_rate_limit_event_count": 191,
+    "getrepo_runtime_seconds": 21.851184138999997,
+    "appview_profile_request_count": 40
+  }
+}

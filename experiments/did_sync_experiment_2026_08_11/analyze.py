@@ -257,17 +257,18 @@ def _analyze_one_did(
     repo_bytes = None
     last_error: Exception | None = None
     rate_limited = False
-    for attempt in range(4):
+    for attempt in range(2):
         try:
             repo_bytes = relay_client.com.atproto.sync.get_repo({"did": did})
             last_error = None
             break
         except Exception as exc:
             last_error = exc
-            if _is_rate_limited(exc):
+            if _is_rate_limited(exc) and attempt == 0:
                 rate_limited = True
-                sleep(5.0 * (attempt + 1))
+                sleep(5.0)
                 continue
+            rate_limited = rate_limited or _is_rate_limited(exc)
             break
 
     if repo_bytes is None:

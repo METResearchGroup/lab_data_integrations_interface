@@ -226,9 +226,9 @@ def write_results_md(summaries: list[dict], run_started: datetime) -> str:
     lines.append(
         "Validity requires recent original posting and interactions, so the method "
         "that surfaces currently engaged graph neighborhoods should outperform recent "
-        "PLC chronology when early or newly registered DIDs are mostly inactive. "
-        "These numbers inform backfill seed choice. They do not by themselves prove "
-        "production readiness."
+        "PLC chronology when newly registered DIDs are inactive or when getRepo fails "
+        "often for that sample. These numbers inform backfill seed choice. They do not "
+        "by themselves prove production readiness."
     )
     lines.append("")
     lines.append("## Artifacts")

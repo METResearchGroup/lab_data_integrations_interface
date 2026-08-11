@@ -1,0 +1,56 @@
+[
+  {
+    "ablation": "ablation1_plc",
+    "did_count": 1000,
+    "valid_did_count": 1,
+    "invalid_did_count": 999,
+    "validity_rate": 0.001,
+    "discovery": {
+      "request_count": 2,
+      "runtime_seconds": 0.15514199099970938,
+      "rate_limit_event_count": 0,
+      "extra": {
+        "initial_after": "2026-08-10T14:06:26.286Z",
+        "final_after": "2026-08-10T14:13:26.640Z",
+        "pages": 2,
+        "lookback_hours_final": 24,
+        "rate_limit_header_sample": {}
+      }
+    },
+    "analysis": {
+      "getrepo_request_count": 1000,
+      "getrepo_error_count": 899,
+      "getrepo_rate_limit_event_count": 191,
+      "getrepo_runtime_seconds": 21.851184138999997,
+      "appview_profile_request_count": 40
+    }
+  },
+  {
+    "ablation": "ablation2_aoc_bfs",
+    "did_count": 1000,
+    "valid_did_count": 183,
+    "invalid_did_count": 817,
+    "validity_rate": 0.183,
+    "discovery": {
+      "request_count": 13,
+      "runtime_seconds": 1.8625444610001978,
+      "rate_limit_event_count": 0,
+      "extra": {
+        "seed_handle": "aoc.bsky.social",
+        "seed_did": "did:plc:p7gxyfr5vii5ntpwo7f6dhe2",
+        "seed_followers_count": 2209744,
+        "max_depth_reached": 0,
+        "pages_by_depth": {
+          "0": 12
+        }
+      }
+    },
+    "analysis": {
+      "getrepo_request_count": 1000,
+      "getrepo_error_count": 2,
+      "getrepo_rate_limit_event_count": 0,
+      "getrepo_runtime_seconds": 121.23610407399974,
+      "appview_profile_request_count": 40
+    }
+  }
+]
