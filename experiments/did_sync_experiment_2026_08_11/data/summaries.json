@@ -6,23 +6,29 @@
     "invalid_did_count": 999,
     "validity_rate": 0.001,
     "discovery": {
-      "request_count": 2,
-      "runtime_seconds": 0.15514199099970938,
+      "request_count": 1,
+      "runtime_seconds": 0.07346756500010088,
       "rate_limit_event_count": 0,
       "extra": {
-        "initial_after": "2026-08-10T14:06:26.286Z",
-        "final_after": "2026-08-10T14:13:26.640Z",
-        "pages": 2,
+        "initial_after": "2026-08-10T15:45:42.426Z",
+        "final_after": "2026-08-10T15:51:57.097Z",
+        "pages": 1,
         "lookback_hours_final": 24,
         "rate_limit_header_sample": {}
       }
     },
     "analysis": {
       "getrepo_request_count": 1000,
-      "getrepo_error_count": 899,
-      "getrepo_rate_limit_event_count": 191,
-      "getrepo_runtime_seconds": 21.851184138999997,
-      "appview_profile_request_count": 40
+      "getrepo_error_count": 906,
+      "getrepo_rate_limit_event_count": 0,
+      "getrepo_runtime_seconds": 302.904320519001,
+      "appview_profile_request_count": 40,
+      "getrepo_error_breakdown": {
+        "repo_takendown": 10,
+        "pds_unreachable": 666,
+        "repo_not_found": 229,
+        "repo_deactivated": 1
+      }
     }
   },
   {
@@ -33,12 +39,12 @@
     "validity_rate": 0.183,
     "discovery": {
       "request_count": 13,
-      "runtime_seconds": 1.8625444610001978,
+      "runtime_seconds": 2.247296699000799,
       "rate_limit_event_count": 0,
       "extra": {
         "seed_handle": "aoc.bsky.social",
         "seed_did": "did:plc:p7gxyfr5vii5ntpwo7f6dhe2",
-        "seed_followers_count": 2209744,
+        "seed_followers_count": 2209746,
         "max_depth_reached": 0,
         "pages_by_depth": {
           "0": 12
@@ -47,10 +53,11 @@
     },
     "analysis": {
       "getrepo_request_count": 1000,
-      "getrepo_error_count": 2,
+      "getrepo_error_count": 0,
       "getrepo_rate_limit_event_count": 0,
-      "getrepo_runtime_seconds": 121.23610407399974,
-      "appview_profile_request_count": 40
+      "getrepo_runtime_seconds": 773.6124733380002,
+      "appview_profile_request_count": 40,
+      "getrepo_error_breakdown": {}
     }
   }
 ]

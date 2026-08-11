@@ -153,9 +153,10 @@ def write_results_md(summaries: list[dict], run_started: datetime) -> str:
         "- Ablation 2 (AOC BFS): `getFollowers` breadth first search starting at `aoc.bsky.social`."
     )
     lines.append(
-        "- Profile and activity: `com.atproto.sync.getRepo` against `bsky.network` "
-        "(decode helpers from `experimentation/aoc_followers_backfill`), plus AppView "
-        "`getProfiles` for follower counts and handles."
+        "- Profile and activity: `com.atproto.sync.getRepo` starting at `bsky.network` "
+        "with PDS redirect following via httpx (decode helpers from "
+        "`experimentation/aoc_followers_backfill`), plus AppView `getProfiles` for "
+        "follower counts and handles."
     )
     lines.append("")
     lines.append("## Results")
@@ -231,10 +232,12 @@ def write_results_md(summaries: list[dict], run_started: datetime) -> str:
         "Validity requires recent original posting and interactions, so the method "
         "that surfaces currently engaged graph neighborhoods should outperform recent "
         "PLC chronology when newly registered DIDs are inactive or when getRepo fails "
-        "often for that sample. getRepo calls run sequentially with spacing and retries "
-        "on 429/transient network errors so remaining errors are treated as account or "
-        "decode failures, not quota noise. These numbers inform backfill seed choice. "
-        "They do not by themselves prove production readiness."
+        "often for that sample. getRepo calls run sequentially with spacing, follow "
+        "relay-to-PDS redirects, and retry only true 429/transient failures. Remaining "
+        "errors are account or host failures (for example RepoNotFound, RepoTakendown, "
+        "or an unreachable redirected PDS such as DNS failures), not quota noise. "
+        "These numbers inform backfill seed choice. They do not by themselves prove "
+        "production readiness."
     )
     lines.append("")
     lines.append("### getRepo error breakdown")

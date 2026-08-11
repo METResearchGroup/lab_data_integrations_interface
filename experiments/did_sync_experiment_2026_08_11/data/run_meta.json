@@ -1,11 +1,7 @@
 {
-  "run_started_utc": "2026-08-11T14:38:19.403774+00:00",
+  "run_started_utc": "2026-08-11T15:45:42.426135+00:00",
   "target": 1000,
-  "workers": 8,
+  "workers": 1,
   "only": "both",
-  "smoke": false,
-  "notes": [
-    "PLC full run completed first (high getRepo error/rate-limit count on recent DIDs).",
-    "AOC full run completed after naive/aware datetime fix."
-  ]
+  "smoke": false
 }

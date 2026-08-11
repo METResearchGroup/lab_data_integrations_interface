@@ -2,7 +2,7 @@
 
 ## 2026-08-11
 
-1. Added a Bluesky DID discovery experiment that compares PLC recent-cursor export against AOC follower breadth first search for 1000 accounts each, scores validity from getRepo activity plus AppView follower counts, and finds AOC BFS yields far more usable accounts (183 vs 1). [PR #158](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/158)
+1. Added a Bluesky DID discovery experiment that compares PLC recent-cursor export against AOC follower breadth first search for 1000 accounts each, scores validity from getRepo activity plus AppView follower counts, and finds AOC BFS yields far more usable accounts (183 vs 1). Authoritative re-run used paced httpx getRepo with PDS redirect following and recorded zero getRepo 429s; PLC failures were mostly unreachable redirected PDS hosts and RepoNotFound, not quota noise. [PR #158](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/158)
 
 ## 2026-08-10
 

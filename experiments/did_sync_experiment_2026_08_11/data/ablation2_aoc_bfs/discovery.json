@@ -4,6 +4,13 @@
   "dids": [
     "did:plc:zxyodtthvyndwtbibywanhkz",
     "did:plc:n26cmjpxrbxq4o4kemihyapv",
+    "did:plc:f4rpfr7k3akcchswet5zdl3k",
+    "did:plc:jfwt43wkzanhlrqdnbwfiadj",
+    "did:plc:fvftf5o46k3jac6f3pyc7x5b",
+    "did:plc:jh3w57o52wqy62qp73yx4fj3",
+    "did:plc:7jvjbndnbe4mttcoaqmc2sfi",
+    "did:plc:ruvtergw4vrck5wxih3imxvw",
+    "did:plc:rpmbkvfdy2zkiyx2tn6cdtxo",
     "did:plc:ulebfxggj6ofegjusfv3h2dt",
     "did:plc:blud436p4mdzyaqff4mnwbvr",
     "did:plc:iayefcc275akeihnlja5jhad",
@@ -994,22 +1001,15 @@
     "did:plc:muup4ajtpd6dqjwobc5n7kaw",
     "did:plc:ckguwjiedukqmszl6dmunsew",
     "did:plc:ismg2mlozwp5wk2nicd22wa4",
-    "did:plc:4nm4h4jyscl6fr76erpbc3pi",
-    "did:plc:heoq3r5x4bkvuoqwc34dv2ep",
-    "did:plc:thy7x4ix3t33u32hhcbow34v",
-    "did:plc:ewcnmfsykku2ngfs7etptz76",
-    "did:plc:mpyewcq6a767rwmcmhafkgdf",
-    "did:plc:o3hm7arwhum5loflugm5xyca",
-    "did:plc:gzk7sp2jps7u5yffrohafbdm",
-    "did:plc:qgwqhsxxhfqxjnul32rxmtri"
+    "did:plc:4nm4h4jyscl6fr76erpbc3pi"
   ],
   "request_count": 13,
-  "runtime_seconds": 1.8625444610001978,
+  "runtime_seconds": 2.247296699000799,
   "rate_limit_events": [],
   "extra": {
     "seed_handle": "aoc.bsky.social",
     "seed_did": "did:plc:p7gxyfr5vii5ntpwo7f6dhe2",
-    "seed_followers_count": 2209744,
+    "seed_followers_count": 2209746,
     "max_depth_reached": 0,
     "pages_by_depth": {
       "0": 12
