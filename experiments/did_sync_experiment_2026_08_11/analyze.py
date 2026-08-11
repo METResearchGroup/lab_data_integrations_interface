@@ -252,15 +252,30 @@ def _analyze_one_did(
     did: str,
     relay_client: Client,
     cutoff: datetime,
+    sleep=time.sleep,
 ) -> ProfileStats:
-    try:
-        repo_bytes = relay_client.com.atproto.sync.get_repo({"did": did})
-    except Exception as exc:
+    repo_bytes = None
+    last_error: Exception | None = None
+    rate_limited = False
+    for attempt in range(4):
+        try:
+            repo_bytes = relay_client.com.atproto.sync.get_repo({"did": did})
+            last_error = None
+            break
+        except Exception as exc:
+            last_error = exc
+            if _is_rate_limited(exc):
+                rate_limited = True
+                sleep(5.0 * (attempt + 1))
+                continue
+            break
+
+    if repo_bytes is None:
         return ProfileStats(
             did=did,
-            error=f"getRepo failed: {exc}",
+            error=f"getRepo failed: {last_error}",
             valid=False,
-            rate_limited=_is_rate_limited(exc),
+            rate_limited=rate_limited,
             invalid_reasons=["getrepo_error"],
         )
 
@@ -275,7 +290,9 @@ def _analyze_one_did(
         )
 
     activity = count_activity_from_records(records, cutoff)
-    return _activity_to_stats(did, activity)
+    stats = _activity_to_stats(did, activity)
+    stats.rate_limited = rate_limited
+    return stats
 
 
 def _batched(items: list[str], batch_size: int) -> list[list[str]]:

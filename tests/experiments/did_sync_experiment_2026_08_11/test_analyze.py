@@ -106,7 +106,19 @@ class TestCountActivityFromRecords:
         assert counts.bookmarks_6m == 0
 
 
-class TestApplyValidity:
+class TestParseBskyDatetime:
+    """Tests for _parse_bsky_datetime()."""
+
+    def test_naive_timestamp_becomes_utc(self):
+        """Verifies offset-naive createdAt values compare safely as UTC."""
+        from experiments.did_sync_experiment_2026_08_11.analyze import _parse_bsky_datetime
+
+        parsed = _parse_bsky_datetime("2026-07-01T00:00:00")
+
+        assert parsed is not None
+        assert parsed.tzinfo is not None
+        assert parsed.utcoffset().total_seconds() == 0
+
     """Tests for apply_validity()."""
 
     def test_valid_when_all_thresholds_met(self):
