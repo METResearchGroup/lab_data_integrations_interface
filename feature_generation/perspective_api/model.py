@@ -346,7 +346,7 @@ def _successful_label(
     probs = {
         field: float(value)
         for field, value in response_obj.items()
-        if field.startswith("prob_") and isinstance(value, (int, float))
+        if field.startswith("prob_") and isinstance(value, int | float)
     }
     return PerspectiveApiLabelsModel.model_validate(
         {
