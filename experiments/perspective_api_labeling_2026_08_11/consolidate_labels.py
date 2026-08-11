@@ -24,19 +24,30 @@ LABELS_DIR = EXPERIMENT_DIR / "labels"
 
 def consolidate_date(date: str, *, keep_tmp: bool = False) -> Path:
     tmp_dir = LABELS_DIR / "tmp" / date
-    if not tmp_dir.exists():
-        raise FileNotFoundError(f"No tmp labels directory for date {date}: {tmp_dir}")
+    output_path = LABELS_DIR / f"{date}.parquet"
 
-    chunk_paths = sorted(
-        path for path in tmp_dir.glob("*.parquet") if not path.name.startswith(".")
-    )
-    if not chunk_paths:
-        raise FileNotFoundError(f"No Parquet chunks under {tmp_dir}")
+    chunk_paths: list[Path] = []
+    if tmp_dir.exists():
+        chunk_paths = sorted(
+            path for path in tmp_dir.glob("*.parquet") if not path.name.startswith(".")
+        )
+
+    if not chunk_paths and not output_path.exists():
+        raise FileNotFoundError(
+            f"No tmp chunks under {tmp_dir} and no consolidated file at {output_path}"
+        )
 
     print(f"date: {date}")
     print(f"chunks: {len(chunk_paths)}")
 
-    frames = [pd.read_parquet(path) for path in chunk_paths]
+    frames: list[pd.DataFrame] = []
+    if output_path.exists():
+        frames.append(pd.read_parquet(output_path))
+        print(f"including existing consolidated rows from {output_path.name}")
+    frames.extend(pd.read_parquet(path) for path in chunk_paths)
+    if not frames:
+        raise FileNotFoundError(f"No label frames available for date {date}")
+
     combined = pd.concat(frames, ignore_index=True)
     before = len(combined)
     combined = combined.drop_duplicates(subset=["uri"], keep="last")
@@ -45,13 +56,12 @@ def consolidate_date(date: str, *, keep_tmp: bool = False) -> Path:
         print(f"deduped uri: {before:,} -> {after:,}")
 
     LABELS_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = LABELS_DIR / f"{date}.parquet"
     combined.to_parquet(output_path, index=False)
     print(f"wrote {after:,} rows -> {output_path.relative_to(EXPERIMENT_DIR)}")
 
     if keep_tmp:
         print(f"kept tmp dir: {tmp_dir}")
-    else:
+    elif tmp_dir.exists():
         shutil.rmtree(tmp_dir)
         print(f"cleared {tmp_dir.relative_to(EXPERIMENT_DIR)}")
 
