@@ -22,6 +22,8 @@ PROFILES_BATCH_SIZE = _aoc_constants.PROFILES_BATCH_SIZE
 ABLATION1_NAME = "ablation1_plc"
 ABLATION2_NAME = "ablation2_aoc_bfs"
 
+GETREPO_TIMEOUT_SECONDS = 60.0
+
 # Relay advertises ~6000 getRepo / 300s (~20/s). Stay well under that.
 DEFAULT_WORKERS = 2
 GETREPO_MIN_INTERVAL_SECONDS = 0.15

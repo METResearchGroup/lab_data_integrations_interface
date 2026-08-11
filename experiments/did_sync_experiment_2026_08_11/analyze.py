@@ -7,6 +7,7 @@ Run from repo root::
 
 from __future__ import annotations
 
+import json
 import threading
 import time
 from collections.abc import Callable
@@ -14,11 +15,12 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import httpx
 from atproto import Client
 
 from experimentation.aoc_followers_backfill.client import (
+    RELAY_BASE_URL,
     create_public_client,
-    create_relay_client,
 )
 from experimentation.aoc_followers_backfill.mst import decode_repo
 from experiments.did_sync_experiment_2026_08_11.constants import (
@@ -28,6 +30,7 @@ from experiments.did_sync_experiment_2026_08_11.constants import (
     GETREPO_MAX_BACKOFF_SECONDS,
     GETREPO_MIN_INTERVAL_SECONDS,
     GETREPO_RATE_LIMIT_COOLDOWN_SECONDS,
+    GETREPO_TIMEOUT_SECONDS,
     MIN_FOLLOWEES,
     MIN_FOLLOWERS,
     MIN_INTERACTIONS_6M,
@@ -42,6 +45,15 @@ QUOTE_EMBED_TYPES = {
 BOOKMARK_TYPES = {
     "app.bsky.bookmark",
     "app.bsky.bookmark.bookmark",
+}
+GETREPO_URL = f"{RELAY_BASE_URL.rstrip('/')}/xrpc/com.atproto.sync.getRepo"
+PERMANENT_XRPC_ERRORS = {
+    "reponotfound",
+    "repotakendown",
+    "repodeactivated",
+    "reposuspended",
+    "accountnotfound",
+    "invalidrequest",
 }
 
 
@@ -99,9 +111,13 @@ def classify_getrepo_error(error: str | None) -> str | None:
         return "repo_takendown"
     if "repodeactivated" in lowered or "deactivated" in lowered:
         return "repo_deactivated"
+    if "pds_unreachable" in lowered or "name or service not known" in lowered:
+        return "pds_unreachable"
     if "429" in lowered or "ratelimitexceeded" in lowered or "rate limit exceeded" in lowered:
         return "rate_limit"
-    if "network" in lowered or "requestexception" in lowered or "timeout" in lowered:
+    if "timeout" in lowered:
+        return "timeout"
+    if "network" in lowered or "requestexception" in lowered or "connect" in lowered:
         return "network"
     if "decode" in lowered:
         return "decode"
@@ -146,94 +162,109 @@ def _is_quote_embed(embed: dict | None) -> bool:
     return embed.get("$type", "") in QUOTE_EMBED_TYPES
 
 
-def _exception_status_code(exc: Exception) -> int | None:
-    response = getattr(exc, "response", None)
-    status_code = getattr(response, "status_code", None)
-    if status_code is not None:
-        return int(status_code)
-    status_code = getattr(exc, "status_code", None)
-    if status_code is not None:
-        return int(status_code)
-    return None
+class GetRepoError(Exception):
+    """Structured getRepo failure used for retry and classification decisions."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        xrpc_error: str | None = None,
+        retryable: bool = False,
+        rate_limited: bool = False,
+    ):
+        super().__init__(message)
+        self.status_code = status_code
+        self.xrpc_error = xrpc_error
+        self.retryable = retryable
+        self.rate_limited = rate_limited
 
 
-def _xrpc_error_name(exc: Exception) -> str | None:
-    """Return the XRPC error name from an atproto response, when present."""
-    response = getattr(exc, "response", None)
-    content = getattr(response, "content", None)
-    error = getattr(content, "error", None)
-    if isinstance(error, str) and error.strip():
-        return error.strip()
-    return None
+def _parse_xrpc_error_payload(response: httpx.Response) -> tuple[str | None, str]:
+    detail = (response.text or "").strip()[:200] or f"HTTP {response.status_code}"
+    try:
+        payload = response.json()
+    except (json.JSONDecodeError, ValueError):
+        return None, detail
+    if not isinstance(payload, dict):
+        return None, detail
+    xrpc_error = payload.get("error")
+    message = payload.get("message") or xrpc_error or detail
+    if isinstance(xrpc_error, str) and xrpc_error.strip():
+        return xrpc_error.strip(), str(message)
+    return None, str(message)
 
 
-def _format_exception(exc: Exception) -> str:
-    status_code = _exception_status_code(exc)
-    xrpc_error = _xrpc_error_name(exc)
-    if xrpc_error is not None:
-        response = getattr(exc, "response", None)
-        content = getattr(response, "content", None)
-        detail = getattr(content, "message", None) or xrpc_error
-        message = f"{xrpc_error}: {detail}"
-    else:
-        message = str(exc).strip() or type(exc).__name__
-    if status_code is None:
-        return message
-    return f"{message} (status={status_code})"
+def request_get_repo(did: str, http: httpx.Client) -> bytes:
+    """Fetch one repo CAR via relay getRepo, following PDS redirects.
+
+    The atproto SDK leaves empty ``NetworkError`` on relay 302 responses. httpx
+    with ``follow_redirects=True`` reaches the origin PDS and returns the CAR.
+    """
+    try:
+        response = http.get(GETREPO_URL, params={"did": did})
+    except httpx.TimeoutException as exc:
+        raise GetRepoError(f"timeout: {exc}", retryable=True) from exc
+    except httpx.ConnectError as exc:
+        raise GetRepoError(
+            f"pds_unreachable: {exc}",
+            retryable=False,
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise GetRepoError(f"network: {exc}", retryable=True) from exc
+
+    if response.status_code == 200:
+        return response.content
+
+    xrpc_error, detail = _parse_xrpc_error_payload(response)
+    if response.status_code == 429 or (xrpc_error or "").lower() == "ratelimitexceeded":
+        raise GetRepoError(
+            f"RateLimitExceeded: {detail}",
+            status_code=response.status_code,
+            xrpc_error=xrpc_error or "RateLimitExceeded",
+            retryable=True,
+            rate_limited=True,
+        )
+
+    permanent = response.status_code in {400, 401, 403, 404} or (
+        (xrpc_error or "").lower() in PERMANENT_XRPC_ERRORS
+    )
+    raise GetRepoError(
+        f"{xrpc_error or 'http_error'}: {detail} (status={response.status_code})",
+        status_code=response.status_code,
+        xrpc_error=xrpc_error,
+        retryable=not permanent and response.status_code >= 500,
+        rate_limited=False,
+    )
 
 
 def _is_rate_limited(exc: Exception) -> bool:
-    """Detect true relay 429 / RateLimitExceeded without matching RateLimit headers.
-
-    atproto stringifies the whole Response, including ``ratelimit-*`` headers on
-    ordinary 400 errors. Matching the substring ``ratelimit`` there falsely
-    triggers multi-minute cooldowns and contaminates rate-limit metrics.
-    """
-    status_code = _exception_status_code(exc)
+    """Detect true relay 429 / RateLimitExceeded failures."""
+    if isinstance(exc, GetRepoError):
+        return exc.rate_limited or exc.status_code == 429
+    status_code = getattr(exc, "status_code", None)
     if status_code == 429:
-        return True
-    xrpc_error = (_xrpc_error_name(exc) or "").lower()
-    if xrpc_error in {"ratelimitexceeded", "rate_limit_exceeded"}:
         return True
     type_name = type(exc).__name__.lower()
     if "ratelimit" in type_name:
         return True
-    # Prefer short messages without header dumps; still catch bare SDK strings.
     message = str(exc).strip().lower()
-    if len(message) <= 80 and (
+    return len(message) <= 80 and (
         "ratelimitexceeded" in message or message in {"429", "rate limit exceeded"}
-    ):
-        return True
-    return False
+    )
 
 
 def _is_retryable_getrepo_error(exc: Exception) -> bool:
+    if isinstance(exc, GetRepoError):
+        return exc.retryable
     if _is_rate_limited(exc):
         return True
-    # Permanent account/repo outcomes must not burn retry budget.
-    xrpc_error = (_xrpc_error_name(exc) or "").lower()
-    if xrpc_error in {
-        "reponotfound",
-        "repotakendown",
-        "repodeactivated",
-        "reposuspended",
-        "accountnotfound",
-        "invalidrequest",
-    }:
-        return False
-    status_code = _exception_status_code(exc)
-    if status_code in {400, 401, 403, 404}:
-        return False
+    status_code = getattr(exc, "status_code", None)
     if status_code in {500, 502, 503, 504}:
         return True
-    type_name = type(exc).__name__.lower()
-    if "network" in type_name:
-        return True
     message = str(exc).lower()
-    return any(
-        token in message
-        for token in ("timeout", "temporarily", "connection reset", "broken pipe", "network")
-    )
+    return any(token in message for token in ("timeout", "temporarily", "connection reset"))
 
 
 class RelayRequestPacer:
@@ -399,7 +430,7 @@ def _activity_to_stats(did: str, activity: ActivityCounts) -> ProfileStats:
 
 def _fetch_repo_bytes(
     did: str,
-    relay_client: Client,
+    http: httpx.Client,
     pacer: RelayRequestPacer,
     sleep: Callable[[float], None],
 ) -> tuple[bytes | None, str | None, bool]:
@@ -415,10 +446,7 @@ def _fetch_repo_bytes(
     rate_limited = False
     for attempt in range(GETREPO_MAX_ATTEMPTS):
         try:
-            repo_bytes = pacer.call(
-                lambda: relay_client.com.atproto.sync.get_repo({"did": did}),
-                sleep,
-            )
+            repo_bytes = pacer.call(lambda: request_get_repo(did, http), sleep)
             return repo_bytes, None, rate_limited
         except Exception as exc:
             last_error = exc
@@ -432,17 +460,19 @@ def _fetch_repo_bytes(
                 GETREPO_BASE_BACKOFF_SECONDS * (2**attempt),
             )
             sleep(backoff)
-    return None, _format_exception(last_error) if last_error else "unknown error", rate_limited
+    if last_error is None:
+        return None, "unknown error", rate_limited
+    return None, str(last_error).strip() or type(last_error).__name__, rate_limited
 
 
 def _analyze_one_did(
     did: str,
-    relay_client: Client,
+    http: httpx.Client,
     cutoff: datetime,
     pacer: RelayRequestPacer,
     sleep: Callable[[float], None] = time.sleep,
 ) -> ProfileStats:
-    repo_bytes, fetch_error, rate_limited = _fetch_repo_bytes(did, relay_client, pacer, sleep)
+    repo_bytes, fetch_error, rate_limited = _fetch_repo_bytes(did, http, pacer, sleep)
     if repo_bytes is None:
         return ProfileStats(
             did=did,
@@ -457,7 +487,7 @@ def _analyze_one_did(
     except Exception as exc:
         return ProfileStats(
             did=did,
-            error=f"CAR/MST decode failed: {_format_exception(exc)}",
+            error=f"CAR/MST decode failed: {exc}",
             valid=False,
             invalid_reasons=["decode_error"],
         )
@@ -505,6 +535,7 @@ def analyze_dids(
     relay_client: Client | None = None,
     public_client: Client | None = None,
     now: datetime | None = None,
+    http_client: httpx.Client | None = None,
 ) -> tuple[list[ProfileStats], AnalyzeMeta]:
     """Fetch repos for DIDs and classify validity.
 
@@ -516,11 +547,13 @@ def analyze_dids(
         Retained for CLI compatibility. getRepo enrichment runs sequentially
         under a shared paced client to avoid rate-limit skew and session races.
     relay_client
-        Optional relay client for getRepo. Created when omitted.
+        Unused. Retained for call-site compatibility with earlier SDK-based runs.
     public_client
         Optional AppView client for profiles. Created when omitted.
     now
         Optional clock for the six month cutoff.
+    http_client
+        Optional shared httpx client for getRepo (follow_redirects enabled).
 
     Returns
     -------
@@ -529,8 +562,13 @@ def analyze_dids(
     """
     clock = now if now is not None else datetime.now(UTC)
     cutoff = clock - timedelta(days=DAYS_BACK)
-    relay = relay_client if relay_client is not None else create_relay_client()
+    _ = relay_client
     public = public_client if public_client is not None else create_public_client()
+    owns_http = http_client is None
+    http = http_client or httpx.Client(
+        follow_redirects=True,
+        timeout=GETREPO_TIMEOUT_SECONDS,
+    )
 
     start = time.perf_counter()
     rows_by_did: dict[str, ProfileStats] = {}
@@ -539,25 +577,28 @@ def analyze_dids(
     error_breakdown: dict[str, int] = {}
     pacer = RelayRequestPacer(GETREPO_MIN_INTERVAL_SECONDS)
 
-    # getRepo uses one shared client; run sequentially so session use stays safe
-    # under pacing. ``workers`` is retained for CLI compatibility.
+    # getRepo uses one shared httpx client; run sequentially under pacing.
     _ = workers
-    for index, did in enumerate(dids, start=1):
-        row = _analyze_one_did(did, relay, cutoff, pacer)
-        rows_by_did[did] = row
-        if row.error:
-            error_count += 1
-            bucket = classify_getrepo_error(row.error) or "other"
-            error_breakdown[bucket] = error_breakdown.get(bucket, 0) + 1
-        if row.rate_limited:
-            rate_limit_count += 1
-        if index % 5 == 0 or index == len(dids):
-            print(
-                f"getRepo progress {index}/{len(dids)} "
-                f"(errors={error_count}, rate_limited={rate_limit_count}, "
-                f"breakdown={error_breakdown})",
-                flush=True,
-            )
+    try:
+        for index, did in enumerate(dids, start=1):
+            row = _analyze_one_did(did, http, cutoff, pacer)
+            rows_by_did[did] = row
+            if row.error:
+                error_count += 1
+                bucket = classify_getrepo_error(row.error) or "other"
+                error_breakdown[bucket] = error_breakdown.get(bucket, 0) + 1
+            if row.rate_limited:
+                rate_limit_count += 1
+            if index % 5 == 0 or index == len(dids):
+                print(
+                    f"getRepo progress {index}/{len(dids)} "
+                    f"(errors={error_count}, rate_limited={rate_limit_count}, "
+                    f"breakdown={error_breakdown})",
+                    flush=True,
+                )
+    finally:
+        if owns_http:
+            http.close()
 
     ordered = [rows_by_did[did] for did in dids if did in rows_by_did]
     appview_requests = _overlay_appview_profiles(ordered, public)

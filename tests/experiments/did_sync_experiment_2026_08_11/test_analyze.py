@@ -157,68 +157,69 @@ class TestIsRateLimited:
 
     def test_status_429_is_rate_limited(self):
         """Verifies HTTP 429 is treated as a rate limit."""
-        from experiments.did_sync_experiment_2026_08_11.analyze import _is_rate_limited
-
-        exc = Exception("boom")
-        exc.status_code = 429
-        assert _is_rate_limited(exc) is True
-
-    def test_xrpc_rate_limit_exceeded_is_rate_limited(self):
-        """Verifies XRPC RateLimitExceeded is treated as a rate limit."""
-        from experiments.did_sync_experiment_2026_08_11.analyze import _is_rate_limited
-
-        content = SimpleNamespace(error="RateLimitExceeded", message="Too Many Requests")
-        response = SimpleNamespace(status_code=429, content=content)
-        exc = Exception("wrapped")
-        exc.response = response
-        assert _is_rate_limited(exc) is True
-
-    def test_does_not_treat_ratelimit_headers_as_rate_limit(self):
-        """Verifies ordinary errors whose str() dumps RateLimit headers are not 429s."""
-        from experiments.did_sync_experiment_2026_08_11.analyze import _is_rate_limited
-
-        content = SimpleNamespace(
-            error="RepoTakendown",
-            message="Repo has been takendown: did:plc:x",
+        from experiments.did_sync_experiment_2026_08_11.analyze import (
+            GetRepoError,
+            _is_rate_limited,
         )
-        response = SimpleNamespace(
+
+        exc = GetRepoError("RateLimitExceeded", status_code=429, rate_limited=True, retryable=True)
+        assert _is_rate_limited(exc) is True
+
+    def test_permanent_xrpc_error_is_not_rate_limited(self):
+        """Verifies RepoTakendown is not treated as a rate limit."""
+        from experiments.did_sync_experiment_2026_08_11.analyze import (
+            GetRepoError,
+            _is_rate_limited,
+            _is_retryable_getrepo_error,
+        )
+
+        exc = GetRepoError(
+            "RepoTakendown: Repo has been takendown (status=400)",
             status_code=400,
-            content=content,
-            headers={
-                "ratelimit-limit": "6000",
-                "ratelimit-remaining": "5999",
-                "ratelimit-policy": "6000;w=300",
-            },
+            xrpc_error="RepoTakendown",
+            retryable=False,
+            rate_limited=False,
         )
-        exc = Exception(
-            "Response(success=False, status_code=400, content=XrpcError("
-            "error='RepoTakendown', message='Repo has been takendown'), "
-            "headers={'ratelimit-limit': '6000', 'ratelimit-remaining': '5999'})"
-        )
-        exc.response = response
         assert _is_rate_limited(exc) is False
+        assert _is_retryable_getrepo_error(exc) is False
 
 
 class TestFetchRepoBytes:
     """Tests for _fetch_repo_bytes()."""
 
-    def test_retries_rate_limit_then_succeeds(self):
+    def test_retries_rate_limit_then_succeeds(self, monkeypatch):
         """Verifies a 429 is retried until getRepo succeeds."""
         from experiments.did_sync_experiment_2026_08_11.analyze import (
+            GetRepoError,
             RelayRequestPacer,
             _fetch_repo_bytes,
         )
 
-        relay = MagicMock()
-        rate_limited = Exception("RateLimitExceeded")
-        rate_limited.status_code = 429
-        relay.com.atproto.sync.get_repo.side_effect = [rate_limited, b"car-bytes"]
+        calls = {"n": 0}
+
+        def fake_request(_did: str, _http):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise GetRepoError(
+                    "RateLimitExceeded",
+                    status_code=429,
+                    xrpc_error="RateLimitExceeded",
+                    retryable=True,
+                    rate_limited=True,
+                )
+            return b"car-bytes"
+
+        monkeypatch.setattr(
+            "experiments.did_sync_experiment_2026_08_11.analyze.request_get_repo",
+            fake_request,
+        )
         sleeps: list[float] = []
         pacer = RelayRequestPacer(0.0)
+        http = MagicMock()
 
         repo_bytes, error, was_rate_limited = _fetch_repo_bytes(
             "did:plc:x",
-            relay,
+            http,
             pacer,
             sleeps.append,
         )
@@ -227,39 +228,41 @@ class TestFetchRepoBytes:
         assert error is None
         assert was_rate_limited is True
         assert sleeps[0] == 3.0
-        assert relay.com.atproto.sync.get_repo.call_count == 2
+        assert calls["n"] == 2
 
-    def test_retries_network_error_then_succeeds(self):
-        """Verifies NetworkError-style failures are retried until getRepo succeeds."""
+    def test_pds_unreachable_fails_fast(self, monkeypatch):
+        """Verifies DNS/connect failures to a redirected PDS are not retried."""
         from experiments.did_sync_experiment_2026_08_11.analyze import (
+            GetRepoError,
             RelayRequestPacer,
             _fetch_repo_bytes,
         )
 
-        class FakeNetworkError(Exception):
-            """Stand-in for atproto NetworkError without importing the SDK type."""
+        calls = {"n": 0}
 
-        FakeNetworkError.__name__ = "NetworkError"
-        relay = MagicMock()
-        relay.com.atproto.sync.get_repo.side_effect = [
-            FakeNetworkError("RequestException"),
-            b"car-bytes",
-        ]
+        def fake_request(_did: str, _http):
+            calls["n"] += 1
+            raise GetRepoError("pds_unreachable: Name or service not known", retryable=False)
+
+        monkeypatch.setattr(
+            "experiments.did_sync_experiment_2026_08_11.analyze.request_get_repo",
+            fake_request,
+        )
         sleeps: list[float] = []
         pacer = RelayRequestPacer(0.0)
 
         repo_bytes, error, was_rate_limited = _fetch_repo_bytes(
             "did:plc:x",
-            relay,
+            MagicMock(),
             pacer,
             sleeps.append,
         )
 
-        assert repo_bytes == b"car-bytes"
-        assert error is None
+        assert repo_bytes is None
+        assert "pds_unreachable" in (error or "")
         assert was_rate_limited is False
-        assert sleeps[0] == 3.0
-        assert relay.com.atproto.sync.get_repo.call_count == 2
+        assert calls["n"] == 1
+        assert sleeps == []
 
 
 class TestAnalyzeDids:
@@ -286,12 +289,18 @@ class TestAnalyzeDids:
             ]
         )
 
+        monkeypatch.setattr(
+            "experiments.did_sync_experiment_2026_08_11.analyze.request_get_repo",
+            lambda _did, _http: b"fake-car",
+        )
+
         rows, meta = analyze_dids(
             ["did:plc:x"],
             workers=1,
             relay_client=relay,
             public_client=public,
             now=datetime(2026, 8, 11, 12, 0, 0, tzinfo=UTC),
+            http_client=MagicMock(),
         )
 
         assert len(rows) == 1
