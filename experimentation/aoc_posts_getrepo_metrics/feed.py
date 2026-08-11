@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from experimentation.aoc_posts_getrepo_metrics.constants import AUTHOR_FEED_PAGE_SIZE
+
 
 def resolve_did(client: Any, handle: str) -> str:
     """Resolve a Bluesky handle to its DID.
@@ -18,11 +20,15 @@ def resolve_did(client: Any, handle: str) -> str:
     str
         Decentralized identifier for the account.
     """
-    raise NotImplementedError
+    profile = client.app.bsky.actor.get_profile({"actor": handle})
+    return profile.did
 
 
 def fetch_latest_post_uris(client: Any, actor: str, min_posts: int) -> list[str]:
     """Return at least ``min_posts`` latest post URIs authored by ``actor``.
+
+    Pages ``getAuthorFeed``, keeps only posts whose author DID matches
+    ``actor``, and stops once enough URIs are collected.
 
     Parameters
     ----------
@@ -43,4 +49,36 @@ def fetch_latest_post_uris(client: Any, actor: str, min_posts: int) -> list[str]
     ValueError
         When the feed is exhausted before ``min_posts`` URIs are collected.
     """
-    raise NotImplementedError
+    uris: list[str] = []
+    cursor: str | None = None
+
+    while len(uris) < min_posts:
+        params: dict[str, Any] = {
+            "actor": actor,
+            "limit": AUTHOR_FEED_PAGE_SIZE,
+        }
+        if cursor:
+            params["cursor"] = cursor
+
+        response = client.app.bsky.feed.get_author_feed(params)
+        page_uris = [
+            item.post.uri for item in response.feed if item.post.author.did == actor
+        ]
+        if not page_uris and not getattr(response, "cursor", None):
+            break
+
+        for uri in page_uris:
+            uris.append(uri)
+            if len(uris) >= min_posts:
+                break
+
+        cursor = getattr(response, "cursor", None)
+        if not cursor:
+            break
+
+    if len(uris) < min_posts:
+        raise ValueError(
+            f"Author feed returned {len(uris)} posts authored by {actor}; "
+            f"needed at least {min_posts}"
+        )
+    return uris
