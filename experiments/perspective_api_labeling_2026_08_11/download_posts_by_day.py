@@ -5,7 +5,8 @@ exported files into a single local Parquet file per day.
 
 Run from repo root:
 
-    PYTHONPATH=. uv run python experiments/perspective_api_labeling_2026_08_11/download_posts_by_day.py
+    PYTHONPATH=. uv run python \\
+        experiments/perspective_api_labeling_2026_08_11/download_posts_by_day.py
 """
 
 from __future__ import annotations
@@ -53,7 +54,9 @@ def _delete_s3_prefix(s3_client: boto3.client, bucket: str, prefix: str) -> None
         )
 
 
-def _download_s3_prefix(s3_client: boto3.client, bucket: str, prefix: str, dest: Path) -> list[Path]:
+def _download_s3_prefix(
+    s3_client: boto3.client, bucket: str, prefix: str, dest: Path
+) -> list[Path]:
     dest.mkdir(parents=True, exist_ok=True)
     downloaded: list[Path] = []
     paginator = s3_client.get_paginator("list_objects_v2")
@@ -96,7 +99,9 @@ def download_day(day: str, *, athena: Athena, s3_client: boto3.client) -> Path:
         print(f"{day}: downloading exported Parquet from S3")
         parquet_files = _download_s3_prefix(s3_client, S3_BUCKET, s3_prefix, tmp_path)
         if not parquet_files:
-            raise RuntimeError(f"{day}: UNLOAD produced no files under s3://{S3_BUCKET}/{s3_prefix}")
+            raise RuntimeError(
+                f"{day}: UNLOAD produced no files under s3://{S3_BUCKET}/{s3_prefix}"
+            )
 
         print(f"{day}: merging {len(parquet_files)} file(s) -> {output_path}")
         row_count = _merge_parquet_files(parquet_files, output_path)

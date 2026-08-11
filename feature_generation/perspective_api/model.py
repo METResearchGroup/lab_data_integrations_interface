@@ -2,14 +2,14 @@
 
 import asyncio
 import json
-from typing import Optional, Literal
+from typing import Literal
 
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
 
-from lib.timestamp_utils import get_current_timestamp
-from lib.load_env_vars import EnvVarsContainer
 from feature_generation.perspective_api.schemas import PerspectiveApiLabelsModel
+from lib.load_env_vars import EnvVarsContainer
+from lib.timestamp_utils import get_current_timestamp
 
 # current max of 100 QPS for the Perspective API. Also put a wait time of 1.05
 # seconds to make it more unlikely that more than 2 batches go off in 1 second
@@ -87,9 +87,7 @@ attribute_to_labels_map = {
 
 
 default_requested_attribute_keys = list(attribute_to_labels_map.keys())
-default_requested_attributes = {
-    attribute: {} for attribute in default_requested_attribute_keys
-}
+default_requested_attributes = {attribute: {} for attribute in default_requested_attribute_keys}
 
 
 def request_comment_analyzer(
@@ -130,13 +128,9 @@ def request_comment_analyzer(
 
 def classify_text_toxicity(text: str) -> dict:
     """Classify text toxicity."""
-    response = request_comment_analyzer(
-        text=text, requested_attributes={"TOXICITY": {}}
-    )
+    response = request_comment_analyzer(text=text, requested_attributes={"TOXICITY": {}})
     response_obj = json.loads(response)
-    toxicity_prob_score = response_obj["attributeScores"]["TOXICITY"]["summaryScore"][
-        "value"
-    ]
+    toxicity_prob_score = response_obj["attributeScores"]["TOXICITY"]["summaryScore"]["value"]
 
     return {
         "prob_toxic": toxicity_prob_score,
@@ -155,23 +149,19 @@ def process_response(response_str: str) -> dict:
                 response_obj["attributeScores"][attribute]["summaryScore"]["value"]  # noqa
             )
             classification_probs_and_labels[labels["prob"]] = prob_score
-            classification_probs_and_labels[labels["label"]] = (
-                0 if prob_score < 0.5 else 1
-            )  # noqa
+            classification_probs_and_labels[labels["label"]] = 0 if prob_score < 0.5 else 1  # noqa
     # constructiveness == reasoning now, presumably, according to
     # the Perspective API team.
-    classification_probs_and_labels["prob_constructive"] = (
-        classification_probs_and_labels["prob_reasoning"]
-    )
-    classification_probs_and_labels["label_constructive"] = (
-        classification_probs_and_labels["label_reasoning"]
-    )
+    classification_probs_and_labels["prob_constructive"] = classification_probs_and_labels[
+        "prob_reasoning"
+    ]
+    classification_probs_and_labels["label_constructive"] = classification_probs_and_labels[
+        "label_reasoning"
+    ]
     return classification_probs_and_labels
 
 
-def classify(
-    text: str, attributes: Optional[dict] = default_requested_attributes
-) -> dict:
+def classify(text: str, attributes: dict | None = default_requested_attributes) -> dict:
     """Classify text using all the attributes from the Google Perspectives API."""  # noqa
     response: str = request_comment_analyzer(text=text, requested_attributes=attributes)
     return process_response(response)
@@ -279,9 +269,7 @@ async def process_perspective_batch(requests: list[dict]) -> list[dict]:
                 for attribute, labels in attribute_to_labels_map.items():
                     if attribute in response_obj["attributeScores"]:
                         prob_score = (
-                            response_obj["attributeScores"][attribute]["summaryScore"][
-                                "value"
-                            ]  # noqa
+                            response_obj["attributeScores"][attribute]["summaryScore"]["value"]  # noqa
                         )
                         classification_probs_and_labels[labels["prob"]] = prob_score  # noqa
                         classification_probs_and_labels[labels["label"]] = (
@@ -365,8 +353,10 @@ async def process_perspective_batch_with_retries(
     if retry_strategy == "batch":
         # Retry entire batch if any requests failed
         while attempt < max_retries and None in responses:
+            success_count = len(responses) - responses.count(None)
+            fail_count = responses.count(None)
             print(
-                f"{len(responses) - responses.count(0)} successful, {responses.count(0)} failed requests. "
+                f"{success_count} successful, {fail_count} failed requests. "
                 f"Retrying entire batch (attempt {attempt + 1}/{max_retries})..."
             )
             await asyncio.sleep(current_delay)
@@ -379,8 +369,10 @@ async def process_perspective_batch_with_retries(
         failed_indices = [i for i, r in enumerate(responses) if r is None]
 
         while failed_indices and attempt < max_retries:
+            success_count = len(responses) - len(failed_indices)
+            fail_count = len(failed_indices)
             print(
-                f"{len(responses) - len(failed_indices)} successful, {len(failed_indices)} failed requests. "
+                f"{success_count} successful, {fail_count} failed requests. "
                 f"Retrying failed requests (attempt {attempt + 1}/{max_retries})..."
             )
 
@@ -471,7 +463,9 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
 
     if len(responses) != len(posts):
         print(
-            f"Number of responses ({len(responses)}) does not match number of posts ({len(posts)}). Likely means that some posts failed to be labeled. Re-inserting all posts into queue..."
+            f"Number of responses ({len(responses)}) does not match number of "
+            f"posts ({len(posts)}). Likely means that some posts failed to be "
+            "labeled. Re-inserting all posts into queue..."
         )
         responses = [None] * len(posts)
 
@@ -496,13 +490,8 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
             for attribute in response_obj["attributeScores"]:
                 if "summaryScore" not in response_obj["attributeScores"][attribute]:
                     is_malformed = True
-                    error_msg.append(
-                        f"Missing required field: summaryScore for {attribute}"
-                    )
-                elif (
-                    "value"
-                    not in response_obj["attributeScores"][attribute]["summaryScore"]
-                ):
+                    error_msg.append(f"Missing required field: summaryScore for {attribute}")
+                elif "value" not in response_obj["attributeScores"][attribute]["summaryScore"]:
                     is_malformed = True
                     error_msg.append(
                         f"Missing required field: value in summaryScore for {attribute}"
@@ -515,7 +504,8 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
             if response_obj is None:
                 response_obj = {"error": "No response from Perspective API"}
             print(
-                f"Error processing post {post['uri']} using the Perspective API: {response_obj['error']}"
+                f"Error processing post {post['uri']} using the "
+                f"Perspective API: {response_obj['error']}"
             )
             res.append(
                 PerspectiveApiLabelsModel(
@@ -531,9 +521,7 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
             # we only want the probs, not the labels, since we want to enforce
             # our own threshold for what constitutes a label
             probs_response_obj = {
-                field: value
-                for (field, value) in response_obj.items()
-                if field.startswith("prob_")
+                field: value for (field, value) in response_obj.items() if field.startswith("prob_")
             }
             try:
                 res.append(
@@ -548,7 +536,8 @@ def create_labels(posts: list[dict], responses: list[dict]) -> list[dict]:
                 )
             except Exception as e:
                 print(
-                    f"Unable to export the following record ({post}) and label ({response_obj}), due to error ({e})"
+                    f"Unable to export the following record ({post}) and "
+                    f"label ({response_obj}), due to error ({e})"
                 )
                 res.append(
                     PerspectiveApiLabelsModel(

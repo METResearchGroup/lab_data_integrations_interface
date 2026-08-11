@@ -7,10 +7,12 @@ labels/tmp/{date}/{content_hash}.parquet.
 
 Run from repo root:
 
-    PYTHONPATH=. uv run python experiments/perspective_api_labeling_2026_08_11/label_posts.py \\
+    PYTHONPATH=. uv run python \\
+        experiments/perspective_api_labeling_2026_08_11/label_posts.py \\
         data/2026-08-09.parquet
 
-    PYTHONPATH=. uv run python experiments/perspective_api_labeling_2026_08_11/label_posts.py \\
+    PYTHONPATH=. uv run python \\
+        experiments/perspective_api_labeling_2026_08_11/label_posts.py \\
         experiments/perspective_api_labeling_2026_08_11/data/2026-08-09.parquet \\
         --limit 1000
 """
@@ -46,9 +48,7 @@ def resolve_date(posts_path: Path, date_arg: str | None) -> str:
     # Expect YYYY-MM-DD from download_posts_by_day.py output filenames.
     if len(stem) == 10 and stem[4] == "-" and stem[7] == "-":
         return stem
-    raise ValueError(
-        f"Could not infer date from {posts_path.name}; pass --date YYYY-MM-DD"
-    )
+    raise ValueError(f"Could not infer date from {posts_path.name}; pass --date YYYY-MM-DD")
 
 
 def load_already_labeled_uris(tmp_dir: Path) -> set[str]:
@@ -75,7 +75,8 @@ def posts_for_api(frame: pd.DataFrame) -> list[dict]:
             text = ""
         created_at = getattr(row, "created_at", None)
         preprocessing_timestamp = (
-            "" if created_at is None or (isinstance(created_at, float) and pd.isna(created_at))
+            ""
+            if created_at is None or (isinstance(created_at, float) and pd.isna(created_at))
             else str(created_at)
         )
         posts.append(
@@ -99,7 +100,9 @@ def flush_labels(buffer: list[dict], tmp_dir: Path) -> tuple[Path, int]:
     rows_flushed = len(buffer)
     tmp_dir.mkdir(parents=True, exist_ok=True)
     frame = pd.DataFrame(buffer)
-    partial = tmp_dir / f".partial-{hashlib.sha256(str(time.time_ns()).encode()).hexdigest()[:8]}.parquet"
+    partial = (
+        tmp_dir / f".partial-{hashlib.sha256(str(time.time_ns()).encode()).hexdigest()[:8]}.parquet"
+    )
     frame.to_parquet(partial, index=False)
 
     digest = hashlib.sha256(partial.read_bytes()).hexdigest()[:16]
@@ -137,9 +140,7 @@ async def label_posts(
             if len(buffer) >= flush_size:
                 output_path, rows_flushed = flush_labels(buffer, tmp_dir)
                 progress.update(rows_flushed)
-                progress.set_postfix_str(
-                    f"flushed {output_path.relative_to(EXPERIMENT_DIR)}"
-                )
+                progress.set_postfix_str(f"flushed {output_path.relative_to(EXPERIMENT_DIR)}")
 
             # Stay under Perspective QPS between batches (skip delay after last batch).
             if start + batch_size < len(posts):

@@ -5,7 +5,8 @@ the tmp directory for that date.
 
 Run from repo root:
 
-    PYTHONPATH=. uv run python experiments/perspective_api_labeling_2026_08_11/consolidate_labels.py \\
+    PYTHONPATH=. uv run python \\
+        experiments/perspective_api_labeling_2026_08_11/consolidate_labels.py \\
         --date 2026-08-09
 """
 

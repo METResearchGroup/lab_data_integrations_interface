@@ -2,7 +2,8 @@
 
 Run from repo root:
 
-    PYTHONPATH=. uv run python experiments/perspective_api_labeling_2026_08_11/get_post_count_by_day.py
+    PYTHONPATH=. uv run python \\
+        experiments/perspective_api_labeling_2026_08_11/get_post_count_by_day.py
 """
 
 from __future__ import annotations
