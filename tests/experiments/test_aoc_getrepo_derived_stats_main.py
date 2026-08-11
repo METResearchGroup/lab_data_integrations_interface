@@ -135,8 +135,8 @@ class TestRun:
                 return_value=cohort,
             ),
             patch(
-                "experiments.aoc_getrepo_derived_stats_2026_08_11.main.fetch_cohort_repos",
-                return_value=bundles,
+                "experiments.aoc_getrepo_derived_stats_2026_08_11.main.fetch_one_repo",
+                side_effect=bundles,
             ),
         ):
             run()

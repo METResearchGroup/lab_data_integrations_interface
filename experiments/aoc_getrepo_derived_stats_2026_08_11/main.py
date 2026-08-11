@@ -7,6 +7,7 @@ Run from repo root::
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime, timedelta
 
 from experimentation.aoc_followers_backfill.client import (
@@ -16,7 +17,7 @@ from experimentation.aoc_followers_backfill.client import (
 from experiments.aoc_getrepo_derived_stats_2026_08_11.constants import DAYS_BACK
 from experiments.aoc_getrepo_derived_stats_2026_08_11.derive import derive_stats
 from experiments.aoc_getrepo_derived_stats_2026_08_11.discovery import discover_cohort
-from experiments.aoc_getrepo_derived_stats_2026_08_11.fetch_repos import fetch_cohort_repos
+from experiments.aoc_getrepo_derived_stats_2026_08_11.fetch_repos import fetch_one_repo
 from experiments.aoc_getrepo_derived_stats_2026_08_11.output import write_outputs
 
 
@@ -31,7 +32,19 @@ def run() -> None:
     print(f"Discovered cohort size: {len(cohort.members)}")
 
     relay_client = create_relay_client()
-    bundles = fetch_cohort_repos(cohort.members, relay_client)
+    bundles = []
+    for index, member in enumerate(cohort.members, start=1):
+        started = time.perf_counter()
+        bundle = fetch_one_repo(member, relay_client)
+        elapsed = time.perf_counter() - started
+        status = (
+            f"error: {bundle.error}"
+            if bundle.error
+            else f"{len(bundle.posts)} posts / {len(bundle.likes)} likes"
+        )
+        print(f"[{index}/{len(cohort.members)}] {member.handle} - {elapsed:.2f}s - {status}")
+        bundles.append(bundle)
+
     success_count = sum(1 for bundle in bundles if bundle.error is None)
     failed_count = len(bundles) - success_count
     print(f"Repos: {success_count} ok, {failed_count} failed")
