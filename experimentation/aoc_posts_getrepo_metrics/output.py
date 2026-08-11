@@ -39,7 +39,9 @@ def write_outputs(rows: list[dict], metadata: dict, sync_timestamp: str) -> Path
         writer = csv.DictWriter(handle, fieldnames=CSV_FIELDNAMES, restval="")
         writer.writeheader()
         for row in rows:
-            writer.writerow({key: ("" if row.get(key) is None else row.get(key)) for key in CSV_FIELDNAMES})
+            writer.writerow(
+                {key: ("" if row.get(key) is None else row.get(key)) for key in CSV_FIELDNAMES}
+            )
 
     metadata_path = output_dir / METADATA_FILENAME
     with metadata_path.open("w", encoding="utf-8") as handle:

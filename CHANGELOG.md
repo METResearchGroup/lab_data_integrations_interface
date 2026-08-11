@@ -2,7 +2,7 @@
 
 ## 2026-08-11
 
-1. Added an AOC Bluesky experiment that lists at least 50 latest posts via public `getAuthorFeed`, loads her repo once with relay `getRepo`, and writes getRepo-only metrics (engagement counts left empty; `deleted` always `unknown`). [PR #156](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/156)
+1. Added an AOC Bluesky experiment that lists at least 50 latest posts via public `getAuthorFeed`, loads her repo once with relay `getRepo`, derives structural fields from the repo, and enriches likes, replies, reposts, quotes, and saves via AppView `getPosts` (`deleted` stays `unknown`). [PR #156](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/156)
 
 ## 2026-08-10
 

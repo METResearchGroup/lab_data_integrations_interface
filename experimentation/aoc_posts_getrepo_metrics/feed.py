@@ -61,9 +61,7 @@ def fetch_latest_post_uris(client: Any, actor: str, min_posts: int) -> list[str]
             params["cursor"] = cursor
 
         response = client.app.bsky.feed.get_author_feed(params)
-        page_uris = [
-            item.post.uri for item in response.feed if item.post.author.did == actor
-        ]
+        page_uris = [item.post.uri for item in response.feed if item.post.author.did == actor]
         if not page_uris and not getattr(response, "cursor", None):
             break
 

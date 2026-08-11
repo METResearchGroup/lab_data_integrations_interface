@@ -1,4 +1,4 @@
-"""AOC latest-posts experiment using getAuthorFeed + one getRepo export.
+"""AOC latest-posts experiment using getAuthorFeed, getRepo, and AppView enrichment.
 
 Run from the repo root:
 

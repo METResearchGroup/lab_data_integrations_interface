@@ -16,8 +16,16 @@ FOLLOW_URI = f"at://{DID}/app.bsky.graph.follow/1"
 
 def _decoded_records() -> tuple[str, dict[str, dict]]:
     return DID, {
-        POST_URI_1: {"$type": "app.bsky.feed.post", "text": "one", "createdAt": "2026-01-01T00:00:00Z"},
-        POST_URI_2: {"$type": "app.bsky.feed.post", "text": "two", "createdAt": "2026-01-02T00:00:00Z"},
+        POST_URI_1: {
+            "$type": "app.bsky.feed.post",
+            "text": "one",
+            "createdAt": "2026-01-01T00:00:00Z",
+        },
+        POST_URI_2: {
+            "$type": "app.bsky.feed.post",
+            "text": "two",
+            "createdAt": "2026-01-02T00:00:00Z",
+        },
         LIKE_URI: {"$type": "app.bsky.feed.like", "createdAt": "2026-01-03T00:00:00Z"},
         FOLLOW_URI: {"$type": "app.bsky.graph.follow", "createdAt": "2026-01-04T00:00:00Z"},
     }
@@ -58,9 +66,7 @@ class TestFetchAndIndexPosts:
             assert uri.startswith("at://")
             assert "/app.bsky.feed.post/" in uri
 
-    def test_fetch_and_index_raises_on_did_mismatch(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_fetch_and_index_raises_on_did_mismatch(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Raises ValueError when the decoded repo DID does not match the request."""
         relay = MagicMock()
         relay.com.atproto.sync.get_repo.return_value = b"fake-car"

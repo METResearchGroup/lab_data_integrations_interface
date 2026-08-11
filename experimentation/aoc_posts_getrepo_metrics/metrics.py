@@ -43,8 +43,8 @@ def _post_type(record: dict) -> str:
 def derive_row(post_uri: str, record: dict | None) -> dict:
     """Build one metrics row from a post URI and optional repo record.
 
-    Engagement counts are always ``None`` because they are not present in
-    ``getRepo`` records. Deletion status is always ``unknown``.
+    Engagement counts stay ``None`` here. Fill them later with AppView
+    ``getPosts`` enrichment. Deletion status is always ``unknown``.
 
     Parameters
     ----------

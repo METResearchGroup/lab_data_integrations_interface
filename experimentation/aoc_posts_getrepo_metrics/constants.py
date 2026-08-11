@@ -1,6 +1,6 @@
 """Constants for the AOC getAuthorFeed + getRepo metrics experiment."""
 
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 TARGET_HANDLE = "aoc.bsky.social"
@@ -16,13 +16,15 @@ EMBED_VIDEO = "app.bsky.embed.video"
 EMBED_RECORD_WITH_MEDIA = "app.bsky.embed.recordWithMedia"
 METRICS_CSV_FILENAME = "posts_metrics.csv"
 METADATA_FILENAME = "metadata.json"
+GET_POSTS_MAX_URIS = 25
 
 
-class PostType(str, Enum):
+class PostType(StrEnum):
     """Whether a post starts a thread or replies inside one."""
 
     ORIGINAL = "original"
     REPLY = "reply"
+
 
 CSV_FIELDNAMES = [
     "post_uri",

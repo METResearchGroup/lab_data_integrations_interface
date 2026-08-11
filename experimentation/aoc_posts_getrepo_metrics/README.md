@@ -1,8 +1,8 @@
 # AOC posts getRepo metrics
 
-Collect at least 50 of AOC's latest Bluesky posts via public `getAuthorFeed`, load her repository once with relay `getRepo`, and write getRepo-only metrics to CSV.
+Collect at least 50 of AOC's latest Bluesky posts via public `getAuthorFeed`, load her repository once with relay `getRepo`, derive structural fields from the repo, then enrich likes, replies, reposts, quotes, and saves via AppView `getPosts`.
 
-Engagement counts and deletion timestamps stay empty, because they are not available from a single `getRepo` export. The `deleted` column is always `unknown`.
+The `deleted` column is always `unknown`, because a single `getRepo` snapshot does not provide deletion timestamps.
 
 ```bash
 PYTHONPATH=. uv run python experimentation/aoc_posts_getrepo_metrics/main.py

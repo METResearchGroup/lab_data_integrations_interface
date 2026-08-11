@@ -31,7 +31,5 @@ def fetch_and_index_posts(relay_client: Any, did: str) -> dict[str, dict]:
     if repo_did != did:
         raise ValueError(f"getRepo DID mismatch: expected {did}, got {repo_did}")
     return {
-        uri: record
-        for uri, record in records.items()
-        if record.get("$type") == POST_COLLECTION
+        uri: record for uri, record in records.items() if record.get("$type") == POST_COLLECTION
     }

@@ -1,0 +1,16 @@
+{
+  "sync_timestamp": "2026_08_11-14:55:20",
+  "target_handle": "aoc.bsky.social",
+  "target_did": "did:plc:p7gxyfr5vii5ntpwo7f6dhe2",
+  "min_posts": 50,
+  "post_uri_count": 50,
+  "rows_with_repo_record": 50,
+  "rows_missing_repo_record": 0,
+  "rows_with_engagement": 50,
+  "source_listing": "app.bsky.feed.getAuthorFeed",
+  "source_repo": "com.atproto.sync.getRepo",
+  "source_engagement": "app.bsky.feed.getPosts",
+  "get_repo_calls": 1,
+  "get_posts_calls": 2,
+  "counts_read_at": "2026-08-11T14:55:21.682587+00:00"
+}
