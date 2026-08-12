@@ -13,12 +13,15 @@ from urllib.error import HTTPError
 from experiments.did_sync_experiment_2026_08_11.constants import (
     ABLATION1_NAME,
     ABLATION2_NAME,
+    ABLATION3_NAME,
     AOC_HANDLE,
     DISCOVERY_RESULT_KEYS,
+    PLC_OLD_LOOKBACK_HOURS,
 )
 from experiments.did_sync_experiment_2026_08_11.discover import (
     discover_aoc_bfs_dids,
     discover_plc_dids,
+    discover_plc_old_dids,
 )
 
 
@@ -83,6 +86,21 @@ class TestDiscoverPlcDids:
         assert len(result.dids) == 3
         assert result.runtime_seconds > 0
         assert result.ablation == ABLATION1_NAME
+
+    def test_old_cursor_uses_six_month_after(self):
+        """Verifies ablation 3 starts PLC export ~6 months before now."""
+        now = datetime(2026, 8, 11, 12, 0, 0, tzinfo=UTC)
+        ops = [{"did": "did:plc:a", "createdAt": "2026-02-10T12:00:01.000Z"}]
+        urlopen = MagicMock(return_value=_response(_jsonl(ops)))
+
+        result = discover_plc_old_dids(target=1, now=now, urlopen=urlopen, sleep=lambda _: None)
+
+        first_url = urlopen.call_args_list[0].args[0]
+        assert "after=" in first_url
+        assert "2026-02-09T12%3A00%3A00.000Z" in first_url
+        assert result.ablation == ABLATION3_NAME
+        assert result.extra["lookback_hours_initial"] == PLC_OLD_LOOKBACK_HOURS
+        assert result.extra["expand_lookback"] is False
 
     def test_http_429_records_rate_limit_and_retries(self):
         """Verifies a 429 appends a rate limit event and a retry still returns DIDs."""

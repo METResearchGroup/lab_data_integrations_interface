@@ -94,6 +94,29 @@ class TestWriteResultsMd:
 
         text = write_results_md(summaries, datetime(2026, 8, 11, 12, 0, 0, tzinfo=UTC))
 
-        assert "ablation2_aoc_bfs produced more valid DIDs" in text
+        assert "ablation2_aoc_bfs produced the most valid DIDs" in text
         assert "| ablation1_plc | 50 | 5 |" in text
         assert "| ablation2_aoc_bfs | 50 | 12 |" in text
+
+
+class TestMergeSummaries:
+    """Tests for merge_summaries()."""
+
+    def test_preserves_order_and_replaces_matching(self):
+        """Verifies merged summaries keep ablation order and overwrite by name."""
+        from experiments.did_sync_experiment_2026_08_11.run_experiment import merge_summaries
+
+        existing = [
+            {"ablation": "ablation1_plc", "valid_did_count": 1},
+            {"ablation": "ablation2_aoc_bfs", "valid_did_count": 183},
+        ]
+        new = [{"ablation": "ablation3_plc_old", "valid_did_count": 40}]
+
+        merged = merge_summaries(existing, new)
+
+        assert [item["ablation"] for item in merged] == [
+            "ablation1_plc",
+            "ablation2_aoc_bfs",
+            "ablation3_plc_old",
+        ]
+        assert merged[2]["valid_did_count"] == 40

@@ -24,10 +24,12 @@ from experimentation.aoc_followers_backfill.client import create_public_client
 from experiments.did_sync_experiment_2026_08_11.constants import (
     ABLATION1_NAME,
     ABLATION2_NAME,
+    ABLATION3_NAME,
     AOC_HANDLE,
     FOLLOWERS_PAGE_SIZE,
     PLC_EXPORT_URL,
     PLC_MAX_LOOKBACK_HOURS,
+    PLC_OLD_LOOKBACK_HOURS,
     PLC_PAGE_SIZE,
     PLC_RECENT_LOOKBACK_HOURS,
 )
@@ -147,12 +149,13 @@ def _next_plc_lookback(
     lookback_hours: int,
     exhausted_lookbacks: set[int],
     clock: datetime,
+    max_lookback_hours: int,
 ) -> tuple[int, str] | None:
     """Double lookback and return (new_lookback, after), or None when exhausted."""
     exhausted_lookbacks.add(lookback_hours)
-    if lookback_hours >= PLC_MAX_LOOKBACK_HOURS:
+    if lookback_hours >= max_lookback_hours:
         return None
-    lookback_hours = min(lookback_hours * 2, PLC_MAX_LOOKBACK_HOURS)
+    lookback_hours = min(lookback_hours * 2, max_lookback_hours)
     if lookback_hours in exhausted_lookbacks:
         return None
     return lookback_hours, _iso_utc(clock - timedelta(hours=lookback_hours))
@@ -169,6 +172,8 @@ class _PlcWalkState:
     pages: int
     request_count: int
     last_headers: dict[str, str]
+    expand_lookback: bool = True
+    max_lookback_hours: int = PLC_MAX_LOOKBACK_HOURS
 
 
 def _advance_plc_walk(
@@ -184,7 +189,14 @@ def _advance_plc_walk(
     state.pages += 1
     ops, state.last_headers = _fetch_plc_page(state.after, urlopen, rate_limit_events, sleep)
     if not ops:
-        expanded = _next_plc_lookback(state.lookback_hours, state.exhausted_lookbacks, clock)
+        if not state.expand_lookback:
+            return False
+        expanded = _next_plc_lookback(
+            state.lookback_hours,
+            state.exhausted_lookbacks,
+            clock,
+            state.max_lookback_hours,
+        )
         if expanded is None:
             return False
         state.lookback_hours, state.after = expanded
@@ -194,7 +206,14 @@ def _advance_plc_walk(
     if last_created_at is None or str(last_created_at) == state.after:
         if len(state.dids) >= target:
             return False
-        expanded = _next_plc_lookback(state.lookback_hours, state.exhausted_lookbacks, clock)
+        if not state.expand_lookback:
+            return False
+        expanded = _next_plc_lookback(
+            state.lookback_hours,
+            state.exhausted_lookbacks,
+            clock,
+            state.max_lookback_hours,
+        )
         if expanded is None:
             return False
         state.lookback_hours, state.after = expanded
@@ -210,11 +229,17 @@ def discover_plc_dids(
     now: datetime | None = None,
     urlopen: UrlOpen = urllib.request.urlopen,
     sleep: Callable[[float], None] = time.sleep,
+    *,
+    lookback_hours: int = PLC_RECENT_LOOKBACK_HOURS,
+    max_lookback_hours: int = PLC_MAX_LOOKBACK_HOURS,
+    expand_lookback: bool = True,
+    ablation: str = ABLATION1_NAME,
 ) -> DiscoveryResult:
-    """Collect unique DIDs from PLC export starting at a recent cursor.
+    """Collect unique DIDs from PLC export starting at a cursor.
 
-    Starts ``after`` at ``now - PLC_RECENT_LOOKBACK_HOURS``. If that window
-    cannot fill ``target``, doubles lookback up to ``PLC_MAX_LOOKBACK_HOURS``.
+    By default starts ``after`` at ``now - PLC_RECENT_LOOKBACK_HOURS``. If that
+    window cannot fill ``target`` and ``expand_lookback`` is true, doubles
+    lookback up to ``max_lookback_hours``.
 
     Parameters
     ----------
@@ -226,6 +251,14 @@ def discover_plc_dids(
         HTTP opener used for PLC export pages.
     sleep
         Sleep callable used after HTTP 429 responses.
+    lookback_hours
+        Initial hours before ``now`` for the ``after`` cursor.
+    max_lookback_hours
+        Cap used when expanding lookback after empty or stuck pages.
+    expand_lookback
+        When false, keep the fixed cursor and only walk forward.
+    ablation
+        Ablation name written into the discovery artifact.
 
     Returns
     -------
@@ -234,7 +267,6 @@ def discover_plc_dids(
     """
     start = time.perf_counter()
     clock = now if now is not None else datetime.now(UTC)
-    lookback_hours = PLC_RECENT_LOOKBACK_HOURS
     initial_after = _iso_utc(clock - timedelta(hours=lookback_hours))
     rate_limit_events: list[RateLimitEvent] = []
     state = _PlcWalkState(
@@ -247,6 +279,8 @@ def discover_plc_dids(
         pages=0,
         request_count=0,
         last_headers={},
+        expand_lookback=expand_lookback,
+        max_lookback_hours=max_lookback_hours,
     )
 
     while len(state.dids) < target:
@@ -259,18 +293,43 @@ def discover_plc_dids(
         "final_after": state.final_after,
         "pages": state.pages,
         "lookback_hours_final": state.lookback_hours,
+        "lookback_hours_initial": lookback_hours,
+        "expand_lookback": expand_lookback,
         "rate_limit_header_sample": state.last_headers,
     }
     if len(state.dids) < target:
         extra["shortfall"] = target - len(state.dids)
 
     return DiscoveryResult(
-        ablation=ABLATION1_NAME,
+        ablation=ablation,
         dids=state.dids,
         request_count=state.request_count,
         runtime_seconds=runtime,
         rate_limit_events=rate_limit_events,
         extra=extra,
+    )
+
+
+def discover_plc_old_dids(
+    target: int,
+    now: datetime | None = None,
+    urlopen: UrlOpen = urllib.request.urlopen,
+    sleep: Callable[[float], None] = time.sleep,
+) -> DiscoveryResult:
+    """Collect unique DIDs from PLC export starting ~6 months ago.
+
+    Uses a fixed older cursor (no lookback expansion) and walks forward until
+    ``target`` unique DIDs are collected.
+    """
+    return discover_plc_dids(
+        target,
+        now=now,
+        urlopen=urlopen,
+        sleep=sleep,
+        lookback_hours=PLC_OLD_LOOKBACK_HOURS,
+        max_lookback_hours=PLC_OLD_LOOKBACK_HOURS,
+        expand_lookback=False,
+        ablation=ABLATION3_NAME,
     )
 
 

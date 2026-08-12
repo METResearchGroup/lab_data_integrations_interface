@@ -21,6 +21,10 @@ PROFILES_BATCH_SIZE = _aoc_constants.PROFILES_BATCH_SIZE
 
 ABLATION1_NAME = "ablation1_plc"
 ABLATION2_NAME = "ablation2_aoc_bfs"
+ABLATION3_NAME = "ablation3_plc_old"
+
+# Ablation 3 starts PLC export at a fixed older cursor (~6 months), then walks forward.
+PLC_OLD_LOOKBACK_HOURS = 24 * DAYS_BACK
 
 GETREPO_TIMEOUT_SECONDS = 60.0
 

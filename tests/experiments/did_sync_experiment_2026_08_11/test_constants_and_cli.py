@@ -4,6 +4,7 @@ from experiments.did_sync_experiment_2026_08_11.analyze import ProfileStats
 from experiments.did_sync_experiment_2026_08_11.constants import (
     ABLATION1_NAME,
     ABLATION2_NAME,
+    ABLATION3_NAME,
     AOC_HANDLE,
     DAYS_BACK,
     DEFAULT_WORKERS,
@@ -14,6 +15,7 @@ from experiments.did_sync_experiment_2026_08_11.constants import (
     MIN_INTERACTIONS_6M,
     MIN_ORIGINAL_POSTS_6M,
     PLC_EXPORT_URL,
+    PLC_OLD_LOOKBACK_HOURS,
     PLC_PAGE_SIZE,
     PLC_RECENT_LOOKBACK_HOURS,
     PROFILE_ROW_KEYS,
@@ -49,6 +51,8 @@ class TestConstants:
         assert PROFILES_BATCH_SIZE == 25
         assert ABLATION1_NAME == "ablation1_plc"
         assert ABLATION2_NAME == "ablation2_aoc_bfs"
+        assert ABLATION3_NAME == "ablation3_plc_old"
+        assert PLC_OLD_LOOKBACK_HOURS == 24 * DAYS_BACK
         assert DEFAULT_WORKERS == 2
 
 

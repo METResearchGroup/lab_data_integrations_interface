@@ -22,6 +22,7 @@ from experiments.did_sync_experiment_2026_08_11.analyze import (
 from experiments.did_sync_experiment_2026_08_11.constants import (
     ABLATION1_NAME,
     ABLATION2_NAME,
+    ABLATION3_NAME,
     DEFAULT_WORKERS,
     SMOKE_TARGET_DIDS,
     SUMMARY_KEYS,
@@ -31,6 +32,7 @@ from experiments.did_sync_experiment_2026_08_11.discover import (
     DiscoveryResult,
     discover_aoc_bfs_dids,
     discover_plc_dids,
+    discover_plc_old_dids,
 )
 
 ROOT = Path(__file__).resolve().parent
@@ -58,9 +60,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--only",
-        choices=("both", "plc", "aoc"),
-        default="both",
-        help="Which ablation(s) to run (default both)",
+        choices=("all", "both", "plc", "aoc", "plc_old"),
+        default="all",
+        help=(
+            "Which ablation(s) to run: all three (default), both (plc+aoc), "
+            "plc, aoc, or plc_old"
+        ),
     )
     parser.add_argument(
         "--smoke",
@@ -147,10 +152,16 @@ def write_results_md(summaries: list[dict], run_started: datetime) -> str:
     lines.append("## Method")
     lines.append("")
     lines.append(
-        "- Ablation 1 (PLC): `https://plc.directory/export` from a recent cursor, unique DIDs."
+        "- Ablation 1 (PLC recent): `https://plc.directory/export` from a recent "
+        "cursor (~24h lookback), unique DIDs."
     )
     lines.append(
-        "- Ablation 2 (AOC BFS): `getFollowers` breadth first search starting at `aoc.bsky.social`."
+        "- Ablation 2 (AOC BFS): `getFollowers` breadth first search starting at "
+        "`aoc.bsky.social`."
+    )
+    lines.append(
+        "- Ablation 3 (PLC older): `https://plc.directory/export` from a fixed "
+        "~6 month old cursor, walking forward for unique DIDs."
     )
     lines.append(
         "- Profile and activity: `com.atproto.sync.getRepo` starting at `bsky.network` "
@@ -183,17 +194,17 @@ def write_results_md(summaries: list[dict], run_started: datetime) -> str:
     lines.append("## Comparison")
     lines.append("")
     if len(summaries) >= 2:
-        left, right = summaries[0], summaries[1]
-        if left["valid_did_count"] >= right["valid_did_count"]:
-            winner, loser = left, right
-        else:
-            winner, loser = right, left
-        delta = winner["valid_did_count"] - loser["valid_did_count"]
+        ranked = sorted(summaries, key=lambda item: item["valid_did_count"], reverse=True)
+        winner = ranked[0]
+        runner_up = ranked[1]
+        delta = winner["valid_did_count"] - runner_up["valid_did_count"]
+        ranking = ", ".join(
+            f"{item['ablation']}={item['valid_did_count']}" for item in ranked
+        )
         lines.append(
-            f"{winner['ablation']} produced more valid DIDs "
-            f"({winner['valid_did_count']} vs {loser['valid_did_count']}, "
-            f"delta {delta}; "
-            f"{100 * winner['validity_rate']:.1f}% vs {100 * loser['validity_rate']:.1f}%)."
+            f"{winner['ablation']} produced the most valid DIDs "
+            f"({winner['valid_did_count']} vs next {runner_up['valid_did_count']}, "
+            f"delta {delta}; ranking by valid count: {ranking})."
         )
     elif summaries:
         only = summaries[0]
@@ -221,6 +232,13 @@ def write_results_md(summaries: list[dict], run_started: datetime) -> str:
         "PLC recent-cursor export samples accounts that registered or updated "
         "identity operations near the lookback window, which may mix active new "
         "accounts with dormant ones."
+    )
+    lines.append("")
+    lines.append(
+        "PLC older-cursor export samples identity operations from about six months "
+        "earlier. Those accounts have had longer to accumulate followers and "
+        "activity, but may still include takedowns, deactivated repos, or "
+        "unreachable PDS hosts."
     )
     lines.append("")
     lines.append(
@@ -297,6 +315,19 @@ def run_ablation(
     return summary
 
 
+ABLATION_ORDER = (ABLATION1_NAME, ABLATION2_NAME, ABLATION3_NAME)
+
+
+def merge_summaries(existing: list[dict], new: list[dict]) -> list[dict]:
+    """Replace or append ablation summaries while keeping canonical order."""
+    by_name = {item["ablation"]: item for item in existing}
+    for item in new:
+        by_name[item["ablation"]] = item
+    ordered = [by_name[name] for name in ABLATION_ORDER if name in by_name]
+    extras = [item for name, item in by_name.items() if name not in ABLATION_ORDER]
+    return ordered + extras
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run selected ablations and write RESULTS.md."""
     parser = build_parser()
@@ -306,27 +337,64 @@ def main(argv: list[str] | None = None) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
 
     jobs: list[tuple[str, Callable[[], DiscoveryResult]]] = []
-    if args.only in ("both", "plc"):
+    if args.only in ("all", "both", "plc"):
         jobs.append((ABLATION1_NAME, lambda: discover_plc_dids(target)))
-    if args.only in ("both", "aoc"):
+    if args.only in ("all", "both", "aoc"):
         jobs.append((ABLATION2_NAME, lambda: discover_aoc_bfs_dids(target)))
+    if args.only in ("all", "plc_old"):
+        jobs.append((ABLATION3_NAME, lambda: discover_plc_old_dids(target)))
 
-    summaries = [
+    new_summaries = [
         run_ablation(name, discovery_fn, workers=args.workers) for name, discovery_fn in jobs
     ]
+
+    existing: list[dict] = []
+    summaries_path = DATA / "summaries.json"
+    if summaries_path.exists() and args.only not in ("all", "both"):
+        try:
+            loaded = json.loads(summaries_path.read_text())
+            if isinstance(loaded, list):
+                existing = loaded
+        except json.JSONDecodeError:
+            existing = []
+    summaries = merge_summaries(existing, new_summaries)
+
+    prior_meta: dict = {}
+    meta_path = DATA / "run_meta.json"
+    if meta_path.exists():
+        try:
+            loaded_meta = json.loads(meta_path.read_text())
+            if isinstance(loaded_meta, dict):
+                prior_meta = loaded_meta
+        except json.JSONDecodeError:
+            prior_meta = {}
+
+    results_started = run_started
+    prior_started = prior_meta.get("run_started_utc")
+    if prior_started and args.only not in ("all", "both"):
+        try:
+            results_started = datetime.fromisoformat(str(prior_started))
+        except ValueError:
+            results_started = run_started
 
     _write_json(DATA / "summaries.json", summaries)
     _write_json(
         DATA / "run_meta.json",
         {
-            "run_started_utc": run_started.isoformat(),
+            "run_started_utc": (
+                prior_meta.get("run_started_utc")
+                if args.only not in ("all", "both") and prior_meta.get("run_started_utc")
+                else run_started.isoformat()
+            ),
+            "last_run_utc": run_started.isoformat(),
             "target": target,
             "workers": args.workers,
             "only": args.only,
             "smoke": args.smoke,
+            "ablations_present": [item["ablation"] for item in summaries],
         },
     )
-    results_text = write_results_md(summaries, run_started)
+    results_text = write_results_md(summaries, results_started)
     (ROOT / "RESULTS.md").write_text(results_text)
     print(f"\nWrote {ROOT / 'RESULTS.md'}", flush=True)
     return 0
