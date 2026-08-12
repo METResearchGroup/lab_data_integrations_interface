@@ -1,4 +1,4 @@
-"""DID discovery for PLC export and AOC follower breadth first search.
+"""DID discovery for PLC export, AOC follower BFS, and relay listRepos.
 
 Run from repo root::
 
@@ -25,8 +25,11 @@ from experiments.did_sync_experiment_2026_08_11.constants import (
     ABLATION1_NAME,
     ABLATION2_NAME,
     ABLATION3_NAME,
+    ABLATION4_NAME,
     AOC_HANDLE,
     FOLLOWERS_PAGE_SIZE,
+    LIST_REPOS_PAGE_SIZE,
+    LIST_REPOS_URL,
     PLC_EXPORT_URL,
     PLC_MAX_LOOKBACK_HOURS,
     PLC_OLD_LOOKBACK_HOURS,
@@ -497,6 +500,132 @@ def discover_aoc_bfs_dids(
 
     return DiscoveryResult(
         ablation=ABLATION2_NAME,
+        dids=dids,
+        request_count=request_count,
+        runtime_seconds=runtime,
+        rate_limit_events=rate_limit_events,
+        extra=extra,
+    )
+
+
+def _fetch_list_repos_page(
+    cursor: str | None,
+    urlopen: UrlOpen,
+    rate_limit_events: list[RateLimitEvent],
+    sleep: Callable[[float], None],
+) -> tuple[list[dict[str, Any]], str | None, dict[str, str]]:
+    """Fetch one relay listRepos page, retrying on HTTP 429."""
+    params = f"limit={LIST_REPOS_PAGE_SIZE}"
+    if cursor:
+        params = f"{params}&cursor={urllib.parse.quote(cursor)}"
+    url = f"{LIST_REPOS_URL}?{params}"
+    while True:
+        try:
+            with urlopen(url, timeout=120) as resp:
+                headers = {k: v for k, v in resp.headers.items()}
+                payload = json.loads(resp.read().decode("utf-8"))
+            repos = payload.get("repos") or []
+            if not isinstance(repos, list):
+                repos = []
+            next_cursor = payload.get("cursor")
+            next_cursor_str = next_cursor if isinstance(next_cursor, str) else None
+            return repos, next_cursor_str, _rate_limit_headers(headers)
+        except urllib.error.HTTPError as exc:
+            retry_after = exc.headers.get("Retry-After") if exc.headers else None
+            if exc.code == 429:
+                rate_limit_events.append(
+                    RateLimitEvent(
+                        source="com.atproto.sync.listRepos",
+                        at_unix=time.time(),
+                        status_code=429,
+                        detail=str(exc),
+                        retry_after=retry_after,
+                    )
+                )
+                sleep(_retry_sleep_seconds(retry_after))
+                continue
+            raise
+
+
+def discover_list_repos_dids(
+    target: int,
+    urlopen: UrlOpen = urllib.request.urlopen,
+    sleep: Callable[[float], None] = time.sleep,
+) -> DiscoveryResult:
+    """Collect unique DIDs from relay ``com.atproto.sync.listRepos``.
+
+    Starts at the beginning of the relay enumeration (no cursor) and pages
+    forward until ``target`` unique DIDs are collected. This is the relay's
+    hosted-repo listing, not a PLC chronology sample.
+
+    Parameters
+    ----------
+    target
+        Number of unique DIDs to collect.
+    urlopen
+        HTTP opener used for listRepos pages.
+    sleep
+        Sleep callable used after HTTP 429 responses.
+
+    Returns
+    -------
+    DiscoveryResult
+        Ordered unique DIDs and discovery metrics.
+    """
+    start = time.perf_counter()
+    rate_limit_events: list[RateLimitEvent] = []
+    dids: list[str] = []
+    seen: set[str] = set()
+    cursor: str | None = None
+    request_count = 0
+    pages = 0
+    inactive_count = 0
+    status_counts: dict[str, int] = {}
+    last_headers: dict[str, str] = {}
+
+    while len(dids) < target:
+        request_count += 1
+        pages += 1
+        repos, next_cursor, last_headers = _fetch_list_repos_page(
+            cursor, urlopen, rate_limit_events, sleep
+        )
+        if not repos:
+            break
+        for repo in repos:
+            if not isinstance(repo, dict):
+                continue
+            did = repo.get("did")
+            if not did or did in seen:
+                continue
+            if repo.get("active") is False:
+                inactive_count += 1
+            status = repo.get("status")
+            if isinstance(status, str) and status:
+                status_counts[status] = status_counts.get(status, 0) + 1
+            seen.add(did)
+            dids.append(did)
+            if len(dids) >= target:
+                break
+        if len(dids) >= target:
+            break
+        if not next_cursor or next_cursor == cursor:
+            break
+        cursor = next_cursor
+
+    runtime = time.perf_counter() - start
+    extra: dict[str, Any] = {
+        "source": LIST_REPOS_URL,
+        "pages": pages,
+        "final_cursor": cursor,
+        "inactive_listed_count": inactive_count,
+        "status_counts": status_counts,
+        "rate_limit_header_sample": last_headers,
+    }
+    if len(dids) < target:
+        extra["shortfall"] = target - len(dids)
+
+    return DiscoveryResult(
+        ablation=ABLATION4_NAME,
         dids=dids,
         request_count=request_count,
         runtime_seconds=runtime,

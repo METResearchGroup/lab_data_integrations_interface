@@ -110,7 +110,10 @@ class TestMergeSummaries:
             {"ablation": "ablation1_plc", "valid_did_count": 1},
             {"ablation": "ablation2_aoc_bfs", "valid_did_count": 183},
         ]
-        new = [{"ablation": "ablation3_plc_old", "valid_did_count": 40}]
+        new = [
+            {"ablation": "ablation3_plc_old", "valid_did_count": 1},
+            {"ablation": "ablation4_list_repos", "valid_did_count": 20},
+        ]
 
         merged = merge_summaries(existing, new)
 
@@ -118,5 +121,6 @@ class TestMergeSummaries:
             "ablation1_plc",
             "ablation2_aoc_bfs",
             "ablation3_plc_old",
+            "ablation4_list_repos",
         ]
-        assert merged[2]["valid_did_count"] == 40
+        assert merged[3]["valid_did_count"] == 20

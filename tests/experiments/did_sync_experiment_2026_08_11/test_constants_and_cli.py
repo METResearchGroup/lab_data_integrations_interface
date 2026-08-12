@@ -5,11 +5,14 @@ from experiments.did_sync_experiment_2026_08_11.constants import (
     ABLATION1_NAME,
     ABLATION2_NAME,
     ABLATION3_NAME,
+    ABLATION4_NAME,
     AOC_HANDLE,
     DAYS_BACK,
     DEFAULT_WORKERS,
     DISCOVERY_RESULT_KEYS,
     FOLLOWERS_PAGE_SIZE,
+    LIST_REPOS_PAGE_SIZE,
+    LIST_REPOS_URL,
     MIN_FOLLOWEES,
     MIN_FOLLOWERS,
     MIN_INTERACTIONS_6M,
@@ -52,7 +55,10 @@ class TestConstants:
         assert ABLATION1_NAME == "ablation1_plc"
         assert ABLATION2_NAME == "ablation2_aoc_bfs"
         assert ABLATION3_NAME == "ablation3_plc_old"
+        assert ABLATION4_NAME == "ablation4_list_repos"
         assert PLC_OLD_LOOKBACK_HOURS == 24 * DAYS_BACK
+        assert LIST_REPOS_URL.endswith("/com.atproto.sync.listRepos")
+        assert LIST_REPOS_PAGE_SIZE == 1000
         assert DEFAULT_WORKERS == 2
 
 

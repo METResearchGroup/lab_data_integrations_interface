@@ -22,9 +22,14 @@ PROFILES_BATCH_SIZE = _aoc_constants.PROFILES_BATCH_SIZE
 ABLATION1_NAME = "ablation1_plc"
 ABLATION2_NAME = "ablation2_aoc_bfs"
 ABLATION3_NAME = "ablation3_plc_old"
+ABLATION4_NAME = "ablation4_list_repos"
 
 # Ablation 3 starts PLC export at a fixed older cursor (~6 months), then walks forward.
 PLC_OLD_LOOKBACK_HOURS = 24 * DAYS_BACK
+
+# Ablation 4 uses relay com.atproto.sync.listRepos.
+LIST_REPOS_URL = "https://bsky.network/xrpc/com.atproto.sync.listRepos"
+LIST_REPOS_PAGE_SIZE = 1000
 
 GETREPO_TIMEOUT_SECONDS = 60.0
 

@@ -23,6 +23,7 @@ from experiments.did_sync_experiment_2026_08_11.constants import (
     ABLATION1_NAME,
     ABLATION2_NAME,
     ABLATION3_NAME,
+    ABLATION4_NAME,
     DEFAULT_WORKERS,
     SMOKE_TARGET_DIDS,
     SUMMARY_KEYS,
@@ -31,6 +32,7 @@ from experiments.did_sync_experiment_2026_08_11.constants import (
 from experiments.did_sync_experiment_2026_08_11.discover import (
     DiscoveryResult,
     discover_aoc_bfs_dids,
+    discover_list_repos_dids,
     discover_plc_dids,
     discover_plc_old_dids,
 )
@@ -60,11 +62,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--only",
-        choices=("all", "both", "plc", "aoc", "plc_old"),
+        choices=("all", "both", "plc", "aoc", "plc_old", "list_repos"),
         default="all",
         help=(
-            "Which ablation(s) to run: all three (default), both (plc+aoc), "
-            "plc, aoc, or plc_old"
+            "Which ablation(s) to run: all (default), both (plc+aoc), "
+            "plc, aoc, plc_old, or list_repos"
         ),
     )
     parser.add_argument(
@@ -164,6 +166,10 @@ def write_results_md(summaries: list[dict], run_started: datetime) -> str:
         "~6 month old cursor, walking forward for unique DIDs."
     )
     lines.append(
+        "- Ablation 4 (listRepos): `com.atproto.sync.listRepos` on `bsky.network`, "
+        "paging from the start of the relay enumeration for unique DIDs."
+    )
+    lines.append(
         "- Profile and activity: `com.atproto.sync.getRepo` starting at `bsky.network` "
         "with PDS redirect following via httpx (decode helpers from "
         "`experimentation/aoc_followers_backfill`), plus AppView `getProfiles` for "
@@ -247,6 +253,12 @@ def write_results_md(summaries: list[dict], run_started: datetime) -> str:
     )
     lines.append("")
     lines.append(
+        "Relay listRepos enumerates repositories the relay currently knows about, "
+        "independent of PLC registration time and independent of any social-graph seed. "
+        "Ordering follows the relay's own listing cursor, not PLC chronology."
+    )
+    lines.append("")
+    lines.append(
         "Validity requires recent original posting and interactions, so the method "
         "that surfaces currently engaged graph neighborhoods should outperform recent "
         "PLC chronology when newly registered DIDs are inactive or when getRepo fails "
@@ -315,7 +327,7 @@ def run_ablation(
     return summary
 
 
-ABLATION_ORDER = (ABLATION1_NAME, ABLATION2_NAME, ABLATION3_NAME)
+ABLATION_ORDER = (ABLATION1_NAME, ABLATION2_NAME, ABLATION3_NAME, ABLATION4_NAME)
 
 
 def merge_summaries(existing: list[dict], new: list[dict]) -> list[dict]:
@@ -343,6 +355,8 @@ def main(argv: list[str] | None = None) -> int:
         jobs.append((ABLATION2_NAME, lambda: discover_aoc_bfs_dids(target)))
     if args.only in ("all", "plc_old"):
         jobs.append((ABLATION3_NAME, lambda: discover_plc_old_dids(target)))
+    if args.only in ("all", "list_repos"):
+        jobs.append((ABLATION4_NAME, lambda: discover_list_repos_dids(target)))
 
     new_summaries = [
         run_ablation(name, discovery_fn, workers=args.workers) for name, discovery_fn in jobs

@@ -8,6 +8,7 @@ meet shared activity rules using `getRepo` plus AppView profile reads.
 1. PLC directory export from a recent cursor (~24h)
 2. AOC follower breadth first search starting at `aoc.bsky.social`
 3. PLC directory export from a fixed ~6 month old cursor
+4. Relay `com.atproto.sync.listRepos` enumeration on `bsky.network`
 
 ## Run
 
@@ -23,10 +24,10 @@ Full (1000 DIDs):
 PYTHONPATH=. uv run python -m experiments.did_sync_experiment_2026_08_11.run_experiment --target 1000
 ```
 
-Older PLC cursor only (merges into existing `summaries.json` / `RESULTS.md`):
+Single ablation (merges into existing `summaries.json` / `RESULTS.md`):
 
 ```bash
-PYTHONPATH=. uv run python -m experiments.did_sync_experiment_2026_08_11.run_experiment --target 1000 --only plc_old
+PYTHONPATH=. uv run python -m experiments.did_sync_experiment_2026_08_11.run_experiment --target 1000 --only list_repos
 ```
 
 See `RESULTS.md` after a live run.

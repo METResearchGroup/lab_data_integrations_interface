@@ -14,12 +14,14 @@ from experiments.did_sync_experiment_2026_08_11.constants import (
     ABLATION1_NAME,
     ABLATION2_NAME,
     ABLATION3_NAME,
+    ABLATION4_NAME,
     AOC_HANDLE,
     DISCOVERY_RESULT_KEYS,
     PLC_OLD_LOOKBACK_HOURS,
 )
 from experiments.did_sync_experiment_2026_08_11.discover import (
     discover_aoc_bfs_dids,
+    discover_list_repos_dids,
     discover_plc_dids,
     discover_plc_old_dids,
 )
@@ -238,3 +240,73 @@ class TestDiscoverAocBfsDids:
 
         assert result.extra["seed_handle"] == AOC_HANDLE
         assert result.ablation == ABLATION2_NAME
+
+
+class TestDiscoverListReposDids:
+    """Tests for discover_list_repos_dids()."""
+
+    def test_pages_until_target_unique_dids(self):
+        """Verifies listRepos paging stops once target unique DIDs are collected."""
+        page1 = {
+            "cursor": "2",
+            "repos": [
+                {"did": "did:plc:a", "head": "h1", "rev": "r1", "active": True},
+                {"did": "did:plc:b", "head": "h2", "rev": "r2", "active": True},
+            ],
+        }
+        page2 = {
+            "cursor": "3",
+            "repos": [
+                {"did": "did:plc:b", "head": "h2", "rev": "r2", "active": True},
+                {
+                    "did": "did:plc:c",
+                    "head": "h3",
+                    "rev": "r3",
+                    "active": False,
+                    "status": "takendown",
+                },
+            ],
+        }
+        urlopen = MagicMock(
+            side_effect=[
+                _response(json.dumps(page1).encode("utf-8")),
+                _response(json.dumps(page2).encode("utf-8")),
+            ]
+        )
+
+        result = discover_list_repos_dids(target=3, urlopen=urlopen, sleep=lambda _: None)
+
+        assert result.dids == ["did:plc:a", "did:plc:b", "did:plc:c"]
+        assert result.request_count == 2
+        assert result.ablation == ABLATION4_NAME
+        assert result.extra["inactive_listed_count"] == 1
+        assert result.extra["status_counts"] == {"takendown": 1}
+
+    def test_http_429_records_rate_limit_and_retries(self):
+        """Verifies a 429 on listRepos records an event and retries."""
+        headers = Message()
+        headers["Retry-After"] = "1"
+        error = HTTPError(
+            url="https://bsky.network/xrpc/com.atproto.sync.listRepos",
+            code=429,
+            msg="Too Many Requests",
+            hdrs=headers,
+            fp=io.BytesIO(b""),
+        )
+        ok = _response(
+            json.dumps(
+                {
+                    "cursor": None,
+                    "repos": [{"did": "did:plc:a", "head": "h", "rev": "r", "active": True}],
+                }
+            ).encode("utf-8")
+        )
+        urlopen = MagicMock(side_effect=[error, ok])
+        sleeps: list[float] = []
+
+        result = discover_list_repos_dids(target=1, urlopen=urlopen, sleep=sleeps.append)
+
+        assert result.dids == ["did:plc:a"]
+        assert len(result.rate_limit_events) == 1
+        assert result.rate_limit_events[0].source == "com.atproto.sync.listRepos"
+        assert sleeps == [1.0]
