@@ -1,7 +1,9 @@
 """Label Bluesky posts with the Perspective API, flushing every N records.
 
 Reads a posts Parquet file (e.g. data/2026-08-09.parquet), skips URIs already
-present under labels/tmp/{date}/, then labels remaining posts in API batches.
+present in labels/{date}.parquet (consolidated) and/or labels/tmp/{date}/,
+then labels remaining posts in API batches. Safe to rerun after consolidating:
+resume always dedupes against the consolidated file, not just tmp chunks.
 Every FLUSH_SIZE labeled rows are written to
 labels/tmp/{date}/{content_hash}.parquet.
 
@@ -67,18 +69,37 @@ def resolve_date(posts_path: Path, date_arg: str | None) -> str:
 
 
 def load_already_labeled_uris(tmp_dir: Path, date: str) -> set[str]:
+    """Return URIs already labeled for this date.
+
+    Sources (union, deduped):
+    1. labels/{date}.parquet — consolidated file from prior runs
+    2. labels/tmp/{date}/*.parquet — in-progress flush chunks
+
+    Checking the consolidated file is required so reruns after
+    consolidate_labels.py (which clears tmp) do not relabel the same posts.
+    """
     uris: set[str] = set()
     consolidated = LABELS_DIR / f"{date}.parquet"
     if consolidated.exists():
         frame = pd.read_parquet(consolidated, columns=["uri"])
-        uris.update(str(uri) for uri in frame["uri"].tolist() if uri)
+        from_cons = {str(uri) for uri in frame["uri"].tolist() if uri}
+        uris.update(from_cons)
+        print(f"skip uris from consolidated {consolidated.name}: {len(from_cons):,}")
+    else:
+        print(f"no consolidated labels at {consolidated.name}")
+
     if not tmp_dir.exists():
         return uris
+
+    from_tmp = 0
     for path in sorted(tmp_dir.glob("*.parquet")):
         if path.name.startswith("."):
             continue
         frame = pd.read_parquet(path, columns=["uri"])
+        before = len(uris)
         uris.update(str(uri) for uri in frame["uri"].tolist() if uri)
+        from_tmp += len(uris) - before
+    print(f"skip uris newly from tmp chunks: {from_tmp:,}")
     return uris
 
 
