@@ -94,5 +94,33 @@
         "pds_unreachable": 585
       }
     }
+  },
+  {
+    "ablation": "ablation4_list_repos",
+    "did_count": 1000,
+    "valid_did_count": 475,
+    "invalid_did_count": 525,
+    "validity_rate": 0.475,
+    "discovery": {
+      "request_count": 1,
+      "runtime_seconds": 0.3788218349982344,
+      "rate_limit_event_count": 0,
+      "extra": {
+        "source": "https://bsky.network/xrpc/com.atproto.sync.listRepos",
+        "pages": 1,
+        "final_cursor": null,
+        "inactive_listed_count": 0,
+        "status_counts": {},
+        "rate_limit_header_sample": {}
+      }
+    },
+    "analysis": {
+      "getrepo_request_count": 1000,
+      "getrepo_error_count": 0,
+      "getrepo_rate_limit_event_count": 0,
+      "getrepo_runtime_seconds": 4127.237040273998,
+      "appview_profile_request_count": 40,
+      "getrepo_error_breakdown": {}
+    }
   }
 ]

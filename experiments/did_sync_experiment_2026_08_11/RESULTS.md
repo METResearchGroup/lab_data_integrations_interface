@@ -20,6 +20,7 @@ An account is valid when all of the following hold:
 - Ablation 1 (PLC recent): `https://plc.directory/export` from a recent cursor (~24h lookback), unique DIDs.
 - Ablation 2 (AOC BFS): `getFollowers` breadth first search starting at `aoc.bsky.social`.
 - Ablation 3 (PLC older): `https://plc.directory/export` from a fixed ~6 month old cursor, walking forward for unique DIDs.
+- Ablation 4 (listRepos): `com.atproto.sync.listRepos` on `bsky.network`, paging from the start of the relay enumeration for unique DIDs.
 - Profile and activity: `com.atproto.sync.getRepo` starting at `bsky.network` with PDS redirect following via httpx (decode helpers from `experimentation/aoc_followers_backfill`), plus AppView `getProfiles` for follower counts and handles.
 
 ## Results
@@ -29,10 +30,11 @@ An account is valid when all of the following hold:
 | ablation1_plc | 1000 | 1 | 0.1% | 1 | 0.07 | 0 | 1000 | 0 | 906 |
 | ablation2_aoc_bfs | 1000 | 183 | 18.3% | 13 | 2.25 | 0 | 1000 | 0 | 0 |
 | ablation3_plc_old | 1000 | 1 | 0.1% | 2 | 0.16 | 0 | 1000 | 0 | 828 |
+| ablation4_list_repos | 1000 | 475 | 47.5% | 1 | 0.38 | 0 | 1000 | 0 | 0 |
 
 ## Comparison
 
-ablation2_aoc_bfs produced the most valid DIDs (183 vs next 1, delta 182; ranking by valid count: ablation2_aoc_bfs=183, ablation1_plc=1, ablation3_plc_old=1).
+ablation4_list_repos produced the most valid DIDs (475 vs next 183, delta 292; ranking by valid count: ablation4_list_repos=475, ablation2_aoc_bfs=183, ablation1_plc=1, ablation3_plc_old=1).
 
 ### Discovery cost
 
@@ -56,6 +58,13 @@ ablation2_aoc_bfs produced the most valid DIDs (183 vs next 1, delta 182; rankin
   - `lookback_hours_initial`: `4392`
   - `expand_lookback`: `False`
   - `rate_limit_header_sample`: `{}`
+- ablation4_list_repos: 1 requests, 0.38s, 0 rate-limit events.
+  - `source`: `https://bsky.network/xrpc/com.atproto.sync.listRepos`
+  - `pages`: `1`
+  - `final_cursor`: `None`
+  - `inactive_listed_count`: `0`
+  - `status_counts`: `{}`
+  - `rate_limit_header_sample`: `{}`
 
 ### Interpretation
 
@@ -65,6 +74,8 @@ PLC older-cursor export samples identity operations from about six months earlie
 
 AOC follower breadth first search samples accounts connected to a high engagement political neighborhood, which may skew toward currently active users.
 
+Relay listRepos enumerates repositories the relay currently knows about, independent of PLC registration time and independent of any social-graph seed. Ordering follows the relay's own listing cursor, not PLC chronology.
+
 Validity requires recent original posting and interactions, so the method that surfaces currently engaged graph neighborhoods should outperform recent PLC chronology when newly registered DIDs are inactive or when getRepo fails often for that sample. getRepo calls run sequentially with spacing, follow relay-to-PDS redirects, and retry only true 429/transient failures. Remaining errors are account or host failures (for example RepoNotFound, RepoTakendown, or an unreachable redirected PDS such as DNS failures), not quota noise. These numbers inform backfill seed choice. They do not by themselves prove production readiness.
 
 ### getRepo error breakdown
@@ -72,6 +83,7 @@ Validity requires recent original posting and interactions, so the method that s
 - ablation1_plc: pds_unreachable=666, repo_deactivated=1, repo_not_found=229, repo_takendown=10 (DIDs that hit a 429 at least once during retries: 0)
 - ablation2_aoc_bfs: none (DIDs that hit a 429 at least once during retries: 0)
 - ablation3_plc_old: other=1, pds_unreachable=585, repo_deactivated=4, repo_not_found=16, repo_takendown=222 (DIDs that hit a 429 at least once during retries: 0)
+- ablation4_list_repos: none (DIDs that hit a 429 at least once during retries: 0)
 
 ## Artifacts
 
