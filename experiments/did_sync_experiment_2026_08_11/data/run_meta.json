@@ -1,7 +1,13 @@
 {
   "run_started_utc": "2026-08-11T15:45:42.426135+00:00",
+  "last_run_utc": "2026-08-12T13:11:34.579634+00:00",
   "target": 1000,
   "workers": 1,
-  "only": "both",
-  "smoke": false
+  "only": "plc_old",
+  "smoke": false,
+  "ablations_present": [
+    "ablation1_plc",
+    "ablation2_aoc_bfs",
+    "ablation3_plc_old"
+  ]
 }
