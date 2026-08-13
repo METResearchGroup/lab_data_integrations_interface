@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-08-13
+
+1. The unbounded `OPTIMIZE` over the `bluesky_raw` tables now runs weekly (Saturdays 06:00 UTC) instead of monthly, so small files in historical partitions — which the daily 3-day lookback cannot reach — are bin-packed within a week rather than up to a month. Saturday puts it ahead of the Sunday `VACUUM` that sweeps up the files it orphans. [PR #166](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/166)
+
 ## 2026-08-10
 
 1. Bluesky Jetstream ingestion now deploys to Railway as its own project alongside the backend, with per-service config files under `railway/` and watch patterns that keep a push to one from redeploying the other. The backend was reduced to `/health` — its Athena-backed post routes referenced infrastructure destroyed in #141 — and its telemetry moved out of the `opentelemetry-instrument` wrapper into `backend/telemetry/`, matching the ingester's in-code setup and leaving the Grafana Cloud token as the only telemetry variable. [PR #153](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/153)
