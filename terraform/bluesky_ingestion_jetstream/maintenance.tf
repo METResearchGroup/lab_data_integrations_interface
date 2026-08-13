@@ -321,7 +321,7 @@ resource "aws_sfn_state_machine" "maintenance" {
 #     Expires snapshots older than 5 days and purges deleted S3 data files.
 #     Scheduled post-optimization to sweep up the orphaned files it creates.
 #
-#   - OPTIMIZE_FULL (1st of month @ 06:00 UTC)
+#   - OPTIMIZE_FULL (Saturdays @ 06:00 UTC)
 #     Unbounded compaction covering ALL table partitions. Catches stray small 
 #     files in historical partitions (e.g., from client clock skew).
 # ---------------------------------------------------------------------------
@@ -364,7 +364,7 @@ locals {
       description = "Expire snapshots and delete what they orphaned."
     }
     optimize_full = {
-      expression  = "cron(0 6 1 * ? *)"
+      expression  = "cron(0 6 ? * SAT *)"
       description = "Unbounded compaction, for partitions the daily window cannot reach."
     }
   }
