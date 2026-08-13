@@ -219,25 +219,28 @@ async def process_perspective_batch(requests: list[dict]) -> list[dict | None]:
     if not requests:
         return []
 
-    google_client = get_google_client()
-    batch = google_client.new_batch_http_request()
     responses: list[dict | None] = []
 
-    def callback(request_id, response, exception):
-        _append_batch_response(responses, request_id, response, exception)
+    def _execute_batch() -> None:
+        # Build client + execute entirely inside the timed worker so a wedged
+        # discovery/HTTP call cannot block the labeling event loop.
+        google_client = get_google_client()
+        batch = google_client.new_batch_http_request()
 
-    for request in requests:
-        batch.add(google_client.comments().analyze(body=request), callback=callback)
+        def callback(request_id, response, exception):
+            _append_batch_response(responses, request_id, response, exception)
+
+        for request in requests:
+            batch.add(google_client.comments().analyze(body=request), callback=callback)
+        batch.execute()
 
     try:
-        # Run sync httplib2 I/O in a worker thread with a hard timeout.
         # Future.result(timeout=...) raises after N seconds even when the
-        # underlying socket call is wedged (we previously saw ~2h hangs).
-        # shutdown(wait=False) is critical: a wedged execute must not block
-        # the caller when the timeout fires.
+        # underlying socket call is wedged. shutdown(wait=False) is critical:
+        # a wedged execute must not block the caller when the timeout fires.
         pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         try:
-            fut = pool.submit(batch.execute)
+            fut = pool.submit(_execute_batch)
             await asyncio.to_thread(fut.result, BATCH_EXECUTE_TIMEOUT_SECONDS)
         finally:
             pool.shutdown(wait=False, cancel_futures=True)
