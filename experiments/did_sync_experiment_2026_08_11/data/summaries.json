@@ -1,0 +1,126 @@
+[
+  {
+    "ablation": "ablation1_plc",
+    "did_count": 1000,
+    "valid_did_count": 1,
+    "invalid_did_count": 999,
+    "validity_rate": 0.001,
+    "discovery": {
+      "request_count": 1,
+      "runtime_seconds": 0.07346756500010088,
+      "rate_limit_event_count": 0,
+      "extra": {
+        "initial_after": "2026-08-10T15:45:42.426Z",
+        "final_after": "2026-08-10T15:51:57.097Z",
+        "pages": 1,
+        "lookback_hours_final": 24,
+        "rate_limit_header_sample": {}
+      }
+    },
+    "analysis": {
+      "getrepo_request_count": 1000,
+      "getrepo_error_count": 906,
+      "getrepo_rate_limit_event_count": 0,
+      "getrepo_runtime_seconds": 302.904320519001,
+      "appview_profile_request_count": 40,
+      "getrepo_error_breakdown": {
+        "repo_takendown": 10,
+        "pds_unreachable": 666,
+        "repo_not_found": 229,
+        "repo_deactivated": 1
+      }
+    }
+  },
+  {
+    "ablation": "ablation2_aoc_bfs",
+    "did_count": 1000,
+    "valid_did_count": 183,
+    "invalid_did_count": 817,
+    "validity_rate": 0.183,
+    "discovery": {
+      "request_count": 13,
+      "runtime_seconds": 2.247296699000799,
+      "rate_limit_event_count": 0,
+      "extra": {
+        "seed_handle": "aoc.bsky.social",
+        "seed_did": "did:plc:p7gxyfr5vii5ntpwo7f6dhe2",
+        "seed_followers_count": 2209746,
+        "max_depth_reached": 0,
+        "pages_by_depth": {
+          "0": 12
+        }
+      }
+    },
+    "analysis": {
+      "getrepo_request_count": 1000,
+      "getrepo_error_count": 0,
+      "getrepo_rate_limit_event_count": 0,
+      "getrepo_runtime_seconds": 773.6124733380002,
+      "appview_profile_request_count": 40,
+      "getrepo_error_breakdown": {}
+    }
+  },
+  {
+    "ablation": "ablation3_plc_old",
+    "did_count": 1000,
+    "valid_did_count": 1,
+    "invalid_did_count": 999,
+    "validity_rate": 0.001,
+    "discovery": {
+      "request_count": 2,
+      "runtime_seconds": 0.15520513599949481,
+      "rate_limit_event_count": 0,
+      "extra": {
+        "initial_after": "2026-02-10T13:11:34.579Z",
+        "final_after": "2026-02-10T13:22:14.880Z",
+        "pages": 2,
+        "lookback_hours_final": 4392,
+        "lookback_hours_initial": 4392,
+        "expand_lookback": false,
+        "rate_limit_header_sample": {}
+      }
+    },
+    "analysis": {
+      "getrepo_request_count": 1000,
+      "getrepo_error_count": 828,
+      "getrepo_rate_limit_event_count": 0,
+      "getrepo_runtime_seconds": 412.2679701500001,
+      "appview_profile_request_count": 40,
+      "getrepo_error_breakdown": {
+        "repo_takendown": 222,
+        "repo_not_found": 16,
+        "repo_deactivated": 4,
+        "other": 1,
+        "pds_unreachable": 585
+      }
+    }
+  },
+  {
+    "ablation": "ablation4_list_repos",
+    "did_count": 1000,
+    "valid_did_count": 475,
+    "invalid_did_count": 525,
+    "validity_rate": 0.475,
+    "discovery": {
+      "request_count": 1,
+      "runtime_seconds": 0.3788218349982344,
+      "rate_limit_event_count": 0,
+      "extra": {
+        "source": "https://bsky.network/xrpc/com.atproto.sync.listRepos",
+        "pages": 1,
+        "final_cursor": null,
+        "inactive_listed_count": 0,
+        "status_counts": {},
+        "rate_limit_header_sample": {}
+      }
+    },
+    "analysis": {
+      "getrepo_request_count": 1000,
+      "getrepo_error_count": 0,
+      "getrepo_rate_limit_event_count": 0,
+      "getrepo_runtime_seconds": 4127.237040273998,
+      "appview_profile_request_count": 40,
+      "getrepo_error_breakdown": {}
+    }
+  }
+]

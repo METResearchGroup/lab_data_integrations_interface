@@ -13,6 +13,9 @@ experiments/dedup_comparison_2026_06_12/data/
 # AOC getRepo derived-stats experiment outputs
 experiments/aoc_getrepo_derived_stats_2026_08_11/data/
 
+# DynamoDB rates experiment live-run outputs
+experiments/dynamodb_rates_2026_08_11/data/
+
 # bluesky_ingestion_jetstream dev
 bluesky_ingestion_jetstream/data
 
