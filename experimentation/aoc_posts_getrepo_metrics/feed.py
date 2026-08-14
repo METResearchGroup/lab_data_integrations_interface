@@ -28,7 +28,7 @@ def fetch_latest_post_uris(client: Any, actor: str, min_posts: int) -> list[str]
     """Return at least ``min_posts`` latest post URIs authored by ``actor``.
 
     Pages ``getAuthorFeed``, keeps only posts whose author DID matches
-    ``actor``, and stops once enough URIs are collected.
+    ``actor``, and stops once enough unique URIs are collected.
 
     Parameters
     ----------
@@ -42,7 +42,7 @@ def fetch_latest_post_uris(client: Any, actor: str, min_posts: int) -> list[str]
     Returns
     -------
     list[str]
-        Post at-URIs in AppView feed order (newest first).
+        Unique post at-URIs in AppView feed order (newest first).
 
     Raises
     ------
@@ -50,9 +50,16 @@ def fetch_latest_post_uris(client: Any, actor: str, min_posts: int) -> list[str]
         When the feed is exhausted before ``min_posts`` URIs are collected.
     """
     uris: list[str] = []
+    seen_uris: set[str] = set()
+    seen_cursors: set[str] = set()
     cursor: str | None = None
 
     while len(uris) < min_posts:
+        if cursor is not None:
+            if cursor in seen_cursors:
+                break
+            seen_cursors.add(cursor)
+
         params: dict[str, Any] = {
             "actor": actor,
             "limit": AUTHOR_FEED_PAGE_SIZE,
@@ -66,6 +73,9 @@ def fetch_latest_post_uris(client: Any, actor: str, min_posts: int) -> list[str]
             break
 
         for uri in page_uris:
+            if uri in seen_uris:
+                continue
+            seen_uris.add(uri)
             uris.append(uri)
             if len(uris) >= min_posts:
                 break

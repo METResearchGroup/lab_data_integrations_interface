@@ -38,8 +38,8 @@ def main() -> None:
     relay = create_relay_client()
     posts_by_uri = fetch_and_index_posts(relay, did)
     rows = derive_rows(uris, posts_by_uri)
-    counts_read_at = utc_now_iso()
     engagement_by_uri = fetch_engagement_by_uri(public, uris)
+    counts_read_at = utc_now_iso()
     rows = enrich_rows_with_engagement(rows, engagement_by_uri, counts_read_at)
     metadata = {
         "sync_timestamp": sync_timestamp,

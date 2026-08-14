@@ -31,7 +31,7 @@ flowchart LR
   end
 
   subgraph Maintenance["Table maintenance"]
-    Sched[EventBridge Scheduler<br/>daily / weekly / monthly]
+    Sched[EventBridge Scheduler<br/>daily / weekly]
     SFN[Step Functions]
     Ath[Athena OPTIMIZE + VACUUM]
     Sched --> SFN --> Ath
@@ -51,7 +51,7 @@ flowchart LR
 
 **Cursor checkpointing:** the cursor is written to DynamoDB after every flush, so it never gets ahead of a row that is not yet durable.
 
-**Iceberg maintenance:** cron jobs run `OPTIMIZE` daily (and unbounded monthly) to bin-pack small files, and `VACUUM` weekly to expire snapshots and delete what they orphan.
+**Iceberg maintenance:** cron jobs run `OPTIMIZE` daily (and unbounded weekly) to bin-pack small files, and `VACUUM` weekly to expire snapshots and delete what they orphan.
 
 ## Components
 

@@ -30,9 +30,14 @@ def write_outputs(rows: list[dict], metadata: dict, sync_timestamp: str) -> Path
     -------
     Path
         Directory containing the written outputs.
+
+    Raises
+    ------
+    FileExistsError
+        When ``sync_timestamp`` already exists under ``OUTPUT_ROOT``.
     """
     output_dir = OUTPUT_ROOT / sync_timestamp
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True)
 
     csv_path = output_dir / METRICS_CSV_FILENAME
     with csv_path.open("w", newline="", encoding="utf-8") as handle:

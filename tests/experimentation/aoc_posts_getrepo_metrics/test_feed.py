@@ -122,3 +122,24 @@ class TestFetchLatestPostUris:
 
         second_call_params = client.app.bsky.feed.get_author_feed.call_args_list[1].args[0]
         assert second_call_params["cursor"] == "next-page"
+
+    def test_fetch_skips_duplicate_uris(self) -> None:
+        """Counts each post URI once even when the feed repeats it on one page."""
+        actor = "did:plc:aoc"
+        duplicate_uri = "at://did:plc:aoc/app.bsky.feed.post/1"
+        response = _feed_response(
+            [
+                _feed_item(duplicate_uri, actor),
+                _feed_item(duplicate_uri, actor),
+                _feed_item("at://did:plc:aoc/app.bsky.feed.post/2", actor),
+            ]
+        )
+        client = MagicMock()
+        client.app.bsky.feed.get_author_feed.return_value = response
+
+        result = fetch_latest_post_uris(client, actor, 2)
+
+        assert result == [
+            duplicate_uri,
+            "at://did:plc:aoc/app.bsky.feed.post/2",
+        ]

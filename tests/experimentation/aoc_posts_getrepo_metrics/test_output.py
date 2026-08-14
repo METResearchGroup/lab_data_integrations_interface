@@ -4,6 +4,8 @@ import csv
 import json
 from pathlib import Path
 
+import pytest
+
 from experimentation.aoc_posts_getrepo_metrics import output as output_module
 from experimentation.aoc_posts_getrepo_metrics.constants import CSV_FIELDNAMES
 from experimentation.aoc_posts_getrepo_metrics.metrics import derive_row
@@ -63,3 +65,17 @@ class TestWriteOutputs:
         assert loaded["like_count"] == ""
         assert loaded["counts_read_at"] == ""
         assert "None" not in loaded["like_count"]
+
+    def test_write_outputs_rejects_existing_run_directory(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Raises FileExistsError when the run folder already exists."""
+        monkeypatch.setattr(output_module, "OUTPUT_ROOT", tmp_path)
+        row = derive_row("at://did:plc:aoc/app.bsky.feed.post/1", None)
+        metadata = {"get_repo_calls": 1}
+        timestamp = "2026_08_11-12:00:02"
+
+        write_outputs([row], metadata, timestamp)
+
+        with pytest.raises(FileExistsError):
+            write_outputs([row], metadata, timestamp)
