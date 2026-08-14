@@ -529,6 +529,49 @@ def _overlay_appview_profiles(
     return request_count
 
 
+def _record_getrepo_row(
+    row: ProfileStats,
+    error_breakdown: dict[str, int],
+) -> tuple[int, int]:
+    """Update error rollups for one analyzed DID. Returns (error_delta, rate_limit_delta)."""
+    error_delta = 0
+    rate_limit_delta = 0
+    if row.error:
+        error_delta = 1
+        bucket = classify_getrepo_error(row.error) or "other"
+        error_breakdown[bucket] = error_breakdown.get(bucket, 0) + 1
+    if row.rate_limited:
+        rate_limit_delta = 1
+    return error_delta, rate_limit_delta
+
+
+def _run_sequential_getrepo(
+    dids: list[str],
+    http: httpx.Client,
+    cutoff: datetime,
+) -> tuple[dict[str, ProfileStats], int, int, dict[str, int]]:
+    """Fetch and decode repos sequentially under a shared pacer."""
+    rows_by_did: dict[str, ProfileStats] = {}
+    error_count = 0
+    rate_limit_count = 0
+    error_breakdown: dict[str, int] = {}
+    pacer = RelayRequestPacer(GETREPO_MIN_INTERVAL_SECONDS)
+    for index, did in enumerate(dids, start=1):
+        row = _analyze_one_did(did, http, cutoff, pacer)
+        rows_by_did[did] = row
+        error_delta, rate_limit_delta = _record_getrepo_row(row, error_breakdown)
+        error_count += error_delta
+        rate_limit_count += rate_limit_delta
+        if index % 5 == 0 or index == len(dids):
+            print(
+                f"getRepo progress {index}/{len(dids)} "
+                f"(errors={error_count}, rate_limited={rate_limit_count}, "
+                f"breakdown={error_breakdown})",
+                flush=True,
+            )
+    return rows_by_did, error_count, rate_limit_count, error_breakdown
+
+
 def analyze_dids(
     dids: list[str],
     workers: int,
@@ -563,6 +606,7 @@ def analyze_dids(
     clock = now if now is not None else datetime.now(UTC)
     cutoff = clock - timedelta(days=DAYS_BACK)
     _ = relay_client
+    _ = workers
     public = public_client if public_client is not None else create_public_client()
     owns_http = http_client is None
     http = http_client or httpx.Client(
@@ -571,31 +615,10 @@ def analyze_dids(
     )
 
     start = time.perf_counter()
-    rows_by_did: dict[str, ProfileStats] = {}
-    error_count = 0
-    rate_limit_count = 0
-    error_breakdown: dict[str, int] = {}
-    pacer = RelayRequestPacer(GETREPO_MIN_INTERVAL_SECONDS)
-
-    # getRepo uses one shared httpx client; run sequentially under pacing.
-    _ = workers
     try:
-        for index, did in enumerate(dids, start=1):
-            row = _analyze_one_did(did, http, cutoff, pacer)
-            rows_by_did[did] = row
-            if row.error:
-                error_count += 1
-                bucket = classify_getrepo_error(row.error) or "other"
-                error_breakdown[bucket] = error_breakdown.get(bucket, 0) + 1
-            if row.rate_limited:
-                rate_limit_count += 1
-            if index % 5 == 0 or index == len(dids):
-                print(
-                    f"getRepo progress {index}/{len(dids)} "
-                    f"(errors={error_count}, rate_limited={rate_limit_count}, "
-                    f"breakdown={error_breakdown})",
-                    flush=True,
-                )
+        rows_by_did, error_count, rate_limit_count, error_breakdown = _run_sequential_getrepo(
+            dids, http, cutoff
+        )
     finally:
         if owns_http:
             http.close()

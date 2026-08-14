@@ -1,8 +1,12 @@
 # CHANGELOG
 
+## 2026-08-13
+
+1. The unbounded `OPTIMIZE` over the `bluesky_raw` tables now runs weekly (Saturdays 06:00 UTC) instead of monthly, so small files in historical partitions — which the daily 3-day lookback cannot reach — are bin-packed within a week rather than up to a month. Saturday puts it ahead of the Sunday `VACUUM` that sweeps up the files it orphans. [PR #166](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/166)
+
 ## 2026-08-11
 
-1. Added a Bluesky DID discovery experiment that compares PLC recent-cursor export, PLC ~6-month-old cursor export, and AOC follower breadth first search for 1000 accounts each, scores validity from getRepo activity plus AppView follower counts, and finds AOC BFS yields far more usable accounts (183 vs 1 vs 1). Authoritative runs used paced httpx getRepo with PDS redirect following and recorded zero getRepo 429s; PLC failures were mostly unreachable redirected PDS hosts, RepoTakendown, and RepoNotFound, not quota noise. [PR #158](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/158)
+1. Added a Bluesky DID discovery experiment comparing PLC recent-cursor export, PLC ~6-month-old cursor export, AOC follower BFS, and relay `com.atproto.sync.listRepos` for 1000 accounts each. Under shared getRepo/AppView validity rules, listRepos yielded the most usable accounts (475), then AOC BFS (183), then both PLC arms (1 each). Authoritative runs used paced httpx getRepo with PDS redirect following and recorded zero getRepo 429s. [PR #158](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/158)
 
 ## 2026-08-10
 

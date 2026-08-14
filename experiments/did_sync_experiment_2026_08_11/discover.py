@@ -508,6 +508,37 @@ def discover_aoc_bfs_dids(
     )
 
 
+def _parse_list_repos_payload(
+    payload: dict[str, Any],
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Extract repos and next cursor from a listRepos JSON body."""
+    repos = payload.get("repos") or []
+    if not isinstance(repos, list):
+        repos = []
+    next_cursor = payload.get("cursor")
+    next_cursor_str = next_cursor if isinstance(next_cursor, str) else None
+    return repos, next_cursor_str
+
+
+def _note_list_repos_rate_limit(
+    exc: urllib.error.HTTPError,
+    rate_limit_events: list[RateLimitEvent],
+    sleep: Callable[[float], None],
+) -> None:
+    """Record a listRepos 429 and sleep before retry."""
+    retry_after = exc.headers.get("Retry-After") if exc.headers else None
+    rate_limit_events.append(
+        RateLimitEvent(
+            source="com.atproto.sync.listRepos",
+            at_unix=time.time(),
+            status_code=429,
+            detail=str(exc),
+            retry_after=retry_after,
+        )
+    )
+    sleep(_retry_sleep_seconds(retry_after))
+
+
 def _fetch_list_repos_page(
     cursor: str | None,
     urlopen: UrlOpen,
@@ -524,27 +555,39 @@ def _fetch_list_repos_page(
             with urlopen(url, timeout=120) as resp:
                 headers = {k: v for k, v in resp.headers.items()}
                 payload = json.loads(resp.read().decode("utf-8"))
-            repos = payload.get("repos") or []
-            if not isinstance(repos, list):
-                repos = []
-            next_cursor = payload.get("cursor")
-            next_cursor_str = next_cursor if isinstance(next_cursor, str) else None
-            return repos, next_cursor_str, _rate_limit_headers(headers)
+            repos, next_cursor = _parse_list_repos_payload(payload)
+            return repos, next_cursor, _rate_limit_headers(headers)
         except urllib.error.HTTPError as exc:
-            retry_after = exc.headers.get("Retry-After") if exc.headers else None
-            if exc.code == 429:
-                rate_limit_events.append(
-                    RateLimitEvent(
-                        source="com.atproto.sync.listRepos",
-                        at_unix=time.time(),
-                        status_code=429,
-                        detail=str(exc),
-                        retry_after=retry_after,
-                    )
-                )
-                sleep(_retry_sleep_seconds(retry_after))
-                continue
-            raise
+            if exc.code != 429:
+                raise
+            _note_list_repos_rate_limit(exc, rate_limit_events, sleep)
+
+
+def _ingest_list_repo_entries(
+    repos: list[dict[str, Any]],
+    dids: list[str],
+    seen: set[str],
+    target: int,
+    status_counts: dict[str, int],
+) -> int:
+    """Append unique DIDs from one listRepos page. Returns inactive count added."""
+    inactive_added = 0
+    for repo in repos:
+        if not isinstance(repo, dict):
+            continue
+        did = repo.get("did")
+        if not did or did in seen:
+            continue
+        if repo.get("active") is False:
+            inactive_added += 1
+        status = repo.get("status")
+        if isinstance(status, str) and status:
+            status_counts[status] = status_counts.get(status, 0) + 1
+        seen.add(did)
+        dids.append(did)
+        if len(dids) >= target:
+            break
+    return inactive_added
 
 
 def discover_list_repos_dids(
@@ -591,24 +634,8 @@ def discover_list_repos_dids(
         )
         if not repos:
             break
-        for repo in repos:
-            if not isinstance(repo, dict):
-                continue
-            did = repo.get("did")
-            if not did or did in seen:
-                continue
-            if repo.get("active") is False:
-                inactive_count += 1
-            status = repo.get("status")
-            if isinstance(status, str) and status:
-                status_counts[status] = status_counts.get(status, 0) + 1
-            seen.add(did)
-            dids.append(did)
-            if len(dids) >= target:
-                break
-        if len(dids) >= target:
-            break
-        if not next_cursor or next_cursor == cursor:
+        inactive_count += _ingest_list_repo_entries(repos, dids, seen, target, status_counts)
+        if len(dids) >= target or not next_cursor or next_cursor == cursor:
             break
         cursor = next_cursor
 

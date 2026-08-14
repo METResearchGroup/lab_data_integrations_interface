@@ -158,8 +158,7 @@ def write_results_md(summaries: list[dict], run_started: datetime) -> str:
         "cursor (~24h lookback), unique DIDs."
     )
     lines.append(
-        "- Ablation 2 (AOC BFS): `getFollowers` breadth first search starting at "
-        "`aoc.bsky.social`."
+        "- Ablation 2 (AOC BFS): `getFollowers` breadth first search starting at `aoc.bsky.social`."
     )
     lines.append(
         "- Ablation 3 (PLC older): `https://plc.directory/export` from a fixed "
@@ -204,9 +203,7 @@ def write_results_md(summaries: list[dict], run_started: datetime) -> str:
         winner = ranked[0]
         runner_up = ranked[1]
         delta = winner["valid_did_count"] - runner_up["valid_did_count"]
-        ranking = ", ".join(
-            f"{item['ablation']}={item['valid_did_count']}" for item in ranked
-        )
+        ranking = ", ".join(f"{item['ablation']}={item['valid_did_count']}" for item in ranked)
         lines.append(
             f"{winner['ablation']} produced the most valid DIDs "
             f"({winner['valid_did_count']} vs next {runner_up['valid_did_count']}, "
@@ -340,6 +337,63 @@ def merge_summaries(existing: list[dict], new: list[dict]) -> list[dict]:
     return ordered + extras
 
 
+def _selected_jobs(only: str, target: int) -> list[tuple[str, Callable[[], DiscoveryResult]]]:
+    """Build the ordered list of ablation jobs for this CLI selection."""
+    jobs: list[tuple[str, Callable[[], DiscoveryResult]]] = []
+    if only in ("all", "both", "plc"):
+        jobs.append((ABLATION1_NAME, lambda: discover_plc_dids(target)))
+    if only in ("all", "both", "aoc"):
+        jobs.append((ABLATION2_NAME, lambda: discover_aoc_bfs_dids(target)))
+    if only in ("all", "plc_old"):
+        jobs.append((ABLATION3_NAME, lambda: discover_plc_old_dids(target)))
+    if only in ("all", "list_repos"):
+        jobs.append((ABLATION4_NAME, lambda: discover_list_repos_dids(target)))
+    return jobs
+
+
+def _load_existing_summaries(only: str) -> list[dict]:
+    """Load prior summaries.json when running a partial ablation."""
+    summaries_path = DATA / "summaries.json"
+    if not summaries_path.exists() or only in ("all", "both"):
+        return []
+    try:
+        loaded = json.loads(summaries_path.read_text())
+    except json.JSONDecodeError:
+        return []
+    return loaded if isinstance(loaded, list) else []
+
+
+def _load_prior_meta() -> dict:
+    """Load prior run_meta.json if present and well-formed."""
+    meta_path = DATA / "run_meta.json"
+    if not meta_path.exists():
+        return {}
+    try:
+        loaded_meta = json.loads(meta_path.read_text())
+    except json.JSONDecodeError:
+        return {}
+    return loaded_meta if isinstance(loaded_meta, dict) else {}
+
+
+def _results_started_utc(only: str, run_started: datetime, prior_meta: dict) -> datetime:
+    """Keep the original RESULTS.md start time across partial re-runs."""
+    prior_started = prior_meta.get("run_started_utc")
+    if not prior_started or only in ("all", "both"):
+        return run_started
+    try:
+        return datetime.fromisoformat(str(prior_started))
+    except ValueError:
+        return run_started
+
+
+def _run_started_utc_for_meta(only: str, run_started: datetime, prior_meta: dict) -> str:
+    """Preserve original run_started_utc when merging partial ablations."""
+    prior_started = prior_meta.get("run_started_utc")
+    if only not in ("all", "both") and prior_started:
+        return str(prior_started)
+    return run_started.isoformat()
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run selected ablations and write RESULTS.md."""
     parser = build_parser()
@@ -348,58 +402,19 @@ def main(argv: list[str] | None = None) -> int:
     run_started = datetime.now(UTC)
     DATA.mkdir(parents=True, exist_ok=True)
 
-    jobs: list[tuple[str, Callable[[], DiscoveryResult]]] = []
-    if args.only in ("all", "both", "plc"):
-        jobs.append((ABLATION1_NAME, lambda: discover_plc_dids(target)))
-    if args.only in ("all", "both", "aoc"):
-        jobs.append((ABLATION2_NAME, lambda: discover_aoc_bfs_dids(target)))
-    if args.only in ("all", "plc_old"):
-        jobs.append((ABLATION3_NAME, lambda: discover_plc_old_dids(target)))
-    if args.only in ("all", "list_repos"):
-        jobs.append((ABLATION4_NAME, lambda: discover_list_repos_dids(target)))
-
+    jobs = _selected_jobs(args.only, target)
     new_summaries = [
         run_ablation(name, discovery_fn, workers=args.workers) for name, discovery_fn in jobs
     ]
-
-    existing: list[dict] = []
-    summaries_path = DATA / "summaries.json"
-    if summaries_path.exists() and args.only not in ("all", "both"):
-        try:
-            loaded = json.loads(summaries_path.read_text())
-            if isinstance(loaded, list):
-                existing = loaded
-        except json.JSONDecodeError:
-            existing = []
-    summaries = merge_summaries(existing, new_summaries)
-
-    prior_meta: dict = {}
-    meta_path = DATA / "run_meta.json"
-    if meta_path.exists():
-        try:
-            loaded_meta = json.loads(meta_path.read_text())
-            if isinstance(loaded_meta, dict):
-                prior_meta = loaded_meta
-        except json.JSONDecodeError:
-            prior_meta = {}
-
-    results_started = run_started
-    prior_started = prior_meta.get("run_started_utc")
-    if prior_started and args.only not in ("all", "both"):
-        try:
-            results_started = datetime.fromisoformat(str(prior_started))
-        except ValueError:
-            results_started = run_started
+    summaries = merge_summaries(_load_existing_summaries(args.only), new_summaries)
+    prior_meta = _load_prior_meta()
+    results_started = _results_started_utc(args.only, run_started, prior_meta)
 
     _write_json(DATA / "summaries.json", summaries)
     _write_json(
         DATA / "run_meta.json",
         {
-            "run_started_utc": (
-                prior_meta.get("run_started_utc")
-                if args.only not in ("all", "both") and prior_meta.get("run_started_utc")
-                else run_started.isoformat()
-            ),
+            "run_started_utc": _run_started_utc_for_meta(args.only, run_started, prior_meta),
             "last_run_utc": run_started.isoformat(),
             "target": target,
             "workers": args.workers,
@@ -408,8 +423,7 @@ def main(argv: list[str] | None = None) -> int:
             "ablations_present": [item["ablation"] for item in summaries],
         },
     )
-    results_text = write_results_md(summaries, results_started)
-    (ROOT / "RESULTS.md").write_text(results_text)
+    (ROOT / "RESULTS.md").write_text(write_results_md(summaries, results_started))
     print(f"\nWrote {ROOT / 'RESULTS.md'}", flush=True)
     return 0
 
