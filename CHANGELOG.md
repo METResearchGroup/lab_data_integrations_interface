@@ -6,13 +6,10 @@
 
 ## 2026-08-11
 
-<<<<<<< HEAD
 1. Added an experiment that resolves AOC and her 50 most recent followers, downloads each full Bluesky repo with getRepo, and writes 6-month derived profile stats while leaving unknowable fields such as saves and unfollows as null. [PR #157](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/157)
-=======
-1. Added an AOC Bluesky experiment that lists at least 50 latest posts via public `getAuthorFeed`, loads her repo once with relay `getRepo`, derives structural fields from the repo, and enriches likes, replies, reposts, quotes, and saves via AppView `getPosts` (`deleted` stays `unknown`). [PR #156](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/156)
->>>>>>> origin/main
-2. Added a DynamoDB write rate experiment under `experiments/dynamodb_rates_2026_08_11/` that times 1000 individual PutItem calls against 1000 BatchWriteItem writes on the existing dedup-experiment table, then deletes the experiment keys. [PR #159](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/159)
-3. Added a Bluesky DID discovery experiment comparing PLC recent-cursor export, PLC ~6-month-old cursor export, AOC follower BFS, and relay `com.atproto.sync.listRepos` for 1000 accounts each. Under shared getRepo/AppView validity rules, listRepos yielded the most usable accounts (475), then AOC BFS (183), then both PLC arms (1 each). Authoritative runs used paced httpx getRepo with PDS redirect following and recorded zero getRepo 429s. [PR #158](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/158)
+2. Added an AOC Bluesky experiment that lists at least 50 latest posts via public `getAuthorFeed`, loads her repo once with relay `getRepo`, derives structural fields from the repo, and enriches likes, replies, reposts, quotes, and saves via AppView `getPosts` (`deleted` stays `unknown`). [PR #156](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/156)
+3. Added a DynamoDB write rate experiment under `experiments/dynamodb_rates_2026_08_11/` that times 1000 individual PutItem calls against 1000 BatchWriteItem writes on the existing dedup-experiment table, then deletes the experiment keys. [PR #159](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/159)
+4. Added a Bluesky DID discovery experiment comparing PLC recent-cursor export, PLC ~6-month-old cursor export, AOC follower BFS, and relay `com.atproto.sync.listRepos` for 1000 accounts each. Under shared getRepo/AppView validity rules, listRepos yielded the most usable accounts (475), then AOC BFS (183), then both PLC arms (1 each). Authoritative runs used paced httpx getRepo with PDS redirect following and recorded zero getRepo 429s. [PR #158](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/158)
 
 ## 2026-08-10
 
