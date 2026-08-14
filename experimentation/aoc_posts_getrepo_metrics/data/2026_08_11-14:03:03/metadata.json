@@ -1,0 +1,12 @@
+{
+  "sync_timestamp": "2026_08_11-14:03:03",
+  "target_handle": "aoc.bsky.social",
+  "target_did": "did:plc:p7gxyfr5vii5ntpwo7f6dhe2",
+  "min_posts": 50,
+  "post_uri_count": 50,
+  "rows_with_repo_record": 50,
+  "rows_missing_repo_record": 0,
+  "source_listing": "app.bsky.feed.getAuthorFeed",
+  "source_repo": "com.atproto.sync.getRepo",
+  "get_repo_calls": 1
+}
