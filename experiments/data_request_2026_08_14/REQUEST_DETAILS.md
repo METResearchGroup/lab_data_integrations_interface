@@ -48,3 +48,24 @@ Intentionally out of scope:
 
 1. Post deletions
 2. Unfollows
+
+## Initial scoping
+
+The hardest part is hydrating every single post liked or engaged with, for every single person throughout that period. From my experiments with getting all likes/posts/reposts/comments from a random subset of 1,000 followers of AOC, that was something like average total of ~1,400 for 6 months of engagement (obviously very skewed by some large accounts):
+
+949 likes
+88 original posts
+173 reposts
+179 replies
+
+Unsure how representative this is as compared to your dataset, but also likely that there are some larger nodes that are being captured. We'll deduplicate and do other tricks to try to optimize, but also your ask is for 12 months instead of 6 months which'll double the average. If we assume that we need to hydrate, say, 2,800 posts per user, across 8,000 users, that's ~22.5M posts.
+
+The docs seem to suggest that the AppView for app.bsky.feed.getPosts doesn't have a stated rate limit, but is "generous", whatever that might mean. We can try at 10 QPS first. Looks like it's max 25 URIs/request. Conservatively, that might mean 1 day at the very fastest. However, from my past experience, they can throttle you pretty hard.
+
+Basically, there's three parts to split this work into:
+
+Run getProfiles for all the users. Should take ~30 minutes.
+Run getRepo  for all the users. Should take ~12 hours.
+Run getPosts for posts. Some optimizations include filtering down which posts to get data for, but assuming the worst case estimates here and assuming the 3,000 requests/5 minutes rate limit.
+
+Steps 1 and 2 are the quickest and get you the majority of data.

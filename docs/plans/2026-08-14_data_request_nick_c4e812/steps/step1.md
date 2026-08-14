@@ -4,7 +4,7 @@ Freeze contracts before behavior. Scaffold the experiment package and write fail
 
 ## Scope
 
-- **Caller (for later steps):** `experiments/data_request_2026_08_14/main.py` → `run()` will load members, fetch profiles, fetch repos, build tables, and write a timestamped folder.
+- **Caller (for later steps):** `experiments/data_request_2026_08_14/main.py` → `run()` will load members, optionally write profiles only, fetch and cache repos, build tables, and write a timestamped folder. Hydrate is Step 6.
 - **Slice:** Constants, CSV column tuples, member-list loader, a stub `run()`, and failing contract tests.
 - **Out of scope:** Live AppView or relay calls, CAR decode, writing real CSVs from network data.
 
@@ -49,6 +49,8 @@ Freeze contracts before behavior. Scaffold the experiment package and write fail
 | Window start | inclusive |
 | Window end | run-start timestamp |
 | Output root | `experiments/data_request_2026_08_14/data/<run_timestamp>/` |
+| Repo cache root | `experiments/data_request_2026_08_14/cache/repos/` |
+| Hydrate modes | `none`, `own_posts`, `quotes_replies`, `all` |
 
 ### Generated files (exact names)
 
@@ -101,6 +103,8 @@ In `tests/experiments/test_data_request_2026_08_14_contracts.py`:
 3. **Given** a tiny CSV with two member rows **when** `load_members` **then** two objects with `did`, int `n_pools`, and `seeds`.
 4. **Given** a CSV with a duplicate DID **when** `load_members` **then** it raises.
 5. **Given** generated file name list **when** listed **then** it includes `saves.csv` and does not include an unfollows file.
+6. **Given** hydrate mode constants **when** listed **then** they are `none`, `own_posts`, `quotes_replies`, and `all`.
+7. **Given** `hydration_status` values **when** listed **then** they include `pending` and `repo_only`.
 
 ### Phase 4 to 5
 

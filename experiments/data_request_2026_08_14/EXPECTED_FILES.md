@@ -2,7 +2,7 @@
 
 The input file is `experiments/data_request_2026_08_14/greedy10_dedup_members.csv`. It lists 8,431 account ids (DIDs). A DID is a stable Bluesky account id. Generated files go under `experiments/data_request_2026_08_14/data/<run_timestamp>/`.
 
-AppView is Bluesky's public API for profiles and posts. Hydration means looking up a post URI on AppView so `posts.csv` can hold the post text, media flags, language, author, and engagement counts.
+AppView is Bluesky's public API for profiles and posts. Hydration means looking up a post URI on AppView so `posts.csv` can hold the post text, media flags, language, author, and engagement counts. The first complete folder is valid without those lookups. Member-authored posts then have `hydration_status=repo_only`. Like, repost, quote, and reply-target URIs are present as join keys with `hydration_status=pending`. Later runs fill the same `posts.csv` and only request URIs that are not already `ok`.
 
 Likes, reposts, quotes, and replies live in their own files and store join keys, not a full copy of the post on every row. Join those files to `posts.csv` on `post_uri` (or `quoted_post_uri` / `parent_post_uri`). Join person fields to `profiles.csv` on `did` or `actor_did`.
 
@@ -51,7 +51,7 @@ Item 13 (unfollows) is omitted on purpose.
 | 15 Handle | `profiles.csv` | `handle` |
 | 16 Display name | `profiles.csv` | `display_name` |
 
-A quote that is not also a reply appears in both `original_posts.csv` and `quotes.csv`. The quote post and the quoted post both have rows in `posts.csv` when the AppView lookup succeeds.
+A quote that is not also a reply appears in both `original_posts.csv` and `quotes.csv`. The quote post has a `posts.csv` row from getRepo (`repo_only`). The quoted post has a `posts.csv` row as soon as the URI is known (`pending` until AppView lookup succeeds or fails).
 
 ## Columns
 
@@ -81,7 +81,7 @@ A quote that is not also a reply appears in both `original_posts.csv` and `quote
 
 ### `posts.csv`
 
-Primary key: `post_uri`. The file includes posts a cohort member wrote during the window, and every like, repost, quote, or reply target we tried to look up. Referenced posts may be older than the window and may be written by accounts outside the cohort. If AppView no longer has the post, keep the URI and leave the other fields null (`hydration_status` is not `ok`).
+Primary key: `post_uri`. The file includes posts a cohort member wrote during the window, and every like, repost, quote, or reply-parent URI from the activity tables. Referenced posts may be older than the window and may be written by accounts outside the cohort. A row can exist before AppView is called (`hydration_status=pending`). If AppView no longer has the post, keep the URI and leave the other fields null (`hydration_status` is not `ok`).
 
 | Column | Type | Source | Meaning |
 |---|---|---|---|
@@ -102,7 +102,7 @@ Primary key: `post_uri`. The file includes posts a cohort member wrote during th
 | `repost_count` | int \| null | AppView `repostCount` | Reposts at lookup time |
 | `quote_count` | int \| null | AppView `quoteCount` | Quotes at lookup time |
 | `save_count` | int \| null | AppView `bookmarkCount` | Saves at lookup time |
-| `hydration_status` | `ok` \| `not_found` \| `failed` \| `repo_only` | run | `repo_only` means the text came from getRepo, and AppView was not used or was not needed for text |
+| `hydration_status` | `ok` \| `pending` \| `not_found` \| `failed` \| `repo_only` | run | `pending` means AppView has not been called yet. `repo_only` means the text came from getRepo, and AppView was not used or was not needed for text |
 
 ### `original_posts.csv`
 
@@ -200,4 +200,5 @@ The followed account does not need to be in the cohort.
 | `cohort_size` | int | 8,431 |
 | `record_counts` | object | Row counts per CSV |
 | `source_methods` | object | getRepo vs AppView vs getPosts |
-| `unavailable_fields` | string[] | saved posts (private); unfollows and deletions (out of scope) |
+| `hydrate_mode` | string | `none` \| `own_posts` \| `quotes_replies` \| `all` |
+| `unavailable_fields` | string[] | saved posts (private); unfollows and deletions (out of scope). After `hydrate_mode=none`, also note that target post bodies and engagement counts are still pending |

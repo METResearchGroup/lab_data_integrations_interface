@@ -4,7 +4,7 @@ Load current handle, display name, bio, and platform follower and followee count
 
 ## Scope
 
-- **Caller:** `main.run` will call member load, then profile fetch, then repo fetch (repo fetch is Step 3).
+- **Caller:** `main.run` will call member load, then profile fetch. `--profiles-only` writes `profiles.csv` in Step 5 without getRepo.
 - **Slice:** batch AppView `getProfiles` for every DID in the member list. Attach `window_start` and `window_end`. Record per-DID profile failures without stopping the cohort.
 - **Out of scope:** `getRepo`, CAR decode, activity tables, `getPosts`, writing output files.
 
@@ -106,4 +106,4 @@ Expected: all pass, no network.
 
 ## Done when
 
-`fetch_profiles` returns one contract row per member, with AppView scalars attached when present, covered by mocks. Ready for Step 3 repo fetch.
+`fetch_profiles` returns one contract row per member, with AppView scalars attached when present, covered by mocks. Ready for Step 3 repo fetch. Step 5 can write these rows with `--profiles-only`.
