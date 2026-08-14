@@ -28,3 +28,5 @@ bluesky_ingestion_jetstream/data
 **/crash.log
 
 *.DS_Store
+# Perspective API labeling mid-run flush chunks
+experiments/perspective_api_labeling_2026_08_11/labels/tmp/

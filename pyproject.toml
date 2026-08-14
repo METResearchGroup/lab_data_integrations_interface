@@ -21,7 +21,7 @@ dependencies = [
     "spacy>=3.7.0",
     "pandas>=2.0.0",
     "duckdb>=1.0.0",
-    "pyarrow>=14.0.0",
+    "pyarrow==24.0.0",
     # pyiceberg-core supplies the Rust partition transforms; partitioned writes
     # are unsupported without it.
     "pyiceberg[glue,pyiceberg-core]>=0.10.0",
@@ -39,6 +39,9 @@ dependencies = [
     "opentelemetry-instrumentation-logging~=0.64b0",
     "opentelemetry-instrumentation-botocore~=0.64b0",
     "pyjwt>=2.13.0",
+    "google-api-python-client>=2.198.0",
+    "matplotlib>=3.11.1",
+    "tabulate>=0.10.0",
 ]
 
 [project.optional-dependencies]
