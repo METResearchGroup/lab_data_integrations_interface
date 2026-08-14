@@ -1,0 +1,35 @@
+{
+  "ablation": "ablation3_plc_old",
+  "did_count": 1000,
+  "valid_did_count": 1,
+  "invalid_did_count": 999,
+  "validity_rate": 0.001,
+  "discovery": {
+    "request_count": 2,
+    "runtime_seconds": 0.15520513599949481,
+    "rate_limit_event_count": 0,
+    "extra": {
+      "initial_after": "2026-02-10T13:11:34.579Z",
+      "final_after": "2026-02-10T13:22:14.880Z",
+      "pages": 2,
+      "lookback_hours_final": 4392,
+      "lookback_hours_initial": 4392,
+      "expand_lookback": false,
+      "rate_limit_header_sample": {}
+    }
+  },
+  "analysis": {
+    "getrepo_request_count": 1000,
+    "getrepo_error_count": 828,
+    "getrepo_rate_limit_event_count": 0,
+    "getrepo_runtime_seconds": 412.2679701500001,
+    "appview_profile_request_count": 40,
+    "getrepo_error_breakdown": {
+      "repo_takendown": 222,
+      "repo_not_found": 16,
+      "repo_deactivated": 4,
+      "other": 1,
+      "pds_unreachable": 585
+    }
+  }
+}
