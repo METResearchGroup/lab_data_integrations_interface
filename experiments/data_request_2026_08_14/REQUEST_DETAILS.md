@@ -2,7 +2,7 @@
 
 Original source document [is here](https://docs.google.com/document/d/1PSDTEPw9beKZHUmC1-4UaAmpGONB0SF-ekfbGSYS3y0/edit?tab=t.pli4dze1w1no). In this doc is a distilled version.
 
-For each person we want, over the past 6 months:
+For each person we want, over the past 12 months:
 
 1. Account creation date
 2. All original posts
@@ -11,12 +11,12 @@ For each person we want, over the past 6 months:
 5. All posts they quoted (what they said in the quote + the post that was quoted)
 6. All posts they replied to (what they said in the reply + the post that was replied to)
 7. All posts they saved
-8. A list of all their followers at the end of the 6 months within all collected profiles
-9. A list of all their followees at the end of the 6 months within all collected profiles
+8. A list of all their followers at the end of the 12 months within all collected profiles
+9. A list of all their followees at the end of the 12 months within all collected profiles
 10. Latest count of total followers
 11. Latest count of total followees
-12. All follow actions in the 6 months
-13. All unfollow actions in the 6 months (is that possible?)
+12. All follow actions in the 12 months
+13. All unfollow actions in the 12 months (is that possible?)
 14. Their current bio.
 15. Their handle
 16. Their display name
