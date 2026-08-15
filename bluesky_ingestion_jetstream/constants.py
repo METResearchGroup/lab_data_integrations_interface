@@ -1,6 +1,6 @@
 """Shared constants."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 POSTS = "posts"
 LIKES = "likes"
@@ -23,12 +23,9 @@ WANTED_COLLECTIONS = tuple(COLLECTION_TO_RECORD_TYPE)
 
 COMMON_REQUIRED_KEYS = ("uri", "did", "created_at", "ingested_at")
 
-# `created_at` is the client's clock and the Iceberg partition key, so a row
-# claiming 1970 mints a permanent one-file partition. Dropped, not clamped.
-EARLIEST_VALID_CREATED_AT = datetime(2022, 1, 1, tzinfo=UTC)
-
-# How far ahead of `ingested_at` a `created_at` may be before the row is dropped.
-# Compared against the broker's clock, not ours, so replays stay deterministic.
+# How far `created_at` may sit either side of `ingested_at` before the row is
+# dropped. Measured against the broker's clock, so replays stay deterministic.
+MAX_CREATED_AT_BACKDATE = timedelta(days=7)
 MAX_CREATED_AT_SKEW = timedelta(days=1)
 
 POST_REQUIRED_KEYS = COMMON_REQUIRED_KEYS

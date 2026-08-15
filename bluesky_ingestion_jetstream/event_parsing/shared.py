@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 
 from bluesky_ingestion_jetstream.constants import (
-    EARLIEST_VALID_CREATED_AT,
+    MAX_CREATED_AT_BACKDATE,
     MAX_CREATED_AT_SKEW,
 )
 
@@ -79,11 +79,9 @@ def parse_ingested_at(value: object) -> datetime | None:
 def is_created_at_valid(created_at: datetime, ingested_at: datetime | None) -> bool:
     """Whether a client-supplied `created_at` is plausible enough to partition on."""
 
-    if created_at < EARLIEST_VALID_CREATED_AT:
-        return False
-    if ingested_at is not None and created_at > ingested_at + MAX_CREATED_AT_SKEW:
-        return False
-    return True
+    if ingested_at is None:
+        return True
+    return ingested_at - MAX_CREATED_AT_BACKDATE <= created_at <= ingested_at + MAX_CREATED_AT_SKEW
 
 
 def parse_shared(event: dict) -> dict:

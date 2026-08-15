@@ -44,6 +44,38 @@ variable "optimize_lookback_days" {
   default     = 3
 }
 
+variable "optimize_full_start_month" {
+  description = <<-EOT
+    First month `optimize_full` covers, as `YYYY-MM-DD`. Earlier partitions are
+    left alone: they predate `MAX_CREATED_AT_BACKDATE` in
+    `bluesky_ingestion_jetstream/constants.py`, so they hold a few KB of client
+    clock junk that compaction cannot meaningfully shrink.
+  EOT
+  default     = "2026-08-01"
+}
+
+locals {
+  optimize_full_start_year  = tonumber(split("-", var.optimize_full_start_month)[0])
+  optimize_full_start_index = tonumber(split("-", var.optimize_full_start_month)[1])
+
+  # Athena caps OPTIMIZE at 100 partitions per statement, so an unbounded rewrite
+  # fails outright once a table holds more days than that. One statement per month
+  # keeps each under ~31.
+  #
+  # The list runs from `optimize_full_start_month` through whichever month the
+  # execution lands in, computed by the state machine rather than at apply time so
+  # a new month needs no `terraform apply`.
+  #
+  # The outer `[...]` is load-bearing: JSONata collapses a single-element sequence
+  # to a scalar, and the first month of a fresh start date is exactly that case.
+  optimize_full_predicates = join(" ", [
+    "{% [$map($range(0, ($number($now(\"[Y0001]\")) - ${local.optimize_full_start_year}) * 12",
+    "+ $number($now(\"[M]\")) - ${local.optimize_full_start_index}, 1), function($i) {",
+    "\"WHERE created_at >= date '${var.optimize_full_start_month}' + interval '\" & $string($i) & \"' month",
+    "AND created_at < date '${var.optimize_full_start_month}' + interval '\" & $string($i + 1) & \"' month\" })] %}",
+  ])
+}
+
 # ---------------------------------------------------------------------------
 # Athena workgroup
 #
@@ -197,20 +229,27 @@ resource "aws_sfn_state_machine" "maintenance" {
         Default = "UnknownJob"
       }
 
+      # Every job fans out over tables x predicates. `optimize` and `vacuum` carry a
+      # single predicate; `optimize_full` carries one per month.
       OptimizeWindow = {
         Type = "Pass"
         Parameters = {
           tables       = var.record_types
-          sql_template = "OPTIMIZE ${var.glue_database}.{} REWRITE DATA USING BIN_PACK WHERE created_at >= current_date - interval '${var.optimize_lookback_days}' day AND created_at < current_date"
+          sql_template = "OPTIMIZE ${var.glue_database}.{} REWRITE DATA USING BIN_PACK {}"
+          predicates = [
+            "WHERE created_at >= current_date - interval '${var.optimize_lookback_days}' day AND created_at < current_date",
+          ]
         }
         Next = "PerTable"
       }
 
       OptimizeFull = {
-        Type = "Pass"
-        Parameters = {
+        Type          = "Pass"
+        QueryLanguage = "JSONata"
+        Output = {
           tables       = var.record_types
-          sql_template = "OPTIMIZE ${var.glue_database}.{} REWRITE DATA USING BIN_PACK"
+          sql_template = "OPTIMIZE ${var.glue_database}.{} REWRITE DATA USING BIN_PACK {}"
+          predicates   = local.optimize_full_predicates
         }
         Next = "PerTable"
       }
@@ -219,7 +258,8 @@ resource "aws_sfn_state_machine" "maintenance" {
         Type = "Pass"
         Parameters = {
           tables       = var.record_types
-          sql_template = "VACUUM ${var.glue_database}.{}"
+          sql_template = "VACUUM ${var.glue_database}.{}{}"
+          predicates   = [""]
         }
         Next = "PerTable"
       }
@@ -231,51 +271,71 @@ resource "aws_sfn_state_machine" "maintenance" {
         Parameters = {
           "table.$"        = "$$.Map.Item.Value"
           "sql_template.$" = "$.sql_template"
+          "predicates.$"   = "$.predicates"
         }
         Iterator = {
-          StartAt = "RunStatement"
+          StartAt = "PerPredicate"
           States = {
-            RunStatement = {
-              Type     = "Task"
-              Resource = "arn:aws:states:::athena:startQueryExecution.sync"
+            # Serial within a table: concurrent OPTIMIZEs race on the same Iceberg
+            # commit and one of them loses.
+            PerPredicate = {
+              Type           = "Map"
+              ItemsPath      = "$.predicates"
+              MaxConcurrency = 1
               Parameters = {
-                "QueryString.$" = "States.Format($.sql_template, $.table)"
-                WorkGroup       = aws_athena_workgroup.maintenance.name
+                "predicate.$"    = "$$.Map.Item.Value"
+                "table.$"        = "$.table"
+                "sql_template.$" = "$.sql_template"
               }
-              Retry = [
-                {
-                  ErrorEquals     = ["Athena.TooManyRequestsException"]
-                  IntervalSeconds = 30
-                  MaxAttempts     = 4
-                  BackoffRate     = 2
-                },
-                {
-                  ErrorEquals     = ["States.TaskFailed"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 2
-                  BackoffRate     = 2
-                },
-              ]
-              Catch = [{
-                ErrorEquals = ["States.ALL"]
-                Next        = "Failed"
-              }]
-              ResultPath = null
-              Next       = "Succeeded"
+              Iterator = {
+                StartAt = "RunStatement"
+                States = {
+                  RunStatement = {
+                    Type     = "Task"
+                    Resource = "arn:aws:states:::athena:startQueryExecution.sync"
+                    Parameters = {
+                      "QueryString.$" = "States.Format($.sql_template, $.table, $.predicate)"
+                      WorkGroup       = aws_athena_workgroup.maintenance.name
+                    }
+                    Retry = [
+                      {
+                        ErrorEquals     = ["Athena.TooManyRequestsException"]
+                        IntervalSeconds = 30
+                        MaxAttempts     = 4
+                        BackoffRate     = 2
+                      },
+                      {
+                        ErrorEquals     = ["States.TaskFailed"]
+                        IntervalSeconds = 60
+                        MaxAttempts     = 2
+                        BackoffRate     = 2
+                      },
+                    ]
+                    Catch = [{
+                      ErrorEquals = ["States.ALL"]
+                      Next        = "Failed"
+                    }]
+                    ResultPath = null
+                    Next       = "Succeeded"
+                  }
+                  Succeeded = { Type = "Pass", Result = "ok", End = true }
+                  Failed    = { Type = "Pass", Result = "failed", End = true }
+                }
+              }
+              End = true
             }
-            Succeeded = { Type = "Pass", Result = "ok", End = true }
-            Failed    = { Type = "Pass", Result = "failed", End = true }
           }
         }
         ResultPath = "$.results"
         Next       = "Summarize"
       }
 
+      # Results nest one level per Map, and ASL has no array flatten, so the check
+      # runs over the serialized form.
       Summarize = {
         Type = "Pass"
         Parameters = {
-          "any_failed.$" = "States.ArrayContains($.results, 'failed')"
-          "results.$"    = "$.results"
+          "results.$" = "States.JsonToString($.results)"
         }
         Next = "CheckFailures"
       }
@@ -283,8 +343,8 @@ resource "aws_sfn_state_machine" "maintenance" {
       CheckFailures = {
         Type = "Choice"
         Choices = [{
-          Variable      = "$.any_failed"
-          BooleanEquals = true
+          Variable      = "$.results"
+          StringMatches = "*failed*"
           Next          = "MaintenanceFailed"
         }]
         Default = "Done"
@@ -322,8 +382,8 @@ resource "aws_sfn_state_machine" "maintenance" {
 #     Scheduled post-optimization to sweep up the orphaned files it creates.
 #
 #   - OPTIMIZE_FULL (Saturdays @ 06:00 UTC)
-#     Unbounded compaction covering ALL table partitions. Catches stray small 
-#     files in historical partitions (e.g., from client clock skew).
+#     Compaction back to `optimize_full_start_month`, one statement per month.
+#     Catches stray small files in partitions the daily window cannot reach.
 # ---------------------------------------------------------------------------
 
 resource "aws_iam_role" "maintenance_scheduler" {

@@ -6,7 +6,7 @@ import pytest
 
 from bluesky_ingestion_jetstream.constants import (
     COMMON_REQUIRED_KEYS,
-    EARLIEST_VALID_CREATED_AT,
+    MAX_CREATED_AT_BACKDATE,
     MAX_CREATED_AT_SKEW,
 )
 from bluesky_ingestion_jetstream.event_parsing.shared import (
@@ -156,18 +156,30 @@ class TestCreatedAtRange:
     def test_a_plausible_timestamp_survives(self, post_event):
         assert parse_shared(post_event)["created_at"] == CREATED_AT
 
-    @pytest.mark.parametrize("createdAt", ["1970-01-01T00:00:00Z", "2021-12-31T23:59:59Z"])
-    def test_timestamps_before_the_floor_are_nulled(self, post_event, createdAt):
-        post_event["commit"]["record"]["createdAt"] = createdAt
+    @pytest.mark.parametrize("days", [8, 365, 20_000])
+    def test_timestamps_backdated_past_the_floor_are_nulled(self, post_event, days):
+        """Backdating is the partition sprawl this bound exists to stop."""
+
+        stale = INGESTED_AT - timedelta(days=days)
+        post_event["commit"]["record"]["createdAt"] = stale.isoformat()
 
         assert parse_shared(post_event)["created_at"] is None
 
     def test_the_floor_itself_is_accepted(self, post_event):
-        """A boundary that rejected its own limit would be off by one day of data."""
+        """A boundary that rejected its own limit would be off by a day of data."""
 
-        post_event["commit"]["record"]["createdAt"] = EARLIEST_VALID_CREATED_AT.isoformat()
+        oldest = INGESTED_AT - MAX_CREATED_AT_BACKDATE
+        post_event["commit"]["record"]["createdAt"] = oldest.isoformat()
 
-        assert parse_shared(post_event)["created_at"] == EARLIEST_VALID_CREATED_AT
+        assert parse_shared(post_event)["created_at"] == oldest
+
+    def test_a_recent_backdate_within_the_allowance_is_kept(self, post_event):
+        """Genuine late commits sit days behind the broker and are not junk."""
+
+        behind = INGESTED_AT - MAX_CREATED_AT_BACKDATE + timedelta(seconds=1)
+        post_event["commit"]["record"]["createdAt"] = behind.isoformat()
+
+        assert parse_shared(post_event)["created_at"] == behind
 
     def test_timestamps_far_ahead_of_the_broker_are_nulled(self, post_event):
         far_future = INGESTED_AT + MAX_CREATED_AT_SKEW + timedelta(seconds=1)
@@ -191,8 +203,8 @@ class TestCreatedAtRange:
 
         assert parse_shared(post_event)["created_at"] == CREATED_AT
 
-    def test_a_null_ingested_at_leaves_only_the_floor(self, post_event):
-        """With no broker clock the ceiling cannot be applied -- the row dies anyway."""
+    def test_a_null_ingested_at_applies_neither_bound(self, post_event):
+        """Both bounds are relative to the broker clock -- but the row dies anyway."""
 
         del post_event["time_us"]
         post_event["commit"]["record"]["createdAt"] = "2099-01-01T00:00:00Z"
