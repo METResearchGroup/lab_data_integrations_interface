@@ -3,6 +3,7 @@
 ## 2026-08-16
 
 1. Jetstream ingestion no longer rewinds the stream cursor five seconds on reconnect, which had been re-reading and re-writing every event in that window. Disconnects were frequent enough that the replays accumulated to roughly 9% duplicate rows across the four `bluesky_raw` tables. [PR #173](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/173)
+2. Jetstream ingestion buffers now drop a row whose AT-URI is already buffered, so a redelivered event is discarded on arrival rather than committed twice. Deduplication covers one flush window only — the URIs are dropped along with the rows at flush — so it does not protect against replays that span a flush, a process restart, or a dead-letter re-ingest. Also pinned `litellm` below 1.92, which ships a Rust extension and no macOS wheels, breaking `uv sync` on a Mac without a recent rustc. [PR #174](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/174)
 
 ## 2026-08-13
 
