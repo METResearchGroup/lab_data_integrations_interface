@@ -3,6 +3,7 @@
 import logging
 
 from bluesky_ingestion_jetstream.constants import CURSOR_REWIND_MICROSECONDS
+from bluesky_ingestion_jetstream.storage import cursor as cursor_module
 from bluesky_ingestion_jetstream.storage.cursor import CursorTracker
 from tests.bluesky_ingestion_jetstream.conftest import MemoryCursorStore
 
@@ -109,17 +110,19 @@ class TestResumeFrom:
 
         assert tracker.resume_from() == LATE - CURSOR_REWIND_MICROSECONDS
 
-    def test_rewinds_behind_the_stored_cursor(self):
-        """Buys duplicates rather than risking a gap at the boundary."""
+    def test_resumes_at_the_observed_position(self):
+        """No rewind, so a reconnect replays nothing it has already buffered."""
 
         tracker = CursorTracker(MemoryCursorStore())
         tracker.observe(LATE)
         tracker.mark_flushed()
 
-        assert tracker.resume_from() == LATE - CURSOR_REWIND_MICROSECONDS
-        assert CURSOR_REWIND_MICROSECONDS > 0
+        assert tracker.resume_from() == LATE
 
-    def test_never_goes_negative(self):
+    def test_never_goes_negative(self, monkeypatch):
+        """The clamp is inert at a zero rewind, but has to hold if one returns."""
+
+        monkeypatch.setattr(cursor_module, "CURSOR_REWIND_MICROSECONDS", 5_000_000)
         tracker = CursorTracker(MemoryCursorStore(stored=1))
 
         assert tracker.resume_from() == 0
