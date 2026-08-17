@@ -7,6 +7,10 @@
 #   VACUUM    expires snapshots past a retention age, then deletes the data
 #             files, manifests, and manifest lists that no surviving snapshot
 #             references.
+#
+#   DELETE    drops rows repeating a `uri` from another data file. Merge-on-read:
+#             writes position delete files, so copies are masked on read until a
+#             later OPTIMIZE rewrites the files they sit on.
 # ---------------------------------------------------------------------------
 
 variable "athena_results_prefix" {
@@ -54,20 +58,39 @@ variable "optimize_full_start_month" {
   default     = "2026-08-01"
 }
 
+variable "dedup_lookback_days" {
+  description = <<-EOT
+    7 days between runs, + 7 for `MAX_CREATED_AT_BACKDATE` in
+    `bluesky_ingestion_jetstream/constants.py` (day 1 of the week could reach a
+    week back), + 7 slack for a late rerun.
+  EOT
+  default     = 21
+}
+
+locals {
+  # On both predicates, or every run rescans all 213M rows.
+  dedup_predicate = "created_at >= current_date - interval '${var.dedup_lookback_days}' day"
+
+  # Cross-file duplicates only
+  dedup_sql = join(" ", [
+    "DELETE FROM ${var.glue_database}.{}",
+    "WHERE ${local.dedup_predicate}",
+    "AND (uri, \"$path\") IN (",
+    "SELECT uri, p FROM (",
+    "SELECT uri, \"$path\" AS p,",
+    "row_number() OVER (PARTITION BY uri ORDER BY \"$path\") AS rn",
+    "FROM ${var.glue_database}.{}",
+    "WHERE ${local.dedup_predicate}",
+    ") WHERE rn > 1)",
+  ])
+}
+
 locals {
   optimize_full_start_year  = tonumber(split("-", var.optimize_full_start_month)[0])
   optimize_full_start_index = tonumber(split("-", var.optimize_full_start_month)[1])
 
-  # Athena caps OPTIMIZE at 100 partitions per statement, so an unbounded rewrite
-  # fails outright once a table holds more days than that. One statement per month
-  # keeps each under ~31.
-  #
-  # The list runs from `optimize_full_start_month` through whichever month the
-  # execution lands in, computed by the state machine rather than at apply time so
-  # a new month needs no `terraform apply`.
-  #
-  # The outer `[...]` is load-bearing: JSONata collapses a single-element sequence
-  # to a scalar, and the first month of a fresh start date is exactly that case.
+  # One statement per month: Athena caps OPTIMIZE at 100 partitions per statement.
+  # Month count computed at run time, so a new month needs no `terraform apply`.
   optimize_full_predicates = join(" ", [
     "{% [$map($range(0, ($number($now(\"[Y0001]\")) - ${local.optimize_full_start_year}) * 12",
     "+ $number($now(\"[M]\")) - ${local.optimize_full_start_index}, 1), function($i) {",
@@ -225,12 +248,67 @@ resource "aws_sfn_state_machine" "maintenance" {
           { Variable = "$.job", StringEquals = "optimize", Next = "OptimizeWindow" },
           { Variable = "$.job", StringEquals = "optimize_full", Next = "OptimizeFull" },
           { Variable = "$.job", StringEquals = "vacuum", Next = "Vacuum" },
+          { Variable = "$.job", StringEquals = "dedup", Next = "Dedup" },
         ]
         Default = "UnknownJob"
       }
 
-      # Every job fans out over tables x predicates. `optimize` and `vacuum` carry a
-      # single predicate; `optimize_full` carries one per month.
+      Dedup = {
+        Type = "Pass"
+        Parameters = {
+          tables       = var.record_types
+          sql_template = local.dedup_sql
+        }
+        Next = "DedupPerTable"
+      }
+
+      DedupPerTable = {
+        Type           = "Map"
+        ItemsPath      = "$.tables"
+        MaxConcurrency = 1
+        Parameters = {
+          "table.$"        = "$$.Map.Item.Value"
+          "sql_template.$" = "$.sql_template"
+        }
+        Iterator = {
+          StartAt = "RunDelete"
+          States = {
+            RunDelete = {
+              Type     = "Task"
+              Resource = "arn:aws:states:::athena:startQueryExecution.sync"
+              Parameters = {
+                "QueryString.$" = "States.Format($.sql_template, $.table, $.table)"
+                WorkGroup       = aws_athena_workgroup.maintenance.name
+              }
+              Retry = [
+                {
+                  ErrorEquals     = ["Athena.TooManyRequestsException"]
+                  IntervalSeconds = 30
+                  MaxAttempts     = 4
+                  BackoffRate     = 2
+                },
+                {
+                  ErrorEquals     = ["States.TaskFailed"]
+                  IntervalSeconds = 60
+                  MaxAttempts     = 2
+                  BackoffRate     = 2
+                },
+              ]
+              Catch = [{
+                ErrorEquals = ["States.ALL"]
+                Next        = "DeleteFailed"
+              }]
+              ResultPath = null
+              Next       = "DeleteSucceeded"
+            }
+            DeleteSucceeded = { Type = "Pass", Result = "ok", End = true }
+            DeleteFailed    = { Type = "Pass", Result = "failed", End = true }
+          }
+        }
+        ResultPath = "$.results"
+        Next       = "Summarize"
+      }
+
       OptimizeWindow = {
         Type = "Pass"
         Parameters = {
@@ -330,8 +408,6 @@ resource "aws_sfn_state_machine" "maintenance" {
         Next       = "Summarize"
       }
 
-      # Results nest one level per Map, and ASL has no array flatten, so the check
-      # runs over the serialized form.
       Summarize = {
         Type = "Pass"
         Parameters = {
@@ -359,7 +435,7 @@ resource "aws_sfn_state_machine" "maintenance" {
       UnknownJob = {
         Type  = "Fail"
         Error = "UnknownJob"
-        Cause = "Input `job` must be one of: optimize, optimize_full, vacuum."
+        Cause = "Input `job` must be one of: optimize, optimize_full, vacuum, dedup."
       }
 
       Done = { Type = "Succeed" }
@@ -380,6 +456,11 @@ resource "aws_sfn_state_machine" "maintenance" {
 #   - VACUUM (Sundays @ 05:00 UTC)
 #     Expires snapshots older than 5 days and purges deleted S3 data files.
 #     Scheduled post-optimization to sweep up the orphaned files it creates.
+#
+#   - DEDUP (Saturdays @ 05:00 UTC)
+#     Masks cross-file duplicate URIs over `dedup_lookback_days`.
+#     An hour ahead of `optimize_full` so the same weekend's compaction folds
+#     the delete files in; weekly, so they are not a read tax in between.
 #
 #   - OPTIMIZE_FULL (Saturdays @ 06:00 UTC)
 #     Compaction back to `optimize_full_start_month`, one statement per month.
@@ -426,6 +507,10 @@ locals {
     optimize_full = {
       expression  = "cron(0 6 ? * SAT *)"
       description = "Unbounded compaction, for partitions the daily window cannot reach."
+    }
+    dedup = {
+      expression  = "cron(0 5 ? * SAT *)"
+      description = "Mask duplicate URIs, an hour before the compaction that folds the deletes in."
     }
   }
 }
@@ -484,7 +569,7 @@ resource "aws_sns_topic_subscription" "maintenance_alarms_email" {
 
 resource "aws_cloudwatch_metric_alarm" "maintenance_failed" {
   alarm_name          = "${var.glue_database}_maintenance_failed"
-  alarm_description   = "A ${var.glue_database} OPTIMIZE or VACUUM execution failed."
+  alarm_description   = "A ${var.glue_database} maintenance execution failed."
   namespace           = "AWS/States"
   metric_name         = "ExecutionsFailed"
   statistic           = "Sum"
@@ -514,7 +599,7 @@ output "maintenance_state_machine_arn" {
   description = <<-EOT
     Any job runs on demand, same as on its schedule:
     `aws stepfunctions start-execution --state-machine-arn <this> --input '{"job":"<job>"}'`
-    where <job> is optimize, vacuum, or optimize_full.
+    where <job> is optimize, vacuum, optimize_full, or dedup.
   EOT
   value       = aws_sfn_state_machine.maintenance.arn
 }
