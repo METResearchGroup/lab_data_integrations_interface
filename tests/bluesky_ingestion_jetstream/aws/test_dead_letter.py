@@ -100,13 +100,20 @@ class TestWriteDeadLetter:
         assert table.select(RECORD_TYPE_TO_SCHEMA[record_type].names).to_pylist() == rows
 
     def test_the_day_is_readable_as_a_partition_column(self, rows_factory, local_root):
-        """`dt=` is Hive-style so a reader recovers the day without opening the file."""
+        """`dt=` is Hive-style so a reader recovers the day without opening the file.
 
-        path = write_dead_letter(
+        Read as a dataset rather than as the one file: the day lives in the
+        directory name, so only a partitioning-aware read materializes the column,
+        which is exactly what Athena or a crawler pointed at the prefix would do.
+        """
+
+        write_dead_letter(
             "posts", rows_factory("posts", 2), RUN_ID, filesystem=LocalFileSystem(), root=local_root
         )
 
-        assert "dt" in pq.read_table(path).column_names
+        table = pq.read_table(f"{local_root}/posts", partitioning="hive")
+
+        assert table.column("dt").to_pylist() == [datetime.now(UTC).strftime("%Y-%m-%d")] * 2
 
     def test_returns_where_it_wrote(self, rows_factory, local_root):
         path = write_dead_letter(
