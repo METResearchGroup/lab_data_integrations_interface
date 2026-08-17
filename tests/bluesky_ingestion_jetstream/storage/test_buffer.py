@@ -120,9 +120,48 @@ class TestBuffer:
         """A mutable default would make every Buffer share one list."""
 
         first, second = Buffer(), Buffer()
-        first.add({"a": 1})
+        first.add({"uri": "at://did:plc:x/app.bsky.feed.like/abc"})
 
         assert second.rows == []
+
+    def test_ignores_a_repeated_uri(self, rows_factory):
+        """A reconnect redelivers events already buffered."""
+
+        buffer = Buffer()
+        row = rows_factory("likes", 1)[0]
+        buffer.add(row)
+        buffer.add(dict(row))
+
+        assert buffer.rows == [row]
+        assert buffer.size == row_bytes(row)
+
+    def test_keeps_rows_with_distinct_uris(self, rows_factory):
+        buffer = Buffer()
+        for row in rows_factory("likes", 3):
+            buffer.add(row)
+
+        assert len(buffer.rows) == 3
+
+    def test_deduplicates_only_within_a_flush_window(self, rows_factory):
+        """`clear` drops `seen`, so a URI already written can be buffered again."""
+
+        buffer = Buffer()
+        row = rows_factory("likes", 1)[0]
+        buffer.add(row)
+        buffer.clear()
+        buffer.add(row)
+
+        assert buffer.rows == [row]
+
+    def test_buffers_do_not_share_seen_uris(self, rows_factory):
+        """A mutable default would let one buffer suppress another's rows."""
+
+        first, second = Buffer(), Buffer()
+        row = rows_factory("likes", 1)[0]
+        first.add(row)
+        second.add(row)
+
+        assert second.rows == [row]
 
 
 class TestBufferSet:
@@ -158,6 +197,15 @@ class TestBufferSet:
 
         assert len(buffer_set.buffers["follows"].rows) == 1
         assert buffer_set.buffers["likes"].rows == []
+
+    def test_add_ignores_a_repeated_uri(self, rows_factory):
+        row = rows_factory("follows", 1)[0]
+        buffer_set = BufferSet()
+        buffer_set.add("follows", row)
+        buffer_set.add("follows", dict(row))
+
+        assert buffer_set.buffers["follows"].rows == [row]
+        assert buffer_set.size == row_bytes(row)
 
     def test_add_rejects_an_unknown_record_type(self):
         """Signals the collection map and the buffers have drifted apart."""
@@ -361,6 +409,16 @@ class TestFlush:
             flush(filled, failing)
 
         assert {rt: len(b.rows) for rt, b in filled.buffers.items()} == expected
+
+    def test_the_sink_never_sees_a_duplicated_uri(self, rows_factory, sink):
+        rows = rows_factory("likes", 2)
+        buffer_set = BufferSet()
+        for row in (*rows, dict(rows[0])):
+            buffer_set.add("likes", row)
+
+        flush(buffer_set, sink)
+
+        assert sink.calls == [("likes", rows)]
 
     def test_the_sink_receives_the_rows_it_should(self, rows_factory, sink):
         rows = rows_factory("follows", 2)

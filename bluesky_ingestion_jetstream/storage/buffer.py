@@ -26,21 +26,34 @@ def row_bytes(row: dict) -> int:
 
 @dataclass
 class Buffer:
-    """Rows of a single record type.
+    """Rows of a single record type, one per URI.
 
     `size` is **serialized JSON bytes**, tracked incrementally because there is
     no O(1) way to read it back off the rows. It is a proxy, not a measurement of
     either endpoint: real heap runs higher, since each row is a dict of `str`
     objects carrying per-object overhead, while the Parquet file it produces is
     smaller, since Parquet dictionary-encodes and compresses.
+
+    `seen` is for deduping within a batch. It stores the row's own `uri` string,
+    so an entry costs a set slot and no new object.
     """
 
     rows: list[dict] = field(default_factory=list)
     size: int = 0
+    seen: set[str] = field(default_factory=set)
 
     def add(self, row: dict) -> None:
-        """Add a row to the buffer."""
+        """Add a row, ignoring it if its URI is already buffered.
 
+        `uri` is required of every record type, so it is non-null by the time a
+        row reaches a buffer, and only creates are parsed -- one URI is one record.
+        """
+
+        uri = row["uri"]
+        if uri in self.seen:
+            return
+
+        self.seen.add(uri)
         self.rows.append(row)
         self.size += row_bytes(row)
 
@@ -48,11 +61,14 @@ class Buffer:
         """Empty the buffer.
 
         Rebinds `rows` rather than mutating it in place, so a reference already
-        handed to the writer is not emptied underneath it.
+        handed to the writer is not emptied underneath it. `seen` is dropped with
+        it: deduplication covers one flush window, and keeping the URIs past that
+        would grow without bound.
         """
 
         self.rows = []
         self.size = 0
+        self.seen = set()
 
 
 class BufferSet:
