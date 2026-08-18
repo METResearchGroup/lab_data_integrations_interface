@@ -2,7 +2,7 @@
 
 ## 2026-08-18
 
-1. Added a one-file export of Iceberg `bluesky_raw.posts` for `created_at_day=2022-03-10`: convert the parquet partition to CSV, hydrate unique AT-URIs with public AppView `getPosts`, and write post URLs plus records as JSONL. [PR pending]
+1. Added a one-file export of Iceberg `bluesky_raw.posts` for `created_at_day=2022-03-10`: convert the parquet partition to CSV, hydrate unique AT-URIs with public AppView `getPosts`, and write post URLs plus records as JSONL. [PR #178](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/178)
 
 ## 2026-08-16
 
