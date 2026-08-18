@@ -5,6 +5,17 @@ terraform {
       version = "~> 5.0"
     }
   }
+
+  # Its own bucket, not the warehouse: state wants versioning, which the
+  # warehouse deliberately does not have, and a stack should not hold the
+  # state that describes it. Created out of band.
+  backend "s3" {
+    bucket       = "lab-data-integrations-interface-tfstate"
+    key          = "bluesky_ingestion_jetstream/terraform.tfstate"
+    region       = "us-east-2"
+    encrypt      = true
+    use_lockfile = true
+  }
 }
 
 provider "aws" {
