@@ -22,6 +22,17 @@ def test_put_item_passes_item_through(mock_table: MagicMock) -> None:
     mock_table.put_item.assert_called_once_with(Item={"id": "1", "status": "completed"})
 
 
+def test_get_item_returns_item_when_present(mock_table: MagicMock) -> None:
+    mock_table.get_item.return_value = {"Item": {"id": "1", "status": "ok"}}
+    assert DynamoDB().get_item("my-table", {"id": "1"}) == {"id": "1", "status": "ok"}
+    mock_table.get_item.assert_called_once_with(Key={"id": "1"})
+
+
+def test_get_item_returns_none_when_missing(mock_table: MagicMock) -> None:
+    mock_table.get_item.return_value = {}
+    assert DynamoDB().get_item("my-table", {"id": "missing"}) is None
+
+
 def test_update_item_builds_expression_for_single_attribute(mock_table: MagicMock) -> None:
     DynamoDB().update_item("my-table", {"id": "1"}, {"status": "completed"})
     mock_table.update_item.assert_called_once_with(
