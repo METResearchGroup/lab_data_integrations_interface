@@ -1,0 +1,10 @@
+{
+  "source_file": "/gpfs/projects/p32375/mirrorView-task/experiments/fetch_reddit_pushshift_dump_2026_06_15/data/raw/bolun/comments/RC_2025-05.zst",
+  "rows_read": 624031,
+  "rows_after_filter": 421053,
+  "rows_scored": 421053,
+  "rows_high_toxic": 28457,
+  "toxicity_threshold": 0.7,
+  "skipped_scoring": false,
+  "finished_at": "2026-06-16T09:30:28.343734-05:00"
+}
