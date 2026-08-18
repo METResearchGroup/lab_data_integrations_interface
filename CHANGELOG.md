@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-08-18
+
+1. Added an experiment under `experiments/jetstream_old_vs_new_posts_2026_08_18/` that compares a `created_at_day=2022-01-11` Jetstream posts parquet file to a `created_at_day=2026-08-18` file. Schema and Iceberg field ids match; the 2022 partitions are 2026 commits from news-archive bots with backdated `createdAt` / rkey TIDs, which the pre-#170 `2022-01-01` floor allowed into the warehouse.
+
 ## 2026-08-16
 
 1. Jetstream ingestion no longer rewinds the stream cursor five seconds on reconnect, which had been re-reading and re-writing every event in that window. Disconnects were frequent enough that the replays accumulated to roughly 9% duplicate rows across the four `bluesky_raw` tables. [PR #173](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/173)

@@ -19,6 +19,9 @@ experiments/dynamodb_rates_2026_08_11/data/
 # Backfill shape experiment landing zone
 experiments/backfill_shape_2026_08_13/landing_zone/
 
+# Jetstream old vs new posts parquet downloads
+experiments/jetstream_old_vs_new_posts_2026_08_18/data/downloads/
+
 # bluesky_ingestion_jetstream dev
 bluesky_ingestion_jetstream/data
 

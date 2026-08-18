@@ -1,0 +1,781 @@
+{
+  "bucket": "lab-data-integrations-interface",
+  "schema_comparison": {
+    "identical": true,
+    "old_created_by": "parquet-cpp-arrow version 24.0.0",
+    "new_created_by": "parquet-cpp-arrow version 24.0.0",
+    "old_columns": [
+      {
+        "name": "uri",
+        "type": "large_string",
+        "field_id": "1"
+      },
+      {
+        "name": "did",
+        "type": "large_string",
+        "field_id": "2"
+      },
+      {
+        "name": "cid",
+        "type": "large_string",
+        "field_id": "3"
+      },
+      {
+        "name": "rev",
+        "type": "large_string",
+        "field_id": "4"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp[us, tz=UTC]",
+        "field_id": "5"
+      },
+      {
+        "name": "ingested_at",
+        "type": "timestamp[us, tz=UTC]",
+        "field_id": "6"
+      },
+      {
+        "name": "run_id",
+        "type": "large_string",
+        "field_id": "7"
+      },
+      {
+        "name": "text",
+        "type": "large_string",
+        "field_id": "8"
+      },
+      {
+        "name": "langs",
+        "type": "large_list<element: large_string>",
+        "field_id": "9"
+      },
+      {
+        "name": "reply_root_uri",
+        "type": "large_string",
+        "field_id": "10"
+      },
+      {
+        "name": "reply_parent_uri",
+        "type": "large_string",
+        "field_id": "11"
+      },
+      {
+        "name": "embed_type",
+        "type": "large_string",
+        "field_id": "12"
+      }
+    ],
+    "new_columns": [
+      {
+        "name": "uri",
+        "type": "large_string",
+        "field_id": "1"
+      },
+      {
+        "name": "did",
+        "type": "large_string",
+        "field_id": "2"
+      },
+      {
+        "name": "cid",
+        "type": "large_string",
+        "field_id": "3"
+      },
+      {
+        "name": "rev",
+        "type": "large_string",
+        "field_id": "4"
+      },
+      {
+        "name": "created_at",
+        "type": "timestamp[us, tz=UTC]",
+        "field_id": "5"
+      },
+      {
+        "name": "ingested_at",
+        "type": "timestamp[us, tz=UTC]",
+        "field_id": "6"
+      },
+      {
+        "name": "run_id",
+        "type": "large_string",
+        "field_id": "7"
+      },
+      {
+        "name": "text",
+        "type": "large_string",
+        "field_id": "8"
+      },
+      {
+        "name": "langs",
+        "type": "large_list<element: large_string>",
+        "field_id": "9"
+      },
+      {
+        "name": "reply_root_uri",
+        "type": "large_string",
+        "field_id": "10"
+      },
+      {
+        "name": "reply_parent_uri",
+        "type": "large_string",
+        "field_id": "11"
+      },
+      {
+        "name": "embed_type",
+        "type": "large_string",
+        "field_id": "12"
+      }
+    ]
+  },
+  "old": {
+    "label": "old",
+    "s3": {
+      "key": "bluesky/raw/posts/data/created_at_day=2022-01-11/00000-171-7cae65fc-7cbd-4b54-8e2c-3b5834652eef.parquet",
+      "bytes": 7248,
+      "last_modified": "2026-08-12T04:52:22+00:00",
+      "local_path": "/workspace/experiments/jetstream_old_vs_new_posts_2026_08_18/data/downloads/old.parquet"
+    },
+    "n_rows": 14,
+    "n_unique_uri": 14,
+    "n_unique_did": 2,
+    "run_ids": {
+      "94528178-282f-4bee-9c0c-e0e36b732657": 14
+    },
+    "created_at_min": "2022-01-11T01:23:06+00:00",
+    "created_at_max": "2022-01-11T21:28:04+00:00",
+    "ingested_at_min": "2026-08-12T04:36:47.551790+00:00",
+    "ingested_at_max": "2026-08-12T04:49:38.169989+00:00",
+    "ingest_lag_seconds": {
+      "count": 14,
+      "mean": 144600666.8694968,
+      "std": 21680.974518049476,
+      "min": 144572923.55179,
+      "p25": 144583907.347197,
+      "p50": 144593393.3915175,
+      "p75": 144614096.41528124,
+      "max": 144645235.399843
+    },
+    "ingest_lag_days": {
+      "count": 14,
+      "mean": 1673.6188295080647,
+      "std": 0.2509372050700039,
+      "min": 1673.2977262938657,
+      "p25": 1673.4248535555207,
+      "p50": 1673.5346457351561,
+      "p75": 1673.7742640657552,
+      "max": 1674.1346689796644
+    },
+    "rkey_tid_minus_created_seconds": {
+      "count": 14,
+      "mean": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "p25": 0.0,
+      "p50": 0.0,
+      "p75": 0.0,
+      "max": 0.0
+    },
+    "ingested_minus_rev_tid_seconds": {
+      "count": 14,
+      "mean": 11321.152902071432,
+      "std": 48.16309664820189,
+      "min": 11207.362673,
+      "p25": 11338.7201945,
+      "p50": 11340.144514,
+      "p75": 11341.86356675,
+      "max": 11346.64016
+    },
+    "rkey_tid_equals_created_at_rate": 1.0,
+    "null_rates": {
+      "text": 0.0,
+      "langs": 1.0,
+      "reply_root_uri": 1.0,
+      "reply_parent_uri": 1.0,
+      "embed_type": 0.0
+    },
+    "reply_rate": 0.0,
+    "embed_type_counts": {
+      "app.bsky.embed.external": 14
+    },
+    "text_length": {
+      "count": 14,
+      "mean": 65.0,
+      "std": 8.27414880586145,
+      "min": 52.0,
+      "p25": 59.25,
+      "p50": 65.5,
+      "p75": 69.75,
+      "max": 79.0
+    },
+    "top_dids": [
+      {
+        "did": "did:plc:lyblenqvfetjzcdy76w6ohyy",
+        "n_rows": 12
+      },
+      {
+        "did": "did:plc:t4cxtaognarvjhuwggybrhsl",
+        "n_rows": 2
+      }
+    ],
+    "sample_rows": [
+      {
+        "uri": "at://did:plc:t4cxtaognarvjhuwggybrhsl/app.bsky.feed.post/3ipeokhysc2an",
+        "did": "did:plc:t4cxtaognarvjhuwggybrhsl",
+        "rev": "3mstxz7232i2d",
+        "created_at": "2022-01-11T21:28:04+00:00",
+        "ingested_at": "2026-08-12T04:36:47.551790+00:00",
+        "rkey_tid_at": "2022-01-11T21:28:04+00:00",
+        "rev_tid_at": "2026-08-12T01:27:40.911630+00:00",
+        "embed_type": "app.bsky.embed.external",
+        "text": "Shiffrin wint in Schladming en passeert legendarische Stenmark"
+      },
+      {
+        "uri": "at://did:plc:t4cxtaognarvjhuwggybrhsl/app.bsky.feed.post/3ipeefrpru2a3",
+        "did": "did:plc:t4cxtaognarvjhuwggybrhsl",
+        "rev": "3mstxzgmwmb2t",
+        "created_at": "2022-01-11T18:26:29+00:00",
+        "ingested_at": "2026-08-12T04:36:54.072933+00:00",
+        "rkey_tid_at": "2022-01-11T18:26:29+00:00",
+        "rev_tid_at": "2026-08-12T01:27:48.869703+00:00",
+        "embed_type": "app.bsky.embed.external",
+        "text": "Jakobsen, die na zware val z'n Tourdebuut gaat maken, denkt veel aan Pieters"
+      },
+      {
+        "uri": "at://did:plc:lyblenqvfetjzcdy76w6ohyy/app.bsky.feed.post/3ipcl7tawo25g",
+        "did": "did:plc:lyblenqvfetjzcdy76w6ohyy",
+        "rev": "3mstxzpvx3b25",
+        "created_at": "2022-01-11T01:23:06+00:00",
+        "ingested_at": "2026-08-12T04:37:01.399843+00:00",
+        "rkey_tid_at": "2022-01-11T01:23:06+00:00",
+        "rev_tid_at": "2026-08-12T01:27:58.602279+00:00",
+        "embed_type": "app.bsky.embed.external",
+        "text": "'Bersiap' niet gebruikt op Indonesi\u00eb-tentoonstelling Rijksmuseum "
+      },
+      {
+        "uri": "at://did:plc:lyblenqvfetjzcdy76w6ohyy/app.bsky.feed.post/3ipe7g5tn427p",
+        "did": "did:plc:lyblenqvfetjzcdy76w6ohyy",
+        "rev": "3mstxzsgm5q24",
+        "created_at": "2022-01-11T16:57:13+00:00",
+        "ingested_at": "2026-08-12T04:37:03.371082+00:00",
+        "rkey_tid_at": "2022-01-11T16:57:13+00:00",
+        "rev_tid_at": "2026-08-12T01:28:01.245302+00:00",
+        "embed_type": "app.bsky.embed.external",
+        "text": "Werkgevers roepen op tot openen samenleving: 'Lockdown niet te doen'"
+      },
+      {
+        "uri": "at://did:plc:lyblenqvfetjzcdy76w6ohyy/app.bsky.feed.post/3ipegw7oq22aa",
+        "did": "did:plc:lyblenqvfetjzcdy76w6ohyy",
+        "rev": "3mstxzy772i2l",
+        "created_at": "2022-01-11T19:11:28+00:00",
+        "ingested_at": "2026-08-12T04:37:08.370893+00:00",
+        "rkey_tid_at": "2022-01-11T19:11:28+00:00",
+        "rev_tid_at": "2026-08-12T01:28:07.293966+00:00",
+        "embed_type": "app.bsky.embed.external",
+        "text": "Dierlijk orgaan in de mens: oplossing voor donortekort of utopie? "
+      },
+      {
+        "uri": "at://did:plc:lyblenqvfetjzcdy76w6ohyy/app.bsky.feed.post/3ipe6b5esi27l",
+        "did": "did:plc:lyblenqvfetjzcdy76w6ohyy",
+        "rev": "3mstxzyzhaf2n",
+        "created_at": "2022-01-11T16:36:31+00:00",
+        "ingested_at": "2026-08-12T04:37:08.919275+00:00",
+        "rkey_tid_at": "2022-01-11T16:36:31+00:00",
+        "rev_tid_at": "2026-08-12T01:28:08.154315+00:00",
+        "embed_type": "app.bsky.embed.external",
+        "text": "Zeesterren spoelen massaal aan op strand bij Bloemendaal"
+      },
+      {
+        "uri": "at://did:plc:lyblenqvfetjzcdy76w6ohyy/app.bsky.feed.post/3ipdc5isoc25w",
+        "did": "did:plc:lyblenqvfetjzcdy76w6ohyy",
+        "rev": "3msty247iut2r",
+        "created_at": "2022-01-11T08:13:24+00:00",
+        "ingested_at": "2026-08-12T04:37:11.647419+00:00",
+        "rkey_tid_at": "2022-01-11T08:13:24+00:00",
+        "rev_tid_at": "2026-08-12T01:28:11.498329+00:00",
+        "embed_type": "app.bsky.embed.external",
+        "text": "Doxing is een groeiend probleem, maar strafbaar is het niet"
+      },
+      {
+        "uri": "at://did:plc:lyblenqvfetjzcdy76w6ohyy/app.bsky.feed.post/3ipdhgbhpq26f",
+        "did": "did:plc:lyblenqvfetjzcdy76w6ohyy",
+        "rev": "3msty25jwbv2n",
+        "created_at": "2022-01-11T09:47:47+00:00",
+        "ingested_at": "2026-08-12T04:37:13.028253+00:00",
+        "rkey_tid_at": "2022-01-11T09:47:47+00:00",
+        "rev_tid_at": "2026-08-12T01:28:12.888315+00:00",
+        "embed_type": "app.bsky.embed.external",
+        "text": "Chihuahuavereniging denkt dat gedumpte hondjes van broodfokker kwamen"
+      }
+    ]
+  },
+  "new": {
+    "label": "new",
+    "s3": {
+      "key": "bluesky/raw/posts/data/created_at_day=2026-08-18/00000-0-1205bc22-dd50-4bc2-b7e0-8023ebbe4a0c.parquet",
+      "bytes": 12391856,
+      "last_modified": "2026-08-18T08:37:41+00:00",
+      "local_path": "/workspace/experiments/jetstream_old_vs_new_posts_2026_08_18/data/downloads/new.parquet"
+    },
+    "n_rows": 74474,
+    "n_unique_uri": 74474,
+    "n_unique_did": 37390,
+    "run_ids": {
+      "2fa7e62d-89ec-4523-8fc8-327f124fbb9b": 74474
+    },
+    "created_at_min": "2026-08-18T00:00:00+00:00",
+    "created_at_max": "2026-08-18T20:00:00+00:00",
+    "ingested_at_min": "2026-08-18T08:06:53.783193+00:00",
+    "ingested_at_max": "2026-08-18T08:37:39.635895+00:00",
+    "ingest_lag_seconds": {
+      "count": 74474,
+      "mean": 23608.242756838197,
+      "std": 701.2530698498834,
+      "min": -42565.823975,
+      "p25": 23540.66286025,
+      "p50": 23647.0091555,
+      "p75": 23688.532765250002,
+      "max": 31041.651326
+    },
+    "ingest_lag_days": {
+      "count": 74474,
+      "mean": 0.27324355042636805,
+      "std": 0.008116354975114391,
+      "min": -0.49265999971064817,
+      "p25": 0.27246137569733797,
+      "p50": 0.2736922355960648,
+      "p75": 0.27417283293113426,
+      "max": 0.3592783718287037
+    },
+    "rkey_tid_minus_created_seconds": {
+      "count": 74474,
+      "mean": 2259556.4805075647,
+      "std": 138179050.00205925,
+      "min": -1785230584.299099,
+      "p25": -0.001,
+      "p50": 0.0,
+      "p75": 0.012,
+      "max": 14104470244.533228
+    },
+    "ingested_minus_rev_tid_seconds": {
+      "count": 74474,
+      "mean": 19987615.2120115,
+      "std": 187824195.0747807,
+      "min": 23446.983836,
+      "p25": 23542.559909249998,
+      "p50": 23647.0856535,
+      "p75": 23687.8991275,
+      "max": 1787042190.69733
+    },
+    "rkey_tid_equals_created_at_rate": 0.9270215108628514,
+    "null_rates": {
+      "text": 0.0,
+      "langs": 0.13493299675054382,
+      "reply_root_uri": 0.5530386443591052,
+      "reply_parent_uri": 0.5530386443591052,
+      "embed_type": 0.6074066117034133
+    },
+    "reply_rate": 0.4469613556408948,
+    "embed_type_counts": {
+      "<null>": 45236,
+      "app.bsky.embed.images": 11602,
+      "app.bsky.embed.external": 10555,
+      "app.bsky.embed.record": 4843,
+      "app.bsky.embed.video": 1240,
+      "app.bsky.embed.recordWithMedia": 857,
+      "app.bsky.embed.gallery": 140,
+      "app.bsky.embed.images#main": 1
+    },
+    "text_length": {
+      "count": 74474,
+      "mean": 95.81726508580175,
+      "std": 88.04047792025985,
+      "min": 0.0,
+      "p25": 27.0,
+      "p50": 65.0,
+      "p75": 142.0,
+      "max": 391.0
+    },
+    "top_dids": [
+      {
+        "did": "did:plc:f4z2nftgrn75h7h3wucdyzaf",
+        "n_rows": 576
+      },
+      {
+        "did": "did:plc:65r3dy2t6xfuwidxmzvctvsh",
+        "n_rows": 264
+      },
+      {
+        "did": "did:plc:6vwzq6ohuaspqpg3sa6ebsgw",
+        "n_rows": 263
+      },
+      {
+        "did": "did:plc:t7eulttj7oxuztzzpisc2bwp",
+        "n_rows": 114
+      },
+      {
+        "did": "did:plc:us5tbcyloxnmrtlqkjoffz44",
+        "n_rows": 96
+      },
+      {
+        "did": "did:plc:mrozf7u6e7kjpo7itbrudpc6",
+        "n_rows": 87
+      },
+      {
+        "did": "did:plc:qcwhrvzx6wmi5hz775uyi6fh",
+        "n_rows": 75
+      },
+      {
+        "did": "did:plc:mg4pvv3xwuiuqsco52mmnxrz",
+        "n_rows": 67
+      },
+      {
+        "did": "did:plc:gdn6hiootmc3a4ti2ecpwvcv",
+        "n_rows": 63
+      },
+      {
+        "did": "did:plc:pjcek5qaoamijpmedlmbzwrg",
+        "n_rows": 60
+      }
+    ],
+    "sample_rows": [
+      {
+        "uri": "at://did:plc:zjcorhektmysz3nggrttujwv/app.bsky.feed.post/3mtd2yrumps2m",
+        "did": "did:plc:zjcorhektmysz3nggrttujwv",
+        "rev": "3mtd2yrupnk2m",
+        "created_at": "2026-08-18T01:31:04.145000+00:00",
+        "ingested_at": "2026-08-18T08:06:53.783193+00:00",
+        "rkey_tid_at": "2026-08-18T01:31:04.402616+00:00",
+        "rev_tid_at": "2026-08-18T01:31:04.405616+00:00",
+        "embed_type": null,
+        "text": "Are the summer backstairs of Wheeling,"
+      },
+      {
+        "uri": "at://did:plc:2z5llqkxfxquemab433mrhk7/app.bsky.feed.post/3mtd2yn7oik2c",
+        "did": "did:plc:2z5llqkxfxquemab433mrhk7",
+        "rev": "3mtd2ypsruj2x",
+        "created_at": "2026-08-18T01:30:59.523000+00:00",
+        "ingested_at": "2026-08-18T08:06:53.820087+00:00",
+        "rkey_tid_at": "2026-08-18T01:30:59.522000+00:00",
+        "rev_tid_at": "2026-08-18T01:31:02.245199+00:00",
+        "embed_type": null,
+        "text": "You're not wrong!"
+      },
+      {
+        "uri": "at://did:plc:ruupfcjhrjajvry4pwmefj7r/app.bsky.feed.post/3mtd2yrsti22l",
+        "did": "did:plc:ruupfcjhrjajvry4pwmefj7r",
+        "rev": "3mtd2ys257i2k",
+        "created_at": "2026-08-18T01:31:04.345000+00:00",
+        "ingested_at": "2026-08-18T08:06:53.856910+00:00",
+        "rkey_tid_at": "2026-08-18T01:31:04.344000+00:00",
+        "rev_tid_at": "2026-08-18T01:31:04.583342+00:00",
+        "embed_type": null,
+        "text": "Jesus wept"
+      },
+      {
+        "uri": "at://did:plc:3pl5ot77ziyqvms5vo3cbdkk/app.bsky.feed.post/3mtd2yqoeic25",
+        "did": "did:plc:3pl5ot77ziyqvms5vo3cbdkk",
+        "rev": "3mtd2yrcoxz25",
+        "created_at": "2026-08-18T01:31:03.148000+00:00",
+        "ingested_at": "2026-08-18T08:06:53.867348+00:00",
+        "rkey_tid_at": "2026-08-18T01:31:03.149000+00:00",
+        "rev_tid_at": "2026-08-18T01:31:03.815103+00:00",
+        "embed_type": "app.bsky.embed.external",
+        "text": "youtu.be/EZjBec39uNg"
+      },
+      {
+        "uri": "at://did:plc:mxktkv6ubg6fhkewkztm7txf/app.bsky.feed.post/3mtd2ypa4yk2g",
+        "did": "did:plc:mxktkv6ubg6fhkewkztm7txf",
+        "rev": "3mtd2yrhvb724",
+        "created_at": "2026-08-18T01:31:01.611000+00:00",
+        "ingested_at": "2026-08-18T08:06:53.900397+00:00",
+        "rkey_tid_at": "2026-08-18T01:31:01.634000+00:00",
+        "rev_tid_at": "2026-08-18T01:31:03.985381+00:00",
+        "embed_type": "app.bsky.embed.images",
+        "text": "Rosemary Walten from the Walten Files"
+      },
+      {
+        "uri": "at://did:plc:htfmil4ysrmqckwuuv4e2pum/app.bsky.feed.post/3mtd2yqr6dc2o",
+        "did": "did:plc:htfmil4ysrmqckwuuv4e2pum",
+        "rev": "3mtd2yrcm5b2x",
+        "created_at": "2026-08-18T01:31:03.226000+00:00",
+        "ingested_at": "2026-08-18T08:06:53.932850+00:00",
+        "rkey_tid_at": "2026-08-18T01:31:03.241000+00:00",
+        "rev_tid_at": "2026-08-18T01:31:03.812199+00:00",
+        "embed_type": "app.bsky.embed.external",
+        "text": "This post reminded me of my very dear friend and his song, and he serendipitously also has a beloved pooch named Dolly. \n\nyoutu.be/XmWPvqk0kqU?..."
+      },
+      {
+        "uri": "at://did:plc:2c3eu5lkdvao77jqreh7jpn7/app.bsky.feed.post/3mtd2yre7pc22",
+        "did": "did:plc:2c3eu5lkdvao77jqreh7jpn7",
+        "rev": "3mtd2yrnhdl2v",
+        "created_at": "2026-08-18T01:31:03.866000+00:00",
+        "ingested_at": "2026-08-18T08:06:53.935455+00:00",
+        "rkey_tid_at": "2026-08-18T01:31:03.865000+00:00",
+        "rev_tid_at": "2026-08-18T01:31:04.167729+00:00",
+        "embed_type": null,
+        "text": "*snugs* thanks ^^"
+      },
+      {
+        "uri": "at://did:plc:srakn2dtz45bgtovjhjzekej/app.bsky.feed.post/3mtd2yrsvgk2f",
+        "did": "did:plc:srakn2dtz45bgtovjhjzekej",
+        "rev": "3mtd2ysb6mr2o",
+        "created_at": "2026-08-18T01:31:04.347000+00:00",
+        "ingested_at": "2026-08-18T08:06:53.947685+00:00",
+        "rkey_tid_at": "2026-08-18T01:31:04.346000+00:00",
+        "rev_tid_at": "2026-08-18T01:31:04.814167+00:00",
+        "embed_type": null,
+        "text": "Cowptain America"
+      }
+    ]
+  },
+  "year_inventory": [
+    {
+      "year": 2021,
+      "prefix": "bluesky/raw/posts/data/created_at_day=2021-",
+      "n_files": 0,
+      "total_bytes": 0,
+      "n_days": 0,
+      "n_write_uuids": 0,
+      "first_modified": null,
+      "last_modified": null
+    },
+    {
+      "year": 2022,
+      "prefix": "bluesky/raw/posts/data/created_at_day=2022-",
+      "n_files": 2279,
+      "total_bytes": 14317056,
+      "n_days": 365,
+      "n_write_uuids": 137,
+      "first_modified": "2026-08-06T05:11:45+00:00",
+      "last_modified": "2026-08-15T07:37:30+00:00"
+    },
+    {
+      "year": 2023,
+      "prefix": "bluesky/raw/posts/data/created_at_day=2023-",
+      "n_files": 1446,
+      "total_bytes": 9269732,
+      "n_days": 365,
+      "n_write_uuids": 133,
+      "first_modified": "2026-07-30T13:04:15+00:00",
+      "last_modified": "2026-08-15T07:37:30+00:00"
+    },
+    {
+      "year": 2024,
+      "prefix": "bluesky/raw/posts/data/created_at_day=2024-",
+      "n_files": 1663,
+      "total_bytes": 10489110,
+      "n_days": 197,
+      "n_write_uuids": 140,
+      "first_modified": "2026-08-06T05:01:17+00:00",
+      "last_modified": "2026-08-15T07:37:30+00:00"
+    },
+    {
+      "year": 2025,
+      "prefix": "bluesky/raw/posts/data/created_at_day=2025-",
+      "n_files": 1416,
+      "total_bytes": 8729569,
+      "n_days": 209,
+      "n_write_uuids": 134,
+      "first_modified": "2026-08-06T05:11:50+00:00",
+      "last_modified": "2026-08-15T07:37:30+00:00"
+    },
+    {
+      "year": 2026,
+      "prefix": "bluesky/raw/posts/data/created_at_day=2026-",
+      "n_files": 8087,
+      "total_bytes": 14739561122,
+      "n_days": 216,
+      "n_write_uuids": 423,
+      "first_modified": "2026-07-30T13:04:15+00:00",
+      "last_modified": "2026-08-18T12:43:45+00:00"
+    }
+  ],
+  "old_year_sample": {
+    "year": 2022,
+    "n_files_listed": 2279,
+    "n_files_sampled": 15,
+    "n_rows": 21,
+    "reply_rate": 0.0,
+    "langs_null_rate": 0.19047619047619047,
+    "embed_type_counts": {
+      "app.bsky.embed.external": 20,
+      "app.bsky.embed.video": 1
+    },
+    "run_ids": {
+      "94528178-282f-4bee-9c0c-e0e36b732657": 19,
+      "f5ea5d63-9566-4735-9800-cd848c80062f": 2
+    },
+    "top_dids": [
+      {
+        "did": "did:plc:lb7v3uq23wmm5spv2a27kehv",
+        "n_rows": 17
+      },
+      {
+        "did": "did:plc:lyblenqvfetjzcdy76w6ohyy",
+        "n_rows": 3
+      },
+      {
+        "did": "did:plc:put6tu77pki6ogkud3nrmfds",
+        "n_rows": 1
+      }
+    ],
+    "files": [
+      {
+        "key": "bluesky/raw/posts/data/created_at_day=2022-09-14/00000-10-85371b3c-8958-4028-a3ae-2ec8ed1880d7.parquet",
+        "n_rows": 1,
+        "n_unique_did": 1,
+        "bytes": 6352,
+        "ingested_at_min": "2026-08-13T17:19:47.187521+00:00",
+        "ingested_at_max": "2026-08-13T17:19:47.187521+00:00"
+      },
+      {
+        "key": "bluesky/raw/posts/data/created_at_day=2022-10-05/00000-104-5a249a3c-fde3-4340-adbd-3a235f0fa83b.parquet",
+        "n_rows": 1,
+        "n_unique_did": 1,
+        "bytes": 5759,
+        "ingested_at_min": "2026-08-12T04:18:57.709031+00:00",
+        "ingested_at_max": "2026-08-12T04:18:57.709031+00:00"
+      },
+      {
+        "key": "bluesky/raw/posts/data/created_at_day=2022-01-24/00000-13-298ad4f6-a618-4282-a259-0c16b71b6d8e.parquet",
+        "n_rows": 3,
+        "n_unique_did": 1,
+        "bytes": 6268,
+        "ingested_at_min": "2026-08-09T08:39:27.054761+00:00",
+        "ingested_at_max": "2026-08-09T11:05:44.163491+00:00"
+      },
+      {
+        "key": "bluesky/raw/posts/data/created_at_day=2022-05-30/00000-12-80c4a83a-31b0-4cf8-b676-ca6aa66b1e02.parquet",
+        "n_rows": 1,
+        "n_unique_did": 1,
+        "bytes": 6700,
+        "ingested_at_min": "2026-08-11T00:29:18.071410+00:00",
+        "ingested_at_max": "2026-08-11T00:29:18.071410+00:00"
+      },
+      {
+        "key": "bluesky/raw/posts/data/created_at_day=2022-11-29/00000-62-d3857b58-d4ca-45d0-bea0-af5f5e455675.parquet",
+        "n_rows": 1,
+        "n_unique_did": 1,
+        "bytes": 5774,
+        "ingested_at_min": "2026-08-11T03:25:45.027462+00:00",
+        "ingested_at_max": "2026-08-11T03:25:45.027462+00:00"
+      },
+      {
+        "key": "bluesky/raw/posts/data/created_at_day=2022-11-16/00000-136-80e1b2a4-1645-4391-beed-d30ad106f8da.parquet",
+        "n_rows": 2,
+        "n_unique_did": 1,
+        "bytes": 6244,
+        "ingested_at_min": "2026-08-10T04:11:56.866464+00:00",
+        "ingested_at_max": "2026-08-10T05:20:01.449691+00:00"
+      },
+      {
+        "key": "bluesky/raw/posts/data/created_at_day=2022-09-14/00000-14-fff2975d-aad7-435c-98a1-0d3d873b3b45.parquet",
+        "n_rows": 1,
+        "n_unique_did": 1,
+        "bytes": 6352,
+        "ingested_at_min": "2026-08-10T15:54:42.265852+00:00",
+        "ingested_at_max": "2026-08-10T15:54:42.265852+00:00"
+      },
+      {
+        "key": "bluesky/raw/posts/data/created_at_day=2022-06-15/00000-9-96cf2942-ce20-4aad-9ef9-76b7555d12cf.parquet",
+        "n_rows": 4,
+        "n_unique_did": 1,
+        "bytes": 6270,
+        "ingested_at_min": "2026-08-09T00:48:40.964581+00:00",
+        "ingested_at_max": "2026-08-09T02:17:11.749831+00:00"
+      },
+      {
+        "key": "bluesky/raw/posts/data/created_at_day=2022-11-15/00000-109-5a249a3c-fde3-4340-adbd-3a235f0fa83b.parquet",
+        "n_rows": 1,
+        "n_unique_did": 1,
+        "bytes": 5700,
+        "ingested_at_min": "2026-08-12T04:20:36.877263+00:00",
+        "ingested_at_max": "2026-08-12T04:20:36.877263+00:00"
+      },
+      {
+        "key": "bluesky/raw/posts/data/created_at_day=2022-09-08/00000-11-12434ff9-e071-42c4-a43c-8057b9b0b899.parquet",
+        "n_rows": 1,
+        "n_unique_did": 1,
+        "bytes": 6133,
+        "ingested_at_min": "2026-08-13T21:05:07.514903+00:00",
+        "ingested_at_max": "2026-08-13T21:05:07.514903+00:00"
+      },
+      {
+        "key": "bluesky/raw/posts/data/created_at_day=2022-05-15/00000-106-297bd5d7-42a8-4e6a-910a-f514f556ebdc.parquet",
+        "n_rows": 1,
+        "n_unique_did": 1,
+        "bytes": 6020,
+        "ingested_at_min": "2026-08-15T07:06:10.185878+00:00",
+        "ingested_at_max": "2026-08-15T07:06:10.185878+00:00"
+      },
+      {
+        "key": "bluesky/raw/posts/data/created_at_day=2022-11-16/00000-44-042e8484-ddf0-4886-81f4-b559cf8250f3.parquet",
+        "n_rows": 1,
+        "n_unique_did": 1,
+        "bytes": 6205,
+        "ingested_at_min": "2026-08-13T08:00:51.675551+00:00",
+        "ingested_at_max": "2026-08-13T08:00:51.675551+00:00"
+      },
+      {
+        "key": "bluesky/raw/posts/data/created_at_day=2022-02-24/00000-9-11ea9bde-d000-44ee-8c56-f93480c82d76.parquet",
+        "n_rows": 1,
+        "n_unique_did": 1,
+        "bytes": 5998,
+        "ingested_at_min": "2026-08-15T05:45:20.329977+00:00",
+        "ingested_at_max": "2026-08-15T05:45:20.329977+00:00"
+      },
+      {
+        "key": "bluesky/raw/posts/data/created_at_day=2022-06-15/00000-10-d18397d1-813b-43f4-92a8-104ee9cce965.parquet",
+        "n_rows": 1,
+        "n_unique_did": 1,
+        "bytes": 6175,
+        "ingested_at_min": "2026-08-12T09:06:57.303099+00:00",
+        "ingested_at_max": "2026-08-12T09:06:57.303099+00:00"
+      },
+      {
+        "key": "bluesky/raw/posts/data/created_at_day=2022-02-24/00000-9-4b120487-b1ba-483a-be28-8c43f0ea6fe2.parquet",
+        "n_rows": 1,
+        "n_unique_did": 1,
+        "bytes": 5998,
+        "ingested_at_min": "2026-08-13T15:58:02.606701+00:00",
+        "ingested_at_max": "2026-08-13T15:58:02.606701+00:00"
+      }
+    ]
+  },
+  "author_profiles": [
+    {
+      "did": "did:plc:lyblenqvfetjzcdy76w6ohyy",
+      "handle": "nieuws.nos.nl",
+      "displayName": "NOS",
+      "description": "Blijf bij. NOS\nVolg ons voor al het laatste nieuws.\nhttps://nos.nl/",
+      "createdAt": "2023-08-02T09:19:47.812Z",
+      "postsCount": 123415
+    },
+    {
+      "did": "did:plc:t4cxtaognarvjhuwggybrhsl",
+      "handle": "sport.nos.nl",
+      "displayName": "NOS Sport",
+      "description": "Op Bluesky voor het belangrijkste sportnieuws.",
+      "createdAt": "2024-12-10T12:44:59.750Z",
+      "postsCount": 77829
+    },
+    {
+      "did": "did:plc:lb7v3uq23wmm5spv2a27kehv",
+      "handle": "mediasch.bsky.social",
+      "displayName": "M\u00e9dias CH  \ud83d\uddde\ufe0f\ud83c\udde8\ud83c\udded\ud83e\udd16",
+      "description": "Toute l'actu suisse par les m\u00e9dias romands \ud83d\udcf0\ud83c\udde8\ud83c\udded\n\n\ud83e\udd16 Bot op\u00e9r\u00e9 par @d-qn.github.io",
+      "createdAt": "2024-11-22T09:23:23.355Z",
+      "postsCount": 2890206
+    },
+    {
+      "did": "did:plc:put6tu77pki6ogkud3nrmfds",
+      "handle": "craigcelt.bsky.social",
+      "displayName": "Craig",
+      "description": "\ud83d\udcbb Digital Journalist | Mostly Write About Celtic over at @herecelts. Dabble in politics and general nonsense.",
+      "createdAt": "2024-08-08T22:14:27.273Z",
+      "postsCount": 355
+    }
+  ]
+}
