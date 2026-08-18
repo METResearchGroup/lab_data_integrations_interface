@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-08-18
+
+1. Added a one-file export of Iceberg `bluesky_raw.posts` for `created_at_day=2022-03-10`: convert the parquet partition to CSV, hydrate unique AT-URIs with public AppView `getPosts`, and write post URLs plus records as JSONL. [PR pending]
+
 ## 2026-08-16
 
 1. Jetstream ingestion no longer rewinds the stream cursor five seconds on reconnect, which had been re-reading and re-writing every event in that window. Disconnects were frequent enough that the replays accumulated to roughly 9% duplicate rows across the four `bluesky_raw` tables. [PR #173](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/173)

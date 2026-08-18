@@ -19,6 +19,9 @@ experiments/dynamodb_rates_2026_08_11/data/
 # Backfill shape experiment landing zone
 experiments/backfill_shape_2026_08_13/landing_zone/
 
+# Iceberg source parquet for the 2022-03-10 posts export (CSV/JSONL are committed)
+experiments/parquet_posts_2022_03_10/data/*.parquet
+
 # bluesky_ingestion_jetstream dev
 bluesky_ingestion_jetstream/data
 
