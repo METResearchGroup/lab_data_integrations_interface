@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-08-20
+
+1. Agentic search can now tell what the warehouse actually holds before it acts on a query: a catalog snapshot reports every `bluesky_raw` table's columns, ingested day range, and live row count, read from Glue and Iceberg metadata without scanning data and cached for 30 minutes. Query validation checks requests against this rather than a hand-maintained description of the schema. [PR #181](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/181)
+
 ## 2026-08-16
 
 1. Jetstream ingestion no longer rewinds the stream cursor five seconds on reconnect, which had been re-reading and re-writing every event in that window. Disconnects were frequent enough that the replays accumulated to roughly 9% duplicate rows across the four `bluesky_raw` tables. [PR #173](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/173)
