@@ -26,6 +26,7 @@ from bluesky_ingestion_jetstream.aws.constants import (
     TABLE_LOCATIONS,
     TABLE_PROPERTIES,
 )
+from bluesky_ingestion_jetstream.constants import RecordType
 from bluesky_ingestion_jetstream.schemas.arrow_schemas import RECORD_TYPE_TO_SCHEMA
 
 
@@ -42,7 +43,7 @@ def require_namespace(catalog: GlueCatalog) -> None:
         ) from error
 
 
-def create_table(catalog: GlueCatalog, record_type: str) -> Table:
+def create_table(catalog: GlueCatalog, record_type: RecordType) -> Table:
     """Create one partitioned table from its Arrow schema.
 
     The Arrow schema is passed through untouched so PyIceberg assigns the field
@@ -68,13 +69,13 @@ def create_table(catalog: GlueCatalog, record_type: str) -> Table:
     return table
 
 
-def bootstrap(catalog: GlueCatalog | None = None) -> dict[str, Table]:
+def bootstrap(catalog: GlueCatalog | None = None) -> dict[RecordType, Table]:
     """Create every missing table. Returns record type -> table for all four."""
 
     catalog = catalog or build_catalog()
     require_namespace(catalog)
 
-    tables: dict[str, Table] = {}
+    tables: dict[RecordType, Table] = {}
     for record_type in RECORD_TYPE_TO_SCHEMA:
         try:
             tables[record_type] = create_table(catalog, record_type)

@@ -1,13 +1,24 @@
 """Shared constants."""
 
 from datetime import timedelta
+from enum import StrEnum
 
-POSTS = "posts"
-LIKES = "likes"
-REPOSTS = "reposts"
-FOLLOWS = "follows"
 
-RECORD_TYPES = (POSTS, LIKES, REPOSTS, FOLLOWS)
+class RecordType(StrEnum):
+    """One Iceberg table each. Values are the table and S3 directory names."""
+
+    POSTS = "posts"
+    LIKES = "likes"
+    REPOSTS = "reposts"
+    FOLLOWS = "follows"
+
+
+POSTS = RecordType.POSTS
+LIKES = RecordType.LIKES
+REPOSTS = RecordType.REPOSTS
+FOLLOWS = RecordType.FOLLOWS
+
+RECORD_TYPES = tuple(RecordType)
 
 JETSTREAM_ENDPOINT = "wss://jetstream2.us-east.bsky.network/subscribe"
 
