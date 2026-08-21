@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from bluesky_ingestion_jetstream.constants import RecordType
 
 
-class ValidationCode(StrEnum):
+class ValidationIssue(StrEnum):
     NONSENSE = "nonsense"
     UNKNOWN_RECORD_TYPE = "unknown_record_type"
     UNKNOWN_COLUMN = "unknown_column"
@@ -29,15 +29,7 @@ class QueryIntent(BaseModel):
 
 
 @dataclass(frozen=True)
-class ValidationIssue:
-    code: ValidationCode
-    message: str
-    suggestion: str | None = None
-
-
-@dataclass(frozen=True)
 class TableMetadata:
-    # Schema order, so messages listing them are deterministic.
     columns: tuple[str, ...]
     coverage_start: date
     coverage_end: date
