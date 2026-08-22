@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-08-22
+
+1. Added an experiment that pulls the 100 most recent posts from each of the 250 authors with the most Bluesky posts after 2026-08-01, as a single Athena query against `bluesky_raw.posts`. [PR #182](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/182)
+
 ## 2026-08-16
 
 1. Jetstream ingestion no longer rewinds the stream cursor five seconds on reconnect, which had been re-reading and re-writing every event in that window. Disconnects were frequent enough that the replays accumulated to roughly 9% duplicate rows across the four `bluesky_raw` tables. [PR #173](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/173)
