@@ -25,6 +25,7 @@ from data_platform.aws.constants import DEFAULT_REGION, S3_BUCKET
 GLUE_DATABASE = "bluesky_raw"
 WORKGROUP = "bluesky_raw_maintenance"
 POSTS_AFTER_DATE = "2026-08-01"
+POSTS_AFTER_TIMESTAMP = "2026-08-02 00:00:00"
 TOP_USER_COUNT = 250
 POSTS_PER_USER = 100
 
@@ -43,7 +44,7 @@ UNLOAD (
             did,
             COUNT(*) AS user_post_count
         FROM posts
-        WHERE created_at_day > DATE '{POSTS_AFTER_DATE}'
+        WHERE created_at >= TIMESTAMP '{POSTS_AFTER_TIMESTAMP}'
         GROUP BY did
         ORDER BY user_post_count DESC, did ASC
         LIMIT {TOP_USER_COUNT}
@@ -69,7 +70,7 @@ UNLOAD (
             ) AS recency_rank
         FROM posts AS p
         INNER JOIN top_users AS t ON p.did = t.did
-        WHERE p.created_at_day > DATE '{POSTS_AFTER_DATE}'
+        WHERE p.created_at >= TIMESTAMP '{POSTS_AFTER_TIMESTAMP}'
     )
     SELECT
         uri,
@@ -172,7 +173,7 @@ def export_most_active_user_posts(athena: Athena, s3_client: boto3.client) -> Pa
 def main() -> None:
     print(f"database: {GLUE_DATABASE}")
     print(f"workgroup: {WORKGROUP}")
-    print(f"filter: created_at_day > {POSTS_AFTER_DATE}")
+    print(f"filter: created_at >= {POSTS_AFTER_TIMESTAMP} (after {POSTS_AFTER_DATE})")
     print(f"top users: {TOP_USER_COUNT}")
     print(f"posts per user: {POSTS_PER_USER}")
     print()
