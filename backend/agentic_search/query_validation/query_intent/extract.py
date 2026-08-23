@@ -16,15 +16,18 @@ Today is {today}.
 Tables, their columns, and the dates they cover:
 {catalog}
 
-Set is_nonsense when the question cannot be answered from these tables at all.
+Set is_nonsense when the input is not a coherent question about Bluesky data.
 
-Otherwise resolve it: pick the one record type it asks about, list only the
-columns it needs, and resolve relative dates against today. Leave a date null
-when the question does not bound that side.
+Otherwise resolve it: pick the one record type it asks about, list the columns
+it asks for, and resolve relative dates against today. Leave a date null when
+the question does not bound that side.
 
-Leave record_type null when the question is about our data but does not say
-which table. Name only columns the question needs; do not invent one to fill
-the field.
+Report what the question asks for, not the closest thing the tables happen to
+hold. List every column it asks for even when no table above has that column,
+under the name the question used, and never swap in a similar one. Leave
+record_type null when no table holds the kind of record being asked for.
+
+Do not add columns the question does not ask for.
 """
 
 
