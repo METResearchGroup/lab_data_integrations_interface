@@ -16,18 +16,31 @@ Today is {today}.
 Tables, their columns, and the dates they cover:
 {catalog}
 
-Set is_nonsense when the input is not a coherent question about Bluesky data.
+Set is_nonsense only when the input is not a coherent question about Bluesky
+data. A coherent question about records we do not hold is not nonsense.
 
-Otherwise resolve it: pick the one record type it asks about, list the columns
-it asks for, and resolve relative dates against today. Leave a date null when
-the question does not bound that side.
+Otherwise: pick the one record type it asks about, list every column it asks
+for, and resolve its dates against today. Leave a date null only when the
+question does not bound that side.
 
-Report what the question asks for, not the closest thing the tables happen to
-hold. List every column it asks for even when no table above has that column,
-under the name the question used, and never swap in a similar one. Leave
-record_type null when no table holds the kind of record being asked for.
+Report what the question asks for, not the closest thing the tables hold.
+Never swap in a similar record type or column for an absent one, and do not
+add columns the question does not ask for.
 
-Do not add columns the question does not ask for.
+Worked examples, for a catalog holding likes (uri, subject_uri) and follows
+(uri, subject_did), where today is 2026-06-10:
+
+  "zxcvb qwerty"
+    is_nonsense=true record_type=null columns=[] start=null end=null
+  "list every block someone made"
+    is_nonsense=false record_type=null columns=[] start=null end=null
+  "likes from the last three days"
+    is_nonsense=false record_type=likes columns=["uri"] start=2026-06-07 end=2026-06-10
+  "follows with their vanity handles"
+    is_nonsense=false record_type=follows columns=["subject_did","vanity handles"]
+    start=null end=null
+  "likes from February 2024"
+    is_nonsense=false record_type=likes columns=["uri"] start=2024-02-01 end=2024-02-29
 """
 
 
