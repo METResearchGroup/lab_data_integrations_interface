@@ -80,11 +80,9 @@ class MemoryRepository:
     def __init__(self) -> None:
         self._store: dict[str, Record] = {}
 
-    def get(self, record_id: str) -> Record:
-        ...
+    def get(self, record_id: str) -> Record: ...
 
-    def write(self, record: TransformedRecord) -> TransformedRecord:
-        ...
+    def write(self, record: TransformedRecord) -> TransformedRecord: ...
 ```
 
 ```python
@@ -92,8 +90,7 @@ class MemoryRepository:
 from models import Record, TransformedRecord
 
 
-def transform_record(record: Record) -> TransformedRecord:
-    ...
+def transform_record(record: Record) -> TransformedRecord: ...
 ```
 
 Caller shape (still thin, but now typed):
@@ -152,9 +149,7 @@ def test_get_missing_raises():
 
 def test_transform_doubles_value_and_sets_label():
     record = Record(id="1", value=10)
-    assert transform_record(record) == TransformedRecord(
-        id="1", value=20, label="doubled"
-    )
+    assert transform_record(record) == TransformedRecord(id="1", value=20, label="doubled")
 
 
 def test_write_persists_and_returns():

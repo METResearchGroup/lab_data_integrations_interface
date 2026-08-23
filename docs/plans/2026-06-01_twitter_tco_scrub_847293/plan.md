@@ -238,7 +238,7 @@ PYTHONPATH=. uv run pytest tests/data_platform/preprocessing/ -q
 2. Set on `TWITTER_SPEC`:
 
 ```python
-text_transform=strip_tco_links,
+text_transform = (strip_tco_links,)
 ```
 
 3. Add `test_preprocess_records_strips_tco_from_saved_text(data_root)`:
