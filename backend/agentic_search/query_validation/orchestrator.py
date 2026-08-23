@@ -2,25 +2,14 @@
 
 from __future__ import annotations
 
+from backend.agentic_search.catalog.snapshot import load_snapshot
 from backend.agentic_search.query_validation.check_data_availability import (
     check_data_availability,
 )
 from backend.agentic_search.query_validation.check_data_types import check_data_types
 from backend.agentic_search.query_validation.check_nonsense import check_nonsense
-from backend.agentic_search.query_validation.models import (
-    TableMetadata,
-    ValidationResult,
-)
+from backend.agentic_search.query_validation.models import ValidationResult
 from backend.agentic_search.query_validation.query_intent.extract import extract_intent
-from bluesky_ingestion_jetstream.constants import RecordType
-
-CATALOG_SNAPSHOT_TTL_SECONDS = 30.0 * 60.0
-
-
-def load_snapshot() -> dict[RecordType, TableMetadata]:
-    """Columns from the Arrow schemas, coverage from Iceberg. Cached for the TTL."""
-
-    raise NotImplementedError
 
 
 def validate_query(query: str) -> ValidationResult:

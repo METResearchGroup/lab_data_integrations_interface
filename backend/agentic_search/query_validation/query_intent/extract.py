@@ -37,8 +37,6 @@ def _render_catalog(snapshot: dict[RecordType, TableMetadata]) -> str:
 
 
 def extract_intent(query: str, snapshot: dict[RecordType, TableMetadata]) -> QueryIntent:
-    """Resolve the query against the catalog. The checks verify what comes back."""
-
     return structured_chat_completion(
         user_prompt=query,
         output_schema=QueryIntent,
