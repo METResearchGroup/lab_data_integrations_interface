@@ -22,7 +22,7 @@ def stub(
     """Pin the snapshot and let each test choose what the extraction returns."""
 
     def _stub(intent: QueryIntent) -> None:
-        monkeypatch.setattr(f"{MODULE}.load_snapshot", lambda: snapshot)
+        monkeypatch.setattr(f"{MODULE}.build_snapshot", lambda: snapshot)
         monkeypatch.setattr(f"{MODULE}.extract_intent", lambda _query, _snapshot: intent)
 
     return _stub
