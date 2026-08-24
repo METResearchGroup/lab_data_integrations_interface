@@ -1,12 +1,12 @@
 """
-Sanity check for validate_query() against the live Glue catalog and gpt-5.4-nano.
+Sanity check for validate_query() against gpt-5.4-nano.
 
 Steps:
-  1. Loads the catalog snapshot from Iceberg
+  1. Builds the table snapshot
   2. Extracts a QueryIntent for each case, printing what the model returned
   3. Asserts each case produces the expected issues
 
-Requires OPENAI_API_KEY and AWS credentials. Costs five nano calls.
+Requires OPENAI_API_KEY. Costs five nano calls.
 
 Run from the project root:
   python -m backend.agentic_search.query_validation.smoke_tests.check_query_validation
@@ -14,11 +14,8 @@ Run from the project root:
 
 from __future__ import annotations
 
-import time
-
-from backend.agentic_search.catalog.snapshot import load_snapshot
 from backend.agentic_search.query_validation.models import ValidationIssue
-from backend.agentic_search.query_validation.orchestrator import validate_intent
+from backend.agentic_search.query_validation.orchestrator import build_snapshot, validate_intent
 from backend.agentic_search.query_validation.query_intent.extract import extract_intent
 
 # One problem each, so a failure names exactly which check moved.
@@ -52,10 +49,8 @@ CASES: list[tuple[str, str, list[ValidationIssue]]] = [
 
 
 def main() -> None:
-    print("--- loading catalog snapshot ---")
-    started = time.perf_counter()
-    snapshot = load_snapshot()
-    print(f"  loaded {len(snapshot)} tables in {time.perf_counter() - started:.1f}s")
+    print("--- table snapshot ---")
+    snapshot = build_snapshot()
     for record_type, metadata in snapshot.items():
         print(f"  {record_type}: {metadata.coverage_start} to {metadata.coverage_end}")
 

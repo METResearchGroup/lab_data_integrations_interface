@@ -1,6 +1,6 @@
 """Shared constants."""
 
-from datetime import timedelta
+from datetime import date, timedelta
 from enum import StrEnum
 
 
@@ -19,6 +19,10 @@ REPOSTS = RecordType.REPOSTS
 FOLLOWS = RecordType.FOLLOWS
 
 RECORD_TYPES = tuple(RecordType)
+
+# Backfill owns everything before this date, Jetstream everything from it on.
+# See strategy_planning/2026-08-18_combining_backfill_and_jetstream.md.
+DATA_START_DATE = date(2026, 8, 1)
 
 JETSTREAM_ENDPOINT = "wss://jetstream2.us-east.bsky.network/subscribe"
 
