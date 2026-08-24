@@ -30,8 +30,12 @@ def check_data_availability(
     intent: QueryIntent,
     snapshot: dict[RecordType, TableMetadata],
 ) -> list[ValidationIssue]:
-    # RANGE_OUTSIDE_COVERAGE when either requested date leaves the coverage bounds.
-    # An open bound asks for as far as we go. Widest bounds without a record type.
+    """
+    Checks if requested data is in range of DATA_START_DATE and today
+
+    RANGE_OUTSIDE_COVERAGE when either requested date leaves the coverage bounds.
+    """
+
     coverage = _coverage(intent.record_type, snapshot)
     if coverage is None:
         return []

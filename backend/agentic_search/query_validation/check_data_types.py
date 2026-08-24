@@ -11,12 +11,16 @@ def check_data_types(
     intent: QueryIntent,
     snapshot: dict[RecordType, TableMetadata],
 ) -> list[ValidationIssue]:
-    # UNKNOWN_RECORD_TYPE when none resolved, leaving no columns to check against.
+    """
+    Checks that we have the requested table and column in our DB
+
+    UNKNOWN_RECORD_TYPE when table doesn't match any tables in our DB
+    UNKNOWN_COLUMN when column doesn't match any columns within the requested table
+    """
     metadata = snapshot.get(intent.record_type) if intent.record_type else None
     if metadata is None:
         return [ValidationIssue.UNKNOWN_RECORD_TYPE]
 
-    # UNKNOWN_COLUMN when the record type is missing any requested column.
     if set(intent.columns) - set(metadata.columns):
         return [ValidationIssue.UNKNOWN_COLUMN]
     return []
