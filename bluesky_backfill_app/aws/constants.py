@@ -4,6 +4,7 @@ AWS_REGION = "us-east-2"
 DID_TABLE = "bluesky_backfill_dids"
 DID_PARTITION_KEY = "did"
 DISCOVERED_AT_ATTRIBUTE = "discovered_at"
+UPDATED_AT_ATTRIBUTE = "updated_at"
 RUN_ID_ATTRIBUTE = "run_id"
 
 STATUS_ATTRIBUTE = "status"

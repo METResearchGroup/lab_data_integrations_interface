@@ -1,6 +1,11 @@
 import time
 
-from bluesky_backfill_app.constants import MAX_BUFFER_AGE_SECONDS, MAX_BUFFER_DIDS
+from bluesky_backfill_app.constants import (
+    FLUSH_REASON_AGE,
+    FLUSH_REASON_COUNT,
+    MAX_BUFFER_AGE_SECONDS,
+    MAX_BUFFER_DIDS,
+)
 
 
 class DidBuffer:
@@ -18,18 +23,35 @@ class DidBuffer:
         # monotonic, so an NTP correction cannot fire the timer early.
         self.last_flush = time.monotonic()
 
+    def __len__(self) -> int:
+        return len(self.dids)
+
     def add(self, did: str) -> None:
-        raise NotImplementedError
+        if did in self.seen:
+            return
+        self.seen.add(did)
+        self.dids.append(did)
 
     def should_flush(self) -> bool:
-        raise NotImplementedError
+        if not self.dids:
+            return False
+        return (
+            len(self.dids) >= self.max_dids
+            or time.monotonic() - self.last_flush >= self.max_age_seconds
+        )
 
     def flush_reason(self) -> str:
         """Count wins when both thresholds have tripped."""
 
-        raise NotImplementedError
+        if not self.should_flush():
+            raise ValueError("no flush threshold has been hit")
+        if len(self.dids) >= self.max_dids:
+            return FLUSH_REASON_COUNT
+        return FLUSH_REASON_AGE
 
     def clear(self) -> None:
         """Empty the buffer and restart the age timer."""
 
-        raise NotImplementedError
+        self.dids = []
+        self.seen = set()
+        self.last_flush = time.monotonic()

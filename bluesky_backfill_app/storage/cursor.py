@@ -12,17 +12,32 @@ class CursorTracker:
         self.most_recent_cursor = self.cursor_value
 
     def observe(self, page_cursor: str | None) -> None:
-        raise NotImplementedError
+        if page_cursor is not None:
+            self.most_recent_cursor = page_cursor
 
     def mark_flushed(self, created_count: int) -> None:
         """Persist cursor and count. Logs on failure rather than raising."""
 
-        raise NotImplementedError
+        if self.most_recent_cursor is None:
+            return
+        if self.most_recent_cursor == self.cursor_value and created_count == 0:
+            return
+
+        try:
+            self.cursor_store.write(self.most_recent_cursor, created_count)
+        except Exception:
+            logger.warning("cursor write failed at %s", self.most_recent_cursor, exc_info=True)
+            return
+
+        self.cursor_value = self.most_recent_cursor
+        self.discovered_count += created_count
 
     def resume_from(self) -> str | None:
         """None starts at the beginning."""
 
-        raise NotImplementedError
+        return self.cursor_value
 
-    def target_reached(self, target: int) -> bool:
-        raise NotImplementedError
+    def target_reached(self, target: int, pending: int = 0) -> bool:
+        """`pending` counts DIDs buffered but not yet written."""
+
+        return self.discovered_count + pending >= target
