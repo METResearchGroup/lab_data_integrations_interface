@@ -97,6 +97,7 @@ publishable key are correct.
 
 ```python
 import jwt
+
 jwt.get_unverified_header(access_token)  # -> {"alg": "ES256", ...}
 ```
 

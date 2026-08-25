@@ -2,11 +2,13 @@
 
 from typing import Protocol
 
+from bluesky_ingestion_jetstream.constants import RecordType
+
 
 class Sink(Protocol):
     """Somewhere a flush of one record type's rows can be written."""
 
-    def write(self, record_type: str, rows: list[dict]) -> None:
+    def write(self, record_type: RecordType, rows: list[dict]) -> None:
         """Persist `rows`, or dispose of them durably if that proves impossible.
 
         Implementations must not raise for a batch they have dealt with -- a

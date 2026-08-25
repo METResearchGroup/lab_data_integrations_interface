@@ -84,10 +84,10 @@ TOTAL_POST_CAP = 100
 POSTS_PER_KEYWORD = 10
 
 KEYWORDS: list[str] = [
-    "gun control",       # gun_control cluster
-    "climate change",    # climate_change
-    "abortion",          # abortion
-    "immigration",       # immigration
+    "gun control",  # gun_control cluster
+    "climate change",  # climate_change
+    "abortion",  # abortion
+    "immigration",  # immigration
     "second amendment",
     "reproductive rights",
     "border security",
@@ -222,10 +222,16 @@ If a keyword returns fewer than 10 matches, `counts_by_keyword` reflects actual 
 
 ```python
 CSV_FIELDNAMES: list[str]
+
+
 def init_x_client() -> tweepy.Client: ...
 def build_query(keyword: str, *, lang: str = "en") -> str: ...
-def tweet_to_row(tweet, *, username: str, keyword: str, sync_timestamp: str) -> dict[str, object]: ...
-def fetch_posts_for_keyword(client, keyword: str, *, limit: int, sync_timestamp: str) -> list[dict[str, object]]: ...
+def tweet_to_row(
+    tweet, *, username: str, keyword: str, sync_timestamp: str
+) -> dict[str, object]: ...
+def fetch_posts_for_keyword(
+    client, keyword: str, *, limit: int, sync_timestamp: str
+) -> list[dict[str, object]]: ...
 ```
 
 - **Implementation notes:**

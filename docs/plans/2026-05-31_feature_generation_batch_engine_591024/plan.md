@@ -478,10 +478,10 @@ def main(dataset_id, batch_size, max_concurrency, no_opik, preprocessed_run, fea
 ### `data_platform/generate_features/registry.py`
 
 ```python
-FEATURE_REGISTRY: dict[str, FeatureSpec] = { ... }
-    # Each entry adds engine_type ("langchain" | "thread_pool")
-    # LLM features: system_prompt + llm_output_schema from existing generate_feature modules
-    # is_toxic_tiered: engine_type thread_pool, generate_fn unchanged
+FEATURE_REGISTRY: dict[str, FeatureSpec] = {...}
+# Each entry adds engine_type ("langchain" | "thread_pool")
+# LLM features: system_prompt + llm_output_schema from existing generate_feature modules
+# is_toxic_tiered: engine_type thread_pool, generate_fn unchanged
 ```
 
 ### `data_platform/generate_features/engines/__init__.py`
@@ -664,14 +664,16 @@ class LabelTask:
     uri: str
     text: str
 
+
 @dataclass(frozen=True)
 class FeatureSpec:
     name: str
-    model: type[BaseModel]           # output row schema incl. uri + label_timestamp
+    model: type[BaseModel]  # output row schema incl. uri + label_timestamp
     engine_type: Literal["langchain", "thread_pool"]
     generate_fn: Callable[[str, str], BaseModel]  # thread_pool only
-    system_prompt: str | None = None              # langchain only
+    system_prompt: str | None = None  # langchain only
     llm_output_schema: type[BaseModel] | None = None  # langchain only
+
 
 # engines/base.py — BatchExecutionEngine protocol
 def label_records(tasks, *, feature_name, features_dir, batch_size, on_batch_complete) -> None: ...

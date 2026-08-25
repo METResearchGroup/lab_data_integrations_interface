@@ -34,6 +34,7 @@ from bluesky_ingestion_jetstream.aws.constants import (
     S3_CONNECT_TIMEOUT_SECONDS,
     S3_REQUEST_TIMEOUT_SECONDS,
 )
+from bluesky_ingestion_jetstream.constants import RecordType
 from bluesky_ingestion_jetstream.schemas.arrow_schemas import RECORD_TYPE_TO_SCHEMA
 from bluesky_ingestion_jetstream.telemetry.instruments import record_dead_letter, record_dropped
 from lib.timestamp_utils import CREATED_AT_FORMAT
@@ -60,7 +61,7 @@ def build_filesystem() -> S3FileSystem:
 
 
 def build_path(
-    record_type: str, run_id: str, now: datetime | None = None, root: str | None = None
+    record_type: RecordType, run_id: str, now: datetime | None = None, root: str | None = None
 ) -> str:
     """Where one dead-lettered batch lands.
 
@@ -83,14 +84,14 @@ def build_path(
     return f"{root}/{record_type}/dt={day}/{timestamp}-{run_id}-{uuid4().hex[:8]}.parquet"
 
 
-def build_table(record_type: str, rows: list[dict]) -> pa.Table:
+def build_table(record_type: RecordType, rows: list[dict]) -> pa.Table:
     """Arrow table from the declared schema, independent of the catalog."""
 
     return pa.Table.from_pylist(rows, schema=RECORD_TYPE_TO_SCHEMA[record_type])
 
 
 def write_dead_letter(
-    record_type: str,
+    record_type: RecordType,
     rows: list[dict],
     run_id: str,
     filesystem: FileSystem | None = None,

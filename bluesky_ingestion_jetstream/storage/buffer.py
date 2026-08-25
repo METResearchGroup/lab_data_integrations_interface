@@ -10,6 +10,7 @@ from bluesky_ingestion_jetstream.constants import (
     MAX_BUFFER_AGE_SECONDS,
     MAX_BUFFER_SIZE_BYTES,
     RECORD_TYPES,
+    RecordType,
 )
 from bluesky_ingestion_jetstream.sinks.base import Sink
 
@@ -98,7 +99,7 @@ class BufferSet:
 
         return sum(buffer.size for buffer in self.buffers.values())
 
-    def add(self, record_type: str, row: dict) -> None:
+    def add(self, record_type: RecordType, row: dict) -> None:
         """Route a row to the buffer for its record type."""
 
         self.buffers[record_type].add(row)
@@ -137,15 +138,15 @@ class FlushSummary:
     """What one flush wrote, keyed by record type."""
 
     reason: str
-    rows: dict[str, int]
-    sizes: dict[str, int]
+    rows: dict[RecordType, int]
+    sizes: dict[RecordType, int]
 
 
 def get_flush_summary(buffers: BufferSet, reason: str) -> FlushSummary:
     """What the buffers hold. Call before `flush`, which zeroes both counts."""
 
-    rows: dict[str, int] = {}
-    sizes: dict[str, int] = {}
+    rows: dict[RecordType, int] = {}
+    sizes: dict[RecordType, int] = {}
 
     for record_type, buffer in buffers.buffers.items():
         if buffer.rows:

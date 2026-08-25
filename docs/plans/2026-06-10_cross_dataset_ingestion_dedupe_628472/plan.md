@@ -159,9 +159,7 @@ def load_prior_seen_ids(
             output_dir, id_column, filename=filename
         )
     if fetch.get(same_dataset_flag):
-        return storage.load_seen_ids_from_prior_runs(
-            output_dir, id_column, filename=filename
-        )
+        return storage.load_seen_ids_from_prior_runs(output_dir, id_column, filename=filename)
     return set()
 ```
 
@@ -190,7 +188,10 @@ Expected: all passed.
 1. In `run_subreddit_sync_loop`, replace direct `load_seen_ids_from_prior_runs` with:
    ```python
    prior_comment_ids = load_prior_seen_ids(
-       comment_storage, output_dir, fetch, "comment_fullname",
+       comment_storage,
+       output_dir,
+       fetch,
+       "comment_fullname",
        filename=COMMENTS_CSV,
        same_dataset_flag="dedupe_comments_from_prior_raw_runs",
    )
@@ -227,7 +228,10 @@ if fetch.get("dedupe_tweets_from_prior_raw_runs"):
 with unconditional:
 ```python
 prior_tweet_ids = load_prior_seen_ids(
-    storage, output_dir, fetch, "tweet_id",
+    storage,
+    output_dir,
+    fetch,
+    "tweet_id",
     filename=csv_filename,
     same_dataset_flag="dedupe_tweets_from_prior_raw_runs",
 )

@@ -23,7 +23,7 @@ from bluesky_ingestion_jetstream.aws.constants import (
     S3_PREFIX,
     S3_REQUEST_TIMEOUT_SECONDS,
 )
-from bluesky_ingestion_jetstream.constants import RECORD_TYPES
+from bluesky_ingestion_jetstream.constants import RECORD_TYPES, RecordType
 
 
 class MissingTablesError(RuntimeError):
@@ -72,7 +72,7 @@ def build_catalog() -> GlueCatalog:
     )
 
 
-def load_tables(catalog: GlueCatalog) -> dict[str, Table]:
+def load_tables(catalog: GlueCatalog) -> dict[RecordType, Table]:
     """Load every record type's table, or raise naming all the ones missing.
 
     Called once at startup rather than per flush, because each load is a Glue
@@ -80,7 +80,7 @@ def load_tables(catalog: GlueCatalog) -> dict[str, Table]:
     environment reports all four in one go instead of one per re-run.
     """
 
-    tables: dict[str, Table] = {}
+    tables: dict[RecordType, Table] = {}
     missing: list[str] = []
 
     for record_type in RECORD_TYPES:

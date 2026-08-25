@@ -1,13 +1,28 @@
 """Shared constants."""
 
-from datetime import timedelta
+from datetime import date, timedelta
+from enum import StrEnum
 
-POSTS = "posts"
-LIKES = "likes"
-REPOSTS = "reposts"
-FOLLOWS = "follows"
 
-RECORD_TYPES = (POSTS, LIKES, REPOSTS, FOLLOWS)
+class RecordType(StrEnum):
+    """One Iceberg table each. Values are the table and S3 directory names."""
+
+    POSTS = "posts"
+    LIKES = "likes"
+    REPOSTS = "reposts"
+    FOLLOWS = "follows"
+
+
+POSTS = RecordType.POSTS
+LIKES = RecordType.LIKES
+REPOSTS = RecordType.REPOSTS
+FOLLOWS = RecordType.FOLLOWS
+
+RECORD_TYPES = tuple(RecordType)
+
+# Backfill owns everything before this date, Jetstream everything from it on.
+# See strategy_planning/2026-08-18_combining_backfill_and_jetstream.md.
+DATA_START_DATE = date(2026, 8, 1)
 
 JETSTREAM_ENDPOINT = "wss://jetstream2.us-east.bsky.network/subscribe"
 
