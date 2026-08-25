@@ -7,7 +7,7 @@ Steps:
 
 The SQL is literal so a failure here is execution's, not generation's.
 
-Hits real AWS. Needs credentials for us-east-2. 
+Hits real AWS. Needs credentials for us-east-2.
 
 Run from the project root:
   python -m backend.agentic_search.query_execution.smoke_tests.check_query_execution
