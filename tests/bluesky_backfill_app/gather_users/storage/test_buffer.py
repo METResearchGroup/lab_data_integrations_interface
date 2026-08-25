@@ -1,7 +1,7 @@
 import pytest
 
-from bluesky_backfill_app.constants import FLUSH_REASON_AGE, FLUSH_REASON_COUNT
-from bluesky_backfill_app.storage.buffer import DidBuffer
+from bluesky_backfill_app.gather_users.constants import FLUSH_REASON_AGE, FLUSH_REASON_COUNT
+from bluesky_backfill_app.gather_users.storage.buffer import DidBuffer
 
 
 def test_add_dedupes_within_the_window():

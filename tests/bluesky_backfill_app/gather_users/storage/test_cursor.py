@@ -1,6 +1,6 @@
 import pytest
 
-from bluesky_backfill_app.storage.cursor import CursorTracker
+from bluesky_backfill_app.gather_users.storage.cursor import CursorTracker
 
 
 class FakeCursorStore:

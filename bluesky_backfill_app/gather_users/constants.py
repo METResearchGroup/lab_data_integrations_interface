@@ -1,3 +1,10 @@
+# The listRepos cursor and running DID count. Created by Terraform.
+CURSOR_TABLE = "bluesky_backfill_cursor"
+CURSOR_RUN_ID = "bluesky_backfill"
+CURSOR_PARTITION_KEY = "run_id"
+CURSOR_ATTRIBUTE = "list_repos_cursor"
+DISCOVERED_COUNT_ATTRIBUTE = "discovered_count"
+
 # Flush on whichever trips first.
 MAX_BUFFER_DIDS = 10_000
 MAX_BUFFER_AGE_SECONDS = 10.0 * 60.0

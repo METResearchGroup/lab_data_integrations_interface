@@ -2,7 +2,7 @@
 
 Run from repo root::
 
-    PYTHONPATH=. uv run python -m bluesky_backfill_app.discovery.main --target 1000000
+    PYTHONPATH=. uv run python -m bluesky_backfill_app.gather_users.discovery.main --target 1000000
 """
 
 import logging
@@ -11,12 +11,12 @@ from uuid import uuid4
 import typer
 from dotenv import load_dotenv
 
-from bluesky_backfill_app.aws.cursor_store import DynamoCursorStore
 from bluesky_backfill_app.aws.did_store import DynamoDidStore
-from bluesky_backfill_app.constants import FLUSH_REASON_FINAL, FLUSH_REASON_TARGET
-from bluesky_backfill_app.network.list_repos import iter_pages
-from bluesky_backfill_app.storage.buffer import DidBuffer
-from bluesky_backfill_app.storage.cursor import CursorTracker
+from bluesky_backfill_app.gather_users.constants import FLUSH_REASON_FINAL, FLUSH_REASON_TARGET
+from bluesky_backfill_app.gather_users.cursor_store import DynamoCursorStore
+from bluesky_backfill_app.gather_users.network.list_repos import iter_pages
+from bluesky_backfill_app.gather_users.storage.buffer import DidBuffer
+from bluesky_backfill_app.gather_users.storage.cursor import CursorTracker
 
 logger = logging.getLogger(__name__)
 

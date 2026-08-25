@@ -2,13 +2,13 @@ import logging
 from datetime import UTC, datetime
 
 from bluesky_backfill_app.aws.clients import build_dynamodb_client
-from bluesky_backfill_app.aws.constants import (
+from bluesky_backfill_app.aws.constants import UPDATED_AT_ATTRIBUTE
+from bluesky_backfill_app.gather_users.constants import (
     CURSOR_ATTRIBUTE,
     CURSOR_PARTITION_KEY,
     CURSOR_RUN_ID,
     CURSOR_TABLE,
     DISCOVERED_COUNT_ATTRIBUTE,
-    UPDATED_AT_ATTRIBUTE,
 )
 
 logger = logging.getLogger(__name__)

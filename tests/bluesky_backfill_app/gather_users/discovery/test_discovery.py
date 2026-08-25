@@ -1,10 +1,12 @@
 import pytest
 
-from bluesky_backfill_app.constants import FLUSH_REASON_FINAL
-from bluesky_backfill_app.discovery.main import discover, flush
-from bluesky_backfill_app.network.list_repos import RepoPage
-from bluesky_backfill_app.storage.buffer import DidBuffer
-from bluesky_backfill_app.storage.cursor import CursorTracker
+from bluesky_backfill_app.gather_users.constants import FLUSH_REASON_FINAL
+from bluesky_backfill_app.gather_users.discovery.main import discover, flush
+from bluesky_backfill_app.gather_users.network.list_repos import RepoPage
+from bluesky_backfill_app.gather_users.storage.buffer import DidBuffer
+from bluesky_backfill_app.gather_users.storage.cursor import CursorTracker
+
+DISCOVERY = "bluesky_backfill_app.gather_users.discovery.main"
 
 
 class FakeCursorStore:
@@ -43,7 +45,7 @@ def pages(monkeypatch):
     def fake_iter_pages(cursor):
         yield from supplied
 
-    monkeypatch.setattr("bluesky_backfill_app.discovery.main.iter_pages", fake_iter_pages)
+    monkeypatch.setattr(f"{DISCOVERY}.iter_pages", fake_iter_pages)
     return supplied
 
 
@@ -129,7 +131,7 @@ def test_discover_resumes_from_the_stored_cursor(monkeypatch):
         seen.append(cursor)
         yield RepoPage(dids=["did:plc:a"], cursor=None)
 
-    monkeypatch.setattr("bluesky_backfill_app.discovery.main.iter_pages", fake_iter_pages)
+    monkeypatch.setattr(f"{DISCOVERY}.iter_pages", fake_iter_pages)
     tracker = CursorTracker(FakeCursorStore(cursor="stored", count=5))
 
     discover(FakeDidStore(), tracker, "run-1", target=100)

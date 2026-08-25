@@ -1,9 +1,9 @@
-from bluesky_backfill_app.aws.constants import (
+from bluesky_backfill_app.gather_users.constants import (
     CURSOR_ATTRIBUTE,
     CURSOR_PARTITION_KEY,
     DISCOVERED_COUNT_ATTRIBUTE,
 )
-from bluesky_backfill_app.aws.cursor_store import DynamoCursorStore
+from bluesky_backfill_app.gather_users.cursor_store import DynamoCursorStore
 
 
 class FakeDynamoClient:

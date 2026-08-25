@@ -8,7 +8,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
-from bluesky_backfill_app.constants import (
+from bluesky_backfill_app.gather_users.constants import (
     INITIAL_BACKOFF_SECONDS,
     LIST_REPOS_MAX_ATTEMPTS,
     LIST_REPOS_PAGE_SIZE,

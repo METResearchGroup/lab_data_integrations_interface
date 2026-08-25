@@ -23,12 +23,6 @@ STATUS_SHARD_COUNT = 10
 # Concurrent conditional PutItems per flush.
 WRITE_CONCURRENCY = 16
 
-CURSOR_TABLE = "bluesky_backfill_cursor"
-CURSOR_RUN_ID = "bluesky_backfill"
-CURSOR_PARTITION_KEY = "run_id"
-CURSOR_ATTRIBUTE = "list_repos_cursor"
-DISCOVERED_COUNT_ATTRIBUTE = "discovered_count"
-
 DYNAMODB_MAX_ATTEMPTS = 3
 DYNAMODB_CONNECT_TIMEOUT_SECONDS = 3.0
 DYNAMODB_READ_TIMEOUT_SECONDS = 5.0

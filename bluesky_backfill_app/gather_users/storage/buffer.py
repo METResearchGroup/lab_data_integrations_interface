@@ -1,6 +1,6 @@
 import time
 
-from bluesky_backfill_app.constants import (
+from bluesky_backfill_app.gather_users.constants import (
     FLUSH_REASON_AGE,
     FLUSH_REASON_COUNT,
     MAX_BUFFER_AGE_SECONDS,

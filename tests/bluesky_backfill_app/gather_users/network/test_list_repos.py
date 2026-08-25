@@ -3,8 +3,8 @@ import urllib.error
 
 import pytest
 
-from bluesky_backfill_app.constants import MAX_BACKOFF_SECONDS
-from bluesky_backfill_app.network.list_repos import (
+from bluesky_backfill_app.gather_users.constants import MAX_BACKOFF_SECONDS
+from bluesky_backfill_app.gather_users.network.list_repos import (
     RepoPage,
     backoff_seconds,
     build_url,
@@ -13,6 +13,8 @@ from bluesky_backfill_app.network.list_repos import (
     parse_page,
     retry_delay,
 )
+
+LIST_REPOS = "bluesky_backfill_app.gather_users.network.list_repos"
 
 
 class FakeResponse:
@@ -182,7 +184,7 @@ def test_iter_pages_follows_the_cursor_then_stops(monkeypatch):
         seen_cursors.append(cursor)
         return pages[len(seen_cursors) - 1]
 
-    monkeypatch.setattr("bluesky_backfill_app.network.list_repos.fetch_page", fake_fetch)
+    monkeypatch.setattr(f"{LIST_REPOS}.fetch_page", fake_fetch)
 
     assert list(iter_pages(None)) == pages
     assert seen_cursors == [None, "one", "two"]
