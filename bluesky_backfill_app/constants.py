@@ -1,0 +1,9 @@
+TARGET_DID_COUNT = 1_000_000
+
+# Flush on whichever trips first.
+MAX_BUFFER_DIDS = 10_000
+MAX_BUFFER_AGE_SECONDS = 10.0 * 60.0
+
+FLUSH_REASON_COUNT = "count"
+FLUSH_REASON_AGE = "age"
+FLUSH_REASON_FINAL = "final"
