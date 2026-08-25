@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import urllib.request
 
+from backend.agentic_search.aws.athena import Athena
+from backend.agentic_search.aws.s3 import S3
 from backend.agentic_search.query_execution.execute import execute_query
 from backend.agentic_search.query_generation.models import GeneratedQuery
 from bluesky_ingestion_jetstream.constants import RecordType
@@ -49,7 +51,7 @@ def main() -> None:
         print(f"  {line}")
 
     print("\n--- running ---")
-    executed = execute_query(GENERATED)
+    executed = execute_query(GENERATED, athena=Athena(), s3=S3())
     print(f"  execution_id: {executed.execution_id}")
     print(f"  result_url: {executed.result_url[:100]}...")
 

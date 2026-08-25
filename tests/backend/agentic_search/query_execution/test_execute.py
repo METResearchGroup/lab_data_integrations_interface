@@ -35,7 +35,7 @@ class StubS3:
     def __init__(self) -> None:
         self.presigned: list[tuple[str, int]] = []
 
-    def generate_presigned_url(self, s3_uri: str, expires_in: int = 86_400) -> str:
+    def generate_presigned_url(self, s3_uri: str, *, expires_in: int) -> str:
         self.presigned.append((s3_uri, expires_in))
         return f"https://signed/{s3_uri}"
 
