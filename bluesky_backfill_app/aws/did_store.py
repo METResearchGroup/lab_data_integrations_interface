@@ -105,6 +105,15 @@ class DynamoDidStore:
             ConditionExpression=f"attribute_exists({DID_PARTITION_KEY})",
         )
 
+    def set_status_many(self, dids: list[str], status: str) -> None:
+        """Advance `dids` concurrently. Raises if any one fails."""
+
+        if not dids:
+            return
+
+        with ThreadPoolExecutor(max_workers=self.concurrency) as pool:
+            list(pool.map(lambda did: self.set_status(did, status), dids))
+
     def query_by_status(self, status: str, limit: int) -> list[str]:
         dids: list[str] = []
 

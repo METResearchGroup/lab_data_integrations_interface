@@ -19,6 +19,9 @@ LIST_REPOS_PAGE_SIZE = 1000
 LIST_REPOS_TIMEOUT_SECONDS = 120
 LIST_REPOS_MAX_ATTEMPTS = 5
 
+# DIDs pulled from the status index per drain pass.
+ENQUEUE_PAGE_SIZE = 500
+
 # Retried without a Retry-After header, and on transport failures.
 INITIAL_BACKOFF_SECONDS = 1.0
 MAX_BACKOFF_SECONDS = 60.0

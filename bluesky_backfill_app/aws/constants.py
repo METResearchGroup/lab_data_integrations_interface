@@ -20,9 +20,8 @@ STATUS_INDEX = "status_index"
 STATUS_SHARD_ATTRIBUTE = "status_shard"
 STATUS_SHARD_COUNT = 10
 
-# Concurrent conditional PutItems per flush.
+# Concurrent conditional PutItems per flush, and UpdateItems per status change.
 WRITE_CONCURRENCY = 16
 
-DYNAMODB_MAX_ATTEMPTS = 3
-DYNAMODB_CONNECT_TIMEOUT_SECONDS = 3.0
-DYNAMODB_READ_TIMEOUT_SECONDS = 5.0
+# Created by Terraform.
+QUEUE_NAME = "bluesky-backfill-dids"
