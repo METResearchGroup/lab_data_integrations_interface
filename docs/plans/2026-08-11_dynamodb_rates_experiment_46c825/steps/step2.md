@@ -34,8 +34,7 @@ Create a DynamoDB client with `boto3.client("dynamodb", region_name=AWS_REGION)`
 ### make_keys
 
 ```python
-def make_keys(*, run_id: str, ablation: str, count: int = ITEM_COUNT) -> list[str]:
-    ...
+def make_keys(*, run_id: str, ablation: str, count: int = ITEM_COUNT) -> list[str]: ...
 ```
 
 Returns `count` unique URI strings using the Step 1 shape. `ablation` is `"single"` or `"batch"`. Ablation 1 and Ablation 2 must use different ablation labels so the two key sets are disjoint. You get a fair timing comparison when the key sets are disjoint, because Ablation 2 does not overwrite Ablation 1 items.
@@ -43,8 +42,7 @@ Returns `count` unique URI strings using the Step 1 shape. `ablation` is `"singl
 ### run_single_puts
 
 ```python
-def run_single_puts(client, keys: list[str]) -> dict[str, float | int]:
-    ...
+def run_single_puts(client, keys: list[str]) -> dict[str, float | int]: ...
 ```
 
 For each key, call `put_item` with `Item={PARTITION_KEY: {"S": key}}`. Time the full loop with `time.perf_counter()`. Return at least the fields below.
@@ -58,8 +56,7 @@ If any put raises, let the exception propagate. Step 3 can still tear down keys 
 ### run_batch_writes
 
 ```python
-def run_batch_writes(client, keys: list[str]) -> dict[str, float | int]:
-    ...
+def run_batch_writes(client, keys: list[str]) -> dict[str, float | int]: ...
 ```
 
 Write keys in chunks of `BATCH_WRITE_LIMIT` with `batch_write_item` and `PutRequest` items. When the response contains `UnprocessedItems`, sleep 0.05 seconds and retry those items, matching `experiments/dedup_comparison_2026_06_12/dynamodb_backend.py`. Count every `batch_write_item` call, including retries, in `http_calls`. Return the same result keys as `run_single_puts`.
@@ -69,8 +66,7 @@ For 1000 items and no unprocessed retries, expected `http_calls` is `ceil(1000 /
 ### teardown_keys
 
 ```python
-def teardown_keys(client, keys: list[str]) -> dict[str, int]:
-    ...
+def teardown_keys(client, keys: list[str]) -> dict[str, int]: ...
 ```
 
 Delete the given keys with `batch_write_item` and `DeleteRequest`, chunked by `BATCH_WRITE_LIMIT`, with the same unprocessed item retry. Return at least `http_calls` and `items_deleted` (`len(keys)` when every key was submitted for delete). Callers pass the union of Ablation 1 and Ablation 2 keys.

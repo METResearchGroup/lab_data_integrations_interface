@@ -24,6 +24,7 @@ from bluesky_ingestion_jetstream.aws.iceberg_writer import (
     build_append_table,
 )
 from bluesky_ingestion_jetstream.aws.retry import retry_iceberg_commit
+from bluesky_ingestion_jetstream.constants import RecordType
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class IcebergSink:
 
     def __init__(
         self,
-        tables: dict[str, Table],
+        tables: dict[RecordType, Table],
         run_id: str,
         dead_letter: Callable[..., str] = write_dead_letter,
     ) -> None:
@@ -46,7 +47,7 @@ class IcebergSink:
         self.run_id = run_id
         self.dead_letter = dead_letter
 
-    def write(self, record_type: str, rows: list[dict]) -> None:
+    def write(self, record_type: RecordType, rows: list[dict]) -> None:
         """Commit one record type's batch, dead-lettering it if that fails.
 
         Called once per record type per flush rather than once per flush, so a
@@ -73,7 +74,7 @@ class IcebergSink:
             )
             self.dead_letter(record_type, rows, self.run_id)
 
-    def _commit(self, record_type: str, rows: list[dict]) -> None:
+    def _commit(self, record_type: RecordType, rows: list[dict]) -> None:
         """Append with retries, skipping the work if a retry finds it already done."""
 
         table = self.tables[record_type]

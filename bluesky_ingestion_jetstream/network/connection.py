@@ -22,6 +22,7 @@ from bluesky_ingestion_jetstream.constants import (
     REPOSTS,
     REQUIRED_KEYS,
     WANTED_COLLECTIONS,
+    RecordType,
 )
 from bluesky_ingestion_jetstream.event_parsing.follows import parse_follow
 from bluesky_ingestion_jetstream.event_parsing.likes_and_reposts import parse_like_or_repost
@@ -48,7 +49,7 @@ class StreamEvent:
     """
 
     time_us: int
-    parsed: tuple[str, dict] | None
+    parsed: tuple[RecordType, dict] | None
 
 
 def build_url(cursor: int | None = None) -> str:
@@ -107,7 +108,7 @@ async def process_all_websocket_events(
         yield StreamEvent(time_us, parsed)
 
 
-def process_commit_event(event: dict) -> tuple[str, dict] | None:
+def process_commit_event(event: dict) -> tuple[RecordType, dict] | None:
     """Turn a commit into a (record_type, row) pair, or None if we don't store it.
 
     The caller has already established that this is a commit.
@@ -120,6 +121,9 @@ def process_commit_event(event: dict) -> tuple[str, dict] | None:
 
     collection = as_str(commit.get("collection"))
     record_type = COLLECTION_TO_RECORD_TYPE.get(collection) if collection else None
+    if record_type is None:
+        return None
+
     record = as_dict(commit.get("record"))
     row = parse_shared(event)
 
