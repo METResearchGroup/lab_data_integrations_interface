@@ -52,11 +52,21 @@ def build_url(cursor: str | None, page_size: int) -> str:
     return f"{LIST_REPOS_URL}?{urllib.parse.urlencode(params)}"
 
 
+def is_active(repo: dict[str, Any]) -> bool:
+    """Whether the repo is fetchable. Absent `active` counts as active."""
+
+    return repo.get("active") is not False
+
+
 def parse_page(payload: dict[str, Any]) -> RepoPage:
     repos = payload.get("repos")
     if not isinstance(repos, list):
         repos = []
-    dids = [repo["did"] for repo in repos if isinstance(repo, dict) and repo.get("did")]
+    dids = [
+        repo["did"]
+        for repo in repos
+        if isinstance(repo, dict) and repo.get("did") and is_active(repo)
+    ]
     cursor = payload.get("cursor")
     return RepoPage(dids=dids, cursor=cursor if isinstance(cursor, str) else None)
 

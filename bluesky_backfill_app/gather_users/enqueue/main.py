@@ -6,7 +6,6 @@ Run from repo root::
 """
 
 import logging
-import time
 from uuid import uuid4
 
 import typer
@@ -74,22 +73,12 @@ def drain(
             logger.info("sent %d dids, %d this run", sent, total)
 
 
-def main(
-    poll_seconds: float = typer.Option(
-        0.0, help="Seconds between drains. 0 drains once and exits"
-    ),
-):
+def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     load_dotenv()
 
-    store = DynamoDidStore()
-    queue = SqsQueue()
-
-    while True:
-        drain(store, queue, new_run_id())
-        if poll_seconds <= 0:
-            return
-        time.sleep(poll_seconds)
+    total = drain(DynamoDidStore(), SqsQueue(), new_run_id())
+    logger.info("drained %d dids", total)
 
 
 if __name__ == "__main__":

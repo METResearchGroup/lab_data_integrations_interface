@@ -9,6 +9,7 @@ from bluesky_backfill_app.gather_users.network.list_repos import (
     backoff_seconds,
     build_url,
     fetch_page,
+    is_active,
     iter_pages,
     parse_page,
     retry_delay,
@@ -27,7 +28,7 @@ class FakeResponse:
     def __enter__(self):
         return self
 
-    def __exit__(self, *exc_info):
+    def __exit__(self, *_):
         return False
 
 
@@ -73,6 +74,37 @@ def test_parse_page_skips_entries_without_a_did():
     assert parse_page(payload).dids == ["did:plc:a"]
 
 
+def test_parse_page_skips_inactive_repos():
+    payload = {
+        "repos": [
+            {"did": "did:plc:a", "active": True},
+            {"did": "did:plc:b", "active": False, "status": "takendown"},
+            {"did": "did:plc:c", "active": False, "status": "deactivated"},
+        ]
+    }
+
+    assert parse_page(payload).dids == ["did:plc:a"]
+
+
+def test_parse_page_keeps_a_repo_with_no_active_field():
+    """The relay always sends `active`; absence is not a reason to drop a DID."""
+
+    assert parse_page({"repos": [{"did": "did:plc:a"}]}).dids == ["did:plc:a"]
+
+
+@pytest.mark.parametrize(
+    ("repo", "expected"),
+    [
+        ({"active": True}, True),
+        ({}, True),
+        ({"active": None}, True),
+        ({"active": False}, False),
+    ],
+)
+def test_is_active(repo, expected):
+    assert is_active(repo) is expected
+
+
 def test_parse_page_ignores_a_non_string_cursor():
     assert parse_page({"repos": [], "cursor": 5}).cursor is None
 
@@ -80,7 +112,7 @@ def test_parse_page_ignores_a_non_string_cursor():
 def test_fetch_page_returns_the_first_success():
     calls = []
 
-    def urlopen(url, timeout):
+    def urlopen(url, **_):
         calls.append(url)
         return json_response(page_payload(["did:plc:a"], cursor="next"))
 
@@ -94,7 +126,7 @@ def test_fetch_page_retries_a_rate_limit():
     responses = [http_error(429), json_response(page_payload(["did:plc:a"]))]
     slept = []
 
-    def urlopen(url, timeout):
+    def urlopen(url, **_):
         result = responses.pop(0)
         if isinstance(result, Exception):
             raise result
@@ -110,7 +142,7 @@ def test_fetch_page_honours_retry_after():
     responses = [http_error(429, {"Retry-After": "5"}), json_response(page_payload([]))]
     slept = []
 
-    def urlopen(url, timeout):
+    def urlopen(url, **_):
         result = responses.pop(0)
         if isinstance(result, Exception):
             raise result
@@ -122,7 +154,7 @@ def test_fetch_page_honours_retry_after():
 
 
 def test_fetch_page_reraises_a_non_retryable_status():
-    def urlopen(url, timeout):
+    def urlopen(url, **_):
         raise http_error(400)
 
     with pytest.raises(urllib.error.HTTPError):
@@ -132,7 +164,7 @@ def test_fetch_page_reraises_a_non_retryable_status():
 def test_fetch_page_gives_up_after_max_attempts():
     calls = []
 
-    def urlopen(url, timeout):
+    def urlopen(url, **_):
         calls.append(url)
         raise http_error(503)
 
@@ -145,7 +177,7 @@ def test_fetch_page_gives_up_after_max_attempts():
 def test_fetch_page_retries_a_transport_failure():
     responses = [urllib.error.URLError("reset"), json_response(page_payload(["did:plc:a"]))]
 
-    def urlopen(url, timeout):
+    def urlopen(url, **_):
         result = responses.pop(0)
         if isinstance(result, Exception):
             raise result

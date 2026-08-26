@@ -13,7 +13,7 @@ class FakeSqsClient:
     def get_queue_url(self, QueueName):  # noqa: N803 - boto3's parameter name
         return {"QueueUrl": f"https://sqs.test/{QueueName}"}
 
-    def send_message_batch(self, QueueUrl, Entries):  # noqa: N803 - boto3's parameter names
+    def send_message_batch(self, Entries, **_):  # noqa: N803 - boto3's parameter name
         self.batches.append(Entries)
         failed = [
             {"Id": entry["Id"]}
