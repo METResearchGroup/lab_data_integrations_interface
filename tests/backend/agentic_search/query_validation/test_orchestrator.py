@@ -29,18 +29,19 @@ def stub(
 
 
 def test_clean_query_is_valid(stub) -> None:
-    stub(
-        QueryIntent(
-            is_nonsense=False,
-            record_type=RecordType.POSTS,
-            columns=["langs", "created_at"],
-            start_date=date(2026, 7, 1),
-            end_date=date(2026, 7, 31),
-        )
+    intent = QueryIntent(
+        is_nonsense=False,
+        record_type=RecordType.POSTS,
+        columns=["langs", "created_at"],
+        start_date=date(2026, 7, 1),
+        end_date=date(2026, 7, 31),
     )
+    stub(intent)
     result = validate_query("how many posts were written in Spanish in July")
     assert result.valid
     assert result.issues == []
+    # Generation reads this off the result rather than extracting again.
+    assert result.intent == intent
 
 
 def test_nonsense_short_circuits_the_other_checks(stub) -> None:
