@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-08-26
+
+1. Bluesky backfill can now gather the users it will later fetch: discovery pages the relay's `listRepos` from a cursor checkpointed in DynamoDB and records every DID it finds, and a separate enqueue step moves those DIDs onto SQS. Each DID carries a status — discovered, queued, done, failed — so the pipeline can tell what has been gathered apart from what has been handed off for fetching. [PR #185](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/185)
+
 ## 2026-08-16
 
 1. Jetstream ingestion no longer rewinds the stream cursor five seconds on reconnect, which had been re-reading and re-writing every event in that window. Disconnects were frequent enough that the replays accumulated to roughly 9% duplicate rows across the four `bluesky_raw` tables. [PR #173](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/173)
