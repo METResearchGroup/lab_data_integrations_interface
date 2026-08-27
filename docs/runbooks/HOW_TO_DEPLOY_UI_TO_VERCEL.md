@@ -54,7 +54,7 @@ In Vercel → Project → Settings → Environment Variables, set:
 
 Notes:
 
-- Do **not** include a trailing slash. The UI concatenates routes like `${BASE_URL}/posts/recent`.
+- Do **not** include a trailing slash. The UI concatenates routes like `${BASE_URL}/query`.
 - After changing env vars, you must trigger a redeploy (see “When the UI re-updates”).
 
 ---
@@ -88,16 +88,17 @@ Once the Vercel project is configured:
 
 ## Verify deployment
 
-1. Open the deployed UI URL.
-2. Click “Run” for a query.
+1. Open the deployed UI URL and sign in.
+2. Enter a query and click “Send query”.
 3. Confirm:
-   - Results render in the table.
-   - “Export CSV” triggers a download/open of a CSV file (the URL is returned by the backend as a presigned S3 URL).
+   - The UI shows the “Query sent” confirmation naming your email address.
+   - The results email arrives once the query finishes.
 
 If the UI shows an error:
 
 - A CORS error typically means the backend `CORS_ORIGINS` is missing the Vercel UI origin.
 - A network error or `404` typically means `NEXT_PUBLIC_API_URL` is unset or points to the wrong backend host.
+- `401` means the Supabase access token was rejected — check `SUPABASE_URL` on the backend.
 
 ---
 
