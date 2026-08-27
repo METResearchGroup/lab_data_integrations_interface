@@ -16,7 +16,7 @@ QUERY = "posts in July"
 def client(monkeypatch: pytest.MonkeyPatch):
     calls: list[tuple[str, str]] = []
     monkeypatch.setattr(
-        "backend.routes.query.process_query", lambda query, email: calls.append((query, email))
+        "backend.routes.query.handle_query", lambda query, email: calls.append((query, email))
     )
 
     app.dependency_overrides[current_user_email] = lambda: EMAIL
@@ -35,7 +35,7 @@ def test_query_is_acked_and_handed_off(client) -> None:
 
 
 def test_query_without_a_token_is_rejected() -> None:
-    """The stubbed dependency must not be reachable without credentials."""
+    """The auth dependency must not be reachable without credentials."""
 
     with TestClient(app) as test_client:
         assert test_client.post("/query", json=QUERY).status_code == 401
