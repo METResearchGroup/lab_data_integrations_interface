@@ -1,4 +1,4 @@
-"""handle_query's three outcomes, with the graph and SES stubbed out."""
+"""handle_query's three outcomes, with the graph and Gmail stubbed out."""
 
 from __future__ import annotations
 
@@ -23,15 +23,15 @@ def _intent() -> QueryIntent:
 
 @pytest.fixture
 def sent(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, str]]:
-    """Capture at the SES boundary so the real body-building code still runs."""
+    """Capture at the Gmail boundary so the real body-building code still runs."""
 
     captured: list[dict[str, str]] = []
 
-    class FakeSES:
+    class FakeGmail:
         def send(self, *, to: str, subject: str, body: str) -> None:
             captured.append({"to": to, "subject": subject, "body": body})
 
-    monkeypatch.setattr(mail, "_ses", lambda: FakeSES())
+    monkeypatch.setattr(mail, "_gmail", lambda: FakeGmail())
     return captured
 
 
@@ -92,8 +92,8 @@ def test_unmailable_result_does_not_raise(monkeypatch) -> None:
     )
 
     def no_sender():
-        raise RuntimeError("SES_SENDER_EMAIL is unset")
+        raise RuntimeError("GMAIL_SENDER_EMAIL is unset")
 
-    monkeypatch.setattr(mail, "_ses", no_sender)
+    monkeypatch.setattr(mail, "_gmail", no_sender)
 
     module.handle_query(QUERY, EMAIL)

@@ -1,35 +1,41 @@
-"""What the user receives once their query finishes. Runs in Lambda."""
+"""What the user receives once their query finishes. Runs in a background task."""
 
 from __future__ import annotations
 
 import logging
 import os
 
-from backend.agentic_search.aws.ses import SES
+from backend.agentic_search.gmail import Gmail
 from backend.agentic_search.query_validation.models import ValidationIssue
 
 logger = logging.getLogger(__name__)
 
-SENDER_VARIABLE = "SES_SENDER_EMAIL"
+SENDER_VARIABLE = "GMAIL_SENDER_EMAIL"
+PASSWORD_VARIABLE = "GMAIL_APP_PASSWORD"
 
 SUBJECT_READY = "Your query results are ready"
 SUBJECT_INVALID = "Your query could not be run"
 SUBJECT_FAILED = "Your query failed"
 
 
-def _ses() -> SES:
+def _gmail() -> Gmail:
     sender = os.getenv(SENDER_VARIABLE)
     if not sender:
         raise RuntimeError(f"{SENDER_VARIABLE} is unset, so results cannot be mailed")
 
-    return SES(sender)
+    # Google displays app passwords in four spaced groups; SMTP wants the 16 raw chars.
+    password = "".join(os.getenv(PASSWORD_VARIABLE, "").split())
+    if not password:
+        raise RuntimeError(f"{PASSWORD_VARIABLE} is unset, so results cannot be mailed")
+
+    return Gmail(sender, password)
 
 
 def _send(email: str, subject: str, body: str) -> None:
     """Mail failures are logged, not raised: there is nowhere left to report them."""
 
     try:
-        _ses().send(to=email, subject=subject, body=body)
+        _gmail().send(to=email, subject=subject, body=body)
     except Exception:
         logger.exception("could not mail %s to %s", subject, email)
 

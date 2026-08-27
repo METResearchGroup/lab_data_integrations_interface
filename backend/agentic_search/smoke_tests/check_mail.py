@@ -2,14 +2,14 @@
 End-to-end check for mail.py: sends all three outcome emails for real.
 
 Steps:
-  1. Sends one message through SES directly, which raises on rejection
+  1. Sends one message through Gmail directly, which raises on rejection
   2. Sends each of the three mail_* bodies, which swallow their own failures
 
-Step 1 is what actually reports a bad sender, region, or IAM permission. The
-mail_* helpers log and return, so a silent step 2 means step 1 already passed.
+Step 1 is what actually reports a bad sender or app password. The mail_*
+helpers log and return, so a silent step 2 means step 1 already passed.
 
-Hits real SES in us-east-2. The recipient must be a verified identity while the
-account is in the sandbox.
+Hits real Gmail SMTP. Point MAIL_TEST_RECIPIENT at an address on another
+provider: delivery to a stranger is the thing worth proving.
 
 Run from the project root:
   python -m backend.agentic_search.smoke_tests.check_mail
@@ -22,8 +22,9 @@ import os
 
 from dotenv import load_dotenv
 
-from backend.agentic_search.aws.ses import SES
+from backend.agentic_search.gmail import Gmail
 from backend.agentic_search.mail import (
+    PASSWORD_VARIABLE,
     SENDER_VARIABLE,
     mail_failure,
     mail_invalid,
@@ -44,13 +45,15 @@ def main() -> None:
     if not sender:
         raise SystemExit(f"{SENDER_VARIABLE} is unset")
 
-    # Sandbox delivers only to verified identities, so the sender is the one
-    # address guaranteed to be verified.
-    recipient = os.getenv("SES_TEST_RECIPIENT", sender)
+    password = os.getenv(PASSWORD_VARIABLE)
+    if not password:
+        raise SystemExit(f"{PASSWORD_VARIABLE} is unset")
+
+    recipient = os.getenv("MAIL_TEST_RECIPIENT", sender)
     print(f"--- {sender} -> {recipient} ---")
 
     print("\n--- direct send ---")
-    SES(sender).send(to=recipient, subject="SES smoke test", body="Direct send.\n")
+    Gmail(sender, password).send(to=recipient, subject="Gmail smoke test", body="Direct send.\n")
     print("  accepted")
 
     print("\n--- outcome emails ---")

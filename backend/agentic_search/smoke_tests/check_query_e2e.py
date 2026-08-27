@@ -9,8 +9,8 @@ Steps:
 Mirrors handle_query rather than calling it: that function swallows every
 exception so the user always gets mail, which would hide a failure here.
 
-Hits real Athena, real SES, and the real model. The week of posts is a paid
-scan. The recipient must be a verified identity while SES is in the sandbox.
+Hits real Athena, real Gmail, and the real model. The week of posts is a paid
+scan.
 
 Run from the project root:
   python -m backend.agentic_search.smoke_tests.check_query_e2e
@@ -47,7 +47,7 @@ def main() -> None:
     if not sender:
         raise SystemExit(f"{SENDER_VARIABLE} is unset")
 
-    recipient = os.getenv("SES_TEST_RECIPIENT", sender)
+    recipient = os.getenv("MAIL_TEST_RECIPIENT", sender)
 
     print("--- query ---")
     print(f"  {QUERY!r}")
