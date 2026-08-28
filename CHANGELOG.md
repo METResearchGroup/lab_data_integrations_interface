@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2026-08-27
+
+1. `/query` result emails now send over Gmail SMTP with an app password instead of Amazon SES, so results can be mailed to any address rather than only to identities verified in the SES sandbox. Sending is capped at Gmail's ~500 messages/day, which is well above current use. `SES_SENDER_EMAIL` is replaced by `GMAIL_SENDER_EMAIL` and `GMAIL_APP_PASSWORD`, and `SES_TEST_RECIPIENT` by `MAIL_TEST_RECIPIENT`.
+
+## 2026-08-26
+
+1. Agentic search is now reachable over HTTP: `POST /query` verifies the caller's Supabase token, acknowledges the query immediately, then validates, generates, and executes it in the background and emails the caller a presigned link to the result CSV via SES. Rejected and failed queries are mailed back as well, so every request ends in a message rather than silence. [PR #187](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/187)
+
 ## 2026-08-25
 
 1. Agentic search now screens a natural-language query before it reaches query generation: an LLM extracts the record types, columns, and date range the query asks for, then three checks reject nonsense queries, references to record types or columns the `bluesky_raw` tables do not have, and date ranges outside the ingested coverage window. The checks run against a snapshot built from the live Arrow schemas, so they follow the tables rather than a hardcoded list. [PR #183](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/183)

@@ -41,7 +41,7 @@ def validate_intent(
         issues += check_data_types(intent, snapshot)
         issues += check_data_availability(intent, snapshot)
 
-    return ValidationResult(valid=not issues, issues=issues)
+    return ValidationResult(valid=not issues, issues=issues, intent=intent)
 
 
 def validate_query(query: str) -> ValidationResult:
