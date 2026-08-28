@@ -1,0 +1,6 @@
+# Example HPC crontab — see canonical copy:
+# docs/ops/cron/backup_jetstream_cursor.cron.example
+#
+# Kept here so the plan package is self-contained. Prefer the docs/ops path.
+
+15 2 * * * cd REPO_ROOT && JETSTREAM_CURSOR_PATH=REPO_ROOT/data_platform/data/bluesky/jetstream/cursor.json PYTHONPATH=. /usr/bin/env uv run python data_platform/ingestion/backup_jetstream_cursor.py backup --cursor-path "$JETSTREAM_CURSOR_PATH" >> REPO_ROOT/logs/jetstream_cursor_backup.log 2>&1
