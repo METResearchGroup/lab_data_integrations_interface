@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
 
+from backend.agentic_search.query_validation.query_intent.models import QueryIntent
+
 
 class ValidationIssue(StrEnum):
     NONSENSE = "nonsense"
@@ -18,6 +20,7 @@ class ValidationIssue(StrEnum):
 class ValidationResult:
     valid: bool
     issues: list[ValidationIssue]
+    intent: QueryIntent
 
 
 @dataclass(frozen=True)

@@ -1,8 +1,14 @@
 # CHANGELOG
 
+## 2026-08-27
+
+1. `/query` result emails now send over Gmail SMTP with an app password instead of Amazon SES, so results can be mailed to any address rather than only to identities verified in the SES sandbox. Sending is capped at Gmail's ~500 messages/day, which is well above current use. `SES_SENDER_EMAIL` is replaced by `GMAIL_SENDER_EMAIL` and `GMAIL_APP_PASSWORD`, and `SES_TEST_RECIPIENT` by `MAIL_TEST_RECIPIENT`.
+
 ## 2026-08-26
 
-1. Bluesky backfill can now gather the users it will later fetch: discovery pages the relay's `listRepos` from a cursor checkpointed in DynamoDB and records every DID it finds, and a separate enqueue step moves those DIDs onto SQS. Each DID carries a status — discovered, queued, done, failed — so the pipeline can tell what has been gathered apart from what has been handed off for fetching. [PR #185](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/185)
+1. Agentic search is now reachable over HTTP: `POST /query` verifies the caller's Supabase token, acknowledges the query immediately, then validates, generates, and executes it in the background and emails the caller a presigned link to the result CSV via SES. Rejected and failed queries are mailed back as well, so every request ends in a message rather than silence. [PR #187](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/187)
+
+2. Bluesky backfill can now gather the users it will later fetch: discovery pages the relay's `listRepos` from a cursor checkpointed in DynamoDB and records every DID it finds, and a separate enqueue step moves those DIDs onto SQS. Each DID carries a status — discovered, queued, done, failed — so the pipeline can tell what has been gathered apart from what has been handed off for fetching. [PR #185](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/185)
 
 ## 2026-08-25
 

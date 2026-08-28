@@ -8,7 +8,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-08-10T03:10:45.508789Z"
+exclude-newer = "2026-08-19T09:02:20.196286Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -1305,6 +1305,7 @@ dependencies = [
     { name = "langchain" },
     { name = "langchain-openai" },
     { name = "langdetect" },
+    { name = "langgraph" },
     { name = "litellm" },
     { name = "matplotlib" },
     { name = "numpy" },
@@ -1374,6 +1375,7 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=1.2.1" },
     { name = "langdetect", specifier = ">=1.0.9" },
     { name = "langdetect", marker = "extra == 'preprocessing'", specifier = ">=1.0.9" },
+    { name = "langgraph", specifier = ">=1.2.10" },
     { name = "litellm", specifier = "<1.92" },
     { name = "matplotlib", specifier = ">=3.11.1" },
     { name = "numpy", specifier = ">=2.4.4" },
