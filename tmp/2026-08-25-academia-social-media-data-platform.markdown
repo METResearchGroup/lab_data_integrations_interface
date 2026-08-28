@@ -7,8 +7,7 @@ pinned: true
 mermaid: true
 repo: https://github.com/METResearchGroup/lab_data_integrations_interface
 ---
-
-URL TO ACTUAL SITE (for images): https://dudu-theman.github.io/stanleydu/engineering/2026/08/25/academia-social-media-data-platform.html
+URL TO ACTUAL WEBSITE (for images): https://dudu-theman.github.io/stanleydu/engineering/2026/08/25/academia-social-media-data-platform.html
 
 Data collection can demand more time from an academic researcher than conducting the research itself. APIs exist, but academics are researchers, not software engineers. Academic researchers can spend weeks gathering data just to support a single point in an appendix, only to repeat the entire process for their next project. 
 
@@ -69,7 +68,8 @@ One process reads the firehose, buffers what it parses, and commits batches to I
 
 Our S3 flushes happen at either 2 GB or 30 minutes, and given that we partition by date, 
 we're creating at least 48 files within a partition alone. This is a lot of small data files, plus 
-Iceberg metadata files that S3 has to store. In addition, duplicates are possible across runs.
+Iceberg metadata files that S3 has to store. More data files means higher querying latency, and more 
+metadata files means more storage costs. In addition, duplicates can appear across runs.
 
 Therefore, it is imperative that we have cron jobs running to dedup, compact, and delete post-compaction artifacts. 
 
