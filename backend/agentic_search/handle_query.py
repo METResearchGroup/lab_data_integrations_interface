@@ -11,8 +11,6 @@ logger = logging.getLogger(__name__)
 
 
 def handle_query(query: str, email: str) -> None:
-    """Never raises: a background task that dies takes the user's only notice with it."""
-
     try:
         validation, executed = run_langgraph(query)
     except Exception:
