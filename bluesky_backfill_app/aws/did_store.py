@@ -1,6 +1,5 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
 from zlib import crc32
 
 from botocore.exceptions import ClientError
@@ -23,6 +22,7 @@ from bluesky_backfill_app.aws.constants import (
     UPDATED_AT_ATTRIBUTE,
     WRITE_CONCURRENCY,
 )
+from lib.timestamp_utils import get_current_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class DynamoDidStore:
     def put_new(self, did: str, run_id: str) -> bool:
         """Conditional PutItem at STATUS_DISCOVERED. False if the DID already exists."""
 
-        now = datetime.now(UTC).isoformat()
+        now = get_current_timestamp()
         try:
             self.client.put_item(
                 TableName=self.table,
@@ -100,7 +100,7 @@ class DynamoDidStore:
             ExpressionAttributeValues={
                 ":status": {"S": status},
                 ":shard": {"S": status_shard(did, status)},
-                ":updated_at": {"S": datetime.now(UTC).isoformat()},
+                ":updated_at": {"S": get_current_timestamp()},
             },
             ConditionExpression=f"attribute_exists({DID_PARTITION_KEY})",
         )

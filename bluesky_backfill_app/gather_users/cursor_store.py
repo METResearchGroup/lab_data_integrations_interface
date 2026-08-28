@@ -1,5 +1,4 @@
 import logging
-from datetime import UTC, datetime
 
 from bluesky_backfill_app.aws.clients import build_dynamodb_client
 from bluesky_backfill_app.aws.constants import UPDATED_AT_ATTRIBUTE
@@ -10,6 +9,7 @@ from bluesky_backfill_app.gather_users.constants import (
     CURSOR_TABLE,
     DISCOVERED_COUNT_ATTRIBUTE,
 )
+from lib.timestamp_utils import get_current_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,6 @@ class DynamoCursorStore:
             ExpressionAttributeValues={
                 ":cursor": {"S": cursor},
                 ":created": {"N": str(created_count)},
-                ":updated_at": {"S": datetime.now(UTC).isoformat()},
+                ":updated_at": {"S": get_current_timestamp()},
             },
         )

@@ -1,3 +1,5 @@
+"""Send discovered DIDs to the SQS queue the fetch workers read from."""
+
 import json
 import logging
 
@@ -19,7 +21,7 @@ def chunked(dids: list[str], size: int) -> list[list[str]]:
 
 
 class SqsQueue:
-    """The DID work queue. Sends only; consumers read it."""
+    """Publishes DIDs to the queue."""
 
     def __init__(self, client=None, queue_url: str | None = None, queue_name: str = QUEUE_NAME):
         self.client = client if client is not None else build_sqs_client()
