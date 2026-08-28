@@ -10,7 +10,6 @@ repo: https://github.com/METResearchGroup/lab_data_integrations_interface
 
 URL TO ACTUAL WEBSITE (for images): https://dudu-theman.github.io/stanleydu/engineering/2026/08/25/academia-social-media-data-platform.html
 
-
 Data collection can demand more time from an academic researcher than conducting the research itself. APIs exist, but academics are researchers, not software engineers. Academic researchers can spend weeks gathering data just to support a single point in an appendix, only to repeat the entire process for their next project. 
 
 In industry and large research institutions, specialized software engineering teams build complex data pipelines so analysts can access information instantly. Our goal is to bring that into academia.
@@ -55,8 +54,9 @@ In this blog, I'll be going over the first, and other blogs will dive into the l
 
 ## Gathering Live Data
 
-Our app forms a websocket connection to Bluesky's Jetstream, where we store rows in a buffer before flushing to object storage.
-A cursor keeps track of where we are, so reconnects know where we left off. 
+Bluesky is an app built on an open protocol, so every post, like, and follow is a signed record living lives on a Personal Data Server, and a relay crawls those servers and republishes everything as a public firehose.
+
+Our app forms a websocket connection to [Bluesky's Jetstream](https://bsky.network/docs/jetstream) (the binary-decoded version of the firehose), where we store rows in a buffer before flushing to object storage. A cursor keeps track of where we are, so reconnects know where we left off.
 
 ### Architecture Diagram
 
