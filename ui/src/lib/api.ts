@@ -1,66 +1,44 @@
-import { mockCreateSearchJob, mockGetJobStatus } from "@/lib/mockApi";
-import type {
-	CreateJobResponse,
-	CreateJobWireResponse,
-	JobStatusResponse,
-	JobStatusWireResponse,
-} from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
 
-function parseCreateJobResponse(
-	data: CreateJobWireResponse,
-): CreateJobResponse {
-	return {
-		jobId: data.job_id,
-		requestId: data.request_id,
-		status: data.status,
-		createdAt: data.created_at,
-		statusUrl: data.status_url,
-	};
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+async function errorMessage(response: Response): Promise<string> {
+	try {
+		const body = await response.json();
+		if (typeof body?.detail === "string") return body.detail;
+	} catch {
+		// Not JSON — fall through to the status line.
+	}
+	return `Request failed (${response.status}).`;
 }
 
-function parseJobStatusResponse(
-	data: JobStatusWireResponse,
-): JobStatusResponse {
-	return {
-		jobId: data.job_id,
-		status: data.status,
-		message: data.message,
-		createdAt: data.created_at,
-		updatedAt: data.updated_at,
-		result: data.result
-			? {
-					resultId: data.result.result_id,
-					rowCount: data.result.row_count,
-					sizeBytes: data.result.size_bytes,
-					format: data.result.format,
-					downloadUrl: data.result.download_url,
-					expiresAt: data.result.expires_at,
-				}
-			: undefined,
-		error: data.error,
-	};
-}
+/**
+ * Hands a natural-language query to the backend.
+ *
+ * The backend acknowledges with 202 and mails the results when the query
+ * finishes, so there is nothing to return and nothing to poll.
+ */
+export async function submitQuery(query: string): Promise<void> {
+	const supabase = createClient();
+	const {
+		data: { session },
+	} = await supabase.auth.getSession();
 
-export async function createSearchJob(
-	query: string,
-): Promise<CreateJobResponse> {
-	const data = await mockCreateSearchJob(query);
-	// TODO(real backend): replace the line above with
-	// const res = await fetch(`${BASE_URL}/search/jobs/`, {
-	// 	method: "POST",
-	// 	headers: { "Content-Type": "application/json" },
-	// 	body: JSON.stringify({ query }),
-	// });
-	// if (!res.ok) throw new Error(await res.text());
-	// const data: CreateJobWireResponse = await res.json();
-	return parseCreateJobResponse(data);
-}
+	if (!session) {
+		throw new Error("Your session has expired. Sign in again to run queries.");
+	}
 
-export async function getJobStatus(jobId: string): Promise<JobStatusResponse> {
-	const data = await mockGetJobStatus(jobId);
-	// TODO(real backend): replace the line above with
-	// const res = await fetch(`${BASE_URL}/search/jobs/${jobId}`);
-	// if (!res.ok) throw new Error(await res.text());
-	// const data: JobStatusWireResponse = await res.json();
-	return parseJobStatusResponse(data);
+	const response = await fetch(`${BASE_URL}/query`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			// backend/auth.py reads the email to mail results to off this token.
+			Authorization: `Bearer ${session.access_token}`,
+		},
+		// The endpoint declares Body(..., embed=False), so the body is the bare
+		// string — `{"query": ...}` would be rejected as unprocessable.
+		body: JSON.stringify(query),
+	});
+
+	if (!response.ok) throw new Error(await errorMessage(response));
 }

@@ -34,19 +34,19 @@ export default function QueryForm({ onSubmit, disabled }: QueryFormProps) {
 				onChange={(e) => setQuery(e.target.value)}
 				disabled={disabled}
 				rows={4}
-				placeholder="e.g. All posts liked by Stanley in the past two weeks"
+				placeholder="e.g. All posts (text only) from August 23rd"
 				className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
 			/>
 			<p className="text-xs text-zinc-400">
-				Large or ambiguous requests may be rejected or asked to be narrowed
-				before they run.
+				Results are emailed to you when the query finishes. Large or ambiguous
+				requests may come back asking to be narrowed.
 			</p>
 			{error && <p className="text-sm text-red-600">{error}</p>}
 			<RunButton
 				onClick={handleSubmit}
 				disabled={disabled}
-				label="Search"
-				pendingLabel="Searching..."
+				label="Send query"
+				pendingLabel="Sending..."
 			/>
 		</div>
 	);
