@@ -1,3 +1,5 @@
+"""DynamoDB store for backfill DIDs and their status lifecycle."""
+
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from zlib import crc32

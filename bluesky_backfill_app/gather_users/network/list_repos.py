@@ -1,3 +1,9 @@
+"""Paginated client for the relay's `com.atproto.sync.listRepos`.
+
+The relay mirrors every repo on the network, so walking `listRepos` cursor by
+cursor yields the DID of every active Bluesky account.
+"""
+
 import json
 import logging
 import time
