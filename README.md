@@ -2,67 +2,49 @@
 
 ## Summary
 
-A continuous ingestion pipeline for Bluesky. A single process holds a WebSocket connection to the Jetstream firehose, parses each commit into one of four record types (posts, likes, reposts, follows), buffers them in memory, and commits batches to **Apache Iceberg** tables in the Glue catalog on S3.
+A social data platform for academic researchers. It maintains a multi-TB dataset of Bluesky data and puts it behind a natural-language query interface, so getting a dataset for a paper takes minutes rather than the weeks that collecting it yourself would.
 
-The resume cursor lives in DynamoDB, so a restart picks up where the last flush left off. Scheduled Athena `OPTIMIZE`/`VACUUM` jobs compact the tables and expire old snapshots.
+Our project is split into 3 major components:
 
-## Architecture
+1. **Bluesky ingestion jetstream** — collects live data off the Bluesky firehose into Iceberg tables, plus the scheduled job that keeps those tables healthy.
+2. **Bluesky backfill app** — historical backfills of Bluesky users.
+3. **Agentic Querying engine** - an agentic query engine that turns a researcher's question into a dataset they can download.
 
-```mermaid
-flowchart LR
-  JS[Jetstream WebSocket<br/>wantedCollections filter]
+## bluesky_ingestion_jetstream
 
-  subgraph Process["bluesky_ingestion_jetstream — one process"]
-    Net[network — connect,<br/>reconnect w/ backoff]
-    Parse[event_parsing — commit → row]
-    Buf[storage — 4 buffers<br/>flush @ 2GB or 30min]
-    Sink[sinks — IcebergSink<br/>retry, then dead-letter]
-    Cur[storage — CursorTracker]
-    Net --> Parse --> Buf --> Sink
-    Net -.-> Cur
-  end
+### Ingestion
 
-  subgraph AWS
-    Glue[Glue catalog<br/>bluesky_raw]
-    S3[(S3 — Iceberg tables<br/>posts / likes / reposts / follows<br/>partitioned by created_at_day)]
-    DL[(S3 — dead letter)]
-    DDB[(DynamoDB — resume cursor)]
-    Glue --- S3
-  end
-
-  subgraph Maintenance["Table maintenance"]
-    Sched[EventBridge Scheduler<br/>daily / weekly]
-    SFN[Step Functions]
-    Ath[Athena OPTIMIZE + VACUUM]
-    Sched --> SFN --> Ath
-  end
-
-  JS --> Net
-  Sink --> Glue
-  Sink -. on failure .-> DL
-  Cur -- after every flush --> DDB
-  DDB -- on restart --> Net
-  Ath --> S3
-  SFN -. failures .-> Alarm[CloudWatch alarm → SNS email]
-  Process -. OTel .-> Graf[Grafana Cloud<br/>metrics + logs]
-```
+![Bluesky ingestion architecture](docs/images/bluesky_ingestion_jetstream.png)
 
 **Flushing:** buffers are flushed together to Iceberg on S3 once the set hits 2GB or 30 minutes, whichever comes first. Each record type commits separately, and a batch that fails its retries is dead-lettered to S3.
 
 **Cursor checkpointing:** the cursor is written to DynamoDB after every flush, so it never gets ahead of a row that is not yet durable.
 
-**Iceberg maintenance:** cron jobs run `OPTIMIZE` daily (and unbounded weekly) to bin-pack small files, and `VACUUM` weekly to expire snapshots and delete what they orphan.
+### Table maintenance
 
-## Components
+![Bluesky table maintenance architecture](docs/images/bluesky_table_maintenance.png)
 
-| Component | Role |
+One state machine, one job per schedule. `OPTIMIZE` runs daily over the last few days (and unbounded weekly) to bin-pack small files, `dedup` weekly to delete duplicate rows the stream produced, and `VACUUM` weekly to expire snapshots and sweep what they orphan. Step Functions failures raise a CloudWatch alarm that emails through SNS.
+
+## backend/agentic_search
+
+```mermaid
+flowchart LR
+  Q[Natural-language query] --> V[validate]
+  V -- valid --> G[generate SQL] --> E[execute on Athena] --> M[Email results]
+  V -. invalid .-> M
+```
+
+**Validation before SQL:** one LLM call turns the question into a `QueryIntent` (record type, columns, date range). That intent is then checked in plain code — nonsense input, columns the table does not have, dates outside coverage. An invalid query stops there and never reaches Athena.
+
+**Async by design:** the endpoint acknowledges with `202` and hands the work to a background task, so a long Athena scan never blocks the request. Every outcome — results, validation issues, or an error — is mailed.
+
+## Repository map
+
+| Directory | Role |
 |-----------|------|
-| `bluesky_ingestion_jetstream/main.py` | Entry point: read loop + flush task, running until `SIGTERM` |
-| `bluesky_ingestion_jetstream/network` | Jetstream WebSocket, exponential-backoff reconnect, frame → `StreamEvent` |
-| `bluesky_ingestion_jetstream/event_parsing` | Commit → row per record type; drops rows missing required fields or with unusable `created_at` |
-| `bluesky_ingestion_jetstream/storage` | In-memory buffers, flush thresholds, resume-cursor tracking |
-| `bluesky_ingestion_jetstream/sinks` | `Sink` protocol + `IcebergSink` (retry → dead letter) |
-| `bluesky_ingestion_jetstream/schemas` | PyArrow schemas, one per record type |
-| `bluesky_ingestion_jetstream/aws` | Glue catalog, table bootstrap, DynamoDB cursor store, S3 dead letter, commit retry |
-| `bluesky_ingestion_jetstream/telemetry` | OTLP metrics/logs to Grafana Cloud + the ingestion dashboard |
-| `terraform/bluesky_ingestion_jetstream` | S3 bucket, Glue database, cursor table; Athena/Step Functions maintenance + alarm |
+| `bluesky_ingestion_jetstream` | The ingestion process: Jetstream WebSocket, commit parsing, in-memory buffers, Iceberg sink, cursor tracking, telemetry |
+| `backend/agentic_search` | The query engine: LangGraph app, intent extraction and validation, SQL generation, Athena execution, result mail |
+| `backend/routes` | FastAPI endpoints the UI calls |
+| `ui` | Next.js query console |
+| `terraform` | Infrastructure for both: S3 bucket, Glue database, cursor table, and the Athena/Step Functions maintenance job with its alarm |
