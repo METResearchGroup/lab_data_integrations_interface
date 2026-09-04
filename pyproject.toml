@@ -64,6 +64,12 @@ db-experiments = [
 preprocessing = [
     "langdetect>=1.0.9",
 ]
+llm-training = [
+    "torch>=2.2",
+    "transformers>=4.40",
+    "peft>=0.10",
+    "accelerate>=0.30",
+]
 
 [dependency-groups]
 dev = [
