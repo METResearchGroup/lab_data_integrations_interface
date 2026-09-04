@@ -10,7 +10,6 @@ import logging
 import typer
 from dotenv import load_dotenv
 
-from bluesky_backfill_app.aws.clients import build_dynamodb_client
 from bluesky_backfill_app.aws.constants import (
     DID_PARTITION_KEY,
     DID_TABLE,
@@ -27,6 +26,8 @@ from bluesky_backfill_app.gather_users.cursor_store import DynamoCursorStore
 from bluesky_backfill_app.gather_users.discovery.main import discover, new_run_id
 from bluesky_backfill_app.gather_users.enqueue.main import drain
 from bluesky_backfill_app.gather_users.storage.cursor import CursorTracker
+from lib.aws.clients import build_dynamodb_client
+from lib.aws.constants import AWS_REGION
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ def main(
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
     load_dotenv()
 
-    client = build_dynamodb_client()
+    client = build_dynamodb_client(AWS_REGION, None)
     if reset:
         clear_tables(client)
 

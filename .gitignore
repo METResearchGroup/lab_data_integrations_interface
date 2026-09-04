@@ -1,6 +1,7 @@
 *.venv
 *.env
 *__pycache__*
+.complexipy_cache/
 data/embeddings_cache.parquet
 experiments/database_experiments_2026_05_23/mock_data/*.parquet
 experiments/database_experiments_2026_05_23/sqlite_data/

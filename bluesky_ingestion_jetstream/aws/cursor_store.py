@@ -3,12 +3,10 @@
 import logging
 from datetime import UTC, datetime
 
-import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from bluesky_ingestion_jetstream.aws.constants import (
-    AWS_REGION,
     CURSOR_ATTRIBUTE,
     CURSOR_PARTITION_KEY,
     CURSOR_STREAM_ID,
@@ -17,29 +15,14 @@ from bluesky_ingestion_jetstream.aws.constants import (
     DYNAMODB_MAX_ATTEMPTS,
     DYNAMODB_READ_TIMEOUT_SECONDS,
 )
+from lib.aws.constants import AWS_REGION
+from lib.aws.dynamodb import DynamoDB
+from lib.aws.error_codes import CONDITIONAL_CHECK_FAILED, error_code
 
 logger = logging.getLogger(__name__)
 
-CONDITIONAL_CHECK_FAILED = "ConditionalCheckFailedException"
 
-
-def error_code(error: ClientError) -> str:
-    return error.response.get("Error", {}).get("Code", "")
-
-
-def build_dynamodb_client():
-    return boto3.client(
-        "dynamodb",
-        region_name=AWS_REGION,
-        config=Config(
-            retries={"max_attempts": DYNAMODB_MAX_ATTEMPTS, "mode": "standard"},
-            connect_timeout=DYNAMODB_CONNECT_TIMEOUT_SECONDS,
-            read_timeout=DYNAMODB_READ_TIMEOUT_SECONDS,
-        ),
-    )
-
-
-class DynamoCursorStore:
+class DynamoCursorStore(DynamoDB):
     """Reads the cursor once at startup and rewrites it after every flush."""
 
     def __init__(
@@ -48,8 +31,12 @@ class DynamoCursorStore:
         table: str = CURSOR_TABLE,
         stream_id: str = CURSOR_STREAM_ID,
     ) -> None:
-        self.client = client if client is not None else build_dynamodb_client()
-        self.table = table
+        config = Config(
+            retries={"max_attempts": DYNAMODB_MAX_ATTEMPTS, "mode": "standard"},
+            connect_timeout=DYNAMODB_CONNECT_TIMEOUT_SECONDS,
+            read_timeout=DYNAMODB_READ_TIMEOUT_SECONDS,
+        )
+        super().__init__(table=table, client=client, region=AWS_REGION, config=config)
         self.stream_id = stream_id
 
     @property

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from backend.agentic_search.aws.athena import Athena
-from backend.agentic_search.aws.s3 import S3
 from backend.agentic_search.query_execution.models import ExecutedQuery
 from backend.agentic_search.query_generation.models import GeneratedQuery
 from bluesky_ingestion_jetstream.aws.constants import GLUE_DATABASE
+from lib.aws.athena import Athena
+from lib.aws.s3 import S3
 
 # The only workgroup terraform/bluesky_ingestion_jetstream creates.
 WORKGROUP = "bluesky_raw_maintenance"

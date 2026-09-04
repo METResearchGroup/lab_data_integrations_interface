@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-09-04
+
+1. Jetstream ingestion, Bluesky backfill, and agentic search now share AWS region, client construction, DynamoDB and SQS bases, S3, and Athena from `lib/aws/` instead of keeping three near-copies. App-specific table and queue names stay in each package, and Glue, Iceberg, retry, and dead-letter helpers remain in Jetstream. [PR #198](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/198)
+
 ## 2026-08-27
 
 1. `/query` result emails now send over Gmail SMTP with an app password instead of Amazon SES, so results can be mailed to any address rather than only to identities verified in the SES sandbox. Sending is capped at Gmail's ~500 messages/day, which is well above current use. `SES_SENDER_EMAIL` is replaced by `GMAIL_SENDER_EMAIL` and `GMAIL_APP_PASSWORD`, and `SES_TEST_RECIPIENT` by `MAIL_TEST_RECIPIENT`.

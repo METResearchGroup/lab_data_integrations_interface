@@ -6,8 +6,6 @@ from functools import partial
 
 from langgraph.graph import END, START, StateGraph
 
-from backend.agentic_search.aws.athena import Athena
-from backend.agentic_search.aws.s3 import S3
 from backend.agentic_search.graph.nodes import (
     execute_node,
     generate_node,
@@ -15,6 +13,8 @@ from backend.agentic_search.graph.nodes import (
     validate_node,
 )
 from backend.agentic_search.graph.state import SearchState
+from lib.aws.athena import Athena
+from lib.aws.s3 import S3
 
 
 def build_graph(athena: Athena, s3: S3):
