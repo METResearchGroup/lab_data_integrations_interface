@@ -1,6 +1,5 @@
 import logging
 
-from bluesky_backfill_app.aws.clients import build_dynamodb_client
 from bluesky_backfill_app.aws.constants import UPDATED_AT_ATTRIBUTE
 from bluesky_backfill_app.gather_users.constants import (
     CURSOR_ATTRIBUTE,
@@ -9,12 +8,14 @@ from bluesky_backfill_app.gather_users.constants import (
     CURSOR_TABLE,
     DISCOVERED_COUNT_ATTRIBUTE,
 )
+from lib.aws.constants import AWS_REGION
+from lib.aws.dynamodb import DynamoDBStore
 from lib.timestamp_utils import get_current_timestamp
 
 logger = logging.getLogger(__name__)
 
 
-class DynamoCursorStore:
+class DynamoCursorStore(DynamoDBStore):
     """The listRepos cursor and running DID count, as a single item."""
 
     def __init__(
@@ -23,8 +24,7 @@ class DynamoCursorStore:
         table: str = CURSOR_TABLE,
         run_id: str = CURSOR_RUN_ID,
     ) -> None:
-        self.client = client if client is not None else build_dynamodb_client()
-        self.table = table
+        super().__init__(table=table, client=client, region=AWS_REGION, config=None)
         self.run_id = run_id
 
     @property

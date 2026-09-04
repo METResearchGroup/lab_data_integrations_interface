@@ -1,5 +1,3 @@
-AWS_REGION = "us-east-2"
-
 # One item per discovered repo. Created by Terraform.
 DID_TABLE = "bluesky_backfill_dids"
 DID_PARTITION_KEY = "did"
