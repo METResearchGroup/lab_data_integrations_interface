@@ -1,4 +1,4 @@
-"""Thin DynamoDB store base that owns a client and a table name."""
+"""Thin DynamoDB table base that owns a client and a table name."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from lib.aws.clients import build_dynamodb_client
 from lib.aws.constants import AWS_REGION
 
 
-class DynamoDBStore:
+class DynamoDB:
     """Holds a DynamoDB client and table name for a subclass to use."""
 
     def __init__(

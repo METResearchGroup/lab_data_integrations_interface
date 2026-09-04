@@ -4,8 +4,9 @@ import json
 import logging
 
 from bluesky_backfill_app.aws.constants import QUEUE_NAME
+from lib.aws.clients import build_sqs_client
 from lib.aws.constants import AWS_REGION
-from lib.aws.sqs import SQS_BATCH_SIZE, SqsQueueBase
+from lib.aws.sqs import SQS, SQS_BATCH_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +19,17 @@ def chunked(dids: list[str], size: int) -> list[list[str]]:
     return [dids[start : start + size] for start in range(0, len(dids), size)]
 
 
-class SqsQueue(SqsQueueBase):
+class SqsQueue(SQS):
     """Publishes DIDs to the queue."""
 
     def __init__(self, client=None, queue_url: str | None = None, queue_name: str = QUEUE_NAME):
+        client = client if client is not None else build_sqs_client(AWS_REGION, None)
+        resolved_url = queue_url or client.get_queue_url(QueueName=queue_name)["QueueUrl"]
         super().__init__(
-            client=client, queue_url=queue_url, queue_name=queue_name, region=AWS_REGION
+            queue_url=resolved_url,
+            queue_name=queue_name,
+            client=client,
+            region=AWS_REGION,
         )
 
     def send_batch(self, dids: list[str], run_id: str) -> list[str]:

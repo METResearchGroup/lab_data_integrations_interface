@@ -1,56 +1,35 @@
 from __future__ import annotations
 
-import pytest
-
-from lib.aws.sqs import SqsQueueBase
+from lib.aws.sqs import SQS
 
 
 class FakeSqsClient:
     def __init__(self) -> None:
-        self.get_queue_url_calls: list[str] = []
         self.send_calls: list[dict] = []
-
-    def get_queue_url(self, QueueName: str):  # noqa: N803
-        self.get_queue_url_calls.append(QueueName)
-        return {"QueueUrl": f"https://sqs.test/{QueueName}"}
 
     def send_message_batch(self, QueueUrl: str, Entries: list[dict]):  # noqa: N803
         self.send_calls.append({"QueueUrl": QueueUrl, "Entries": Entries})
         return {"Successful": [{"Id": "0"}], "Failed": []}
 
 
-class TestSqsQueueBaseInit:
-    """Tests for SqsQueueBase construction."""
+class TestSQSInit:
+    """Tests for SQS construction."""
 
-    def test_stores_an_explicit_queue_url(self):
+    def test_stores_queue_url_and_name(self):
         client = FakeSqsClient()
 
-        result = SqsQueueBase(client=client, queue_url="https://sqs.test/q")
+        result = SQS(queue_url="https://sqs.test/q", queue_name="q", client=client)
 
         assert result.queue_url == "https://sqs.test/q"
-        assert client.get_queue_url_calls == []
-
-    def test_resolves_queue_url_from_name(self):
-        client = FakeSqsClient()
-
-        result = SqsQueueBase(client=client, queue_name="my-queue")
-
-        assert result.queue_url == "https://sqs.test/my-queue"
-        assert client.get_queue_url_calls == ["my-queue"]
-
-    def test_raises_when_url_and_name_are_missing(self):
-        client = FakeSqsClient()
-
-        with pytest.raises(ValueError):
-            SqsQueueBase(client=client)
+        assert result.queue_name == "q"
 
 
 class TestSendMessageBatch:
-    """Tests for SqsQueueBase.send_message_batch."""
+    """Tests for SQS.send_message_batch."""
 
     def test_sends_entries_on_the_stored_url(self):
         client = FakeSqsClient()
-        queue = SqsQueueBase(client=client, queue_url="https://sqs.test/q")
+        queue = SQS(queue_url="https://sqs.test/q", queue_name="q", client=client)
         entries = [{"Id": "0", "MessageBody": "hello"}]
 
         result = queue.send_message_batch(entries)

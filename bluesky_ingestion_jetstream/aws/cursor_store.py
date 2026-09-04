@@ -15,14 +15,14 @@ from bluesky_ingestion_jetstream.aws.constants import (
     DYNAMODB_MAX_ATTEMPTS,
     DYNAMODB_READ_TIMEOUT_SECONDS,
 )
-from lib.aws.clients import CONDITIONAL_CHECK_FAILED, error_code
 from lib.aws.constants import AWS_REGION
-from lib.aws.dynamodb import DynamoDBStore
+from lib.aws.dynamodb import DynamoDB
+from lib.aws.error_codes import CONDITIONAL_CHECK_FAILED, error_code
 
 logger = logging.getLogger(__name__)
 
 
-class DynamoCursorStore(DynamoDBStore):
+class DynamoCursorStore(DynamoDB):
     """Reads the cursor once at startup and rewrites it after every flush."""
 
     def __init__(

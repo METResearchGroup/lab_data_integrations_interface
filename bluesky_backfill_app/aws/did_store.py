@@ -19,9 +19,9 @@ from bluesky_backfill_app.aws.constants import (
     UPDATED_AT_ATTRIBUTE,
     WRITE_CONCURRENCY,
 )
-from lib.aws.clients import CONDITIONAL_CHECK_FAILED, error_code
 from lib.aws.constants import AWS_REGION
-from lib.aws.dynamodb import DynamoDBStore
+from lib.aws.dynamodb import DynamoDB
+from lib.aws.error_codes import CONDITIONAL_CHECK_FAILED, error_code
 from lib.timestamp_utils import get_current_timestamp
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ def status_shard(did: str, status: str) -> str:
     return shard_key(status, crc32(did.encode()) % STATUS_SHARD_COUNT)
 
 
-class DynamoDidStore(DynamoDBStore):
+class DynamoDidStore(DynamoDB):
     def __init__(
         self,
         client=None,

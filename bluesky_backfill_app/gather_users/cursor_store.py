@@ -9,13 +9,13 @@ from bluesky_backfill_app.gather_users.constants import (
     DISCOVERED_COUNT_ATTRIBUTE,
 )
 from lib.aws.constants import AWS_REGION
-from lib.aws.dynamodb import DynamoDBStore
+from lib.aws.dynamodb import DynamoDB
 from lib.timestamp_utils import get_current_timestamp
 
 logger = logging.getLogger(__name__)
 
 
-class DynamoCursorStore(DynamoDBStore):
+class DynamoCursorStore(DynamoDB):
     """The listRepos cursor and running DID count, as a single item."""
 
     def __init__(

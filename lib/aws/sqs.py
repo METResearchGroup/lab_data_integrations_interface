@@ -1,4 +1,4 @@
-"""Shared SQS helper that owns a client and a queue URL."""
+"""Shared SQS helper that owns a client, queue URL, and queue name."""
 
 from __future__ import annotations
 
@@ -8,27 +8,19 @@ from lib.aws.constants import AWS_REGION
 SQS_BATCH_SIZE = 10
 
 
-class SqsQueueBase:
-    """Holds an SQS client and queue URL for a subclass to use."""
+class SQS:
+    """Holds an SQS client, queue URL, and queue name for a subclass to use."""
 
     def __init__(
         self,
+        queue_url: str,
+        queue_name: str,
         client=None,
-        queue_url: str | None = None,
-        queue_name: str | None = None,
         region: str = AWS_REGION,
     ) -> None:
-        """
-        Raises
-        ------
-        ValueError
-            If both ``queue_url`` and ``queue_name`` are omitted.
-        """
-
         self.client = client if client is not None else build_sqs_client(region, None)
-        if queue_url is None and queue_name is None:
-            raise ValueError("pass queue_url or queue_name")
-        self.queue_url = queue_url or self.client.get_queue_url(QueueName=queue_name)["QueueUrl"]
+        self.queue_url = queue_url
+        self.queue_name = queue_name
 
     def send_message_batch(self, entries: list[dict]) -> dict:
         """Send one SendMessageBatch request and return the client response."""

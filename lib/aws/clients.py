@@ -1,18 +1,9 @@
-"""Shared boto3 client construction and DynamoDB error-code lookup."""
+"""Shared boto3 client construction."""
 
 from __future__ import annotations
 
 import boto3
 from botocore.config import Config
-from botocore.exceptions import ClientError
-
-CONDITIONAL_CHECK_FAILED = "ConditionalCheckFailedException"
-
-
-def error_code(error: ClientError) -> str:
-    """Return the AWS error code string from a ClientError, or empty if absent."""
-
-    return error.response.get("Error", {}).get("Code", "")
 
 
 def build_client(service_name: str, region: str, config: Config | None):

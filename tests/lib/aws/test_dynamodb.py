@@ -2,20 +2,20 @@ from __future__ import annotations
 
 import pytest
 
-from lib.aws.dynamodb import DynamoDBStore
+from lib.aws.dynamodb import DynamoDB
 
 
 class FakeDynamoClient:
     pass
 
 
-class TestDynamoDBStore:
-    """Tests for DynamoDBStore construction."""
+class TestDynamoDB:
+    """Tests for DynamoDB construction."""
 
     def test_stores_injected_client_and_table(self):
         client = FakeDynamoClient()
 
-        result = DynamoDBStore(table="t", client=client)
+        result = DynamoDB(table="t", client=client)
 
         assert result.table == "t"
         assert result.client is client
@@ -30,7 +30,7 @@ class TestDynamoDBStore:
 
         monkeypatch.setattr("lib.aws.dynamodb.build_dynamodb_client", fake_build)
 
-        result = DynamoDBStore(table="t")
+        result = DynamoDB(table="t")
 
         assert result.client is built
         assert result.table == "t"
