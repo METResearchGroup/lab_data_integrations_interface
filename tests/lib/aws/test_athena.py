@@ -48,9 +48,7 @@ class TestRunQuery:
         ]
 
     def test_raises_runtime_error_when_failed(self, monkeypatch: pytest.MonkeyPatch):
-        client = FakeAthenaClient(
-            statuses=[{"State": "FAILED", "StateChangeReason": "boom"}]
-        )
+        client = FakeAthenaClient(statuses=[{"State": "FAILED", "StateChangeReason": "boom"}])
         athena = Athena(client=client)
         monkeypatch.setattr("lib.aws.athena.time.sleep", lambda _seconds: None)
 

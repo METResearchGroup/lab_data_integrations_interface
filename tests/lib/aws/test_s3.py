@@ -8,9 +8,7 @@ class FakeS3Client:
         self.calls: list[dict] = []
 
     def generate_presigned_url(self, ClientMethod, Params, ExpiresIn):  # noqa: N803
-        self.calls.append(
-            {"ClientMethod": ClientMethod, "Params": Params, "ExpiresIn": ExpiresIn}
-        )
+        self.calls.append({"ClientMethod": ClientMethod, "Params": Params, "ExpiresIn": ExpiresIn})
         return "https://signed.example/object"
 
 

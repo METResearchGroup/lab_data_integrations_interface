@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 import boto3
 from botocore.config import Config
+
+_boto3_client = cast(Any, boto3.client)
 
 
 def build_client(service_name: str, region: str, config: Config | None):
@@ -16,8 +20,8 @@ def build_client(service_name: str, region: str, config: Config | None):
     """
 
     if config is None:
-        return boto3.client(service_name, region_name=region)
-    return boto3.client(service_name, region_name=region, config=config)
+        return _boto3_client(service_name, region_name=region)
+    return _boto3_client(service_name, region_name=region, config=config)
 
 
 def build_dynamodb_client(region: str, config: Config | None):

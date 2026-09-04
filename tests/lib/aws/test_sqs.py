@@ -36,6 +36,4 @@ class TestSendMessageBatch:
         expected = {"Successful": [{"Id": "0"}], "Failed": []}
 
         assert result == expected
-        assert client.send_calls == [
-            {"QueueUrl": "https://sqs.test/q", "Entries": entries}
-        ]
+        assert client.send_calls == [{"QueueUrl": "https://sqs.test/q", "Entries": entries}]
