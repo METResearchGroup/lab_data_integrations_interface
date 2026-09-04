@@ -6,12 +6,12 @@ from typing import Any
 
 from langgraph.graph import END
 
-from backend.agentic_search.aws.athena import Athena
-from backend.agentic_search.aws.s3 import S3
 from backend.agentic_search.graph.state import SearchState
 from backend.agentic_search.query_execution.execute import execute_query
 from backend.agentic_search.query_generation.generate import generate_sql
 from backend.agentic_search.query_validation.orchestrator import validate_query
+from lib.aws.athena import Athena
+from lib.aws.s3 import S3
 
 # Nodes return only the fields they set; langgraph merges them onto the state.
 StateUpdate = dict[str, Any]

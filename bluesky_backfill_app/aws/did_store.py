@@ -6,11 +6,6 @@ from zlib import crc32
 
 from botocore.exceptions import ClientError
 
-from bluesky_backfill_app.aws.clients import (
-    CONDITIONAL_CHECK_FAILED,
-    build_dynamodb_client,
-    error_code,
-)
 from bluesky_backfill_app.aws.constants import (
     DID_PARTITION_KEY,
     DID_TABLE,
@@ -24,6 +19,9 @@ from bluesky_backfill_app.aws.constants import (
     UPDATED_AT_ATTRIBUTE,
     WRITE_CONCURRENCY,
 )
+from lib.aws.constants import AWS_REGION
+from lib.aws.dynamodb import DynamoDB
+from lib.aws.error_codes import CONDITIONAL_CHECK_FAILED, error_code
 from lib.timestamp_utils import get_current_timestamp
 
 logger = logging.getLogger(__name__)
@@ -40,15 +38,14 @@ def status_shard(did: str, status: str) -> str:
     return shard_key(status, crc32(did.encode()) % STATUS_SHARD_COUNT)
 
 
-class DynamoDidStore:
+class DynamoDidStore(DynamoDB):
     def __init__(
         self,
         client=None,
         table: str = DID_TABLE,
         concurrency: int = WRITE_CONCURRENCY,
     ) -> None:
-        self.client = client if client is not None else build_dynamodb_client()
-        self.table = table
+        super().__init__(table=table, client=client, region=AWS_REGION, config=None)
         self.concurrency = concurrency
 
     def put_new(self, did: str, run_id: str) -> bool:

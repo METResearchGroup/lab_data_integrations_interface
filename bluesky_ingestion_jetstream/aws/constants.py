@@ -1,8 +1,8 @@
 """AWS identifiers and Iceberg table configuration for this pipeline."""
 
 from bluesky_ingestion_jetstream.constants import RECORD_TYPES
+from lib.aws.constants import AWS_REGION as AWS_REGION
 
-AWS_REGION = "us-east-2"
 S3_BUCKET = "lab-data-integrations-interface"
 S3_PREFIX = "bluesky/raw"
 
