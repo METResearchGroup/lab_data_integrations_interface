@@ -6,6 +6,7 @@ Uses shared tooling while defining its own `transform_dataset` function.
 from datasets import Dataset
 import polars as pl
 
+from ai_ml.model_training.constants import S3_BUCKET
 from ai_ml.model_training.llm.models.is_news_or_opinion.prompt import SYSTEM_PROMPT
 from ai_ml.model_training.llm.shared.transform_to_chat_dataset import (
     download_parquet_training_set,
@@ -13,7 +14,6 @@ from ai_ml.model_training.llm.shared.transform_to_chat_dataset import (
     upload_dataset_to_s3
 )
 
-S3_BUCKET = "met-ml-training"
 S3_PREFIX = "mirrorview/create_feature_generation_training_sets_2026_09_04/is_news_or_opinion/"
 
 def transform_dataset(df: pl.DataFrame) -> Dataset:
