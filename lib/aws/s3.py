@@ -13,6 +13,17 @@ class S3:
         self.client = client if client is not None else build_s3_client(region, None)
 
     def generate_presigned_url(self, s3_uri: str, expires_in: int) -> str:
-        """Return a download URL for an s3://bucket/key URI."""
+        """Return a time-limited download URL for an s3://bucket/key object.
 
-        raise NotImplementedError
+        Parameters
+        ----------
+        expires_in
+            Lifetime of the URL in seconds.
+        """
+
+        bucket, _, key = s3_uri.removeprefix("s3://").partition("/")
+        return self.client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=expires_in,
+        )

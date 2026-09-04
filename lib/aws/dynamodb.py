@@ -18,5 +18,13 @@ class DynamoDBStore:
         region: str = AWS_REGION,
         config: Config | None = None,
     ) -> None:
+        """
+        Parameters
+        ----------
+        config
+            Retry and timeout settings for the default client. Ignored when
+            ``client`` is passed in.
+        """
+
         self.client = client if client is not None else build_dynamodb_client(region, config)
         self.table = table

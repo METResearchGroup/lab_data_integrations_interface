@@ -18,6 +18,13 @@ class SqsQueueBase:
         queue_name: str | None = None,
         region: str = AWS_REGION,
     ) -> None:
+        """
+        Raises
+        ------
+        ValueError
+            If both ``queue_url`` and ``queue_name`` are omitted.
+        """
+
         self.client = client if client is not None else build_sqs_client(region, None)
         if queue_url is None and queue_name is None:
             raise ValueError("pass queue_url or queue_name")
@@ -26,4 +33,4 @@ class SqsQueueBase:
     def send_message_batch(self, entries: list[dict]) -> dict:
         """Send one SendMessageBatch request and return the client response."""
 
-        raise NotImplementedError
+        return self.client.send_message_batch(QueueUrl=self.queue_url, Entries=entries)
