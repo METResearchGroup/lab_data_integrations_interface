@@ -17,11 +17,11 @@ from __future__ import annotations
 
 import urllib.request
 
-from backend.agentic_search.aws.athena import Athena
-from backend.agentic_search.aws.s3 import S3
 from backend.agentic_search.query_execution.execute import execute_query
 from backend.agentic_search.query_generation.models import GeneratedQuery
 from bluesky_ingestion_jetstream.constants import RecordType
+from lib.aws.athena import Athena
+from lib.aws.s3 import S3
 
 PREVIEW_ROWS = 5
 

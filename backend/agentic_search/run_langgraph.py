@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from backend.agentic_search.aws.athena import Athena
-from backend.agentic_search.aws.s3 import S3
 from backend.agentic_search.graph.graph import build_graph
 from backend.agentic_search.graph.state import SearchState
 from backend.agentic_search.query_execution.models import ExecutedQuery
 from backend.agentic_search.query_validation.models import ValidationResult
+from lib.aws.athena import Athena
+from lib.aws.s3 import S3
 
 
 def run_langgraph(query: str) -> tuple[ValidationResult, ExecutedQuery | None]:
