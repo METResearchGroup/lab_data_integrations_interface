@@ -1,0 +1,6 @@
+model: is_likely_spam
+description: A binary prompt-based classifier for whether an online post is likely spam or not.
+method: SFT
+peft_strategy: LoRA
+created_at_date: 2026-09-04
+created_by: mark

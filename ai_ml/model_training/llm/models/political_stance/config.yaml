@@ -1,0 +1,6 @@
+model: political_stance
+description: A multi-class prompt-based classifier for the political stance of text (left, right, neutral, or unclear).
+method: SFT
+peft_strategy: LoRA
+created_at_date: 2026-09-04
+created_by: mark

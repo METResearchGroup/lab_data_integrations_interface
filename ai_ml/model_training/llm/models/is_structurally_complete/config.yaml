@@ -1,0 +1,6 @@
+model: is_structurally_complete
+description: A binary prompt-based classifier for whether a social media post is structurally complete or cut off/thread fragment.
+method: SFT
+peft_strategy: LoRA
+created_at_date: 2026-09-04
+created_by: mark
