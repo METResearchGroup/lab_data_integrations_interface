@@ -22,7 +22,7 @@ load_dotenv()
 
 N_VALUES = [1, 10, 25, 50, 100]
 TOTAL_POSTS = 100
-EXAMPLES_PATH = Path("experimentation/posts.csv")
+EXAMPLES_PATH = Path("experiments/experimentation/posts.csv")
 RESULTS_DIR = Path("experiments/llm_upscaling_2026_05_18/results")
 
 
