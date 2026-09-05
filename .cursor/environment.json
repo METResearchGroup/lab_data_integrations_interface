@@ -1,0 +1,16 @@
+{
+  "name": "lab_data_integrations_interface",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "backend",
+      "command": "export PATH=\"$HOME/.local/bin:$PATH\" && uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000"
+    },
+    {
+      "name": "ui",
+      "command": "npm run dev --prefix ui"
+    }
+  ],
+  "ports": [8000, 3000]
+}
