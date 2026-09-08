@@ -28,11 +28,16 @@ Set **Site URL** to `https://<your-ui-domain>` (Vercel production).
 ### 2. Invite email template
 
 `https://supabase.com/dashboard/project/<project-ref>/auth/templates`
-(sidebar: Authentication → Emails) → **Invite user** tab. Link becomes:
+(sidebar: Authentication → Emails) → **Invite user** tab.
 
+The field is the email's HTML body. Edit only the `href` on the invite link,
+leave the rest:
+
+```html
+<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite">Accept the invite</a>
 ```
-{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite
-```
+
+`{{ }}` vars are literal — Supabase fills them at send time.
 
 Stock `{{ .ConfirmationURL }}` returns tokens in the URL fragment, which never
 reaches the server. Sessions are cookie-based, so it can't work.
