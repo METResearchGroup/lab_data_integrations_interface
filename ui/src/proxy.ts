@@ -2,23 +2,12 @@ import { supabaseEnv } from "@/lib/supabase/env";
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
+const PUBLIC_PATHS = ["/login", "/auth/confirm"];
+
 /**
- * Runs before every matched request (Next.js 16 renamed Middleware to Proxy).
- *
- * Two jobs:
- *
- * 1. Refresh the Supabase session. Server Components cannot write cookies, so
- *    without this the access token would expire mid-session and users would be
- *    silently logged out.
- * 2. Send signed-out visitors to /login before the page renders.
- *
- * The redirect here is an *optimistic* check — Next's docs are explicit that
- * proxy "should not be used as a full session management or authorization
- * solution". The authoritative check lives in app/(protected)/layout.tsx.
+ * Refreshes the Supabase session and redirects signed-out visitors to /login.
  */
 export async function proxy(request: NextRequest) {
-	// Reassigned in setAll: NextResponse.next() snapshots the request headers,
-	// so refreshed cookies only reach this request's render if it is rebuilt.
 	let response = NextResponse.next({ request });
 
 	const { url, key } = supabaseEnv();
@@ -37,8 +26,6 @@ export async function proxy(request: NextRequest) {
 					response.cookies.set(name, value, options);
 				}
 
-				// Cache-Control/Expires/Pragma from @supabase/ssr. Without these a
-				// CDN could cache one user's session cookie and serve it to another.
 				for (const [header, headerValue] of Object.entries(headers)) {
 					response.headers.set(header, headerValue);
 				}
@@ -46,17 +33,17 @@ export async function proxy(request: NextRequest) {
 		},
 	});
 
-	// Triggers the refresh. Do not remove, and do not swap for getSession(),
-	// which trusts the cookie contents without verifying them.
 	const {
 		data: { user },
 	} = await supabase.auth.getUser();
 
-	if (!user && !request.nextUrl.pathname.startsWith("/login")) {
+	const isPublic = PUBLIC_PATHS.some((path) =>
+		request.nextUrl.pathname.startsWith(path),
+	);
+
+	if (!user && !isPublic) {
 		const loginUrl = new URL("/login", request.url);
 
-		// Remember the destination so sign-in returns the user to it. Skipped for
-		// "/" since that is where login lands by default.
 		const destination = request.nextUrl.pathname + request.nextUrl.search;
 		if (destination !== "/") {
 			loginUrl.searchParams.set("next", destination);
@@ -70,10 +57,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
 	matcher: [
-		/*
-		 * Every path except static assets, which never need an auth check:
-		 * _next/static, _next/image, favicon.ico and common image extensions.
-		 */
 		"/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
 	],
 };
