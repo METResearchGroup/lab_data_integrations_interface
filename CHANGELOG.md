@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-09-09
+
+1. Added an experiment that exports Iceberg posts naming five 2026 Democratic candidates through Athena UNLOAD and writes merged Parquet plus metadata under `s3://lab-data-integrations-interface/experiments/client_request_2026_09_09/`. After each query it reprints a table of person, SQL, row count, and S3 path. The rows are name matches, not criticism labels. [PR #204](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/204)
+
 ## 2026-09-04
 
 1. Jetstream ingestion, Bluesky backfill, and agentic search now share AWS region, client construction, DynamoDB and SQS bases, S3, and Athena from `lib/aws/` instead of keeping three near-copies. App-specific table and queue names stay in each package, and Glue, Iceberg, retry, and dead-letter helpers remain in Jetstream. [PR #198](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/198)
