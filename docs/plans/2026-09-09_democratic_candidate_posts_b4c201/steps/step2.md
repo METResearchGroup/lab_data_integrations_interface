@@ -4,7 +4,7 @@ Write a pure function that turns one candidate record plus a run date into an At
 
 ## Scope
 
-- **Caller:** `experiments/democratic_candidate_posts_2026_09_09/export.py` (Step 3) and unit tests in this step.
+- **Caller:** `experiments/client_request_2026_09_09/export.py` (Step 3) and unit tests in this step.
 - **Task:** `build_unload_sql(candidate, *, run_date, s3_uri, smoke_limit)` returns the export SQL string.
 - **Out of scope:** Running the query, S3 download, compile, `main.py` behavior.
 
@@ -21,13 +21,13 @@ Write a pure function that turns one candidate record plus a run date into an At
 
 ### Allowed to change
 
-- `experiments/democratic_candidate_posts_2026_09_09/sql.py` (create)
-- `tests/experiments/democratic_candidate_posts_2026_09_09/test_sql.py` (create)
+- `experiments/client_request_2026_09_09/sql.py` (create)
+- `tests/experiments/client_request_2026_09_09/test_sql.py` (create)
 
 ### Forbidden to change
 
-- `experiments/democratic_candidate_posts_2026_09_09/constants.py` (read-only after Step 1)
-- `experiments/democratic_candidate_posts_2026_09_09/schemas.py`
+- `experiments/client_request_2026_09_09/constants.py` (read-only after Step 1)
+- `experiments/client_request_2026_09_09/schemas.py`
 - `backend/**`
 - `lib/aws/**`
 - `experiments/perspective_api_labeling_2026_08_11/**`
@@ -88,7 +88,7 @@ Reuse from Jetstream / the Perspective script, imported or defined once in `cons
 | Workgroup | `bluesky_raw_maintenance` |
 | S3 bucket | `lab-data-integrations-interface` |
 
-Step 2 only interpolates `s3_uri`. Step 3 builds `s3://lab-data-integrations-interface/athena-results/democratic-candidate-posts/<run_timestamp>/<candidate_id>/`.
+Step 2 only interpolates `s3_uri`. Step 3 builds `s3://lab-data-integrations-interface/experiments/client_request_2026_09_09/<run_timestamp>/unload/<candidate_id>/`.
 
 ## Implement-from-spec phases for this step
 
@@ -106,7 +106,7 @@ Signature and SQL clauses match the tables above. Body still a stub until tests 
 
 ### Phase 3. Test design (failing)
 
-In `tests/experiments/democratic_candidate_posts_2026_09_09/test_sql.py`:
+In `tests/experiments/client_request_2026_09_09/test_sql.py`:
 
 1. **Given** `cooper` and `run_date=date(2026, 9, 9)` **when** SQL is built **then** `WHERE` contains `created_at >= TIMESTAMP '2026-08-01 00:00:00'` and `created_at < TIMESTAMP '2026-09-10 00:00:00'`.
 2. **Given** `el_sayed` and the same run date **when** SQL is built **then** start timestamp is `2026-08-04 00:00:00`.
@@ -127,7 +127,7 @@ Implement `build_unload_sql` until the tests in this step pass. No boto3.
 ### Must pass before leaving this step
 
 ```bash
-uv run pytest tests/experiments/democratic_candidate_posts_2026_09_09/test_sql.py tests/experiments/democratic_candidate_posts_2026_09_09/test_contracts.py -q
+uv run pytest tests/experiments/client_request_2026_09_09/test_sql.py tests/experiments/client_request_2026_09_09/test_contracts.py -q
 ```
 
 Expected: all green.

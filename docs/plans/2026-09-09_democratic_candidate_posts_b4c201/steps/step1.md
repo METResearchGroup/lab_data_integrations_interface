@@ -4,8 +4,8 @@ Confirm the candidate table, name strings, query windows, and output columns bef
 
 ## Scope
 
-- **Caller:** `experiments/democratic_candidate_posts_2026_09_09/main.py` → `run()` (wired in Step 5). Tests in this step are the immediate caller.
-- **Task:** Constants, candidate records, output path layout, schema helpers, and failing contract tests.
+- **Caller:** `experiments/client_request_2026_09_09/main.py` → `run()` (wired in Step 5). Tests in this step are the immediate caller.
+- **Task:** Constants, candidate records, S3 prefix, output path layout, schema helpers, and failing contract tests.
 - **Out of scope:** SQL generation, Athena, S3 download, compile, README, gitignore.
 
 ## Files
@@ -22,12 +22,13 @@ Confirm the candidate table, name strings, query windows, and output columns bef
 
 ### Allowed to change
 
-- `experiments/democratic_candidate_posts_2026_09_09/__init__.py` (create, empty)
-- `experiments/democratic_candidate_posts_2026_09_09/constants.py` (create)
-- `experiments/democratic_candidate_posts_2026_09_09/schemas.py` (create)
-- `experiments/democratic_candidate_posts_2026_09_09/main.py` (create, thin stub `run()` / `if __name__ == "__main__"` only)
-- `tests/experiments/democratic_candidate_posts_2026_09_09/__init__.py` (create, empty)
-- `tests/experiments/democratic_candidate_posts_2026_09_09/test_contracts.py` (create)
+- `experiments/client_request_2026_09_09/__init__.py` (create, empty)
+- `experiments/client_request_2026_09_09/constants.py` (create)
+- `experiments/client_request_2026_09_09/schemas.py` (create)
+- `experiments/client_request_2026_09_09/report.py` (create, progress table types and formatter stubs)
+- `experiments/client_request_2026_09_09/main.py` (create, thin stub `run()` / `if __name__ == "__main__"` only)
+- `tests/experiments/client_request_2026_09_09/__init__.py` (create, empty)
+- `tests/experiments/client_request_2026_09_09/test_contracts.py` (create)
 
 ### Forbidden to change
 
@@ -88,17 +89,41 @@ Expected starts given `DATA_START_DATE == 2026-08-01`:
 5. `matched_candidate` (string, a `candidate_id` from the table)
 6. `matched_name_string` (string, the first `name_strings` entry that matched, in list order)
 
-### Output layout
+### S3 constants
 
-Under `experiments/democratic_candidate_posts_2026_09_09/data/<run_timestamp>/`:
+| Name | Value |
+|---|---|
+| `S3_BUCKET` | `lab-data-integrations-interface` |
+| `S3_PREFIX` | `experiments/client_request_2026_09_09` |
+
+Run root URI: `s3://lab-data-integrations-interface/experiments/client_request_2026_09_09/<run_timestamp>/`
+
+| Artifact | S3 key under the run root |
+|---|---|
+| Athena UNLOAD parts | `unload/<candidate_id>/` (keep after the run) |
+| Merged per-person Parquet | `<candidate_id>.parquet` |
+| Combined posts | `posts.parquet` |
+| Metadata | `metadata.json` |
+
+Local copies may also be written under `experiments/client_request_2026_09_09/data/<run_timestamp>/` for tests and operator inspection. S3 is the durable store. `run_timestamp` comes from `lib.timestamp_utils.get_current_timestamp()`.
+
+### Progress table columns (stdout)
+
+Exact header names, markdown table:
+
+| Person | Query | Total results | S3 path |
+|---|---|---|---|
+| display name | UNLOAD SQL that ran | merged row count | `s3://lab-data-integrations-interface/experiments/client_request_2026_09_09/<run_timestamp>/<candidate_id>.parquet` |
+
+### Output layout (local, mirrors S3)
+
+Under `experiments/client_request_2026_09_09/data/<run_timestamp>/`:
 
 | Artifact | Purpose |
 |---|---|
-| `metadata.json` | run timestamp, coverage floor, per-candidate windows, name strings, row counts, match-rule notes |
+| `metadata.json` | run timestamp, coverage floor, per-candidate windows, name strings, row counts, match-rule notes, S3 URIs |
 | `posts.parquet` | combined rows for all candidates |
-| `by_candidate/<candidate_id>.parquet` | per-candidate export after S3 merge (Step 3 writes these; schema same as combined plus no extra columns) |
-
-`run_timestamp` comes from `lib.timestamp_utils.get_current_timestamp()`.
+| `<candidate_id>.parquet` | per-candidate merged export |
 
 ### `metadata.json` required keys
 
@@ -109,7 +134,9 @@ Under `experiments/democratic_candidate_posts_2026_09_09/data/<run_timestamp>/`:
 - `coverage_start`: `"2026-08-01"`
 - `match_rule`: `"case_insensitive_substring_on_text"`
 - `is_criticism_filter`: `false`
-- `candidates`: list of objects, one per `candidate_id`, each with `candidate_id`, `display_name`, `primary_date`, `query_start`, `query_end`, `name_strings`, `row_count`
+- `s3_bucket`: `"lab-data-integrations-interface"`
+- `s3_prefix`: `"experiments/client_request_2026_09_09"`
+- `candidates`: list of objects, one per `candidate_id`, each with `candidate_id`, `display_name`, `primary_date`, `query_start`, `query_end`, `name_strings`, `row_count`, `s3_parquet_uri`
 
 ## Implement-from-spec phases for this step
 
@@ -118,12 +145,13 @@ Under `experiments/democratic_candidate_posts_2026_09_09/data/<run_timestamp>/`:
 Caller = `main.run` (wired in Step 5). File tree:
 
 ```text
-experiments/democratic_candidate_posts_2026_09_09/
+experiments/client_request_2026_09_09/
   __init__.py
   constants.py
   schemas.py
+  report.py
   main.py
-tests/experiments/democratic_candidate_posts_2026_09_09/
+tests/experiments/client_request_2026_09_09/
   __init__.py
   test_contracts.py
 ```
@@ -133,8 +161,10 @@ tests/experiments/democratic_candidate_posts_2026_09_09/
 Create modules so imports resolve. Stub:
 
 - `CANDIDATES` ordered tuple or list of candidate records
+- `S3_BUCKET`, `S3_PREFIX`
 - `query_start_date` / `query_end_date` raising `NotImplementedError` until Phase 4
 - `COMBINED_COLUMNS` ordered tuple
+- `format_progress_table` raising `NotImplementedError` until Phase 4
 - `main.run()` raising `NotImplementedError`
 
 ### Phase 2. Contracts
@@ -143,7 +173,7 @@ Lock `candidate_id` values, `name_strings`, primary dates, column order, and met
 
 ### Phase 3. Test design (failing)
 
-In `tests/experiments/democratic_candidate_posts_2026_09_09/test_contracts.py`:
+In `tests/experiments/client_request_2026_09_09/test_contracts.py`:
 
 1. **Given** the candidates module **when** imported **then** the five `candidate_id` values are exactly `el_sayed`, `talarico`, `becerra`, `cooper`, `ossoff` in that order.
 2. **Given** `cooper` **when** name strings are listed **then** the only string is `roy cooper`.
@@ -152,6 +182,8 @@ In `tests/experiments/democratic_candidate_posts_2026_09_09/test_contracts.py`:
 5. **Given** each primary date **when** `query_start_date` runs **then** starts match the expected-starts table.
 6. **Given** `DATA_START_DATE` **when** imported into the experiment **then** it is the same object/value as `bluesky_ingestion_jetstream.constants.DATA_START_DATE`.
 7. **Given** `COMBINED_COLUMNS` **when** listed **then** exact ordered names match the column contract.
+8. **Given** S3 constants **when** imported **then** bucket is `lab-data-integrations-interface` and prefix is `experiments/client_request_2026_09_09`.
+9. **Given** progress table headers **when** formatted from zero rows **then** the header line is `| Person | Query | Total results | S3 path |`.
 
 ### Phase 4 and 5
 
@@ -162,7 +194,7 @@ Implement constants and the two date helpers until contract tests are green. No 
 ### Must pass before leaving this step
 
 ```bash
-uv run pytest tests/experiments/democratic_candidate_posts_2026_09_09/test_contracts.py -q
+uv run pytest tests/experiments/client_request_2026_09_09/test_contracts.py -q
 ```
 
 Expected: all contract tests pass after helpers are filled; import errors mean scaffold incomplete.

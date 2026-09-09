@@ -1,19 +1,19 @@
-# Step 5: Wire the entrypoint, README, and live smoke checklist
+# Step 5: Wire the entrypoint, progress table, README, and live smoke checklist
 
-Connect the candidate list, per-candidate export, and compile. Add a README, gitignore the generated `data/` tree, and add a fully mocked end-to-end test. A live Athena smoke is a manual checklist, not a pytest case.
+Connect the candidate list, per-candidate export, compile, and the progress table. Add a README, gitignore the generated `data/` tree, and add a fully mocked end-to-end test. A live Athena smoke is a manual checklist, not a pytest case.
 
 ## Scope
 
-- **Caller:** `experiments/democratic_candidate_posts_2026_09_09/main.py` → `run()` and `if __name__ == "__main__"`.
-- **Task:** Orchestration, CLI flags, README, gitignore, mocked e2e, live smoke instructions.
+- **Caller:** `experiments/client_request_2026_09_09/main.py` `run()` and `if __name__ == "__main__"`.
+- **Task:** Orchestration, CLI flags, progress table after each query, README, gitignore, mocked e2e, live smoke instructions.
 - **Out of scope:** Changing the query UI, Jetstream, or `data_platform`. Classifying criticisms.
 
 ## Files
 
 ### Inspect
 
-- `experiments/democratic_candidate_posts_2026_09_09/export.py`
-- `experiments/democratic_candidate_posts_2026_09_09/compile.py`
+- `experiments/client_request_2026_09_09/export.py`
+- `experiments/client_request_2026_09_09/compile.py`
 - `experiments/aoc_getrepo_derived_stats_2026_08_11/main.py` (entrypoint docstring run command)
 - `experiments/perspective_api_labeling_2026_08_11/README.md` (operator-facing run instructions)
 - `.gitignore` (existing experiment `data/` ignore rules)
@@ -23,10 +23,10 @@ Connect the candidate list, per-candidate export, and compile. Add a README, git
 
 ### Allowed to change
 
-- `experiments/democratic_candidate_posts_2026_09_09/main.py` (implement `run()`)
-- `experiments/democratic_candidate_posts_2026_09_09/README.md` (create)
-- `.gitignore` (add `experiments/democratic_candidate_posts_2026_09_09/data/`)
-- `tests/experiments/democratic_candidate_posts_2026_09_09/test_main.py` (create)
+- `experiments/client_request_2026_09_09/main.py` (implement `run()`)
+- `experiments/client_request_2026_09_09/README.md` (create)
+- `.gitignore` (add `experiments/client_request_2026_09_09/data/`)
+- `tests/experiments/client_request_2026_09_09/test_main.py` (create)
 
 ### Forbidden to change
 
@@ -41,10 +41,10 @@ Connect the candidate list, per-candidate export, and compile. Add a README, git
 ### CLI
 
 ```bash
-PYTHONPATH=. uv run python experiments/democratic_candidate_posts_2026_09_09/main.py
-PYTHONPATH=. uv run python experiments/democratic_candidate_posts_2026_09_09/main.py --smoke
-PYTHONPATH=. uv run python experiments/democratic_candidate_posts_2026_09_09/main.py --candidate cooper
-PYTHONPATH=. uv run python experiments/democratic_candidate_posts_2026_09_09/main.py --smoke --candidate el_sayed
+PYTHONPATH=. uv run python experiments/client_request_2026_09_09/main.py
+PYTHONPATH=. uv run python experiments/client_request_2026_09_09/main.py --smoke
+PYTHONPATH=. uv run python experiments/client_request_2026_09_09/main.py --candidate cooper
+PYTHONPATH=. uv run python experiments/client_request_2026_09_09/main.py --smoke --candidate el_sayed
 ```
 
 | Flag | Meaning |
@@ -55,17 +55,28 @@ PYTHONPATH=. uv run python experiments/democratic_candidate_posts_2026_09_09/mai
 
 `--candidate` value must be one of the five `candidate_id` values or the process exits with code 2 and a message that lists the valid ids.
 
+### Progress table
+
+After each `export_candidate` returns, append a row and print `format_progress_table(rows)` to stdout. Reprint the full table of finished candidates, not only the newest row.
+
+Columns in this order:
+
+1. Person: `display_name`
+2. Query: `sql` (the UNLOAD SQL, whitespace collapsed to single spaces)
+3. Total results: `row_count`
+4. S3 path: `s3_parquet_uri`
+
 ### `run()` behavior
 
 1. `run_timestamp = get_current_timestamp()`.
 2. `run_date = datetime.now(UTC).date()`.
-3. `output_dir = Path("experiments/democratic_candidate_posts_2026_09_09/data") / run_timestamp` (resolve relative to repo root; do not depend on cwd remaining the repo root beyond the documented run command).
+3. `output_dir = Path("experiments/client_request_2026_09_09/data") / run_timestamp` (resolve relative to repo root; do not depend on cwd remaining the repo root beyond the documented run command).
 4. Select candidates (all, or the one `--candidate`).
 5. `athena = Athena()` unless a test injects one.
 6. Create a boto3 S3 client for `us-east-2` unless injected.
-7. For each selected candidate, `export_candidate(...)`. Print `<candidate_id>: <row_count> rows`.
+7. For each selected candidate, `export_candidate(...)`. Append a progress row. Print the markdown table.
 8. `compile_outputs(...)`.
-9. Print the combined path and `total_rows`.
+9. Print the combined S3 URIs and `total_rows`.
 
 If one candidate export raises, do not compile. Let the exception propagate (no partial `posts.parquet`). Tests pin that compile is not called when the second of two exports raises.
 
@@ -75,7 +86,8 @@ If one candidate export raises, do not compile. Let the exception propagate (no 
 - The 2026-08-01 coverage floor, and the fact that four primaries are earlier than 2026-08-01
 - The four commands above
 - Required AWS credentials for `us-east-2`, Glue database `bluesky_raw`, workgroup `bluesky_raw_maintenance`
-- Output paths `data/<run_timestamp>/posts.parquet` and `metadata.json`
+- S3 bucket `lab-data-integrations-interface` and prefix `experiments/client_request_2026_09_09`
+- Output paths `s3://lab-data-integrations-interface/experiments/client_request_2026_09_09/<run_timestamp>/posts.parquet` and `metadata.json`
 
 ## Implement-from-spec phases for this step
 
@@ -93,13 +105,14 @@ CLI flags and metadata-on-subset behavior match the table. No new export SQL.
 
 ### Phase 3. Test design (failing)
 
-In `tests/experiments/democratic_candidate_posts_2026_09_09/test_main.py`:
+In `tests/experiments/client_request_2026_09_09/test_main.py`:
 
 1. **Given** fakes that write five one-row Parquet files **when** `run()` executes with injected Athena and S3 **then** `posts.parquet` exists and `metadata.json` has five candidates whose `row_count` values sum to `total_rows`.
 2. **Given** `--candidate cooper` **when** `run()` executes **then** `export_candidate` is called once and metadata `candidates` has one entry with `candidate_id == "cooper"`.
 3. **Given** `--smoke` **when** `run()` executes **then** every `export_candidate` call received `smoke_limit=100`.
 4. **Given** `--candidate nope` **when** the CLI parses **then** exit code 2.
 5. **Given** the second candidate export raising `RuntimeError` **when** `run()` executes **then** `compile_outputs` is not called and no `posts.parquet` is written.
+6. **Given** two successful exports **when** `run()` executes **then** stdout contains two markdown tables (one after each query) whose headers are `| Person | Query | Total results | S3 path |`, and the second table has two data rows.
 
 ### Phase 4 and 5
 
@@ -110,14 +123,14 @@ Implement `run()` and argparse. Add README and gitignore. Tests green without AW
 ### Must pass before leaving this step
 
 ```bash
-uv run pytest tests/experiments/democratic_candidate_posts_2026_09_09/ -q
-uv run ruff check experiments/democratic_candidate_posts_2026_09_09/ tests/experiments/democratic_candidate_posts_2026_09_09/
+uv run pytest tests/experiments/client_request_2026_09_09/ -q
+uv run ruff check experiments/client_request_2026_09_09/ tests/experiments/client_request_2026_09_09/
 ```
 
 Expected: pytest all green; ruff exits 0.
 
 ```bash
-rg "experiments/democratic_candidate_posts_2026_09_09/data/" .gitignore
+rg "experiments/client_request_2026_09_09/data/" .gitignore
 ```
 
 Expected: the ignore path is present.
@@ -127,15 +140,15 @@ Expected: the ignore path is present.
 Requires AWS credentials that can query `bluesky_raw.posts` in workgroup `bluesky_raw_maintenance`, same as `python -m backend.agentic_search.query_execution.smoke_tests.check_query_execution`.
 
 ```bash
-PYTHONPATH=. uv run python experiments/democratic_candidate_posts_2026_09_09/main.py --smoke --candidate el_sayed
+PYTHONPATH=. uv run python experiments/client_request_2026_09_09/main.py --smoke --candidate el_sayed
 ```
 
-Expected stdout includes `el_sayed:` and a row count. A zero count is allowed if the 100-row smoke export has no name match. `data/<timestamp>/posts.parquet` exists. `metadata.json` has `is_criticism_filter: false` and El-Sayed `query_start` `"2026-08-04"`.
+Expected stdout includes a markdown table with Person `Abdul El-Sayed`, a Query cell containing `UNLOAD`, a Total results integer, and an S3 path under `s3://lab-data-integrations-interface/experiments/client_request_2026_09_09/`. A zero count is allowed if the 100-row smoke export has no name match. `metadata.json` has `is_criticism_filter: false` and El-Sayed `query_start` `"2026-08-04"`.
 
 Full five-candidate run is operator work after merge, not a pytest gate:
 
 ```bash
-PYTHONPATH=. uv run python experiments/democratic_candidate_posts_2026_09_09/main.py
+PYTHONPATH=. uv run python experiments/client_request_2026_09_09/main.py
 ```
 
 ### Must fail / must not happen
