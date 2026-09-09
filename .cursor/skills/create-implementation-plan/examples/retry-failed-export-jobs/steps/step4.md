@@ -3,7 +3,7 @@
 ## Scope
 
 - **Caller:** End-to-end proof via pytest (and optional local curl) against job store + retry worker + existing export worker fakes—not a new production entrypoint.
-- **Slice:** Lock the four behaviors from the plan: success after one failure; backoff gating; exhaustion → dead letter with last error; over-cap never requeued; poll returns `dead_letter`.
+- **Task:** Lock the four behaviors from the plan: success after one failure; backoff gating; exhaustion → dead letter with last error; over-cap never requeued; poll returns `dead_letter`.
 - **Out of scope:** Load/performance testing; multi-format exports; admin UI; changing defaults from Step 2.
 
 ## Files to inspect
@@ -26,7 +26,7 @@
 
 ## Required scenarios
 
-Write given/when/then tests first if any gap remains after Step 3; then flesh until green.
+Write given/when/then tests first if any gap remains after Step 3; then implement until green.
 
 1. **Happy retry:** Job fails once (`attempt_count` under max, `next_retry_at` due) → `run_once` → `pending` + queue message → simulated export worker success → `completed` with download URL fields as today.
 2. **Backoff gating:** Failed job with `next_retry_at` in the future → `run_once` publishes nothing and leaves status `failed`.
