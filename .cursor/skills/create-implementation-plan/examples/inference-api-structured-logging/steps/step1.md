@@ -1,11 +1,11 @@
 # Step 1: Define request-id and JSON log contracts
 
-Freeze contracts before behavior. Scaffold modules and write failing tests that encode the decisions in [../plan.md](../plan.md). Do not implement middleware or change error responses yet.
+Confirm contracts before behavior. Scaffold modules and write failing tests that encode the decisions in [../plan.md](../plan.md). Do not implement middleware or change error responses yet.
 
 ## Scope
 
 - **Caller (for later steps):** ASGI middleware registered from `inference-api/app/main.py` that wraps every HTTP request.
-- **This slice:** Types, constants, pure helpers (resolve id, serialize log events), and failing tests for those contracts.
+- **This task:** Types, constants, pure helpers (resolve id, serialize log events), and failing tests for those contracts.
 - **Out of scope:** Middleware wiring, error-body attachment, changing `POST /v1/infer`, metrics/tracing vendors.
 
 ## Files
@@ -20,7 +20,7 @@ Freeze contracts before behavior. Scaffold modules and write failing tests that 
 
 ### Allowed to change
 
-- `inference-api/app/request_context.py` — **create** (constants, id resolution helper, log-event builders; stub bodies OK if signatures are frozen)
+- `inference-api/app/request_context.py` — **create** (constants, id resolution helper, log-event builders; stub bodies OK if signatures are confirmed)
 - `inference-api/app/logging_setup.py` — add JSON formatter / logger name for access events only if needed for imports to resolve; no runtime switch-over required yet
 - `inference-api/tests/test_request_context.py` — **create** (contract tests; must fail until Step 2+)
 
@@ -32,7 +32,7 @@ Freeze contracts before behavior. Scaffold modules and write failing tests that 
 - `inference-api/app/main.py` (no middleware registration yet)
 - Dependency manifests except if a stdlib-only approach needs no new packages (prefer stdlib `logging` + `json`; do not add OpenTelemetry, structlog, or Datadog SDKs)
 
-## Contracts to freeze
+## Contracts to confirm
 
 ### Request id
 
@@ -74,7 +74,7 @@ Existing error JSON gains key `request_id` (string). Do not rename existing keys
 
 ## Implement-from-spec phases for this step
 
-### Phase 0 — Scope
+### Phase 1 — Scope
 
 Confirm caller = middleware in `main.py` (wired in Step 2). File tree:
 
@@ -83,7 +83,7 @@ inference-api/app/request_context.py
 inference-api/tests/test_request_context.py
 ```
 
-### Phase 1 — Scaffold
+### Phase 2 — Scaffold
 
 Create `request_context.py` with imports resolving from the test module. Stub:
 
@@ -94,11 +94,11 @@ Create `request_context.py` with imports resolving from the test module. Stub:
 
 Bodies may raise `NotImplementedError`.
 
-### Phase 2 — Contracts
+### Phase 3 — Contracts
 
 Lock signatures and constants to the tables above. Stop if anything contradicts plan decisions.
 
-### Phase 3 — Test design (failing)
+### Phase 4 — Test design (failing)
 
 Pseudocode → real tests in `test_request_context.py`:
 
@@ -108,15 +108,15 @@ Pseudocode → real tests in `test_request_context.py`:
 4. **Given** start builder inputs **when** build start **then** dict has exact keys/literals for `event`, `request_id`, `method`, `path`.
 5. **Given** end builder inputs **when** build end **then** dict has exact keys including `status_code` and `latency_ms`.
 
-### Phase 4–5
+### Phase 5–6
 
-Do **not** flesh middleware behavior in this step. Optional: implement the pure helpers so contract tests go green—allowed only for `resolve_request_id` and event builders. Middleware remains unwired.
+Do **not** implement middleware behavior in this step. Optional: implement the pure helpers so contract tests go green—allowed only for `resolve_request_id` and event builders. Middleware remains unwired.
 
 ## Pass / fail
 
 ### Must pass before leaving this step
 
-- [ ] `request_context.py` exists with frozen constants and public helper signatures matching the tables.
+- [ ] `request_context.py` exists with agreed-upon constants and public helper signatures matching the tables.
 - [ ] `pytest inference-api/tests/test_request_context.py -q` runs; contract tests for resolve + event shape either fail for `NotImplementedError` / wrong result **or** pass if pure helpers were implemented.
 - [ ] No middleware registered in `main.py`.
 - [ ] No new observability vendor packages in dependencies.
@@ -140,4 +140,4 @@ Expected (helpers implemented): all tests in `test_request_context.py` green; ex
 
 ## Done when
 
-Contracts and tests encode header rules, log fields, skip paths, and the error-body key name. Ready for Step 2 to implement middleware against these seams.
+Contracts and tests encode header rules, log fields, skip paths, and the error-body key name. Ready for Step 2 to implement middleware against these boundaries.
