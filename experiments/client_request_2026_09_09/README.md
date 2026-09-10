@@ -37,3 +37,5 @@ The full compiled file from the 2026-09-10 run is also in git:
 - `experiments/client_request_2026_09_09/outputs/2026_09_10-02:22:55/posts.parquet`
 
 `posts.parquet` columns are `uri`, `did`, `text`, `created_at`, `matched_candidate`, `matched_name_string`, and `url`. `url` is `https://bsky.app/profile/{did}/post/{rkey}` interpolated from the AT-URI. It does not resolve a handle.
+
+Becerra name strings are `xavier becerra`, `xavier beccera`, and `becerra`. The CASE / WHEN chain lists the full-name forms first, so a post that contains `xavier becerra` is tagged with that string rather than the surname.

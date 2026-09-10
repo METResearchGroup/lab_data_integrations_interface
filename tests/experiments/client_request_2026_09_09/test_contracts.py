@@ -68,18 +68,17 @@ class TestCandidates:
         # Assert
         assert result == expected
 
-    def test_becerra_includes_misspelling_and_omits_bare_surname(self):
-        """Becerra includes the Beccera misspelling and no bare surname."""
+    def test_becerra_includes_misspelling_and_bare_surname(self):
+        """Becerra includes the given name, Beccera misspelling, and surname."""
         # Arrange
         becerra = candidate_by_id("becerra")
+        expected = ("xavier becerra", "xavier beccera", "becerra")
 
         # Act
         result = becerra.name_strings
 
         # Assert
-        assert "xavier becerra" in result
-        assert "xavier beccera" in result
-        assert "becerra" not in result
+        assert result == expected
 
     def test_el_sayed_includes_hyphen_spacing_and_closed_variants(self):
         """El-Sayed name strings include hyphen, space, and closed forms."""

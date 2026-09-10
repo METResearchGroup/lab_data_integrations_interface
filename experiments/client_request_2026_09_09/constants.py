@@ -64,7 +64,7 @@ EL_SAYED_NAME_STRINGS = (
     "elsayed",
 )
 TALARICO_NAME_STRINGS = ("james talarico", "talarico")
-BECERRA_NAME_STRINGS = ("xavier becerra", "xavier beccera")
+BECERRA_NAME_STRINGS = ("xavier becerra", "xavier beccera", "becerra")
 COOPER_NAME_STRINGS = ("roy cooper",)
 OSSOFF_NAME_STRINGS = ("jon ossoff", "jonathan ossoff", "ossoff")
 

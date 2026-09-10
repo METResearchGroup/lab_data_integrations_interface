@@ -103,18 +103,17 @@ class TestBuildUnloadSql:
         # Assert
         assert set(expected_needles) <= needles
 
-    def test_becerra_like_patterns_include_misspelling(self):
-        """Becerra patterns include the given name plus Beccera misspelling."""
+    def test_becerra_like_patterns_include_misspelling_and_surname(self):
+        """Becerra patterns include given name, Beccera misspelling, and surname."""
         # Arrange
-        expected_needles = {"xavier becerra", "xavier beccera"}
+        expected_needles = ["xavier becerra", "xavier beccera", "becerra"]
 
         # Act
         result = _build("becerra")
-        needles = set(_like_needles(result))
+        needles = _unique_like_needles(result)
 
         # Assert
-        assert expected_needles <= needles
-        assert "|| 'becerra' ||" not in result
+        assert needles == expected_needles
 
     def test_smoke_limit_appends_limit_100(self):
         """An integer smoke_limit adds LIMIT 100 to the inner select."""
