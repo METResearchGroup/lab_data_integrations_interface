@@ -2,7 +2,7 @@
 
 ## 2026-09-10
 
-1. Added an HTML explorer for the five-candidate Iceberg name-match export: filter by person, search post text, and scroll `created_at`, match string, text, AT-URI, and DID. The page is deployed on Vercel and reads gzipped JSON from the experiment S3 prefix. [PR #204](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/204)
+1. Added an HTML explorer for the five-candidate Iceberg name-match export: filter by person, search post text, and scroll `created_at`, match string, text, AT-URI, and DID. Gzipped JSON ships with the page for local use. The Vercel host loads the same objects through a same-origin S3 proxy. [PR #204](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/204)
 
 ## 2026-09-09
 

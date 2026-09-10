@@ -211,6 +211,15 @@ main {
   color: var(--accent);
 }
 
+.ids .field {
+  display: inline-block;
+  min-width: 4.6rem;
+  color: var(--ink);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.64rem;
+}
+
 .empty {
   padding: 2rem 1rem;
   color: var(--muted);

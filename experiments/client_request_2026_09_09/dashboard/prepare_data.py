@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import gzip
 import json
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import boto3
@@ -27,7 +26,6 @@ from experiments.client_request_2026_09_09.constants import (
 from lib.aws.constants import AWS_REGION
 
 RUN_TIMESTAMP = "2026_09_10-02:22:55"
-PRESIGN_EXPIRES_SECONDS = 7 * 24 * 60 * 60
 DASHBOARD_DIR = Path(__file__).resolve().parent
 LOCAL_PARQUET_DIR = DASHBOARD_DIR.parent / "data" / RUN_TIMESTAMP
 LOCAL_JSON_DIR = DASHBOARD_DIR / "data"
@@ -108,14 +106,13 @@ def ensure_get_cors(s3_client) -> None:
     )
 
 
-def _config_js(sources: list[dict], expires_at: str) -> str:
+def _config_js(sources: list[dict]) -> str:
     body = json.dumps(
         {
             "runTimestamp": RUN_TIMESTAMP,
             "postsParquet": s3_object_uri(
                 f"{S3_PREFIX}/{RUN_TIMESTAMP}/posts.parquet"
             ),
-            "presignExpiresAt": expires_at,
             "candidates": sources,
         },
         indent=JSON_INDENT,
@@ -124,13 +121,10 @@ def _config_js(sources: list[dict], expires_at: str) -> str:
 
 
 def main() -> None:
-    """Write local gzip JSON, upload it, and emit config.js with presigned URLs."""
+    """Write local gzip JSON, upload it, and emit config.js with relative URLs."""
 
     s3_client = boto3.client("s3", region_name=AWS_REGION)
     ensure_get_cors(s3_client)
-    expires_at = (
-        datetime.now(UTC) + timedelta(seconds=PRESIGN_EXPIRES_SECONDS)
-    ).isoformat()
     sources: list[dict] = []
     LOCAL_JSON_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -147,19 +141,12 @@ def main() -> None:
             object_key,
             ExtraArgs={"ContentType": "application/gzip"},
         )
-        url = s3_client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": S3_BUCKET, "Key": object_key},
-            ExpiresIn=PRESIGN_EXPIRES_SECONDS,
-        )
         sources.append(
             {
                 "candidateId": candidate.candidate_id,
                 "displayName": candidate.display_name,
                 "rowCount": len(rows),
-                "url": url,
-                "s3Uri": s3_object_uri(object_key),
-                "uncompressedBytes": uncompressed,
+                "url": f"data/{gzip_name}",
             }
         )
         print(
@@ -167,7 +154,7 @@ def main() -> None:
             f"{uncompressed} json bytes -> s3://{S3_BUCKET}/{object_key}"
         )
 
-    CONFIG_PATH.write_text(_config_js(sources, expires_at), encoding=UTF8_ENCODING)
+    CONFIG_PATH.write_text(_config_js(sources), encoding=UTF8_ENCODING)
     print(f"wrote {CONFIG_PATH}")
 
 

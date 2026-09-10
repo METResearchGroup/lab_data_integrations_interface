@@ -10,5 +10,11 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/posts.js": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  }
 }

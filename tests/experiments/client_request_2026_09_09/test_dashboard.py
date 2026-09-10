@@ -1,11 +1,14 @@
 """Tests for dashboard data serialization and bsky.app URL construction."""
 
 from datetime import datetime
+from pathlib import Path
 
 from experiments.client_request_2026_09_09.dashboard.prepare_data import (
     bsky_post_url,
     serialize_row,
 )
+
+DASHBOARD_DIR = Path("experiments/client_request_2026_09_09/dashboard")
 
 
 class TestBskyPostUrl:
@@ -60,3 +63,18 @@ class TestSerializeRow:
         assert result["matched_candidate"] == "cooper"
         assert result["matched_name_string"] == "roy cooper"
         assert result["bsky_url"] == "https://bsky.app/profile/did:plc:abc/post/xyz"
+
+
+class TestDashboardConfig:
+    """Tests for the committed explorer config."""
+
+    def test_urls_are_relative_gzip_paths(self):
+        """config.js must not embed AWS credentials or presigned query strings."""
+        # Arrange
+        text = (DASHBOARD_DIR / "config.js").read_text(encoding="utf-8")
+
+        # Act / Assert
+        assert "X-Amz-" not in text
+        assert "AWS_ACCESS_KEY_ID" not in text
+        assert '"url": "data/el_sayed.json.gz"' in text
+        assert '"url": "data/cooper.json.gz"' in text

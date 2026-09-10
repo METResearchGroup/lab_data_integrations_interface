@@ -6,11 +6,9 @@ The file is a name match, not a criticism-coded sample.
 
 ## Data
 
-The explorer reads gzipped JSON uploaded next to the experiment Parquet files:
+`config.js` points at gzipped JSON under `data/<candidate_id>.json.gz`. Those files are committed so a static local server can load them. `prepare_data.py` rebuilds them from the local Parquet export and uploads a copy to S3.
 
-`s3://lab-data-integrations-interface/experiments/client_request_2026_09_09/<run_timestamp>/dashboard/<candidate_id>.json.gz`
-
-`config.js` holds seven-day presigned GET URLs for those objects. It is generated and gitignored. Copy `config.example.js` to `config.js` only for layout work; a live session needs `prepare_data.py`. Rebuild it before a review session if the URLs have expired.
+The Vercel host does not ship the gzip files. It loads them through `/api/posts?candidate=<id>`, which signs a GET of the matching S3 object.
 
 ## Prepare
 

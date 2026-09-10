@@ -19,8 +19,6 @@ experiments/dynamodb_rates_2026_08_11/data/
 
 # Democratic candidate Iceberg post-export experiment outputs
 experiments/client_request_2026_09_09/data/
-experiments/client_request_2026_09_09/dashboard/data/
-experiments/client_request_2026_09_09/dashboard/config.js
 
 # Backfill shape experiment landing zone
 experiments/backfill_shape_2026_08_13/landing_zone/

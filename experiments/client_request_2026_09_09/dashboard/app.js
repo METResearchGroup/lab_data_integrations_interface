@@ -32,17 +32,45 @@ function formatWhen(value) {
   });
 }
 
-async function loadGzipJson(url) {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to load posts (${response.status})`);
+function dataUrls(candidateId) {
+  const meta = candidateMeta(candidateId);
+  const relative = meta.url;
+  const proxy = `/api/posts?candidate=${encodeURIComponent(candidateId)}`;
+  if (/\.vercel\.app$/.test(window.location.hostname)) {
+    return [proxy, relative];
   }
-  const buffer = await response.arrayBuffer();
-  const stream = new Response(buffer).body.pipeThrough(
-    new DecompressionStream("gzip"),
-  );
-  const text = await new Response(stream).text();
-  return JSON.parse(text);
+  return [relative];
+}
+
+async function parsePostsPayload(buffer) {
+  try {
+    const stream = new Response(buffer).body.pipeThrough(
+      new DecompressionStream("gzip"),
+    );
+    const text = await new Response(stream).text();
+    return JSON.parse(text);
+  } catch (_gzipError) {
+    const text = new TextDecoder().decode(buffer);
+    return JSON.parse(text);
+  }
+}
+
+async function loadGzipJson(urls) {
+  let lastError = new Error("Failed to load posts");
+  for (const url of urls) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        lastError = new Error(`Failed to load posts (${response.status})`);
+        continue;
+      }
+      const buffer = await response.arrayBuffer();
+      return await parsePostsPayload(buffer);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+  }
+  throw lastError;
 }
 
 async function rowsForCandidate(candidateId) {
@@ -55,8 +83,7 @@ async function rowsForCandidate(candidateId) {
   if (cache.has(candidateId)) {
     return cache.get(candidateId);
   }
-  const meta = candidateMeta(candidateId);
-  const rows = await loadGzipJson(meta.url);
+  const rows = await loadGzipJson(dataUrls(candidateId));
   cache.set(candidateId, rows);
   return rows;
 }
@@ -93,24 +120,51 @@ function renderFilters() {
   }
 }
 
+function idRow(label, value, href) {
+  const wrap = document.createElement("div");
+  const lab = document.createElement("span");
+  lab.className = "field";
+  lab.textContent = label;
+  wrap.append(lab, " ");
+  if (href) {
+    const link = document.createElement("a");
+    link.href = href;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = value;
+    wrap.append(link);
+  } else {
+    wrap.append(value);
+  }
+  return wrap;
+}
+
 function postCard(row) {
   const item = document.createElement("li");
   item.className = "post";
   item.dataset.candidate = row.matched_candidate;
-  const uriLink = row.bsky_url
-    ? `<a href="${row.bsky_url}" target="_blank" rel="noreferrer">${row.uri}</a>`
-    : row.uri;
-  item.innerHTML = `
-    <div class="when">${formatWhen(row.created_at)}</div>
-    <div><span class="badge">${row.matched_name_string}</span></div>
-    <p class="text"></p>
-    <div class="ids">
-      <div>${uriLink}</div>
-      <div>${row.did}</div>
-      <div>${row.matched_candidate}</div>
-    </div>
-  `;
-  item.querySelector(".text").textContent = row.text;
+
+  const when = document.createElement("div");
+  when.className = "when";
+  when.textContent = formatWhen(row.created_at);
+
+  const match = document.createElement("div");
+  const badge = document.createElement("span");
+  badge.className = "badge";
+  badge.textContent = row.matched_name_string;
+  match.append(badge);
+
+  const text = document.createElement("p");
+  text.className = "text";
+  text.textContent = row.text;
+
+  const ids = document.createElement("div");
+  ids.className = "ids";
+  ids.append(idRow("uri", row.uri, row.bsky_url));
+  ids.append(idRow("did", row.did));
+  ids.append(idRow("candidate", row.matched_candidate));
+
+  item.append(when, match, text, ids);
   return item;
 }
 
