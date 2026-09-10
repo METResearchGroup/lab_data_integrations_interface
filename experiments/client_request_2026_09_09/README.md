@@ -31,3 +31,7 @@ A run writes these objects under the timestamped prefix:
 - `s3://lab-data-integrations-interface/experiments/client_request_2026_09_09/<run_timestamp>/metadata.json`
 
 Per-candidate merged files are `<candidate_id>.parquet` under the same prefix. Athena UNLOAD parts stay under `unload/<candidate_id>/` and are not deleted after a successful export. Local copies land in `experiments/client_request_2026_09_09/data/<run_timestamp>/`.
+
+The full compiled file from the 2026-09-10 run is also in git:
+
+- `experiments/client_request_2026_09_09/outputs/2026_09_10-02:22:55/posts.parquet`
