@@ -32,9 +32,9 @@ A run writes these objects under the timestamped prefix:
 
 Per-candidate merged files are `<candidate_id>.parquet` under the same prefix. Athena UNLOAD parts stay under `unload/<candidate_id>/` and are not deleted after a successful export. Local copies land in `experiments/client_request_2026_09_09/data/<run_timestamp>/`.
 
-The full compiled file from the 2026-09-10 run is also in git:
+The full compiled file from the 2026-09-10 run, including the Becerra surname query, is also in git:
 
-- `experiments/client_request_2026_09_09/outputs/2026_09_10-02:22:55/posts.parquet`
+- `experiments/client_request_2026_09_09/outputs/2026_09_10-15:22:35/posts.parquet`
 
 `posts.parquet` columns are `uri`, `did`, `text`, `created_at`, `matched_candidate`, `matched_name_string`, and `url`. `url` is `https://bsky.app/profile/{did}/post/{rkey}` interpolated from the AT-URI. It does not resolve a handle.
 

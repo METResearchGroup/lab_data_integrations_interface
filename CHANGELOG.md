@@ -2,10 +2,10 @@
 
 ## 2026-09-10
 
-1. Added the surname `becerra` to the Xavier Becerra name-match query, re-exported that person, and rebuilt `posts.parquet` and explorer JSON. [PR #204](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/204)
+1. Added the surname `becerra` to the Xavier Becerra name-match query. A re-export in the same 2026-08-01 to 2026-09-10 window raised Becerra from 399 to 1,326 rows and the combined file from 70,859 to 71,786. [PR #204](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/204)
 2. Added a `url` column to compiled `posts.parquet`: `https://bsky.app/profile/{did}/post/{rkey}` interpolated from each AT-URI, with no handle lookup. [PR #204](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/204)
-2. Tracked the compiled 70,859-row `posts.parquet` from the 2026-09-10 Iceberg name-match run under `experiments/client_request_2026_09_09/outputs/`. [PR #204](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/204)
-2. Added an HTML explorer for the five-candidate Iceberg name-match export: filter by person, search post text, and scroll `created_at`, match string, text, AT-URI, and DID. Gzipped JSON ships with the page for local use. The Vercel host loads the same objects through a same-origin S3 proxy. [PR #204](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/204)
+3. Tracked the compiled Iceberg name-match `posts.parquet` under `experiments/client_request_2026_09_09/outputs/`. [PR #204](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/204)
+4. Added an HTML explorer for the five-candidate Iceberg name-match export: filter by person, search post text, and scroll `created_at`, match string, text, AT-URI, and DID. Gzipped JSON ships with the page for local use. The Vercel host loads the same objects through a same-origin S3 proxy. [PR #204](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/204)
 
 ## 2026-09-09
 

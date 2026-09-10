@@ -1,6 +1,6 @@
 window.DASHBOARD_CONFIG = {
-  "runTimestamp": "2026_09_10-02:22:55",
-  "postsParquet": "s3://lab-data-integrations-interface/experiments/client_request_2026_09_09/2026_09_10-02:22:55/posts.parquet",
+  "runTimestamp": "2026_09_10-15:22:35",
+  "postsParquet": "s3://lab-data-integrations-interface/experiments/client_request_2026_09_09/2026_09_10-15:22:35/posts.parquet",
   "candidates": [
     {
       "candidateId": "el_sayed",
@@ -17,7 +17,7 @@ window.DASHBOARD_CONFIG = {
     {
       "candidateId": "becerra",
       "displayName": "Xavier Becerra",
-      "rowCount": 399,
+      "rowCount": 1326,
       "url": "data/becerra.json.gz"
     },
     {

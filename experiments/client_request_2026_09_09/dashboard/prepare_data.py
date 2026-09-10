@@ -26,7 +26,7 @@ from experiments.client_request_2026_09_09.constants import (
 from experiments.client_request_2026_09_09.urls import bsky_post_url
 from lib.aws.constants import AWS_REGION
 
-RUN_TIMESTAMP = "2026_09_10-02:22:55"
+RUN_TIMESTAMP = "2026_09_10-15:22:35"
 DASHBOARD_DIR = Path(__file__).resolve().parent
 LOCAL_PARQUET_DIR = DASHBOARD_DIR.parent / "data" / RUN_TIMESTAMP
 LOCAL_JSON_DIR = DASHBOARD_DIR / "data"
