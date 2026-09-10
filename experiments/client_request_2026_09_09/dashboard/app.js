@@ -13,6 +13,7 @@ let activeCandidateId = "el_sayed";
 let query = "";
 let visibleCount = 0;
 let filteredRows = [];
+let loadGeneration = 0;
 
 function candidateMeta(candidateId) {
   return config.candidates.find((item) => item.candidateId === candidateId);
@@ -183,14 +184,21 @@ function appendPage() {
 }
 
 async function refresh() {
+  const generation = ++loadGeneration;
   statusEl.textContent = "Loading posts…";
   feedEl.replaceChildren();
   visibleCount = 0;
   try {
     const rows = await rowsForCandidate(activeCandidateId);
+    if (generation !== loadGeneration) {
+      return;
+    }
     filteredRows = applyFilters(rows);
     appendPage();
   } catch (error) {
+    if (generation !== loadGeneration) {
+      return;
+    }
     statusEl.textContent = error instanceof Error ? error.message : String(error);
   }
 }
