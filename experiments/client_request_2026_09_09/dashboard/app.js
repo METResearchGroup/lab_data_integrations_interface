@@ -188,6 +188,7 @@ async function refresh() {
   statusEl.textContent = "Loading posts…";
   feedEl.replaceChildren();
   visibleCount = 0;
+  filteredRows = [];
   try {
     const rows = await rowsForCandidate(activeCandidateId);
     if (generation !== loadGeneration) {
