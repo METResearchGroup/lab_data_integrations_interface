@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-09-10
+
+1. Added an HTML explorer for the five-candidate Iceberg name-match export: filter by person, search post text, and scroll `created_at`, match string, text, AT-URI, and DID. The page is deployed on Vercel and reads gzipped JSON from the experiment S3 prefix. [PR #204](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/204)
+
 ## 2026-09-09
 
 1. Added an experiment that exports Iceberg posts naming five 2026 Democratic candidates through Athena UNLOAD and writes merged Parquet plus metadata under `s3://lab-data-integrations-interface/experiments/client_request_2026_09_09/`. After each query it reprints a table of person, SQL, row count, and S3 path. The rows are name matches, not criticism labels. [PR #204](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/204)
