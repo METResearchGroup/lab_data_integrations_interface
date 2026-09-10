@@ -1,0 +1,241 @@
+:root {
+  --ink: #1a1814;
+  --muted: #5c574e;
+  --paper: #f4efe6;
+  --card: #fffdf8;
+  --line: #d9d0c1;
+  --accent: #214c3a;
+  --accent-2: #3d6e55;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman",
+    serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  min-height: 100vh;
+}
+
+.masthead {
+  padding: 2rem 1.5rem 1.25rem;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.eyebrow {
+  margin: 0;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: var(--accent);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+h1 {
+  margin: 0.35rem 0 0.5rem;
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+.lede {
+  margin: 0;
+  max-width: 40rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.controls {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--paper) 92%, white);
+  border-bottom: 1px solid var(--line);
+  padding: 0.85rem 1.5rem 1rem;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.filter {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 0.4rem 0.8rem;
+  font: inherit;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+
+.filter[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #f4efe6;
+}
+
+.filter .count {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.78rem;
+  opacity: 0.8;
+  margin-left: 0.3rem;
+}
+
+.search {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-width: 72rem;
+  margin: 0.75rem auto 0;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.search input {
+  font: inherit;
+  font-size: 1rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--card);
+  color: var(--ink);
+}
+
+.status {
+  max-width: 72rem;
+  margin: 0.6rem auto 0;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem 4rem;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: 9rem 8rem 1fr 16rem;
+  gap: 1rem;
+  padding: 0.4rem 1rem;
+  color: var(--muted);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.post {
+  display: grid;
+  grid-template-columns: 9rem 8rem 1fr 16rem;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent-2);
+  border-radius: 0.35rem;
+}
+
+.post[data-candidate="el_sayed"] {
+  border-left-color: #1f6f8b;
+}
+.post[data-candidate="talarico"] {
+  border-left-color: #2f4d9a;
+}
+.post[data-candidate="becerra"] {
+  border-left-color: #a15c12;
+}
+.post[data-candidate="cooper"] {
+  border-left-color: #8b2e2e;
+}
+.post[data-candidate="ossoff"] {
+  border-left-color: #5a3d7a;
+}
+
+.when {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.badge {
+  display: inline-block;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.78rem;
+  background: #ece6d8;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.25rem;
+}
+
+.text {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.4;
+  font-size: 1.02rem;
+}
+
+.ids {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.ids a {
+  color: var(--accent);
+}
+
+.ids .field {
+  display: inline-block;
+  min-width: 4.6rem;
+  color: var(--ink);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.64rem;
+}
+
+.empty {
+  padding: 2rem 1rem;
+  color: var(--muted);
+}
+
+.sentinel {
+  height: 2px;
+}
+
+@media (max-width: 900px) {
+  .columns {
+    display: none;
+  }
+
+  .post {
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+  }
+}

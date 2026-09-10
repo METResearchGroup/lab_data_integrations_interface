@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Candidate post explorer</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <p class="eyebrow">Issue 201 · bluesky_raw.posts</p>
+      <h1>Candidate post explorer</h1>
+      <p class="lede">
+        Posts whose text contains an approved name string for five 2026
+        Democratic candidates. These are name matches, not posts labeled as
+        criticisms.
+      </p>
+    </header>
+
+    <section class="controls" aria-label="Filters">
+      <div class="filters" id="candidate-filters"></div>
+      <label class="search">
+        <span>Filter text</span>
+        <input
+          id="text-filter"
+          type="search"
+          placeholder="Search post text"
+          autocomplete="off"
+        />
+      </label>
+      <p class="status" id="status" aria-live="polite"></p>
+    </section>
+
+    <main>
+      <div class="columns" aria-hidden="true">
+        <span>When</span>
+        <span>Match</span>
+        <span>Post</span>
+        <span>Identifiers</span>
+      </div>
+      <ol id="feed" class="feed"></ol>
+      <p id="empty" class="empty" hidden>No posts match this filter.</p>
+      <div id="sentinel" class="sentinel"></div>
+    </main>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
