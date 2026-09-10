@@ -4,9 +4,9 @@ from datetime import datetime
 from pathlib import Path
 
 from experiments.client_request_2026_09_09.dashboard.prepare_data import (
-    bsky_post_url,
     serialize_row,
 )
+from experiments.client_request_2026_09_09.urls import bsky_post_url
 
 DASHBOARD_DIR = Path("experiments/client_request_2026_09_09/dashboard")
 
@@ -32,6 +32,14 @@ class TestBskyPostUrl:
 
         # Act
         result = bsky_post_url(uri)
+
+        # Assert
+        assert result is None
+
+    def test_rejects_missing_uri(self):
+        """A missing AT-URI does not get a post URL."""
+        # Arrange / Act
+        result = bsky_post_url(None)
 
         # Assert
         assert result is None
@@ -63,6 +71,26 @@ class TestSerializeRow:
         assert result["matched_candidate"] == "cooper"
         assert result["matched_name_string"] == "roy cooper"
         assert result["bsky_url"] == "https://bsky.app/profile/did:plc:abc/post/xyz"
+
+
+    def test_prefers_parquet_url_when_present(self):
+        """serialize_row uses a url column when the Parquet row already has one."""
+        # Arrange
+        row = {
+            "uri": "at://did:plc:abc/app.bsky.feed.post/xyz",
+            "did": "did:plc:abc",
+            "text": "roy cooper news",
+            "created_at": datetime(2026, 8, 15, 12, 0, 0),
+            "matched_candidate": "cooper",
+            "matched_name_string": "roy cooper",
+            "url": "https://bsky.app/profile/did:plc:abc/post/xyz",
+        }
+
+        # Act
+        result = serialize_row(row)
+
+        # Assert
+        assert result["bsky_url"] == row["url"]
 
 
 class TestDashboardConfig:

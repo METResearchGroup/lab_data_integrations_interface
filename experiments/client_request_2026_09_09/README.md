@@ -35,3 +35,5 @@ Per-candidate merged files are `<candidate_id>.parquet` under the same prefix. A
 The full compiled file from the 2026-09-10 run is also in git:
 
 - `experiments/client_request_2026_09_09/outputs/2026_09_10-02:22:55/posts.parquet`
+
+`posts.parquet` columns are `uri`, `did`, `text`, `created_at`, `matched_candidate`, `matched_name_string`, and `url`. `url` is `https://bsky.app/profile/{did}/post/{rkey}` interpolated from the AT-URI. It does not resolve a handle.

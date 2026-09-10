@@ -3,6 +3,8 @@
 from datetime import date
 from pathlib import Path
 
+import pyarrow.parquet as pq
+
 from experiments.client_request_2026_09_09.constants import (
     GLUE_DATABASE,
     S3_BUCKET,
@@ -10,6 +12,7 @@ from experiments.client_request_2026_09_09.constants import (
     WORKGROUP,
 )
 from experiments.client_request_2026_09_09.export import export_candidate
+from experiments.client_request_2026_09_09.schemas import ATHENA_COLUMNS
 from tests.experiments.client_request_2026_09_09.conftest import (
     DEFAULT_RUN_TIMESTAMP,
     FakeAthena,
@@ -146,6 +149,9 @@ class TestExportCandidate:
         # Assert
         assert result.row_count == 0
         assert result.parquet_path.is_file()
+        table = pq.read_table(result.parquet_path)
+        assert table.num_rows == 0
+        assert table.column_names == list(ATHENA_COLUMNS)
         expected_key = f"{S3_PREFIX}/{DEFAULT_RUN_TIMESTAMP}/cooper.parquet"
         assert expected_key in {key for _, _, key in s3_client.uploads}
 

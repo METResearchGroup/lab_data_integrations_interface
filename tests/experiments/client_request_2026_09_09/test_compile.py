@@ -124,6 +124,34 @@ class TestCompileOutputs:
         # Assert
         assert table.column_names == expected
 
+    def test_url_is_interpolated_from_at_uri(self, tmp_path):
+        """posts.parquet url is the DID-form bsky.app link for each AT-URI."""
+        # Arrange
+        exports = _write_five_exports(tmp_path)
+        expected = "https://bsky.app/profile/did:plc:shared/post/1"
+
+        # Act
+        result = compile_outputs(
+            DEFAULT_RUN_TIMESTAMP,
+            RUN_DATE,
+            tmp_path / "compiled",
+            exports,
+            FakeS3Client(),
+        )
+        table = pq.read_table(result.posts_path)
+        shared_urls = [
+            url
+            for uri, url in zip(
+                table.column("uri").to_pylist(),
+                table.column("url").to_pylist(),
+                strict=True,
+            )
+            if uri == SHARED_URI
+        ]
+
+        # Assert
+        assert shared_urls == [expected, expected]
+
     def test_metadata_row_counts_and_total_rows(self, tmp_path):
         """Metadata uses export row_counts 1,0,2,0,1 and total_rows is 4."""
         # Arrange

@@ -21,8 +21,8 @@ from experiments.client_request_2026_09_09.s3_export import (
     merge_parquet_files,
 )
 from experiments.client_request_2026_09_09.schemas import (
-    empty_combined_table,
-    write_combined_parquet,
+    empty_export_table,
+    write_export_parquet,
 )
 from experiments.client_request_2026_09_09.sql import build_unload_sql
 from lib.aws.athena import Athena
@@ -55,7 +55,7 @@ def _write_merged_or_empty_parquet(
             Path(tmp_dir),
         )
         if not downloaded:
-            write_combined_parquet(parquet_path, empty_combined_table())
+            write_export_parquet(parquet_path, empty_export_table())
             return 0
         return merge_parquet_files(downloaded, parquet_path)
 
@@ -72,7 +72,7 @@ def export_candidate(
     """UNLOAD, merge, and upload one candidate's Parquet file.
 
     A successful query that produces no S3 parts writes an empty Parquet file
-    with the combined schema, uploads it, and returns ``row_count`` 0. Athena
+    with the Athena column set, uploads it, and returns ``row_count`` 0. Athena
     ``RuntimeError`` is not caught.
 
     Parameters

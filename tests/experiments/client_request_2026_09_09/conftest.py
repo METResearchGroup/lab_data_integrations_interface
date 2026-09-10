@@ -15,7 +15,7 @@ from experiments.client_request_2026_09_09.constants import (
     Candidate,
     unload_object_prefix,
 )
-from experiments.client_request_2026_09_09.schemas import COLUMN_CREATED_AT, COMBINED_SCHEMA
+from experiments.client_request_2026_09_09.schemas import ATHENA_SCHEMA, COLUMN_CREATED_AT
 
 DEFAULT_RUN_TIMESTAMP = "2026_09_09-12:00:00"
 UNLOAD_PART_FILENAME = "part-00000.parquet"
@@ -76,7 +76,7 @@ def write_combined_rows(path: Path, rows: list[dict]) -> Path:
     """Write ``rows`` as a tiny combined-schema Parquet file."""
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    table = pa.Table.from_pylist(rows, schema=COMBINED_SCHEMA)
+    table = pa.Table.from_pylist(rows, schema=ATHENA_SCHEMA)
     pq.write_table(table, path, compression=PARQUET_FILE_COMPRESSION)
     return path
 

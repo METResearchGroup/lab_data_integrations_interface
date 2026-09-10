@@ -37,6 +37,7 @@ EXPECTED_COMBINED_COLUMNS = (
     "created_at",
     "matched_candidate",
     "matched_name_string",
+    "url",
 )
 PROGRESS_TABLE_HEADER = "| Person | Query | Total results | S3 path |"
 

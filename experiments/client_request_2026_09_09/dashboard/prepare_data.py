@@ -23,6 +23,7 @@ from experiments.client_request_2026_09_09.constants import (
     UTF8_ENCODING,
     s3_object_uri,
 )
+from experiments.client_request_2026_09_09.urls import bsky_post_url
 from lib.aws.constants import AWS_REGION
 
 RUN_TIMESTAMP = "2026_09_10-02:22:55"
@@ -31,24 +32,7 @@ LOCAL_PARQUET_DIR = DASHBOARD_DIR.parent / "data" / RUN_TIMESTAMP
 LOCAL_JSON_DIR = DASHBOARD_DIR / "data"
 CONFIG_PATH = DASHBOARD_DIR / "config.js"
 S3_DASHBOARD_PREFIX = f"{S3_PREFIX}/{RUN_TIMESTAMP}/dashboard"
-AT_URI_PREFIX = "at://"
-BSKY_POST_COLLECTION = "app.bsky.feed.post"
 GZIP_LEVEL = 9
-
-
-def bsky_post_url(uri: str) -> str | None:
-    """Return the public bsky.app URL for an AT-URI post, if the URI is well formed."""
-
-    if not uri.startswith(AT_URI_PREFIX):
-        return None
-    remainder = uri[len(AT_URI_PREFIX) :]
-    parts = remainder.split("/")
-    if len(parts) < 3:
-        return None
-    did, collection, rkey = parts[0], parts[1], parts[2]
-    if collection != BSKY_POST_COLLECTION or not did or not rkey:
-        return None
-    return f"https://bsky.app/profile/{did}/post/{rkey}"
 
 
 def serialize_row(row: dict) -> dict:
@@ -67,7 +51,7 @@ def serialize_row(row: dict) -> dict:
         "created_at": created_at_text,
         "matched_candidate": str(row["matched_candidate"]),
         "matched_name_string": str(row["matched_name_string"]),
-        "bsky_url": bsky_post_url(uri),
+        "bsky_url": row.get("url") or bsky_post_url(uri),
     }
 
 
