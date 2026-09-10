@@ -4,7 +4,7 @@
 
 This experiment evaluates how many posts to request per LLM call when scaling the upsampling pipeline to handle large batches (up to 1,000 posts). The motivating question from [issue #15](https://github.com/METResearchGroup/lab_data_integrations_interface/issues/15) was whether a single call can reliably produce 10, 25, 50, or 100 posts without sacrificing generation quality or diversity.
 
-The experiment sweeps `n_per_call` ∈ {1, 10, 25, 50, 100} while generating 100 posts total from 5 example posts (`experimentation/posts.csv`), using LangChain's `batch()` with `max_concurrency=10`. Diversity is measured via TF-IDF–based metrics: mean pairwise cosine similarity among generated posts (lower = more diverse) and mean cosine similarity to the example posts (how closely outputs track the seed set).
+The experiment sweeps `n_per_call` ∈ {1, 10, 25, 50, 100} while generating 100 posts total from 5 example posts (`experiments/experimentation/posts.csv`), using LangChain's `batch()` with `max_concurrency=10`. Diversity is measured via TF-IDF–based metrics: mean pairwise cosine similarity among generated posts (lower = more diverse) and mean cosine similarity to the example posts (how closely outputs track the seed set).
 
 **Key findings:**
 
@@ -49,7 +49,7 @@ PYTHONPATH=. uv run python experiments/llm_upscaling_2026_05_18/run_experiment.p
 
 ```bash
 PYTHONPATH=. uv run python collector/upsampler.py \
-  --examples-path experimentation/posts.csv \
+  --examples-path experiments/experimentation/posts.csv \
   --num-examples 10 \
   --total-samples 1000 \
   --n-per-call 25

@@ -1,6 +1,6 @@
 # `getRepo`: design choices and future scaling
 
-Summary of the decisions behind `experimentation/aoc_followers_backfill/`, and what would need to
+Summary of the decisions behind `experiments/experimentation/aoc_followers_backfill/`, and what would need to
 change to run this against more than 10 users. Companion to
 `strategy_planning/2026-07-15_getrepo_return_type.md`, which documents the exact field-level
 schema this pipeline decodes.
