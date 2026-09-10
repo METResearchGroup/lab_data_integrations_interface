@@ -14,6 +14,10 @@ class DynamoDB:
     def put_item(self, table: str, item: dict[str, Any]) -> None:
         self.resource.Table(table).put_item(Item=item)
 
+    def get_item(self, table: str, key: dict[str, Any]) -> dict[str, Any] | None:
+        response = self.resource.Table(table).get_item(Key=key)
+        return response.get("Item")
+
     def update_item(
         self,
         table: str,
