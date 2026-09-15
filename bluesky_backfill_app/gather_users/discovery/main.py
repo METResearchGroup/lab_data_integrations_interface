@@ -31,7 +31,7 @@ def build_cursor_tracker() -> CursorTracker:
 
 def flush(
     buffer: DidBuffer,
-    store: DynamoDidStore,
+    did_store: DynamoDidStore,
     tracker: CursorTracker,
     run_id: str,
     reason: str,
@@ -42,7 +42,7 @@ def flush(
         return
 
     buffered = len(buffer)
-    created = store.write(buffer.dids, run_id)
+    created = did_store.write(buffer.dids, run_id)
     buffer.clear()
     tracker.mark_flushed(created)
 
@@ -55,7 +55,7 @@ def flush(
     )
 
 
-def discover(store: DynamoDidStore, tracker: CursorTracker, run_id: str, target: int) -> None:
+def discover(did_store: DynamoDidStore, tracker: CursorTracker, run_id: str, target: int) -> None:
     """Page from the stored cursor until `target` DIDs exist, flushing on thresholds.
 
     The target check runs against the persisted count, so DIDs already in the
@@ -73,14 +73,14 @@ def discover(store: DynamoDidStore, tracker: CursorTracker, run_id: str, target:
         tracker.observe(page.cursor)
 
         if buffer.should_flush():
-            flush(buffer, store, tracker, run_id, buffer.flush_reason())
+            flush(buffer, did_store, tracker, run_id, buffer.flush_reason())
         elif tracker.target_reached(target, len(buffer)):
-            flush(buffer, store, tracker, run_id, FLUSH_REASON_TARGET)
+            flush(buffer, did_store, tracker, run_id, FLUSH_REASON_TARGET)
 
         if tracker.target_reached(target):
             return
 
-    flush(buffer, store, tracker, run_id, FLUSH_REASON_FINAL)
+    flush(buffer, did_store, tracker, run_id, FLUSH_REASON_FINAL)
 
 
 def main(

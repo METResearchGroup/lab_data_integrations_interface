@@ -55,22 +55,22 @@ def test_flush_writes_then_advances_the_cursor():
     cursor_store = FakeCursorStore()
     tracker = CursorTracker(cursor_store)
     tracker.observe("next")
-    store = FakeDidStore()
+    did_store = FakeDidStore()
 
-    flush(buffer, store, tracker, "run-1", FLUSH_REASON_FINAL)
+    flush(buffer, did_store, tracker, "run-1", FLUSH_REASON_FINAL)
 
-    assert store.batches == [["did:plc:a"]]
+    assert did_store.batches == [["did:plc:a"]]
     assert cursor_store.writes == [("next", 1)]
     assert len(buffer) == 0
 
 
 def test_flush_is_a_noop_on_an_empty_buffer():
     cursor_store = FakeCursorStore()
-    store = FakeDidStore()
+    did_store = FakeDidStore()
 
-    flush(DidBuffer(), store, CursorTracker(cursor_store), "run-1", FLUSH_REASON_FINAL)
+    flush(DidBuffer(), did_store, CursorTracker(cursor_store), "run-1", FLUSH_REASON_FINAL)
 
-    assert store.batches == []
+    assert did_store.batches == []
     assert cursor_store.writes == []
 
 
@@ -83,11 +83,11 @@ def test_discover_writes_every_page_and_stops_at_the_end(pages):
     )
     cursor_store = FakeCursorStore()
     tracker = CursorTracker(cursor_store)
-    store = FakeDidStore()
+    did_store = FakeDidStore()
 
-    discover(store, tracker, "run-1", target=100)
+    discover(did_store, tracker, "run-1", target=100)
 
-    assert store.batches == [["did:plc:a", "did:plc:b", "did:plc:c"]]
+    assert did_store.batches == [["did:plc:a", "did:plc:b", "did:plc:c"]]
     assert cursor_store.writes == [("one", 3)]
     assert tracker.discovered_count == 3
 
@@ -100,11 +100,11 @@ def test_discover_stops_once_the_target_is_reached(pages):
         ]
     )
     tracker = CursorTracker(FakeCursorStore())
-    store = FakeDidStore()
+    did_store = FakeDidStore()
 
-    discover(store, tracker, "run-1", target=2)
+    discover(did_store, tracker, "run-1", target=2)
 
-    assert store.batches == [["did:plc:a", "did:plc:b"]]
+    assert did_store.batches == [["did:plc:a", "did:plc:b"]]
     assert tracker.discovered_count == 2
 
 
@@ -116,11 +116,11 @@ def test_discover_keeps_paging_when_duplicates_leave_it_short(pages):
         ]
     )
     tracker = CursorTracker(FakeCursorStore())
-    store = FakeDidStore(existing=["did:plc:a", "did:plc:b"])
+    did_store = FakeDidStore(existing=["did:plc:a", "did:plc:b"])
 
-    discover(store, tracker, "run-1", target=2)
+    discover(did_store, tracker, "run-1", target=2)
 
-    assert store.batches == [["did:plc:a", "did:plc:b"], ["did:plc:c", "did:plc:d"]]
+    assert did_store.batches == [["did:plc:a", "did:plc:b"], ["did:plc:c", "did:plc:d"]]
     assert tracker.discovered_count == 2
 
 
@@ -142,9 +142,9 @@ def test_discover_resumes_from_the_stored_cursor(monkeypatch):
 def test_discover_counts_the_existing_total_towards_the_target(pages):
     pages.append(RepoPage(dids=["did:plc:a"], cursor=None))
     tracker = CursorTracker(FakeCursorStore(cursor="stored", count=9))
-    store = FakeDidStore()
+    did_store = FakeDidStore()
 
-    discover(store, tracker, "run-1", target=10)
+    discover(did_store, tracker, "run-1", target=10)
 
     assert tracker.discovered_count == 10
 
@@ -152,9 +152,9 @@ def test_discover_counts_the_existing_total_towards_the_target(pages):
 def test_discover_does_not_write_when_already_at_target(pages):
     pages.append(RepoPage(dids=["did:plc:a"], cursor=None))
     cursor_store = FakeCursorStore(cursor="stored", count=10)
-    store = FakeDidStore()
+    did_store = FakeDidStore()
 
-    discover(store, CursorTracker(cursor_store), "run-1", target=10)
+    discover(did_store, CursorTracker(cursor_store), "run-1", target=10)
 
-    assert store.batches == []
+    assert did_store.batches == []
     assert cursor_store.writes == []

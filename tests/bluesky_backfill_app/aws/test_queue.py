@@ -1,14 +1,35 @@
 import json
 
-from bluesky_backfill_app.aws.queue import SQS_BATCH_SIZE, SqsQueue, chunked, message_body
+from bluesky_backfill_app.aws.constants import MAX_RECEIVE_COUNT, RECEIVE_COUNT_ATTRIBUTE
+from bluesky_backfill_app.aws.queue import (
+    SQS_BATCH_SIZE,
+    Message,
+    SqsQueue,
+    chunked,
+    message_body,
+    parse_message,
+)
+
+
+def raw_message(did="did:plc:a", receive_count=1, handle="handle-1"):
+    return {
+        "Body": json.dumps({"did": did, "run_id": "run-1"}),
+        "ReceiptHandle": handle,
+        "Attributes": {RECEIVE_COUNT_ATTRIBUTE: str(receive_count)},
+    }
 
 
 class FakeSqsClient:
     """Fails any DID listed in `fail_dids`, mirroring SendMessageBatch's shape."""
 
-    def __init__(self, fail_dids=()):
+    def __init__(self, fail_dids=(), messages=(), fail_handles=()):
         self.fail_dids = set(fail_dids)
+        self.inbox = list(messages)
+        self.fail_handles = set(fail_handles)
         self.batches = []
+        self.receives = []
+        self.deleted = []
+        self.delete_batches = []
 
     def get_queue_url(self, QueueName):  # noqa: N803 - boto3's parameter name
         return {"QueueUrl": f"https://sqs.test/{QueueName}"}
@@ -19,6 +40,20 @@ class FakeSqsClient:
             {"Id": entry["Id"]}
             for entry in Entries
             if json.loads(entry["MessageBody"])["did"] in self.fail_dids
+        ]
+        return {"Failed": failed} if failed else {}
+
+    def receive_message(self, **kwargs):
+        self.receives.append(kwargs)
+        return {"Messages": [self.inbox.pop(0)]} if self.inbox else {}
+
+    def delete_message(self, ReceiptHandle, **_):  # noqa: N803 - boto3's parameter name
+        self.deleted.append(ReceiptHandle)
+
+    def delete_message_batch(self, Entries, **_):  # noqa: N803 - boto3's parameter name
+        self.delete_batches.append(Entries)
+        failed = [
+            {"Id": entry["Id"]} for entry in Entries if entry["ReceiptHandle"] in self.fail_handles
         ]
         return {"Failed": failed} if failed else {}
 
@@ -96,3 +131,100 @@ def test_entry_ids_are_unique_within_a_batch():
 
     ids = [entry["Id"] for entry in queue.client.batches[0]]
     assert len(set(ids)) == len(ids)
+
+
+def test_parse_message_reads_the_body_and_the_count():
+    message = parse_message(raw_message(did="did:plc:z", receive_count=3, handle="h"))
+
+    assert message == Message(did="did:plc:z", run_id="run-1", handle="h", receive_count=3)
+
+
+def test_parse_message_treats_a_missing_count_as_a_first_delivery():
+    message = parse_message({"Body": json.dumps({"did": "did:plc:a"}), "ReceiptHandle": "h"})
+
+    assert message.receive_count == 1
+    assert message.run_id is None
+    assert message.is_final_delivery is False
+
+
+def test_a_message_below_the_limit_is_not_final():
+    message = parse_message(raw_message(receive_count=MAX_RECEIVE_COUNT - 1))
+
+    assert message.is_final_delivery is False
+
+
+def test_a_message_at_the_limit_is_final():
+    assert parse_message(raw_message(receive_count=MAX_RECEIVE_COUNT)).is_final_delivery is True
+
+
+def test_an_overshooting_count_is_still_final():
+    assert parse_message(raw_message(receive_count=MAX_RECEIVE_COUNT + 4)).is_final_delivery is True
+
+
+def test_receive_asks_for_the_delivery_count():
+    queue = build_queue(messages=[raw_message()])
+
+    queue.receive()
+
+    assert queue.client.receives[0]["MessageSystemAttributeNames"] == [RECEIVE_COUNT_ATTRIBUTE]
+    assert queue.client.receives[0]["MaxNumberOfMessages"] == 1
+
+
+def test_receive_returns_the_message():
+    queue = build_queue(messages=[raw_message(did="did:plc:b")])
+
+    message = queue.receive()
+
+    assert message is not None
+    assert message.did == "did:plc:b"
+
+
+def test_receive_of_an_empty_queue_is_none():
+    assert build_queue().receive() is None
+
+
+def test_delete_acks_one_handle():
+    queue = build_queue()
+
+    queue.delete("handle-1")
+
+    assert queue.client.deleted == ["handle-1"]
+
+
+def test_delete_batch_returns_nothing_on_success():
+    queue = build_queue()
+
+    assert queue.delete_batch(["h1", "h2"]) == []
+
+
+def test_delete_batch_names_the_failures():
+    queue = build_queue(fail_handles=["h2"])
+
+    assert queue.delete_batch(["h1", "h2", "h3"]) == ["h2"]
+
+
+def test_delete_many_chunks_at_the_batch_limit():
+    queue = build_queue()
+
+    queue.delete_many([f"h{n}" for n in range(25)])
+
+    assert [len(batch) for batch in queue.client.delete_batches] == [
+        SQS_BATCH_SIZE,
+        SQS_BATCH_SIZE,
+        5,
+    ]
+
+
+def test_delete_many_aggregates_failures_across_chunks():
+    queue = build_queue(fail_handles=["h0", "h15"])
+
+    failed = queue.delete_many([f"h{n}" for n in range(25)])
+
+    assert sorted(failed) == ["h0", "h15"]
+
+
+def test_delete_many_of_empty_deletes_nothing():
+    queue = build_queue()
+
+    assert queue.delete_many([]) == []
+    assert queue.client.delete_batches == []
