@@ -8,7 +8,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-08-19T09:02:20.196286Z"
+exclude-newer = "2026-09-08T23:14:04.281224Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -1327,6 +1327,7 @@ dependencies = [
     { name = "rich" },
     { name = "scikit-learn" },
     { name = "spacy" },
+    { name = "sqlglot" },
     { name = "tabulate" },
     { name = "tenacity" },
     { name = "tqdm" },
@@ -1400,6 +1401,7 @@ requires-dist = [
     { name = "rich", specifier = ">=13.9.4,<15" },
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "spacy", specifier = ">=3.7.0" },
+    { name = "sqlglot", specifier = ">=30.18.0" },
     { name = "tabulate", specifier = ">=0.10.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "tqdm", specifier = ">=4.66.0" },
@@ -3361,6 +3363,15 @@ wheels = [
 [package.optional-dependencies]
 asyncio = [
     { name = "greenlet" },
+]
+
+[[package]]
+name = "sqlglot"
+version = "30.18.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e4/73/5b5ce3e23b3ded3ea1986c2c2991217460d5fd5161b3e00a8425f5dcb8a3/sqlglot-30.18.0.tar.gz", hash = "sha256:e57e1b205e341979d1df5b1212c1435c598a0437e4619e3f428b15d5bc3a5cc6", size = 6018496, upload-time = "2026-09-03T13:12:58.206Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/08/9f/3dd2ec8dd84a33e0092f1c815267bc055073f9e833b93e389c59c10f62cc/sqlglot-30.18.0-py3-none-any.whl", hash = "sha256:ee0f9a9f3e2193e763c326e52dfb377b96fdb4292f6305c3ff2d9a220e71c601", size = 748788, upload-time = "2026-09-03T13:12:56.467Z" },
 ]
 
 [[package]]
