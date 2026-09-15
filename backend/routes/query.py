@@ -6,8 +6,10 @@ from fastapi import APIRouter, BackgroundTasks, Body, Depends, status
 
 from backend.agentic_search.handle_query import handle_query
 from backend.auth import current_user_email
+from backend.rate_limit import QueryRateLimiter
 
 router = APIRouter()
+limiter = QueryRateLimiter()
 
 
 @router.post("/query", status_code=status.HTTP_202_ACCEPTED)
@@ -18,5 +20,6 @@ def query(
 ):
     """Acknowledge the query; the outcome is mailed when it finishes."""
 
+    limiter.check(email)
     tasks.add_task(handle_query, query, email)
     return {"status": "accepted"}
