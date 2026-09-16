@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-09-15
+
+1. Agentic search now screens generated SQL before it reaches Athena: anything that is not a single read-only statement is rejected, and a query estimated to scan more than 10 GB is refused with the size it would have read. The estimate is planned from Iceberg manifest metadata rather than `EXPLAIN ANALYZE`, which runs and bills the query it is meant to gate, and the 1000-row `LIMIT` is gone because it capped rows returned rather than bytes scanned. [PR #210](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/210)
+
 ## 2026-09-04
 
 1. Jetstream ingestion, Bluesky backfill, and agentic search now share AWS region, client construction, DynamoDB and SQS bases, S3, and Athena from `lib/aws/` instead of keeping three near-copies. App-specific table and queue names stay in each package, and Glue, Iceberg, retry, and dead-letter helpers remain in Jetstream. [PR #198](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/198)
