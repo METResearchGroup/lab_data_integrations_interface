@@ -13,20 +13,20 @@ Bad:
 
 ```python
 def generate_report(report_id: str) -> Report:
-  connection = psycopg.connect(DATABASE_URL)
-  cursor = connection.cursor()
-  cursor.execute("SELECT payload FROM reports WHERE id = %s", (report_id,))
-  raw_payload = cursor.fetchone()[0]
-  parsed_payload = json.loads(raw_payload)
-  return render_report(parsed_payload)
+    connection = psycopg.connect(DATABASE_URL)
+    cursor = connection.cursor()
+    cursor.execute("SELECT payload FROM reports WHERE id = %s", (report_id,))
+    raw_payload = cursor.fetchone()[0]
+    parsed_payload = json.loads(raw_payload)
+    return render_report(parsed_payload)
 ```
 
 Good:
 
 ```python
 def generate_report(report_id: str) -> Report:
-  report_data = load_report_data(report_id)
-  return render_report(report_data)
+    report_data = load_report_data(report_id)
+    return render_report(report_data)
 ```
 
 ## Database & Data Management
@@ -67,12 +67,12 @@ def generate_report(report_id: str) -> Report:
 Bad:
 
 ```python
-if resolved_settings.provider is LlmProvider.BEDROCK: 
-  return get_chat_bedrock_model(resolved_settings)
+if resolved_settings.provider is LlmProvider.BEDROCK:
+    return get_chat_bedrock_model(resolved_settings)
 elif resolved_settings.provider is LlmProvider.GEMINI:
-  return get_chat_gemini_model(resolved_settings)
+    return get_chat_gemini_model(resolved_settings)
 else:
-  return get_chat_openai_model(resolved_settings)
+    return get_chat_openai_model(resolved_settings)
 ```
 
 Good:
@@ -138,11 +138,12 @@ def _return_validated_llm_config_values(yaml_config: dict) -> dict:
     openai_model_id = _require_str(raw, "openai_model_id")
     temperature = _require_float(raw, "temperature")
     return {
-      "provider": provider,
-      "bedrock_model_id": bedrock_model_id,
-      "openai_model_id": openai_model_id,
-      "temperature": temperature
+        "provider": provider,
+        "bedrock_model_id": bedrock_model_id,
+        "openai_model_id": openai_model_id,
+        "temperature": temperature,
     }
+
 
 def load_llm_config(*, config_path: Path) -> LlmConfig:
     """Load LLM configs from YAML.
@@ -178,18 +179,15 @@ Bad:
 
 ```python
 def normalize(records: list[Record]) -> None:
-  for record in records:
-    record.name = record.name.strip().lower()
+    for record in records:
+        record.name = record.name.strip().lower()
 ```
 
 Good:
 
 ```python
 def normalize_records(records: list[Record]) -> list[Record]:
-  return [
-    replace(record, name=record.name.strip().lower())
-    for record in records
-  ]
+    return [replace(record, name=record.name.strip().lower()) for record in records]
 ```
 
 ### Data models
@@ -200,7 +198,7 @@ Bad:
 
 ```python
 def process_user(user: dict[str, Object]) -> str:
-  return str(user["email"])
+    return str(user["email"])
 ```
 
 Good:
@@ -208,12 +206,14 @@ Good:
 ```python
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True)
 class User:
-  email: str
+    email: str
+
 
 def get_user_email(user: User) -> str:
-  return user.email
+    return user.email
 ```
 
 - Enums Over String/Bool Literals: Use Enum for any fixed, known set of values instead of raw strings or booleans, to get type safety and autocomplete.
@@ -234,6 +234,7 @@ class LlmProvider(str, Enum):
     GEMINI = "gemini"
     OPENAI = "openai"
 
+
 def get_chat_model(provider: LlmProvider) -> ChatModel:
     if provider is LlmProvider.BEDROCK:
         ...
@@ -247,6 +248,7 @@ Bad:
 def get_model_settings() -> tuple[str, float, bool]:
     return "bedrock", 0.7, True
 
+
 provider, temp, tracing = get_model_settings()  # order-dependent, error-prone
 ```
 
@@ -258,8 +260,10 @@ class ModelSettings(NamedTuple):
     temperature: float
     enable_tracing: bool
 
+
 def get_model_settings() -> ModelSettings:
     return ModelSettings(provider="bedrock", temperature=0.7, enable_tracing=True)
+
 
 settings = get_model_settings()
 print(settings.temperature)  # self-documenting access
@@ -270,12 +274,7 @@ print(settings.temperature)  # self-documenting access
 Bad:
 
 ```python
-def transfer_funds(
-  source_id: str,
-  destination_id: str,
-  amount: float
-) -> None:
-  ...
+def transfer_funds(source_id: str, destination_id: str, amount: float) -> None: ...
 ```
 
 Good:
@@ -283,17 +282,15 @@ Good:
 ```python
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True)
 class AccountId:
-  value: str
+    value: str
 
 
 def transfer_funds(
-  source_account_id: AccountId,
-  destination_account_id: AccountId,
-  amount: float
-) -> None:
-  ...
+    source_account_id: AccountId, destination_account_id: AccountId, amount: float
+) -> None: ...
 ```
 
 However, this can be taken to an extreme. Avoid every single permutation of domain-specific type and only add when doing so would be tasteful for the context of work and improve future readability.
@@ -303,28 +300,27 @@ For example, in the above example, we could've done:
 Bad (too much domain-specific typing)
 
 ```python
-... # everything from before
+...  # everything from before
+
 
 @dataclass(frozen=True)
 class Money:
-  amount: Decimal
+    amount: Decimal
 
 
 def transfer_funds(
-  source_account_id: AccountId,
-  destination_account_id: AccountId,
-  amount: Money
-) -> None:
-  ...
+    source_account_id: AccountId, destination_account_id: AccountId, amount: Money
+) -> None: ...
 ```
 
 This would've been unnecessary. There is only 1 `amount` field, and a reader can easily infer that the float parameter is because it is a financial amount. A more useful custom type could have, for example, added validation (e.g., making sure it is >0):
 
 ```python
-... # everything from before
+...  # everything from before
 
 from pydantic import BaseModel, validator
 from decimal import Decimal, ROUND_DOWN
+
 
 class Money(BaseModel):
     amount: Decimal
@@ -339,12 +335,10 @@ class Money(BaseModel):
             raise ValueError("Amount must have exactly 2 decimal places")
         return quantized
 
+
 def transfer_funds(
-  source_account_id: AccountId,
-  destination_account_id: AccountId,
-  amount: Money
-) -> None:
-  ...
+    source_account_id: AccountId, destination_account_id: AccountId, amount: Money
+) -> None: ...
 ```
 
 ### Arguments, parameters, and return signatures
@@ -359,14 +353,14 @@ Bad:
 
 ```python
 def foo(total_values: int | None):
-  n = total_values or NUMBER_OF_VALUES
+    n = total_values or NUMBER_OF_VALUES
 ```
 
 Good:
 
 ```python
 def foo(total_values: int):
-  n = total_values
+    n = total_values
 ```
 
 - Avoid "God" functions that take a variety of arguments. Parameters for a function should be explicitly required for the unit of work that the function does. If you must have a container, err on the side of creating container classes for the arguments.
@@ -424,11 +418,13 @@ Bad:
 ```python
 NUMBER_OF_VALUES = 1
 
+
 def foo(total_values: int | None):
-  n = total_values or NUMBER_OF_VALUES
+    n = total_values or NUMBER_OF_VALUES
+
 
 def main():
-  foo()
+    foo()
 ```
 
 Good:
@@ -436,11 +432,13 @@ Good:
 ```python
 NUMBER_OF_VALUES = 1
 
+
 def foo(total_values: int):
-  n = total_values
+    n = total_values
+
 
 def main():
-  foo(NUMBER_OF_VALUES)
+    foo(NUMBER_OF_VALUES)
 ```
 
 - Avoid default arguments altogether where possible. Prefer callers to explicitly pass a global constant rather than having a function signature include a default argument.

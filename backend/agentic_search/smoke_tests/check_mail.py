@@ -34,7 +34,7 @@ from backend.agentic_search.query_validation.models import ValidationIssue
 
 QUERY = "give me all the posts (text only) from the last week"
 RESULT_URL = "https://example.invalid/results.csv?X-Amz-Signature=smoke-test"
-ISSUES = [ValidationIssue.UNKNOWN_COLUMN, ValidationIssue.RANGE_OUTSIDE_COVERAGE]
+ISSUES = [ValidationIssue.UNKNOWN_COLUMN.value, ValidationIssue.RANGE_OUTSIDE_COVERAGE.value]
 
 
 def main() -> None:

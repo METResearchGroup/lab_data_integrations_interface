@@ -107,11 +107,10 @@ assert "required_field" in result
 ### Parametrize Structure
 
 ```python
-@pytest.mark.parametrize("input_value,expected", [
-    ("valid_input", "expected_output"),
-    ("edge_case", "edge_expected"),
-    ("error_case", None)
-])
+@pytest.mark.parametrize(
+    "input_value,expected",
+    [("valid_input", "expected_output"), ("edge_case", "edge_expected"), ("error_case", None)],
+)
 def test_function_with_various_inputs(self, input_value, expected):
     """Test function behavior with different input types."""
     result = function_name(input_value)

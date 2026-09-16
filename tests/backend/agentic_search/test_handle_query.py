@@ -41,6 +41,7 @@ def test_successful_query_mails_the_link(monkeypatch, sent) -> None:
         "run_langgraph",
         lambda _query: (
             ValidationResult(valid=True, issues=[], intent=_intent()),
+            None,
             ExecutedQuery(execution_id="abc", result_url=RESULT_URL),
         ),
     )
@@ -59,6 +60,7 @@ def test_invalid_query_mails_the_issues(monkeypatch, sent) -> None:
         lambda _query: (
             ValidationResult(valid=False, issues=[ValidationIssue.NONSENSE], intent=_intent()),
             None,
+            None,
         ),
     )
     module.handle_query(QUERY, EMAIL)
@@ -66,6 +68,26 @@ def test_invalid_query_mails_the_issues(monkeypatch, sent) -> None:
     (message,) = sent
     assert message["subject"] == mail.SUBJECT_INVALID
     assert ValidationIssue.NONSENSE.value in message["body"]
+
+
+def test_postprocessing_rejection_mails_the_reason(monkeypatch, sent) -> None:
+    """The query validated, so the reason has to come from the rejection, not the issues."""
+
+    rejection = "estimated cost $9.00 is over the $1.00 limit"
+    monkeypatch.setattr(
+        module,
+        "run_langgraph",
+        lambda _query: (
+            ValidationResult(valid=True, issues=[], intent=_intent()),
+            rejection,
+            None,
+        ),
+    )
+    module.handle_query(QUERY, EMAIL)
+
+    (message,) = sent
+    assert message["subject"] == mail.SUBJECT_INVALID
+    assert rejection in message["body"]
 
 
 def test_graph_error_mails_a_failure_notice(monkeypatch, sent) -> None:
@@ -87,6 +109,7 @@ def test_unmailable_result_does_not_raise(monkeypatch) -> None:
         "run_langgraph",
         lambda _query: (
             ValidationResult(valid=True, issues=[], intent=_intent()),
+            None,
             ExecutedQuery(execution_id="abc", result_url=RESULT_URL),
         ),
     )
