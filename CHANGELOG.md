@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-09-16
+
+1. Invite emails are documented to land on `https://lab-data-integrations-interface.vercel.app` instead of the Supabase default localhost Site URL, and a missing or expired invite now shows an error on `/login` instead of a silent sign-in form. [PR #212](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/212)
+
 ## 2026-09-15
 
 1. Agentic search now limits each user to one query per minute: a second `POST /query` within 60 seconds is rejected with a 429 and a retry time shown in the UI, before anything is queued or emailed. The limit lives in process memory, so it resets on redeploy and holds only while the backend runs as a single process. [PR #209](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/209)
