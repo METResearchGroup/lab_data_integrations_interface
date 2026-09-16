@@ -21,12 +21,26 @@ function safeNext(next: string | string[] | undefined): string {
 	return next;
 }
 
+const INVITE_ERRORS: Record<string, string> = {
+	invalid_link:
+		"The invite link is missing or broken. Ask whoever invited you to send a new one.",
+	expired_link:
+		"The invite link has expired. Ask whoever invited you to send a new one.",
+};
+
+function inviteError(error: string | string[] | undefined): string | undefined {
+	if (typeof error !== "string") return undefined;
+	return INVITE_ERRORS[error];
+}
+
 export default async function LoginPage({
 	searchParams,
 }: {
-	searchParams: Promise<{ next?: string | string[] }>;
+	searchParams: Promise<{ next?: string | string[]; error?: string | string[] }>;
 }) {
-	const destination = safeNext((await searchParams).next);
+	const params = await searchParams;
+	const destination = safeNext(params.next);
+	const linkError = inviteError(params.error);
 
 	const supabase = await createClient();
 	const {
@@ -44,6 +58,8 @@ export default async function LoginPage({
 						Use the account you were given for the lab data tool.
 					</p>
 				</div>
+
+				{linkError && <p className="text-sm text-red-600">{linkError}</p>}
 
 				<LoginForm next={destination} />
 			</div>
