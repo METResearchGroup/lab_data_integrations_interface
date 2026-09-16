@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from bluesky_backfill_app.aws.constants import MAX_RECEIVE_COUNT, RECEIVE_COUNT_ATTRIBUTE
 from bluesky_backfill_app.aws.queue import (
     SQS_BATCH_SIZE,
@@ -140,11 +142,17 @@ def test_parse_message_reads_the_body_and_the_count():
 
 
 def test_parse_message_treats_a_missing_count_as_a_first_delivery():
-    message = parse_message({"Body": json.dumps({"did": "did:plc:a"}), "ReceiptHandle": "h"})
+    message = parse_message(
+        {"Body": json.dumps({"did": "did:plc:a", "run_id": "run-1"}), "ReceiptHandle": "h"}
+    )
 
     assert message.receive_count == 1
-    assert message.run_id is None
     assert message.is_final_delivery is False
+
+
+def test_parse_message_rejects_a_body_without_a_run_id():
+    with pytest.raises(KeyError):
+        parse_message({"Body": json.dumps({"did": "did:plc:a"}), "ReceiptHandle": "h"})
 
 
 def test_a_message_below_the_limit_is_not_final():
