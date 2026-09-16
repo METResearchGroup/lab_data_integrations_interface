@@ -35,7 +35,7 @@ def row(uri):
 
 
 def message():
-    return Message(did="did:plc:a", run_id=None, handle="h", receive_count=1)
+    return Message(did="did:plc:a", run_id="run-1", handle="h", receive_count=1)
 
 
 def test_path_stays_out_of_the_warehouse():

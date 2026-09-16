@@ -1,3 +1,5 @@
+"""Download a repo CAR via getRepo, with retries and an overall deadline."""
+
 import logging
 import time
 import urllib.error
@@ -41,6 +43,13 @@ def fetch_repo(
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
 ) -> bytes:
+    """Full repo for `did` from the relay as raw CAR bytes, buffered in memory.
+
+    Retries 429/5xx and transport errors with backoff.
+    Other statuses (e.g. RepoNotFound, RepoTakendown, RepoDeactivated) raise
+    `XrpcError` immediately; `errors.classify` maps them to failure reasons.
+    """
+
     url = build_url(did)
     deadline = clock() + GET_REPO_DEADLINE_SECONDS
     last_attempt = GET_REPO_MAX_ATTEMPTS - 1
@@ -66,4 +75,4 @@ def fetch_repo(
             logger.warning("getRepo %s %r, retrying in %.1fs", did, error, delay)
             sleep(delay)
 
-    raise RuntimeError(f"getRepo exhausted {GET_REPO_MAX_ATTEMPTS} attempts")
+    raise AssertionError("unreachable: the last attempt returns or raises")

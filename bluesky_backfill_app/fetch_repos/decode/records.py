@@ -1,3 +1,5 @@
+"""Decode a getRepo CAR into post/like/repost/follow rows."""
+
 from collections.abc import Iterator, Mapping
 from datetime import datetime
 from typing import Any
@@ -65,6 +67,21 @@ def build_row(
     rev: str | None,
     ingested_at: datetime,
 ) -> dict | None:
+    """Row for one record, or None if it's outside the date range or missing required fields.
+
+    One record per row; `decode` collects them into per-type lists. e.g. a like:
+        {
+            "uri": "at://did:plc:abc/app.bsky.feed.like/3kxyz",
+            "did": "did:plc:abc",
+            "cid": "bafyrei...",
+            "rev": "3kxyzrev",
+            "created_at": datetime(2025, 3, 1, 12, 0, tzinfo=UTC),
+            "ingested_at": datetime(2026, 9, 16, 9, 30, tzinfo=UTC),
+            "subject_uri": "at://did:plc:def/app.bsky.feed.post/3kabc",
+            "subject_cid": "bafyrei...",
+        }
+    """
+
     created_at = parse_created_at(record.get("createdAt"))
     if created_at is not None and not BLUESKY_START_DATE <= created_at.date() <= DATA_END_DATE:
         return None

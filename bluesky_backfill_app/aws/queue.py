@@ -29,7 +29,7 @@ def chunked(items: list[str], size: int) -> list[list[str]]:
 @dataclass(frozen=True, slots=True)
 class Message:
     did: str
-    run_id: str | None
+    run_id: str
     handle: str
     receive_count: int
 
@@ -45,7 +45,7 @@ def parse_message(message: dict[str, Any]) -> Message:
     attributes = message.get("Attributes", {})
     return Message(
         did=body["did"],
-        run_id=body.get("run_id"),
+        run_id=body["run_id"],
         handle=message["ReceiptHandle"],
         receive_count=int(attributes.get(RECEIVE_COUNT_ATTRIBUTE, 1)),
     )
