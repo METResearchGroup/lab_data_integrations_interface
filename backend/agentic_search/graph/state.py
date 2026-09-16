@@ -12,8 +12,10 @@ from backend.agentic_search.query_validation.models import ValidationResult
 @dataclass
 class SearchState:
     # Every field past `query` is filled in by the node that produces it
-    # An invalid query ends with `generated` and `executed` still None.
+    # A rejected query ends with `executed` still None.
     query: str
     validation: ValidationResult | None = None
     generated: GeneratedQuery | None = None
+    # Why postprocessing stopped the SQL; None if it passed or never ran.
+    rejection: str | None = None
     executed: ExecutedQuery | None = None

@@ -6,7 +6,6 @@ import logging
 import os
 
 from backend.agentic_search.gmail import Gmail
-from backend.agentic_search.query_validation.models import ValidationIssue
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +48,8 @@ def mail_results(email: str, query: str, result_url: str) -> None:
     )
 
 
-def mail_invalid(email: str, query: str, issues: list[ValidationIssue]) -> None:
-    listed = "\n".join(f"  - {issue.value}" for issue in issues)
+def mail_invalid(email: str, query: str, issues: list[str]) -> None:
+    listed = "\n".join(f"  - {issue}" for issue in issues)
     _send(
         email,
         SUBJECT_INVALID,

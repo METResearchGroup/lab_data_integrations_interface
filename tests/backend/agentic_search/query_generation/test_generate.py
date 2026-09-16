@@ -27,7 +27,7 @@ def make_intent(
 
 
 def test_full_query() -> None:
-    result = generate_sql(make_intent(), limit=50)
+    result = generate_sql(make_intent())
 
     assert result.record_type is RecordType.POSTS
     assert result.sql == (
@@ -35,8 +35,7 @@ def test_full_query() -> None:
         "FROM bluesky_raw.posts\n"
         "WHERE created_at >= TIMESTAMP '2026-07-01 00:00:00' "
         "AND created_at < TIMESTAMP '2026-08-01 00:00:00'\n"
-        "ORDER BY created_at\n"
-        "LIMIT 50"
+        "ORDER BY created_at"
     )
 
 
@@ -66,8 +65,10 @@ def test_unbounded_range_has_no_where_clause() -> None:
     assert "WHERE" not in generate_sql(make_intent(start_date=None, end_date=None)).sql
 
 
-def test_default_limit_applied() -> None:
-    assert generate_sql(make_intent()).sql.endswith("LIMIT 1000")
+def test_no_limit_clause() -> None:
+    """A LIMIT caps rows, not bytes scanned, so the scan check replaced it."""
+
+    assert "LIMIT" not in generate_sql(make_intent()).sql
 
 
 def test_column_quotes_are_escaped() -> None:

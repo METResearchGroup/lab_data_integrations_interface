@@ -1,4 +1,7 @@
-"""Graph wiring, with the extraction and the AWS clients stubbed out."""
+"""Graph wiring, with the extraction and the AWS clients stubbed out.
+
+The Iceberg catalog is real but local, so postprocessing plans an actual scan.
+"""
 
 from __future__ import annotations
 
@@ -8,11 +11,13 @@ import pytest
 
 from backend.agentic_search.graph.graph import build_graph
 from backend.agentic_search.graph.state import SearchState
+from backend.agentic_search.query_generation.models import GeneratedQuery
 from backend.agentic_search.query_validation.models import TableMetadata
 from backend.agentic_search.query_validation.query_intent.models import QueryIntent
 from bluesky_ingestion_jetstream.constants import RecordType
 
 ORCHESTRATOR = "backend.agentic_search.query_validation.orchestrator"
+NODES = "backend.agentic_search.graph.nodes"
 
 EXECUTION_ID = "abc-123"
 RESULT_URL = "https://example.invalid/result.csv"
@@ -52,7 +57,8 @@ def stub(monkeypatch: pytest.MonkeyPatch, snapshot):
     return _stub
 
 
-def test_valid_query_runs_all_three_stages(stub) -> None:
+@pytest.fixture
+def valid_intent(stub) -> None:
     stub(
         QueryIntent(
             is_nonsense=False,
@@ -62,15 +68,45 @@ def test_valid_query_runs_all_three_stages(stub) -> None:
             end_date=date(2026, 7, 31),
         )
     )
-    state = build_graph(FakeAthena(), FakeS3()).invoke(SearchState(query="posts in July"))
+
+
+@pytest.mark.usefixtures("valid_intent")
+def test_valid_query_runs_all_four_stages(catalog) -> None:
+    state = build_graph(FakeAthena(), FakeS3(), catalog).invoke(SearchState(query="posts in July"))
 
     assert state["validation"].valid
     assert "SELECT" in state["generated"].sql
+    assert state["rejection"] is None
     assert state["executed"].execution_id == EXECUTION_ID
     assert state["executed"].result_url == RESULT_URL
 
 
-def test_invalid_query_stops_before_generation(stub) -> None:
+@pytest.mark.usefixtures("valid_intent")
+def test_query_over_the_cost_limit_stops_before_execution(catalog, monkeypatch) -> None:
+    """The fakes would raise if the routing let this reach Athena."""
+
+    monkeypatch.setattr(
+        "backend.agentic_search.query_postprocessing.check_scan_cost.MAX_SCAN_BYTES", 1
+    )
+    state = build_graph(FakeAthena(), FakeS3(), catalog).invoke(SearchState(query="posts in July"))
+
+    assert state["executed"] is None
+    assert "over the" in state["rejection"]
+
+
+@pytest.mark.usefixtures("valid_intent")
+def test_non_select_sql_stops_before_execution(catalog, monkeypatch) -> None:
+    monkeypatch.setattr(
+        f"{NODES}.generate_sql",
+        lambda _intent: GeneratedQuery(sql="DELETE FROM posts", record_type=RecordType.POSTS),
+    )
+    state = build_graph(FakeAthena(), FakeS3(), catalog).invoke(SearchState(query="posts in July"))
+
+    assert state["executed"] is None
+    assert state["rejection"] == "only SELECT queries are allowed"
+
+
+def test_invalid_query_stops_before_generation(stub, catalog) -> None:
     """Nothing reaches Athena, so the fakes would raise if the routing were wrong."""
 
     stub(
@@ -82,7 +118,9 @@ def test_invalid_query_stops_before_generation(stub) -> None:
             end_date=None,
         )
     )
-    state = build_graph(FakeAthena(), FakeS3()).invoke(SearchState(query="weather in Tokyo"))
+    state = build_graph(FakeAthena(), FakeS3(), catalog).invoke(
+        SearchState(query="weather in Tokyo")
+    )
 
     assert not state["validation"].valid
     assert state["generated"] is None

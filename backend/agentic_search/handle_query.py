@@ -12,14 +12,15 @@ logger = logging.getLogger(__name__)
 
 def handle_query(query: str, email: str) -> None:
     try:
-        validation, executed = run_langgraph(query)
+        validation, rejection, executed = run_langgraph(query)
     except Exception:
         logger.exception("query failed for %s", email)
         mail_failure(email, query)
         return
 
     if executed is None:
-        mail_invalid(email, query, validation.issues)
+        reasons = [rejection] if rejection else [issue.value for issue in validation.issues]
+        mail_invalid(email, query, reasons)
         return
 
     mail_results(email, query, executed.result_url)
