@@ -24,7 +24,7 @@ def new_run_id() -> str:
 
 
 def enqueue_pass(
-    store: DynamoDidStore,
+    did_store: DynamoDidStore,
     queue: SqsQueue,
     run_id: str,
     seen: set[str],
@@ -35,7 +35,7 @@ def enqueue_pass(
     Sends before marking, so a crash re-sends rather than drops.
     """
 
-    found = store.query_by_status(STATUS_DISCOVERED, page_size)
+    found = did_store.query_by_status(STATUS_DISCOVERED, page_size)
     fresh = [did for did in found if did not in seen]
     if not fresh:
         return len(found), 0
@@ -43,13 +43,13 @@ def enqueue_pass(
     failed = set(queue.send(fresh, run_id))
     sent = [did for did in fresh if did not in failed]
 
-    store.set_status_many(sent, STATUS_QUEUED)
+    did_store.set_status_many(sent, STATUS_QUEUED)
     seen.update(sent)
     return len(found), len(sent)
 
 
 def drain(
-    store: DynamoDidStore,
+    did_store: DynamoDidStore,
     queue: SqsQueue,
     run_id: str,
     page_size: int = ENQUEUE_PAGE_SIZE,
@@ -64,7 +64,7 @@ def drain(
     total = 0
 
     while True:
-        found, sent = enqueue_pass(store, queue, run_id, seen, page_size)
+        found, sent = enqueue_pass(did_store, queue, run_id, seen, page_size)
         if found == 0:
             return total
 

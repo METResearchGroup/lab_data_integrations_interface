@@ -4,6 +4,10 @@
 
 1. Agentic search now limits each user to one query per minute: a second `POST /query` within 60 seconds is rejected with a 429 and a retry time shown in the UI, before anything is queued or emailed. The limit lives in process memory, so it resets on redeploy and holds only while the backend runs as a single process. [PR #209](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/209)
 
+## 2026-09-14
+
+1. Bluesky backfill can now fetch the repos it has queued: a worker takes one DID at a time off SQS, downloads the repo with `getRepo` through the relay, decodes it into post, like, repost, and follow rows created between 2022-11-17 and 2026-08-07, checks them against the table schemas, and buffers them. Every 30 minutes or 1 GB it writes one Parquet file per record type under `landing/bluesky/backfill/`, marks those DIDs `done`, and only then acks their messages. A deactivated, taken-down, or missing account is marked `failed` and acked; any other failure is left for SQS to redeliver, and on the fifth delivery the DID is marked `dead_lettered` and the message moves to a new dead-letter queue. [PR #205](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/205)
+
 ## 2026-09-04
 
 1. Jetstream ingestion, Bluesky backfill, and agentic search now share AWS region, client construction, DynamoDB and SQS bases, S3, and Athena from `lib/aws/` instead of keeping three near-copies. App-specific table and queue names stay in each package, and Glue, Iceberg, retry, and dead-letter helpers remain in Jetstream. [PR #198](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/198)

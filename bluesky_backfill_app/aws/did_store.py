@@ -10,6 +10,9 @@ from bluesky_backfill_app.aws.constants import (
     DID_PARTITION_KEY,
     DID_TABLE,
     DISCOVERED_AT_ATTRIBUTE,
+    FAILURE_DETAIL_ATTRIBUTE,
+    FAILURE_REASON_ATTRIBUTE,
+    MAX_FAILURE_DETAIL_CHARS,
     RUN_ID_ATTRIBUTE,
     STATUS_ATTRIBUTE,
     STATUS_DISCOVERED,
@@ -29,6 +32,12 @@ logger = logging.getLogger(__name__)
 
 def shard_key(status: str, shard: int) -> str:
     return f"{status}#{shard}"
+
+
+def truncate_detail(detail: str) -> str:
+    if len(detail) <= MAX_FAILURE_DETAIL_CHARS:
+        return detail
+    return detail[:MAX_FAILURE_DETAIL_CHARS] + "..."
 
 
 def status_shard(did: str, status: str) -> str:
@@ -84,25 +93,62 @@ class DynamoDidStore(DynamoDB):
             created = list(pool.map(lambda did: self.put_new(did, run_id), dids))
         return sum(created)
 
-    def set_status(self, did: str, status: str) -> None:
-        """Rewrite `status` and its shard key together."""
+    def set_status(
+        self,
+        did: str,
+        status: str,
+        failure_reason: str | None = None,
+        failure_detail: str | None = None,
+    ) -> None:
+        """Rewrite `status` and its shard key. Failure fields are removed without a reason."""
+
+        sets = [
+            "#status = :status",
+            f"{STATUS_SHARD_ATTRIBUTE} = :shard",
+            f"{UPDATED_AT_ATTRIBUTE} = :updated_at",
+        ]
+        removes: list[str] = []
+        values = {
+            ":status": {"S": status},
+            ":shard": {"S": status_shard(did, status)},
+            ":updated_at": {"S": get_current_timestamp()},
+        }
+
+        if failure_reason is None:
+            removes.extend([FAILURE_REASON_ATTRIBUTE, FAILURE_DETAIL_ATTRIBUTE])
+        else:
+            sets.append(f"{FAILURE_REASON_ATTRIBUTE} = :failure_reason")
+            values[":failure_reason"] = {"S": failure_reason}
+            if failure_detail:
+                sets.append(f"{FAILURE_DETAIL_ATTRIBUTE} = :failure_detail")
+                values[":failure_detail"] = {"S": truncate_detail(failure_detail)}
+            else:
+                removes.append(FAILURE_DETAIL_ATTRIBUTE)
+
+        expression = f"SET {', '.join(sets)}"
+        if removes:
+            expression += f" REMOVE {', '.join(removes)}"
 
         self.client.update_item(
             TableName=self.table,
             Key={DID_PARTITION_KEY: {"S": did}},
-            UpdateExpression=(
-                f"SET #status = :status, {STATUS_SHARD_ATTRIBUTE} = :shard, "
-                f"{UPDATED_AT_ATTRIBUTE} = :updated_at"
-            ),
+            UpdateExpression=expression,
             # `status` is a DynamoDB reserved word.
             ExpressionAttributeNames={"#status": STATUS_ATTRIBUTE},
-            ExpressionAttributeValues={
-                ":status": {"S": status},
-                ":shard": {"S": status_shard(did, status)},
-                ":updated_at": {"S": get_current_timestamp()},
-            },
+            ExpressionAttributeValues=values,
             ConditionExpression=f"attribute_exists({DID_PARTITION_KEY})",
         )
+
+    def set_failed(
+        self,
+        did: str,
+        status: str,
+        error: BaseException,
+        reason: str,
+    ) -> None:
+        """Set a failure status with `reason` and `repr(error)`."""
+
+        self.set_status(did, status, failure_reason=reason, failure_detail=repr(error))
 
     def set_status_many(self, dids: list[str], status: str) -> None:
         """Advance `dids` concurrently. Raises if any one fails."""

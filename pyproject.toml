@@ -79,6 +79,7 @@ exclude-newer = "7 days"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+addopts = "--import-mode=importlib"
 filterwarnings = [
     # Legacy Python 3.10 compat shim inside opentelemetry-api (transitive dep via
     # prefect/pydocket) hits a deprecated code path even on 3.11. Not our code.

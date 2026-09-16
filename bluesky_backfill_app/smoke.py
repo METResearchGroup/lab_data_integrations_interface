@@ -87,10 +87,10 @@ def main(
     if reset:
         clear_tables(client)
 
-    store = DynamoDidStore()
+    did_store = DynamoDidStore()
 
     print("\n== discover ==")
-    discover(store, CursorTracker(DynamoCursorStore()), new_run_id(), target)
+    discover(did_store, CursorTracker(DynamoCursorStore()), new_run_id(), target)
 
     cursor, count = DynamoCursorStore().read()
     print(f"cursor:           {cursor}")
@@ -98,7 +98,7 @@ def main(
     print(f"statuses:         {count_by_status(client)}")
 
     print("\n== enqueue ==")
-    sent = drain(store, SqsQueue(), new_run_id())
+    sent = drain(did_store, SqsQueue(), new_run_id())
     print(f"sent:             {sent}")
     print(f"statuses:         {count_by_status(client)}")
 

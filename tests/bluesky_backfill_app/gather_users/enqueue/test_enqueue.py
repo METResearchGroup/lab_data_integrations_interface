@@ -30,92 +30,92 @@ class FakeQueue:
 
 
 def test_enqueue_pass_sends_and_marks():
-    store = FakeDidStore([["did:plc:a", "did:plc:b"]])
+    did_store = FakeDidStore([["did:plc:a", "did:plc:b"]])
     queue = FakeQueue()
     seen = set()
 
-    found, sent = enqueue_pass(store, queue, "run-1", seen, page_size=10)
+    found, sent = enqueue_pass(did_store, queue, "run-1", seen, page_size=10)
 
     assert (found, sent) == (2, 2)
     assert queue.sent == ["did:plc:a", "did:plc:b"]
-    assert store.statuses == {"did:plc:a": STATUS_QUEUED, "did:plc:b": STATUS_QUEUED}
+    assert did_store.statuses == {"did:plc:a": STATUS_QUEUED, "did:plc:b": STATUS_QUEUED}
     assert seen == {"did:plc:a", "did:plc:b"}
 
 
 def test_enqueue_pass_queries_the_discovered_status():
-    store = FakeDidStore([[]])
+    did_store = FakeDidStore([[]])
 
-    enqueue_pass(store, FakeQueue(), "run-1", set(), page_size=25)
+    enqueue_pass(did_store, FakeQueue(), "run-1", set(), page_size=25)
 
-    assert store.queries == [(STATUS_DISCOVERED, 25)]
+    assert did_store.queries == [(STATUS_DISCOVERED, 25)]
 
 
 def test_enqueue_pass_does_not_mark_a_failed_send():
-    store = FakeDidStore([["did:plc:a", "did:plc:b"]])
+    did_store = FakeDidStore([["did:plc:a", "did:plc:b"]])
     queue = FakeQueue(fail_dids=["did:plc:b"])
     seen = set()
 
-    found, sent = enqueue_pass(store, queue, "run-1", seen, page_size=10)
+    found, sent = enqueue_pass(did_store, queue, "run-1", seen, page_size=10)
 
     assert (found, sent) == (2, 1)
-    assert store.statuses == {"did:plc:a": STATUS_QUEUED}
+    assert did_store.statuses == {"did:plc:a": STATUS_QUEUED}
     assert seen == {"did:plc:a"}
 
 
 def test_enqueue_pass_skips_dids_already_seen():
-    store = FakeDidStore([["did:plc:a", "did:plc:b"]])
+    did_store = FakeDidStore([["did:plc:a", "did:plc:b"]])
     queue = FakeQueue()
 
-    found, sent = enqueue_pass(store, queue, "run-1", {"did:plc:a"}, page_size=10)
+    found, sent = enqueue_pass(did_store, queue, "run-1", {"did:plc:a"}, page_size=10)
 
     assert (found, sent) == (2, 1)
     assert queue.sent == ["did:plc:b"]
 
 
 def test_enqueue_pass_on_a_stale_page_sends_nothing():
-    store = FakeDidStore([["did:plc:a"]])
+    did_store = FakeDidStore([["did:plc:a"]])
     queue = FakeQueue()
 
-    found, sent = enqueue_pass(store, queue, "run-1", {"did:plc:a"}, page_size=10)
+    found, sent = enqueue_pass(did_store, queue, "run-1", {"did:plc:a"}, page_size=10)
 
     assert (found, sent) == (1, 0)
     assert queue.sent == []
 
 
 def test_drain_runs_until_the_index_is_empty():
-    store = FakeDidStore([["did:plc:a", "did:plc:b"], ["did:plc:c"], []])
+    did_store = FakeDidStore([["did:plc:a", "did:plc:b"], ["did:plc:c"], []])
     queue = FakeQueue()
 
-    total = drain(store, queue, "run-1", page_size=10)
+    total = drain(did_store, queue, "run-1", page_size=10)
 
     assert total == 3
     assert queue.sent == ["did:plc:a", "did:plc:b", "did:plc:c"]
 
 
 def test_drain_of_an_empty_index():
-    store = FakeDidStore([[]])
+    did_store = FakeDidStore([[]])
     queue = FakeQueue()
 
-    assert drain(store, queue, "run-1", page_size=10) == 0
+    assert drain(did_store, queue, "run-1", page_size=10) == 0
     assert queue.sent == []
 
 
 def test_drain_pages_through_a_lagging_index():
     """A stale page does not end the drain: real work behind it still goes out."""
 
-    store = FakeDidStore([["did:plc:a"], ["did:plc:a"], ["did:plc:b"], []])
+    did_store = FakeDidStore([["did:plc:a"], ["did:plc:a"], ["did:plc:b"], []])
     queue = FakeQueue()
 
-    total = drain(store, queue, "run-1", page_size=10)
+    total = drain(did_store, queue, "run-1", page_size=10)
 
     assert total == 2
     assert queue.sent == ["did:plc:a", "did:plc:b"]
 
 
 def test_drain_does_not_resend_across_passes():
-    store = FakeDidStore([["did:plc:a", "did:plc:b"], ["did:plc:b", "did:plc:c"], []])
+    did_store = FakeDidStore([["did:plc:a", "did:plc:b"], ["did:plc:b", "did:plc:c"], []])
     queue = FakeQueue()
 
-    drain(store, queue, "run-1", page_size=10)
+    drain(did_store, queue, "run-1", page_size=10)
 
     assert queue.sent == ["did:plc:a", "did:plc:b", "did:plc:c"]
