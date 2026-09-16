@@ -38,7 +38,12 @@ variable "queue_name" {
 
 variable "visibility_timeout_seconds" {
   description = "Time a consumer has to fetch one repo before the message reappears."
-  default     = 300
+  default     = 3600
+}
+
+variable "max_receive_count" {
+  description = "Deliveries before SQS moves the message to the DLQ."
+  default     = 5
 }
 
 # ---------------------------------------------------------------------------
@@ -62,8 +67,8 @@ resource "aws_dynamodb_table" "backfill_dids" {
     type = "S"
   }
 
-  # `status_shard` is `{status}#{shard}`. Sharded because four status values
-  # would otherwise put every write for a stage on one partition.
+  # `status_shard` is `{status}#{shard}`. Sharded because a handful of status
+  # values would otherwise put every write for a stage on one partition.
   global_secondary_index {
     name            = "status_index"
     hash_key        = "status_shard"
@@ -94,14 +99,26 @@ resource "aws_dynamodb_table" "backfill_cursor" {
 # SQS
 #
 # Standard, not FIFO: ordering does not matter and the DynamoDB status gates
-# re-enqueueing, so consumers only need to be idempotent. No dead letter queue
-# until the consumer exists and its failure modes are known.
+# re-enqueueing, so consumers only need to be idempotent.
+#
+# The visibility timeout must cover a fetch plus the flush after it.
 # ---------------------------------------------------------------------------
 
 resource "aws_sqs_queue" "backfill_dids" {
   name                       = var.queue_name
   visibility_timeout_seconds = var.visibility_timeout_seconds
   message_retention_seconds  = 1209600
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.backfill_dids_dlq.arn
+    maxReceiveCount     = var.max_receive_count
+  })
+}
+
+# DLQ for the queue above. Nothing consumes it.
+resource "aws_sqs_queue" "backfill_dids_dlq" {
+  name                      = "${var.queue_name}-dlq"
+  message_retention_seconds = 1209600
 }
 
 # ---------------------------------------------------------------------------
@@ -118,4 +135,8 @@ output "cursor_table_name" {
 
 output "queue_url" {
   value = aws_sqs_queue.backfill_dids.url
+}
+
+output "dlq_url" {
+  value = aws_sqs_queue.backfill_dids_dlq.url
 }
