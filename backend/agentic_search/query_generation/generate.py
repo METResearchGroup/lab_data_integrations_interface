@@ -8,8 +8,6 @@ from backend.agentic_search.query_generation.models import GeneratedQuery
 from backend.agentic_search.query_validation.query_intent.models import QueryIntent
 from bluesky_ingestion_jetstream.aws.constants import GLUE_DATABASE, PARTITION_SOURCE_COLUMN
 
-DEFAULT_LIMIT = 1000
-
 
 def _quote(identifier: str) -> str:
     return '"{}"'.format(identifier.replace('"', '""'))
@@ -42,12 +40,12 @@ def _order_by_clause() -> str:
     return f"ORDER BY {PARTITION_SOURCE_COLUMN}"
 
 
-def _limit_clause(limit: int) -> str:
-    return f"LIMIT {limit}"
+def generate_sql(intent: QueryIntent) -> GeneratedQuery:
+    """Assumes the intent already passed validation.
 
-
-def generate_sql(intent: QueryIntent, *, limit: int = DEFAULT_LIMIT) -> GeneratedQuery:
-    """Assumes the intent already passed validation."""
+    No LIMIT: it caps rows returned, not bytes scanned, so it never made the
+    query cheaper. Postprocessing caps the scan itself.
+    """
 
     if intent.record_type is None:
         raise ValueError("intent has no record type")
@@ -58,7 +56,6 @@ def generate_sql(intent: QueryIntent, *, limit: int = DEFAULT_LIMIT) -> Generate
         _from_clause(table),
         _where_clause(intent.start_date, intent.end_date),
         _order_by_clause(),
-        _limit_clause(limit),
     ]
 
     return GeneratedQuery(

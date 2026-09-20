@@ -53,7 +53,7 @@ def main() -> None:
     print(f"  {QUERY!r}")
 
     print("\n--- running graph ---")
-    validation, executed = run_langgraph(QUERY)
+    validation, rejection, executed = run_langgraph(QUERY)
 
     intent = validation.intent
     print(
@@ -61,11 +61,11 @@ def main() -> None:
         f"dates={intent.start_date}..{intent.end_date}"
     )
     print(f"  valid={validation.valid} issues={[i.value for i in validation.issues]}")
+    print(f"  postprocessing: {rejection or 'passed'}")
 
     if executed is None:
-        raise SystemExit(
-            f"expected a valid query, but it was rejected: {[i.value for i in validation.issues]}"
-        )
+        reasons = [rejection] if rejection else [i.value for i in validation.issues]
+        raise SystemExit(f"expected a valid query, but it was rejected: {reasons}")
 
     print(f"  execution_id: {executed.execution_id}")
     print(f"  result_url: {executed.result_url[:100]}...")
