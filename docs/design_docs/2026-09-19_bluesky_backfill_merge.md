@@ -15,7 +15,6 @@
   - [G. Landing retention](#g-landing-retention)
   - [H. Failure alarm](#h-failure-alarm)
 - [Concurrency](#concurrency)
-- [Cost](#cost)
 - [Accepted tradeoffs](#accepted-tradeoffs)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
