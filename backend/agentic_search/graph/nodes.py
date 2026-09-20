@@ -10,7 +10,7 @@ from pyiceberg.catalog import Catalog
 from backend.agentic_search.graph.state import SearchState
 from backend.agentic_search.query_execution.execute import execute_query
 from backend.agentic_search.query_generation.generate import generate_sql
-from backend.agentic_search.query_postprocessing.check_scan_cost import over_scan_limit
+from backend.agentic_search.query_postprocessing.check_scan_cost import reason_over_scan_limit
 from backend.agentic_search.query_postprocessing.check_select_only import is_select_only
 from backend.agentic_search.query_validation.orchestrator import validate_query
 from bluesky_ingestion_jetstream.aws.constants import GLUE_DATABASE
@@ -38,7 +38,7 @@ def postprocess_node(state: SearchState, *, catalog: Catalog) -> StateUpdate:
         return {"rejection": "only SELECT queries are allowed"}
 
     table = catalog.load_table((GLUE_DATABASE, state.generated.record_type))
-    return {"rejection": over_scan_limit(table, state.validation.intent)}
+    return {"rejection": reason_over_scan_limit(table, state.validation.intent)}
 
 
 def execute_node(state: SearchState, *, athena: Athena, s3: S3) -> StateUpdate:

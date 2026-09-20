@@ -67,7 +67,7 @@ def estimate_scan_bytes(table: Table, intent: QueryIntent) -> int:
     return sum(_task_bytes(task, leaf_ids) for task in tasks)
 
 
-def over_scan_limit(table: Table, intent: QueryIntent) -> str | None:
+def reason_over_scan_limit(table: Table, intent: QueryIntent) -> str | None:
     """Why the query is too expensive to run, or None if it is within the cap."""
 
     scan_bytes = estimate_scan_bytes(table, intent)

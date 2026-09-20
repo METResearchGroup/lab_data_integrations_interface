@@ -22,7 +22,7 @@ from backend.agentic_search.query_postprocessing.check_scan_cost import (
     BYTES_PER_GB,
     MAX_SCAN_BYTES,
     estimate_scan_bytes,
-    over_scan_limit,
+    reason_over_scan_limit,
 )
 from backend.agentic_search.query_postprocessing.check_select_only import is_select_only
 from backend.agentic_search.query_validation.query_intent.models import QueryIntent
@@ -89,7 +89,7 @@ def check_scans() -> list[str]:
 
     for name, intent in SCAN_CASES:
         scan_bytes = estimate_scan_bytes(table, intent)
-        rejection = over_scan_limit(table, intent)
+        rejection = reason_over_scan_limit(table, intent)
         state = "over the cap" if rejection else "allowed"
         print(f"  {name}: {scan_bytes / BYTES_PER_GB:.2f} GB ({state})")
 
