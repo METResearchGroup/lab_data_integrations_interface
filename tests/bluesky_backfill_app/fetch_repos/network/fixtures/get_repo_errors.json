@@ -1,0 +1,22 @@
+{
+  "account_deactivated": {
+    "status": 400,
+    "body": "{\"error\":\"RepoDeactivated\",\"message\":\"Repo has been deactivated: did:plc:example\"}"
+  },
+  "account_takendown": {
+    "status": 400,
+    "body": "{\"error\":\"RepoTakendown\",\"message\":\"Repo has been takendown: did:plc:example\"}"
+  },
+  "account_deleted": {
+    "status": 400,
+    "body": "{\"error\":\"RepoNotFound\",\"message\":\"Could not find repo for DID: did:plc:example\"}"
+  },
+  "did_not_found": {
+    "status": 404,
+    "body": "{\"error\":\"RepoNotFound\",\"message\":\"could not resolve DID: DID not found: PLC directory 404\"}"
+  },
+  "did_invalid": {
+    "status": 400,
+    "body": "{\"error\":\"BadRequest\",\"message\":\"missing or invalid DID parameter: DID syntax didn't validate via regex\"}"
+  }
+}
