@@ -10,7 +10,7 @@ from pyiceberg.catalog import Catalog
 from backend.agentic_search.query_postprocessing import check_scan_cost
 from backend.agentic_search.query_postprocessing.check_scan_cost import (
     estimate_scan_bytes,
-    over_scan_limit,
+    reason_over_scan_limit,
 )
 from backend.agentic_search.query_validation.query_intent.models import QueryIntent
 from bluesky_ingestion_jetstream.aws.constants import GLUE_DATABASE
@@ -77,12 +77,12 @@ def test_nested_column_is_counted(table) -> None:
 def test_small_scan_is_allowed(table) -> None:
     """The fixture holds a few hundred KB, far under the 10 GB cap."""
 
-    assert over_scan_limit(table, _intent()) is None
+    assert reason_over_scan_limit(table, _intent()) is None
 
 
 def test_scan_over_the_cap_is_refused(table, monkeypatch) -> None:
     monkeypatch.setattr(check_scan_cost, "MAX_SCAN_BYTES", 1)
-    rejection = over_scan_limit(table, _intent())
+    rejection = reason_over_scan_limit(table, _intent())
 
     assert rejection is not None
     assert "over the" in rejection
