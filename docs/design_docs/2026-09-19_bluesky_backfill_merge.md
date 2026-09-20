@@ -51,10 +51,6 @@ read the whole table on every run.
 | Dedup | `row_number()` over `uri` inside each `INSERT` | Free: the statement reads those rows anyway, and Athena bills scanned bytes. |
 | Provenance | None per DID | A `done` DID is in Iceberg once `date(updated_at) <= merged_through`. Marking each one would add a DID-extraction query and a bulk writer to what is otherwise files in, rows out, one cursor. |
 
-Nothing dedups today. A repo's record keys are unique and a DID cannot sit in a
-buffer twice (visibility 3600s > 30min flush), so duplicates only come from a
-redelivery whose earlier attempt already wrote to S3.
-
 # Components
 
 ## A. Landing Glue tables
@@ -104,17 +100,6 @@ FROM (
 ) WHERE rn = 1
   AND created_at >= :quarter_start AND created_at < :quarter_end;
 ```
-
-Columns are listed explicitly: `SELECT *` would carry the landing table's `dt`
-partition column, which `raw` does not have. Confirm on the first merge that
-Athena reads pyarrow's `timestamp[us, tz=UTC]` into `timestamptz` without a cast.
-
-A statement that trips the partition cap scans 0 bytes and is not billed, but it
-can leave data files behind: the error names a manifest listing them, and Athena
-does not delete them.
-
-`merged_through` moves only after all four record types finish, so a failed quarter
-means the rerun re-inserts the quarters that had succeeded.
 
 ## D. Weekly schedule
 
