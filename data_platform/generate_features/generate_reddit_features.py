@@ -14,6 +14,10 @@ import pandas as pd
 import typer
 from pydantic import BaseModel
 
+from data_platform.generate_features.dataset_feature_config import (
+    apply_toxic_tiered_overrides,
+    load_dataset_feature_config,
+)
 from data_platform.generate_features.generate_features import FeatureGenerationConfig
 from data_platform.generate_features.models import FeatureRunConfig
 from data_platform.generate_features.platform_cli import (
@@ -44,6 +48,8 @@ def reddit_feature_config(
     registry = FEATURE_REGISTRY
     if features_subset:
         registry = {name: FEATURE_REGISTRY[name] for name in features_subset}
+    feature_config = load_dataset_feature_config("reddit", dataset_id)
+    registry = apply_toxic_tiered_overrides(registry, feature_config)
 
     binding = REDDIT_BINDING
     feature_label_storage = StorageManager(
