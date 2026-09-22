@@ -1,5 +1,7 @@
 # Perspective API labeling of posts
 
+> **As of 2026-09-22, this experiment no longer works.** `download_posts_by_day.py` and `get_post_count_by_day.py` import from `data_platform/`, which was removed as dead code in [PR #215](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/215).
+
 We now have a data injection pipeline that gives us every single post in Bluesky. We can get this looking forward into the future, but we aren't able to get this yet on past data. That's okay. Right now, we want a proof of concept of how useful this data is, so now what we can do is take all the posts that we do have and run the prospective API classifier on those posts.
 
 Approach:
