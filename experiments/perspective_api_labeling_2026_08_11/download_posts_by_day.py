@@ -17,7 +17,6 @@ from pathlib import Path
 import boto3
 import pyarrow as pa
 import pyarrow.parquet as pq
-
 from data_platform.aws.athena import Athena
 from data_platform.aws.constants import DEFAULT_REGION, S3_BUCKET
 

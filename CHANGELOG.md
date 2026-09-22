@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-09-22
+
+1. Removed dead code: `data_platform/` and its tests, whose Glue, Athena, and DynamoDB infrastructure was destroyed on 2026-07-30, and the Opik integration in `ml_tooling`, along with the `opik` dependency and its `litellm` pin. [PR #215](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/215)
+
 ## 2026-09-15
 
 1. Agentic search now limits each user to one query per minute: a second `POST /query` within 60 seconds is rejected with a 429 and a retry time shown in the UI, before anything is queued or emailed. The limit lives in process memory, so it resets on redeploy and holds only while the backend runs as a single process. [PR #209](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/209)

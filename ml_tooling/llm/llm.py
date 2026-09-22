@@ -17,8 +17,6 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
 from lib.load_env_vars import EnvVarsContainer
-from lib.timestamp_utils import get_current_timestamp
-from ml_tooling.llm import opik as opik_telemetry
 
 DEFAULT_MODEL = "gpt-5.4-nano"
 DEFAULT_TEMPERATURE = 0.0
@@ -45,7 +43,6 @@ def build_structured_chat_chain(
     return template | llm.with_structured_output(output_schema)
 
 
-@opik_telemetry.track_llm_call(name="structured_chat_completion")
 def structured_chat_completion(
     *,
     user_prompt: str,
@@ -61,37 +58,7 @@ def structured_chat_completion(
         model=model,
         temperature=temperature,
     )
-
-    ctx = opik_telemetry.current_context()
-    feature_name = ctx.get("feature_name")
-    prompt = opik_telemetry.resolve_system_prompt(
-        feature_name=str(feature_name or "unknown"),
-        system_prompt=system_prompt,
-    )
-
-    opik_telemetry.enrich_llm_trace(
-        input={"user_prompt": user_prompt, "uri": ctx.get("uri")},
-        tags=[feature_name] if feature_name else None,
-        metadata={
-            "feature_name": feature_name,
-            "uri": ctx.get("uri"),
-            "model": model,
-            "timestamp": get_current_timestamp(),
-            "output_schema": output_schema.model_json_schema(),
-        },
-        prompts=[prompt],
-        thread_id=ctx.get("run_id"),
-    )
-
-    result = chain.invoke(
-        {"user_prompt": user_prompt},
-        config={"callbacks": opik_telemetry.langchain_callbacks(feature_name=feature_name)},
-    )
-
-    opik_telemetry.enrich_llm_trace(
-        output={"structured_output": result.model_dump()},
-    )
-    return result
+    return chain.invoke({"user_prompt": user_prompt})
 
 
 if __name__ == "__main__":
