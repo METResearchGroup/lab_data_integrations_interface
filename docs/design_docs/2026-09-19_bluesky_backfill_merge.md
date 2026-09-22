@@ -100,6 +100,18 @@ FROM (
   AND created_at >= :quarter_start AND created_at < :quarter_end;
 ```
 
+```mermaid
+flowchart LR
+    cron[["EventBridge: Sun 09:00"]] --> read[("DynamoDB: read merged_through")]
+    read --> choice{new landing days?}
+    choice -->|no| stop([done])
+    choice -->|yes| insert["INSERT per record type,<br/>in batches"]
+    s3[(S3 landing)] --> insert
+    insert --> raw[(Iceberg raw)]
+    insert --> write[("DynamoDB: merged_through = yesterday")]
+    write --> stop
+```
+
 ## D. Weekly schedule
 
 `aws_scheduler_schedule`, `cron(0 9 ? * SUN *)`: after Sunday's 05:00 VACUUM and
@@ -119,6 +131,15 @@ In `terraform/bluesky_ingestion_jetstream/maintenance.tf`:
   no backfill partition is otherwise ever compacted. The range is fixed, so the
   predicates are a static monthly list, not the JSONata month counting
   `optimize_full` needs for an open-ended range.
+
+```mermaid
+flowchart LR
+    cron[["EventBridge: 1st of month 07:00"]] --> sfn[[maintenance state machine]]
+    sfn --> opt["OPTIMIZE per record type,<br/>in batches"]
+    raw[(Iceberg raw)] --> opt
+    opt --> packed[(fewer, larger files)]
+```
+
 - **`dedup_range`** -- the same `row_number()` DELETE as the weekly `dedup` job,
   with the window from the execution input, and **no** `aws_scheduler_schedule`
   entry: deployed, never self-starting.
@@ -139,6 +160,15 @@ In `terraform/bluesky_ingestion_jetstream/maintenance.tf`:
 Both need the `Choice` branch, the `Fail` cause text, and the runbook
 description in that file updated.
 
+```mermaid
+flowchart LR
+    cli["aws stepfunctions start-execution<br/>{job, start, end}"] --> sfn[[maintenance state machine]]
+    sfn --> del["DELETE duplicate uris,<br/>in batches"]
+    raw[(Iceberg raw)] --> del
+    del --> masked[(delete files:<br/>copies hidden on read)]
+    masked -.->|"compaction, later"| folded[(delete files folded in)]
+```
+
 ## G. Landing retention
 
 A 30-day expiration rule on `landing/bluesky/backfill/`, added to the existing
@@ -150,6 +180,15 @@ the alarm in H, not by deletion logic.
 
 Extend the existing SNS topic and `maintenance_failed` alarm to the merge state
 machine's `ExecutionsFailed`.
+
+## I. Expected Flow
+
+1. Run backfills whenever we want to place data into landing zone. 
+2. Every week, merge will happen and all new landing zone files will move into iceberg. 
+3. Every month, compaction will happen. If nothing to compact, the actual data won't be scanned. 
+4. Every month, expired files (files > 30 days) in the landing zone will be auto-deleted. By this point,
+the weekly cron should've already moved the data to the iceberg table. 
+5. Whenever we want to (on demand), we run dedup on the data.
 
 # Concurrency
 
