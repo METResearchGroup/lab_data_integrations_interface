@@ -125,12 +125,16 @@ In `terraform/bluesky_ingestion_jetstream/maintenance.tf`:
 
   ```bash
   aws stepfunctions start-execution --state-machine-arn <arn> \
-    --input '{"job":"dedup_range","start":"2022-11-01","end":"2026-09-01"}'
+    --input '{"job":"dedup_range","start":"2022-11-17","end":"2026-08-07"}'
   ```
 
-  It `Map`s over quarters like the merge. The weekly `dedup` job gets away with a
-  single unchunked DELETE only because its window is 21 days. Merge-on-read, so
-  follow it with `optimize_backfill` to fold the delete files in.
+  It `Map`s over quarters like the merge, for the same 100-partition cap. The
+  weekly `dedup` job is one unchunked DELETE because its window
+  (`created_at >= current_date - interval '21' day`) touches about 22 day
+  partitions, well under 100. The backfill range, `BLUESKY_START_DATE` ..
+  `DATA_END_DATE`, is 1,360 days, so one DELETE over it would write delete files
+  into far more than 100 partitions. Merge-on-read, so follow it with
+  `optimize_backfill` to fold the delete files in.
 
 Both need the `Choice` branch, the `Fail` cause text, and the runbook
 description in that file updated.
