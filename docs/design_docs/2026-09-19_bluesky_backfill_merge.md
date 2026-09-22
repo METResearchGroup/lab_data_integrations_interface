@@ -14,6 +14,7 @@
   - [F. Maintenance additions](#f-maintenance-additions)
   - [G. Landing retention](#g-landing-retention)
   - [H. Failure alarm](#h-failure-alarm)
+  - [I. Expected Flow](#i-expected-flow)
 - [Concurrency](#concurrency)
 - [Accepted tradeoffs](#accepted-tradeoffs)
 
