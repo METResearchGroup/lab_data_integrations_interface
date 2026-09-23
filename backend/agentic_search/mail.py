@@ -5,9 +5,13 @@ from __future__ import annotations
 import logging
 import os
 
+from opentelemetry import trace
+from opentelemetry.trace import StatusCode
+
 from backend.agentic_search.gmail import Gmail
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 SENDER_VARIABLE = "GMAIL_SENDER_EMAIL"
 PASSWORD_VARIABLE = "GMAIL_APP_PASSWORD"
@@ -33,10 +37,14 @@ def _gmail() -> Gmail:
 def _send(email: str, subject: str, body: str) -> None:
     """Mail failures are logged, not raised: there is nowhere left to report them."""
 
-    try:
-        _gmail().send(to=email, subject=subject, body=body)
-    except Exception:
-        logger.exception("could not mail %s to %s", subject, email)
+    with tracer.start_as_current_span("mail") as span:
+        span.set_attribute("subject", subject)
+        try:
+            _gmail().send(to=email, subject=subject, body=body)
+        except Exception as error:
+            logger.exception("could not mail %s to %s", subject, email)
+            span.record_exception(error)
+            span.set_status(StatusCode.ERROR)
 
 
 def mail_results(email: str, query: str, result_url: str) -> None:

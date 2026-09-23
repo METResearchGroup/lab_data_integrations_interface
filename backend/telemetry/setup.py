@@ -8,6 +8,7 @@ from opentelemetry import trace
 from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.botocore import BotocoreInstrumentor
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
@@ -85,6 +86,7 @@ def setup_telemetry(app: FastAPI) -> bool:
 
     # Supplies the per-request spans; without it the provider exports nothing.
     FastAPIInstrumentor.instrument_app(app, tracer_provider=_tracer_provider)
+    BotocoreInstrumentor().instrument(tracer_provider=_tracer_provider)
 
     logger.info("telemetry enabled as %s", SERVICE_NAME)
     return True
