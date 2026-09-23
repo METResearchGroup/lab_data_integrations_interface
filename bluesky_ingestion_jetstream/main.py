@@ -23,6 +23,7 @@ from bluesky_ingestion_jetstream.telemetry import (
     register_cursor_tracker,
     setup_telemetry,
 )
+from bluesky_ingestion_jetstream.telemetry.constants import SERVICE_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +133,7 @@ def main() -> None:
 
     load_dotenv()
     logging.basicConfig(level=logging.INFO)
-    setup_telemetry()
+    setup_telemetry(SERVICE_NAME)
     run_until_stopped()
 
 
