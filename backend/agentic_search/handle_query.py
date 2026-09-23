@@ -29,10 +29,11 @@ def handle_query(query: str, email: str) -> None:
             return
 
         if executed is None:
-            span.set_attribute("outcome", "rejected" if rejection else "invalid")
+            outcome = "rejected" if rejection else "invalid"
             reasons = [rejection] if rejection else [issue.value for issue in validation.issues]
-            mail_invalid(email, query, reasons)
-            return
+            sent = mail_invalid(email, query, reasons)
+        else:
+            outcome = "results"
+            sent = mail_results(email, query, executed.result_url)
 
-        span.set_attribute("outcome", "results")
-        mail_results(email, query, executed.result_url)
+        span.set_attribute("outcome", outcome if sent else "mail_failed")

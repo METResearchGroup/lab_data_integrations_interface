@@ -157,5 +157,5 @@ def test_unmailable_result_marks_the_mail_span_failed(monkeypatch, spans) -> Non
     module.handle_query(QUERY, EMAIL)
 
     by_name = {span.name: span for span in spans.get_finished_spans()}
-    assert by_name["agentic_search.query"].attributes["outcome"] == "results"
+    assert by_name["agentic_search.query"].attributes["outcome"] == "mail_failed"
     assert by_name["mail"].status.status_code is StatusCode.ERROR
