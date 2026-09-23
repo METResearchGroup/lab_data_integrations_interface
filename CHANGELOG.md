@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-09-23
+
+1. Agentic search now sends one trace per query to Grafana Cloud: a span for each step carrying what it returned — the extracted intent, the generated SQL, the rejection, the Athena execution ID — plus the email sent, with the LLM's prompt, reply, and token counts and the Athena calls nested beneath their steps. Each run records its outcome, including a new `mail_failed` for a run whose email did not send, which had only been logged. Ships with a checked-in dashboard (`backend/telemetry/dashboards/agentic_search.json`) showing outcomes, end-to-end p50/p99, and a table of runs per outcome. Backend tests no longer export spans when a local `.env` holds the Grafana token. [PR #216](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/216)
+
 ## 2026-09-22
 
 1. Removed dead code: `data_platform/` and its tests, whose Glue, Athena, and DynamoDB infrastructure was destroyed on 2026-07-30, and the Opik integration in `ml_tooling`, along with the `opik` dependency and its `litellm` pin. [PR #215](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/215)
