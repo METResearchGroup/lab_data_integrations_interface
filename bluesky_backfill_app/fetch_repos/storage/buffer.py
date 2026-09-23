@@ -1,4 +1,5 @@
 import time
+from dataclasses import dataclass
 
 from bluesky_backfill_app.aws.queue import Message
 from bluesky_backfill_app.fetch_repos.constants import (
@@ -68,3 +69,26 @@ class RepoBuffer:
             buffer.clear()
         self.messages = []
         self.oldest_received_at = None
+
+
+@dataclass(frozen=True, slots=True)
+class FlushSummary:
+    """What one flush holds. `sizes` is serialized JSON bytes."""
+
+    reason: str
+    repos: int
+    rows: dict[RecordType, int]
+    sizes: dict[RecordType, int]
+
+
+def get_flush_summary(buffer: RepoBuffer, reason: str) -> FlushSummary:
+    """Call before `clear`, which zeroes the counts."""
+
+    rows: dict[RecordType, int] = {}
+    sizes: dict[RecordType, int] = {}
+    for record_type, type_buffer in buffer.buffers.items():
+        if type_buffer.rows:
+            rows[record_type] = len(type_buffer.rows)
+            sizes[record_type] = type_buffer.size
+
+    return FlushSummary(reason=reason, repos=len(buffer.messages), rows=rows, sizes=sizes)

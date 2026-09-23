@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from bluesky_backfill_app.aws.constants import (
@@ -145,6 +147,37 @@ def test_a_failed_done_write_drops_the_buffer_without_acking(events):
 
     assert events == [("write", ["did:plc:a"])]
     assert buffer.messages == []
+
+
+def flush_lines(caplog):
+    return [json.loads(m) for m in caplog.messages if m.startswith('{"event": "flush"')]
+
+
+def test_flush_logs_what_it_landed(events, caplog):
+    buffer = big_buffer()
+    fill(buffer, message("did:plc:a"), message("did:plc:b"))
+
+    with caplog.at_level("INFO"):
+        flush(buffer, FakeDidStore(events), FakeQueue(events), "run-1", "size")
+
+    [line] = flush_lines(caplog)
+    assert (line["status"], line["reason"], line["repos"], line["likes_rows"]) == (
+        "ok",
+        "size",
+        2,
+        2,
+    )
+
+
+def test_a_failed_flush_still_logs_what_it_held(events, caplog):
+    buffer = big_buffer()
+    fill(buffer, message("did:plc:a"))
+
+    with caplog.at_level("INFO"):
+        flush(buffer, FakeDidStore(events, fail_done=True), FakeQueue(events), "run-1", "age")
+
+    [line] = flush_lines(caplog)
+    assert (line["status"], line["repos"], line["likes_rows"]) == ("failed", 1, 1)
 
 
 def test_run_flushes_when_the_buffer_trips_a_threshold(events):
