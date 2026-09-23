@@ -4,6 +4,8 @@
 
 1. Bluesky backfill fetch workers now report to Grafana Cloud: counters for rows, serialized bytes, and repos landed, flush failures, and repo failures by reason and resulting DID status, plus gauges for buffered bytes and main- and dead-letter-queue depth. Each flush also logs one JSON line with its reason, status, repo count, and per-record-type rows and size, including flushes that fail. [PR #218](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/218)
 
+2. A Grafana dashboard, Bluesky Backfill - Lab Data Integrations, now shows the backfill at a glance: workers reporting, repos in flight, flush failures and dead-letter depth, repos landed and remaining, data ingested by record type, failures by reason and DID status, and a per-flush table. [PR #219](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/219)
+
 ## 2026-09-22
 
 1. Removed dead code: `data_platform/` and its tests, whose Glue, Athena, and DynamoDB infrastructure was destroyed on 2026-07-30, and the Opik integration in `ml_tooling`, along with the `opik` dependency and its `litellm` pin. [PR #215](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/215)
