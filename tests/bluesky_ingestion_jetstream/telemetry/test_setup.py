@@ -16,7 +16,7 @@ class TestBuildResource:
 
         monkeypatch.setenv("OTEL_SERVICE_NAME", "backend")
 
-        assert build_resource().attributes["service.name"] == SERVICE_NAME
+        assert build_resource(SERVICE_NAME).attributes["service.name"] == SERVICE_NAME
 
 
 class TestIsConfigured:

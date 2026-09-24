@@ -6,10 +6,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from bluesky_backfill_app.aws.constants import (
+    IN_FLIGHT_MESSAGES_ATTRIBUTE,
     MAX_RECEIVE_COUNT,
     QUEUE_NAME,
     RECEIVE_COUNT_ATTRIBUTE,
     RECEIVE_WAIT_SECONDS,
+    WAITING_MESSAGES_ATTRIBUTE,
 )
 from lib.aws.clients import build_sqs_client
 from lib.aws.constants import AWS_REGION
@@ -99,6 +101,24 @@ class SqsQueue(SQS):
 
         messages = response.get("Messages", [])
         return parse_message(messages[0]) if messages else None
+
+    def waiting_messages(self) -> int:
+        """Approximate count of messages not yet received."""
+
+        response = self.client.get_queue_attributes(
+            QueueUrl=self.queue_url,
+            AttributeNames=[WAITING_MESSAGES_ATTRIBUTE],
+        )
+        return int(response["Attributes"][WAITING_MESSAGES_ATTRIBUTE])
+
+    def in_flight_messages(self) -> int:
+        """Approximate count of messages received but not yet deleted."""
+
+        response = self.client.get_queue_attributes(
+            QueueUrl=self.queue_url,
+            AttributeNames=[IN_FLIGHT_MESSAGES_ATTRIBUTE],
+        )
+        return int(response["Attributes"][IN_FLIGHT_MESSAGES_ATTRIBUTE])
 
     def delete(self, handle: str) -> None:
         """Ack one message."""

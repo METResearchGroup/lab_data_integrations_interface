@@ -78,3 +78,7 @@ MAX_RECEIVE_COUNT = 5
 RECEIVE_WAIT_SECONDS = 20
 # SQS attribute holding a message's delivery count.
 RECEIVE_COUNT_ATTRIBUTE = "ApproximateReceiveCount"
+# Queue attribute: messages waiting to be received.
+WAITING_MESSAGES_ATTRIBUTE = "ApproximateNumberOfMessages"
+# Queue attribute: messages received but not yet deleted.
+IN_FLIGHT_MESSAGES_ATTRIBUTE = "ApproximateNumberOfMessagesNotVisible"

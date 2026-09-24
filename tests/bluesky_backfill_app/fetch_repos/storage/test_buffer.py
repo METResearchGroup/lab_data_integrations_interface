@@ -4,7 +4,7 @@ import pytest
 
 from bluesky_backfill_app.aws.queue import Message
 from bluesky_backfill_app.fetch_repos.constants import FLUSH_REASON_AGE, FLUSH_REASON_SIZE
-from bluesky_backfill_app.fetch_repos.storage.buffer import RepoBuffer
+from bluesky_backfill_app.fetch_repos.storage.buffer import RepoBuffer, get_flush_summary
 from bluesky_ingestion_jetstream.constants import FOLLOWS, LIKES, POSTS, REPOSTS
 
 
@@ -128,3 +128,27 @@ def test_clear_rebinds_the_messages():
     buffer.clear()
 
     assert len(handed_off) == 1
+
+
+def test_flush_summary_counts_repos_rows_and_bytes():
+    buffer = RepoBuffer()
+    buffer.add(message("did:plc:a"), {POSTS: [row("p1"), row("p2")]}, now())
+    buffer.add(message("did:plc:b"), {LIKES: [row("l1")]}, now())
+
+    summary = get_flush_summary(buffer, FLUSH_REASON_SIZE)
+
+    assert summary.reason == FLUSH_REASON_SIZE
+    assert summary.repos == 2
+    assert summary.rows == {POSTS: 2, LIKES: 1}
+    assert summary.sizes == {POSTS: buffer.buffers[POSTS].size, LIKES: buffer.buffers[LIKES].size}
+
+
+def test_flush_summary_survives_clear():
+    buffer = RepoBuffer()
+    buffer.add(message(), {POSTS: [row("p1")]}, now())
+
+    summary = get_flush_summary(buffer, FLUSH_REASON_AGE)
+    buffer.clear()
+
+    assert summary.repos == 1
+    assert summary.rows == {POSTS: 1}

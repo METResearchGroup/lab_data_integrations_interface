@@ -19,7 +19,6 @@ from bluesky_ingestion_jetstream.telemetry.constants import (
     LOGS_ENDPOINT,
     METRIC_EXPORT_INTERVAL_MILLIS,
     METRICS_ENDPOINT,
-    SERVICE_NAME,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,10 +35,14 @@ def is_configured() -> bool:
     return bool(os.getenv(AUTH_TOKEN_VARIABLE))
 
 
-def build_resource() -> Resource:
-    """Identity shared by both signals."""
+def build_resource(service_name: str) -> Resource:
+    """Identity shared by both signals.
 
-    return Resource.create({SERVICE_NAME_KEY: SERVICE_NAME})
+    The SDK adds a random `service.instance.id` per process, so replicas get
+    separate series.
+    """
+
+    return Resource.create({SERVICE_NAME_KEY: service_name})
 
 
 def build_meter_provider(resource: Resource) -> MeterProvider:
@@ -66,7 +69,7 @@ def build_logger_provider(resource: Resource) -> LoggerProvider:
     return provider
 
 
-def setup_telemetry() -> bool:
+def setup_telemetry(service_name: str) -> bool:
     """Wire up both pipelines, or do nothing when no endpoint is configured."""
 
     global _meter_provider, _logger_provider
@@ -75,7 +78,7 @@ def setup_telemetry() -> bool:
         logger.info("%s unset; running without telemetry", AUTH_TOKEN_VARIABLE)
         return False
 
-    resource = build_resource()
+    resource = build_resource(service_name)
 
     _meter_provider = build_meter_provider(resource)
     metrics.set_meter_provider(_meter_provider)
@@ -84,7 +87,7 @@ def setup_telemetry() -> bool:
     set_logger_provider(_logger_provider)
     logging.getLogger().addHandler(LoggingHandler(logger_provider=_logger_provider))
 
-    logger.info("telemetry enabled as %s", SERVICE_NAME)
+    logger.info("telemetry enabled as %s", service_name)
     return True
 
 
