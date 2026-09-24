@@ -148,6 +148,45 @@ resource "aws_s3_bucket_lifecycle_configuration" "warehouse" {
       days_after_initiation = 1
     }
   }
+
+  # Owned by `terraform/bluesky_backfill_app`, here because a bucket has one
+  # lifecycle configuration. Prefixes mirror that root's variables.
+
+  # Three weekly merge cycles of margin; `bluesky_backfill_merge_stale` alarms
+  # long before a stalled merge loses anything.
+  rule {
+    id     = "expire-backfill-landing"
+    status = "Enabled"
+
+    filter {
+      prefix = "landing/bluesky/backfill/"
+    }
+
+    expiration {
+      days = 30
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+
+  rule {
+    id     = "expire-athena-backfill-results"
+    status = "Enabled"
+
+    filter {
+      prefix = "athena-results/backfill/"
+    }
+
+    expiration {
+      days = 7
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
 }
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-09-23
+
+1. Bluesky backfill data now reaches the `bluesky_raw` Iceberg tables. A weekly Step Functions merge (Sundays 09:00 UTC) appends every landing day since a cursor in DynamoDB, reading landing through new Glue tables with partition projection, one `INSERT` per record type per three-month chunk to stay under Athena's 100-partition limit; duplicate URIs within a run are dropped, keeping the newest `rev`. The cursor only advances when every statement succeeds, and a failed, timed-out, or week-stale merge emails the maintenance alarm topic. Landing files now expire after 30 days. A separate backfill maintenance state machine compacts the backfill range monthly (`optimize_backfill`) and masks duplicates across merge runs on demand (`dedup_backfill`), covering partitions the Jetstream maintenance jobs never reach. [PR #220](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/220)
+
 ## 2026-09-22
 
 1. Removed dead code: `data_platform/` and its tests, whose Glue, Athena, and DynamoDB infrastructure was destroyed on 2026-07-30, and the Opik integration in `ml_tooling`, along with the `opik` dependency and its `litellm` pin. [PR #215](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/215)
