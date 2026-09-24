@@ -226,7 +226,7 @@
             "uid": "grafanacloud-prom"
           },
           "editorMode": "code",
-          "expr": "sum(increase(bluesky_backfill_flush_failures_total[$__range]))",
+          "expr": "sum(max_over_time(bluesky_backfill_flush_failures_total[$__range]))",
           "instant": true,
           "range": false,
           "legendFormat": "__auto"
@@ -373,7 +373,7 @@
             "uid": "grafanacloud-prom"
           },
           "editorMode": "code",
-          "expr": "sum(increase(bluesky_backfill_repos_landed_total[$__range]))",
+          "expr": "sum(max_over_time(bluesky_backfill_repos_landed_total[$__range]))",
           "instant": true,
           "range": false,
           "legendFormat": "__auto"
@@ -522,7 +522,7 @@
             "uid": "grafanacloud-prom"
           },
           "editorMode": "code",
-          "expr": "sum by (record_type) (increase(bluesky_backfill_bytes_written_total[$__range])) / 1e9",
+          "expr": "sum by (record_type) (max_over_time(bluesky_backfill_bytes_written_total[$__range])) / 1e9",
           "instant": true,
           "range": false,
           "legendFormat": "{{record_type}}"
@@ -611,7 +611,7 @@
             "uid": "grafanacloud-prom"
           },
           "editorMode": "code",
-          "expr": "sum(increase(bluesky_backfill_rows_written_total[$__range]))",
+          "expr": "sum(max_over_time(bluesky_backfill_rows_written_total[$__range]))",
           "instant": true,
           "range": false,
           "legendFormat": "Rows"
@@ -623,7 +623,7 @@
             "uid": "grafanacloud-prom"
           },
           "editorMode": "code",
-          "expr": "sum(increase(bluesky_backfill_bytes_written_total[$__range])) / 1e9",
+          "expr": "sum(max_over_time(bluesky_backfill_bytes_written_total[$__range])) / 1e9",
           "instant": true,
           "range": false,
           "legendFormat": "Serialized JSON"
@@ -757,7 +757,7 @@
             "uid": "grafanacloud-prom"
           },
           "editorMode": "code",
-          "expr": "sum by (record_type) (increase(bluesky_backfill_rows_written_total[$__range]))",
+          "expr": "sum by (record_type) (max_over_time(bluesky_backfill_rows_written_total[$__range]))",
           "instant": true,
           "range": false,
           "legendFormat": "__auto",
@@ -770,7 +770,7 @@
             "uid": "grafanacloud-prom"
           },
           "editorMode": "code",
-          "expr": "sum by (record_type) (increase(bluesky_backfill_bytes_written_total[$__range])) / 1e9",
+          "expr": "sum by (record_type) (max_over_time(bluesky_backfill_bytes_written_total[$__range])) / 1e9",
           "instant": true,
           "range": false,
           "legendFormat": "__auto",
@@ -891,7 +891,7 @@
             "uid": "grafanacloud-prom"
           },
           "editorMode": "code",
-          "expr": "sum by (reason, did_status) (increase(bluesky_backfill_repos_failed_total[$__range])) > 0",
+          "expr": "sum by (reason, did_status) (max_over_time(bluesky_backfill_repos_failed_total[$__range])) > 0",
           "instant": true,
           "range": false,
           "legendFormat": "__auto",
