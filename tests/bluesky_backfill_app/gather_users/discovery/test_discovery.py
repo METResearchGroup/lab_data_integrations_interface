@@ -10,16 +10,15 @@ DISCOVERY = "bluesky_backfill_app.gather_users.discovery.main"
 
 
 class FakeCursorStore:
-    def __init__(self, cursor=None, count=0):
+    def __init__(self, cursor=None):
         self.cursor = cursor
-        self.count = count
         self.writes = []
 
     def read(self):
-        return self.cursor, self.count
+        return self.cursor
 
-    def write(self, cursor, created_count):
-        self.writes.append((cursor, created_count))
+    def write(self, cursor):
+        self.writes.append(cursor)
 
 
 class FakeDidStore:
@@ -57,10 +56,11 @@ def test_flush_writes_then_advances_the_cursor():
     tracker.observe("next")
     did_store = FakeDidStore()
 
-    flush(buffer, did_store, tracker, "run-1", FLUSH_REASON_FINAL)
+    created = flush(buffer, did_store, tracker, "run-1", FLUSH_REASON_FINAL)
 
+    assert created == 1
     assert did_store.batches == [["did:plc:a"]]
-    assert cursor_store.writes == [("next", 1)]
+    assert cursor_store.writes == ["next"]
     assert len(buffer) == 0
 
 
@@ -85,14 +85,14 @@ def test_discover_writes_every_page_and_stops_at_the_end(pages):
     tracker = CursorTracker(cursor_store)
     did_store = FakeDidStore()
 
-    discover(did_store, tracker, "run-1", target=100)
+    created = discover(did_store, tracker, "run-1", count=100)
 
+    assert created == 3
     assert did_store.batches == [["did:plc:a", "did:plc:b", "did:plc:c"]]
-    assert cursor_store.writes == [("one", 3)]
-    assert tracker.discovered_count == 3
+    assert cursor_store.writes == ["one"]
 
 
-def test_discover_stops_once_the_target_is_reached(pages):
+def test_discover_stops_once_count_is_reached(pages):
     pages.extend(
         [
             RepoPage(dids=["did:plc:a", "did:plc:b"], cursor="one"),
@@ -102,10 +102,10 @@ def test_discover_stops_once_the_target_is_reached(pages):
     tracker = CursorTracker(FakeCursorStore())
     did_store = FakeDidStore()
 
-    discover(did_store, tracker, "run-1", target=2)
+    created = discover(did_store, tracker, "run-1", count=2)
 
+    assert created == 2
     assert did_store.batches == [["did:plc:a", "did:plc:b"]]
-    assert tracker.discovered_count == 2
 
 
 def test_discover_keeps_paging_when_duplicates_leave_it_short(pages):
@@ -118,10 +118,10 @@ def test_discover_keeps_paging_when_duplicates_leave_it_short(pages):
     tracker = CursorTracker(FakeCursorStore())
     did_store = FakeDidStore(existing=["did:plc:a", "did:plc:b"])
 
-    discover(did_store, tracker, "run-1", target=2)
+    created = discover(did_store, tracker, "run-1", count=2)
 
+    assert created == 2
     assert did_store.batches == [["did:plc:a", "did:plc:b"], ["did:plc:c", "did:plc:d"]]
-    assert tracker.discovered_count == 2
 
 
 def test_discover_resumes_from_the_stored_cursor(monkeypatch):
@@ -132,29 +132,20 @@ def test_discover_resumes_from_the_stored_cursor(monkeypatch):
         yield RepoPage(dids=["did:plc:a"], cursor=None)
 
     monkeypatch.setattr(f"{DISCOVERY}.iter_pages", fake_iter_pages)
-    tracker = CursorTracker(FakeCursorStore(cursor="stored", count=5))
+    tracker = CursorTracker(FakeCursorStore(cursor="stored"))
 
-    discover(FakeDidStore(), tracker, "run-1", target=100)
+    discover(FakeDidStore(), tracker, "run-1", count=100)
 
     assert seen == ["stored"]
 
 
-def test_discover_counts_the_existing_total_towards_the_target(pages):
+def test_discover_does_not_write_when_count_is_zero(pages):
     pages.append(RepoPage(dids=["did:plc:a"], cursor=None))
-    tracker = CursorTracker(FakeCursorStore(cursor="stored", count=9))
+    cursor_store = FakeCursorStore(cursor="stored")
     did_store = FakeDidStore()
 
-    discover(did_store, tracker, "run-1", target=10)
+    created = discover(did_store, CursorTracker(cursor_store), "run-1", count=0)
 
-    assert tracker.discovered_count == 10
-
-
-def test_discover_does_not_write_when_already_at_target(pages):
-    pages.append(RepoPage(dids=["did:plc:a"], cursor=None))
-    cursor_store = FakeCursorStore(cursor="stored", count=10)
-    did_store = FakeDidStore()
-
-    discover(did_store, CursorTracker(cursor_store), "run-1", target=10)
-
+    assert created == 0
     assert did_store.batches == []
     assert cursor_store.writes == []
