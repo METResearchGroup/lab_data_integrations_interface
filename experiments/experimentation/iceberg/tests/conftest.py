@@ -4,7 +4,7 @@ These tests need pyiceberg, which cannot be installed into the root venv (it
 pins rich<15, the project requires rich>=15). Run them with the experiment's own
 interpreter:
 
-    experimentation/iceberg/.venv/bin/python -m pytest experimentation/iceberg/tests
+    experiments/experimentation/iceberg/.venv/bin/python -m pytest experiments/experimentation/iceberg/tests
 """
 
 collect_ignore_glob: list[str] = []
