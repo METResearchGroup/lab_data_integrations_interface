@@ -2,7 +2,9 @@
 
 ## 2026-09-24
 
-1. Bluesky backfill discovery now takes `--count N`, the number of new DIDs to add in this run, instead of `--target N`, the total ever discovered. A `--target` at or below the stored total added nothing, so adding users meant looking up that total first. The stored `discovered_count` is gone and the cursor table holds only the `listRepos` cursor; rerunning after a partial failure adds `N` again rather than topping up. [PR #222](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/222)
+1. Bluesky backfill fetch workers now run on Railway as project `bluesky-backfill`, service `fetch-repos`: four replicas long-polling the backfill SQS queue, restarted on exit, with five minutes between SIGTERM and SIGKILL so a buffer of up to 1 GB can flush to S3 before shutdown. The service is defined with Railway's Infrastructure as Code (`railway/bluesky_backfill_app/.railway/railway.ts`) rather than the deprecated `railway.json`, which Railway stops reading on 2026-12-01; unlike `railway.json` it is not read on deploy, so changes go out with `railway config apply`. AWS and Grafana credentials are declared there but set on Railway, never committed. [PR #221](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/221)
+
+2. Bluesky backfill discovery now takes `--count N`, the number of new DIDs to add in this run, instead of `--target N`, the total ever discovered. A `--target` at or below the stored total added nothing, so adding users meant looking up that total first. The stored `discovered_count` is gone and the cursor table holds only the `listRepos` cursor; rerunning after a partial failure adds `N` again rather than topping up. [PR #222](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/222)
 
 ## 2026-09-23
 
