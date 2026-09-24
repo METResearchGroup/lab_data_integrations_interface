@@ -75,7 +75,9 @@ resource "aws_sfn_state_machine" "merge" {
   definition = jsonencode({
     Comment       = "Append new landing days into ${var.raw_glue_database}"
     QueryLanguage = "JSONata"
-    StartAt       = "GetCursor"
+    # Max time for the whole run, all four tables.
+    TimeoutSeconds = 86400
+    StartAt        = "GetCursor"
     States = {
       # `through` is fixed here so every statement and the cursor agree, even
       # if the run crosses midnight UTC.
@@ -209,6 +211,26 @@ resource "aws_cloudwatch_metric_alarm" "merge_failed" {
   alarm_actions = [data.aws_sns_topic.maintenance_alarms.arn]
 }
 
+# A timed-out execution is not counted in ExecutionsFailed.
+resource "aws_cloudwatch_metric_alarm" "merge_timed_out" {
+  alarm_name          = "bluesky_backfill_merge_timed_out"
+  alarm_description   = "A backfill merge ran past its 1-day timeout. The cursor did not advance."
+  namespace           = "AWS/States"
+  metric_name         = "ExecutionsTimedOut"
+  statistic           = "Sum"
+  period              = 3600
+  evaluation_periods  = 1
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    StateMachineArn = aws_sfn_state_machine.merge.arn
+  }
+
+  alarm_actions = [data.aws_sns_topic.maintenance_alarms.arn]
+}
+
 # Catches runs that never start (schedule disabled, scheduler errors), which
 # `merge_failed` cannot see. Days with no execution are missing data, so they
 # count as breaching. 7 days is the CloudWatch maximum for an alarm's window.
@@ -230,7 +252,6 @@ resource "aws_cloudwatch_metric_alarm" "merge_stale" {
   }
 
   alarm_actions = [data.aws_sns_topic.maintenance_alarms.arn]
-  ok_actions    = [data.aws_sns_topic.maintenance_alarms.arn]
 }
 
 output "merge_state_machine_arn" {
