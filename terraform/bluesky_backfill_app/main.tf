@@ -122,6 +122,206 @@ resource "aws_sqs_queue" "backfill_dids_dlq" {
 }
 
 # ---------------------------------------------------------------------------
+# Shared by the merge and backfill maintenance state machines
+#
+# The bucket, `bluesky_raw`, and the alarm topic belong to
+# `terraform/bluesky_ingestion_jetstream`; referenced by name only.
+# ---------------------------------------------------------------------------
+
+variable "s3_bucket" {
+  default = "lab-data-integrations-interface"
+}
+
+variable "raw_glue_database" {
+  default = "bluesky_raw"
+}
+
+variable "raw_prefix" {
+  default = "bluesky/raw"
+}
+
+variable "athena_results_prefix" {
+  description = "Outside `raw_prefix`, so Iceberg orphan cleanup never sees it."
+  default     = "athena-results/backfill"
+}
+
+variable "backfill_start_month" {
+  description = "Month of `BLUESKY_START_DATE` in `bluesky_backfill_app/constants.py`."
+  default     = "2022-11-01"
+}
+
+variable "backfill_end_month" {
+  description = "Month of `DATA_END_DATE` in `bluesky_backfill_app/constants.py`."
+  default     = "2026-08-01"
+}
+
+variable "backfill_chunk_months" {
+  description = "Months per statement. Tables are partitioned by day and Athena writes at most 100 partitions per statement."
+  default     = 3
+
+  validation {
+    condition     = var.backfill_chunk_months >= 1 && var.backfill_chunk_months <= 3
+    error_message = "4 months can exceed 100 days."
+  }
+}
+
+locals {
+  backfill_start_year  = tonumber(split("-", var.backfill_start_month)[0])
+  backfill_start_index = tonumber(split("-", var.backfill_start_month)[1]) - 1
+  backfill_month_count = (
+    (tonumber(split("-", var.backfill_end_month)[0]) - local.backfill_start_year) * 12
+    + tonumber(split("-", var.backfill_end_month)[1]) - 1 - local.backfill_start_index + 1
+  )
+
+  # [start, end) month windows covering the backfill range.
+  backfill_chunks = [
+    for i in range(0, local.backfill_month_count, var.backfill_chunk_months) : {
+      start = format("%04d-%02d-01", local.backfill_start_year + floor((local.backfill_start_index + i) / 12), (local.backfill_start_index + i) % 12 + 1)
+      end   = format("%04d-%02d-01", local.backfill_start_year + floor((local.backfill_start_index + i + var.backfill_chunk_months) / 12), (local.backfill_start_index + i + var.backfill_chunk_months) % 12 + 1)
+    }
+  ]
+}
+
+data "aws_caller_identity" "current" {}
+
+data "aws_sns_topic" "maintenance_alarms" {
+  name = "${var.raw_glue_database}_maintenance_alarms"
+}
+
+resource "aws_athena_workgroup" "backfill" {
+  name = "bluesky_backfill"
+
+  configuration {
+    enforce_workgroup_configuration    = true
+    publish_cloudwatch_metrics_enabled = true
+
+    result_configuration {
+      output_location = "s3://${var.s3_bucket}/${var.athena_results_prefix}/"
+
+      encryption_configuration {
+        encryption_option = "SSE_S3"
+      }
+    }
+  }
+}
+
+resource "aws_iam_role" "backfill_states" {
+  name = "bluesky_backfill_states"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "states.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "backfill_states" {
+  name = "bluesky_backfill_states"
+  role = aws_iam_role.backfill_states.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "athena:StartQueryExecution",
+          "athena:GetQueryExecution",
+          "athena:StopQueryExecution",
+          "athena:GetWorkGroup",
+          "athena:GetDataCatalog",
+        ]
+        Resource = [
+          aws_athena_workgroup.backfill.arn,
+          "arn:aws:athena:${var.aws_region}:${data.aws_caller_identity.current.account_id}:datacatalog/*",
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "glue:GetDatabase",
+          "glue:GetDatabases",
+          "glue:GetTable",
+          "glue:GetTables",
+          "glue:GetPartition",
+          "glue:GetPartitions",
+        ]
+        Resource = [
+          "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:catalog",
+          "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:database/${var.raw_glue_database}",
+          "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.raw_glue_database}/*",
+          "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:database/${var.landing_glue_database}",
+          "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.landing_glue_database}/*",
+        ]
+      },
+      {
+        # Iceberg commits swap the table's metadata pointer. Landing is read-only.
+        Effect = "Allow"
+        Action = ["glue:UpdateTable"]
+        Resource = [
+          "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:catalog",
+          "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:database/${var.raw_glue_database}",
+          "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.raw_glue_database}/*",
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetBucketLocation", "s3:ListBucket"]
+        Resource = "arn:aws:s3:::${var.s3_bucket}"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = "arn:aws:s3:::${var.s3_bucket}/${var.landing_prefix}/*"
+      },
+      {
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload"]
+        Resource = [
+          "arn:aws:s3:::${var.s3_bucket}/${var.raw_prefix}/*",
+          "arn:aws:s3:::${var.s3_bucket}/${var.athena_results_prefix}/*",
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem"]
+        Resource = aws_dynamodb_table.merge_cursor.arn
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role" "backfill_scheduler" {
+  name = "bluesky_backfill_scheduler"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "scheduler.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "backfill_scheduler" {
+  name = "bluesky_backfill_scheduler"
+  role = aws_iam_role.backfill_scheduler.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "states:StartExecution"
+      Resource = [aws_sfn_state_machine.merge.arn]
+    }]
+  })
+}
+
+# ---------------------------------------------------------------------------
 # Outputs
 # ---------------------------------------------------------------------------
 

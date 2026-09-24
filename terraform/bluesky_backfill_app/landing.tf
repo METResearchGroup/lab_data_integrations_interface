@@ -7,10 +7,6 @@
 # catalog update.
 # ---------------------------------------------------------------------------
 
-variable "s3_bucket" {
-  default = "lab-data-integrations-interface"
-}
-
 variable "landing_prefix" {
   description = "Mirrors `LANDING_PREFIX` in `bluesky_backfill_app/fetch_repos/constants.py`."
   default     = "landing/bluesky/backfill"
