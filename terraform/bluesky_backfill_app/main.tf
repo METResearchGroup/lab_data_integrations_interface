@@ -150,9 +150,9 @@ variable "backfill_start_month" {
   default     = "2022-11-01"
 }
 
-variable "backfill_end_month" {
-  description = "Month of `DATA_END_DATE` in `bluesky_backfill_app/constants.py`."
-  default     = "2026-08-01"
+variable "backfill_end_date" {
+  description = "`DATA_END_DATE` in `bluesky_backfill_app/constants.py`, inclusive."
+  default     = "2026-08-07"
 }
 
 variable "backfill_chunk_months" {
@@ -166,18 +166,27 @@ variable "backfill_chunk_months" {
 }
 
 locals {
-  backfill_start_year  = tonumber(split("-", var.backfill_start_month)[0])
-  backfill_start_index = tonumber(split("-", var.backfill_start_month)[1]) - 1
+  backfill_start_year    = tonumber(split("-", var.backfill_start_month)[0])
+  backfill_start_index   = tonumber(split("-", var.backfill_start_month)[1]) - 1
+  backfill_end_exclusive = formatdate("YYYY-MM-DD", timeadd("${var.backfill_end_date}T00:00:00Z", "24h"))
   backfill_month_count = (
-    (tonumber(split("-", var.backfill_end_month)[0]) - local.backfill_start_year) * 12
-    + tonumber(split("-", var.backfill_end_month)[1]) - 1 - local.backfill_start_index + 1
+    (tonumber(split("-", var.backfill_end_date)[0]) - local.backfill_start_year) * 12
+    + tonumber(split("-", var.backfill_end_date)[1]) - 1 - local.backfill_start_index + 1
   )
 
-  # [start, end) month windows covering the backfill range.
-  backfill_chunks = [
+  backfill_chunk_bounds = [
     for i in range(0, local.backfill_month_count, var.backfill_chunk_months) : {
       start = format("%04d-%02d-01", local.backfill_start_year + floor((local.backfill_start_index + i) / 12), (local.backfill_start_index + i) % 12 + 1)
       end   = format("%04d-%02d-01", local.backfill_start_year + floor((local.backfill_start_index + i + var.backfill_chunk_months) / 12), (local.backfill_start_index + i + var.backfill_chunk_months) % 12 + 1)
+    }
+  ]
+
+  # [start, end) windows covering the backfill range. The last one stops at
+  # `backfill_end_date` so maintenance never touches Jetstream-only days.
+  backfill_chunks = [
+    for c in local.backfill_chunk_bounds : {
+      start = c.start
+      end   = timecmp("${c.end}T00:00:00Z", "${local.backfill_end_exclusive}T00:00:00Z") > 0 ? local.backfill_end_exclusive : c.end
     }
   ]
 }
@@ -316,7 +325,7 @@ resource "aws_iam_role_policy" "backfill_scheduler" {
     Statement = [{
       Effect   = "Allow"
       Action   = "states:StartExecution"
-      Resource = [aws_sfn_state_machine.merge.arn]
+      Resource = [aws_sfn_state_machine.merge.arn, aws_sfn_state_machine.maintenance.arn]
     }]
   })
 }
