@@ -4,6 +4,8 @@
 
 1. Bluesky backfill fetch workers now report to Grafana Cloud: counters for rows, serialized bytes, and repos landed, flush failures, and repo failures by reason and resulting DID status, plus gauges for buffered bytes and main- and dead-letter-queue depth. Each flush also logs one JSON line with its reason, status, repo count, and per-record-type rows and size, including flushes that fail. [PR #218](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/218)
 
+2. Agentic search now sends one trace per query to Grafana Cloud: a span for each step carrying what it returned — the extracted intent, the generated SQL, the rejection, the Athena execution ID — plus the email sent, with the LLM's prompt, reply, and token counts and the Athena calls nested beneath their steps. Each run records its outcome, including a new `mail_failed` for a run whose email did not send, which had only been logged. Ships with a checked-in dashboard (`backend/telemetry/dashboards/agentic_search.json`) showing outcomes, end-to-end p50/p99, and a table of runs per outcome. Backend tests no longer export spans when a local `.env` holds the Grafana token. [PR #216](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/216)
+
 ## 2026-09-22
 
 1. Removed dead code: `data_platform/` and its tests, whose Glue, Athena, and DynamoDB infrastructure was destroyed on 2026-07-30, and the Opik integration in `ml_tooling`, along with the `opik` dependency and its `litellm` pin. [PR #215](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/215)
@@ -37,11 +39,14 @@
 1. Agentic search now screens a natural-language query before it reaches query generation: an LLM extracts the record types, columns, and date range the query asks for, then three checks reject nonsense queries, references to record types or columns the `bluesky_raw` tables do not have, and date ranges outside the ingested coverage window. The checks run against a snapshot built from the live Arrow schemas, so they follow the tables rather than a hardcoded list. [PR #183](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/183)
 2. Agentic search now turns a validated query intent into Athena SQL, runs it, and returns a presigned link to the result CSV. Date filters are written against `created_at` rather than the derived partition field, so Iceberg prunes the scan to the days a query actually asks for. [PR #184](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/184)
 
+## 2026-08-17
+
+1. Terraform state for the Bluesky ingestion stack now lives in a versioned, encrypted S3 bucket with lock-file concurrency protection, rather than a single gitignored file on one machine. The previous state file was lost, leaving `terraform plan` proposing to recreate the warehouse bucket, Glue database, and cursor table; state was rebuilt by importing the existing resources and then migrated. [PR #176](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/176)
+
 ## 2026-08-16
 
 1. Jetstream ingestion no longer rewinds the stream cursor five seconds on reconnect, which had been re-reading and re-writing every event in that window. Disconnects were frequent enough that the replays accumulated to roughly 9% duplicate rows across the four `bluesky_raw` tables. [PR #173](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/173)
 2. Jetstream ingestion buffers now drop a row whose AT-URI is already buffered, so a redelivered event is discarded on arrival rather than committed twice. Deduplication covers one flush window only — the URIs are dropped along with the rows at flush — so it does not protect against replays that span a flush, a process restart, or a dead-letter re-ingest. Also pinned `litellm` below 1.92, which ships a Rust extension and no macOS wheels, breaking `uv sync` on a Mac without a recent rustc. [PR #174](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/174)
-
 3. The `bluesky_raw` maintenance state machine now runs a weekly `dedup` job (Saturdays 05:00 UTC) that masks cross-file duplicate AT-URIs over a trailing 21-day window with Iceberg position delete files, an hour before the weekly compaction folds them into the data files. This covers the redelivery that in-buffer deduplication cannot see — a replay spanning a flush, a process restart, or a dead-letter re-ingest. [PR #175](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/175)
 
 ## 2026-08-13

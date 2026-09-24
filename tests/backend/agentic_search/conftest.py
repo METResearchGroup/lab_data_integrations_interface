@@ -6,6 +6,10 @@ from datetime import UTC, date, datetime
 
 import pyarrow as pa
 import pytest
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pyiceberg.catalog import Catalog
 from pyiceberg.catalog.memory import InMemoryCatalog
 from pyiceberg.transforms import DayTransform
@@ -44,6 +48,23 @@ def _rows(day: date) -> list[dict]:
         }
         for index in range(POSTS_PER_DAY)
     ]
+
+
+@pytest.fixture(scope="session")
+def _exporter() -> InMemorySpanExporter:
+    """The global tracer provider can be set once per process."""
+
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    trace.set_tracer_provider(provider)
+    return exporter
+
+
+@pytest.fixture
+def spans(_exporter: InMemorySpanExporter) -> InMemorySpanExporter:
+    _exporter.clear()
+    return _exporter
 
 
 @pytest.fixture

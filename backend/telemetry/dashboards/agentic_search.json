@@ -1,0 +1,201 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Agentic search: every query run, the ones that failed, and end-to-end latency. Built on traces.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "preload": false,
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "tags": ["backend", "agentic-search"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "Agentic Search - Lab Data Integrations",
+  "uid": "agentic-search",
+  "version": 1,
+  "weekStart": "",
+  "panels": [
+    {
+      "type": "piechart",
+      "title": "Runs by outcome",
+      "description": "results: query executed, results link mailed\n\ninvalid: invalid question, stopped before SQL generated\n\nrejected: SQL rejected\n\nfailed: pipeline crashed, failure notice mailed\n\nmail_failed: email failed to send",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+          "queryType": "traceql",
+          "metricsQueryType": "range",
+          "query": "{ resource.service.name = \"backend\" && name = \"agentic_search.query\" } | count_over_time() by (span.outcome)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false },
+        "pieType": "pie",
+        "displayLabels": ["name", "value"],
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }
+      }
+    },
+    {
+      "type": "table",
+      "title": "Results",
+      "description": "the query executed",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 47 },
+      "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+          "queryType": "traceql",
+          "tableType": "traces",
+          "limit": 100,
+          "spss": 10,
+          "query": "{ resource.service.name = \"backend\" && name = \"agentic_search.query\" && span.outcome = \"results\" } || ({ resource.service.name = \"backend\" && name = \"agentic_search.query\" && span.outcome = \"results\" } >> { name =~ \"validate|generate|postprocess|execute|mail\" }) | select(span.outcome, span.query, span.output, span.subject)"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "showHeader": true }
+    },
+    {
+      "type": "table",
+      "title": "Invalid",
+      "description": "validation stopped it",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 37 },
+      "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+          "queryType": "traceql",
+          "tableType": "traces",
+          "limit": 100,
+          "spss": 10,
+          "query": "{ resource.service.name = \"backend\" && name = \"agentic_search.query\" && span.outcome = \"invalid\" } || ({ resource.service.name = \"backend\" && name = \"agentic_search.query\" && span.outcome = \"invalid\" } >> { name =~ \"validate|generate|postprocess|execute|mail\" }) | select(span.outcome, span.query, span.output, span.subject)"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "showHeader": true }
+    },
+    {
+      "type": "table",
+      "title": "Mail failed",
+      "description": "the email failed to send",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 17 },
+      "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+          "queryType": "traceql",
+          "tableType": "traces",
+          "limit": 100,
+          "spss": 10,
+          "query": "{ resource.service.name = \"backend\" && name = \"agentic_search.query\" && span.outcome = \"mail_failed\" } || ({ resource.service.name = \"backend\" && name = \"agentic_search.query\" && span.outcome = \"mail_failed\" } >> { name =~ \"validate|generate|postprocess|execute|mail\" }) | select(span.outcome, span.query, span.output, span.subject)"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "showHeader": true }
+    },
+    {
+      "type": "table",
+      "title": "Rejected",
+      "description": "postprocessing blocked the SQL",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 27 },
+      "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+          "queryType": "traceql",
+          "tableType": "traces",
+          "limit": 100,
+          "spss": 10,
+          "query": "{ resource.service.name = \"backend\" && name = \"agentic_search.query\" && span.outcome = \"rejected\" } || ({ resource.service.name = \"backend\" && name = \"agentic_search.query\" && span.outcome = \"rejected\" } >> { name =~ \"validate|generate|postprocess|execute|mail\" }) | select(span.outcome, span.query, span.output, span.subject)"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "showHeader": true }
+    },
+    {
+      "type": "table",
+      "title": "Failed",
+      "description": "something crashed",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 7 },
+      "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+          "queryType": "traceql",
+          "tableType": "traces",
+          "limit": 100,
+          "spss": 10,
+          "query": "{ resource.service.name = \"backend\" && name = \"agentic_search.query\" && span.outcome = \"failed\" } || ({ resource.service.name = \"backend\" && name = \"agentic_search.query\" && span.outcome = \"failed\" } >> { name =~ \"validate|generate|postprocess|execute|mail\" }) | select(span.outcome, span.query, span.output, span.subject)"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": { "showHeader": true }
+    },
+    {
+      "type": "stat",
+      "title": "p50 end-to-end",
+      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+          "queryType": "traceql",
+          "metricsQueryType": "instant",
+          "query": "{ resource.service.name = \"backend\" && name = \"agentic_search.query\" } | quantile_over_time(duration, .5)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "suffix: s", "decimals": 1 }, "overrides": [] },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "p99 end-to-end",
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "tempo", "uid": "grafanacloud-traces" },
+          "queryType": "traceql",
+          "metricsQueryType": "instant",
+          "query": "{ resource.service.name = \"backend\" && name = \"agentic_search.query\" } | quantile_over_time(duration, .99)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "suffix: s", "decimals": 1 }, "overrides": [] },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    }
+  ]
+}
