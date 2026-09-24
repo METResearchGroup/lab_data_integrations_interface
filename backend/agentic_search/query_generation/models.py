@@ -10,5 +10,5 @@ from bluesky_ingestion_jetstream.constants import RecordType
 @dataclass(frozen=True)
 class GeneratedQuery:
     sql: str
-    # Names the schema a CSV conversion formats against.
+    # Names the table postprocessing estimates the scan against.
     record_type: RecordType

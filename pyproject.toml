@@ -43,6 +43,7 @@ dependencies = [
     "matplotlib>=3.11.1",
     "tabulate>=0.10.0",
     "sqlglot>=30.18.0",
+    "openinference-instrumentation-openai>=0.1.60",
 ]
 
 [project.optional-dependencies]
