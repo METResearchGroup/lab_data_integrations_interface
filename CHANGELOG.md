@@ -6,6 +6,8 @@
 
 2. Bluesky backfill discovery now takes `--count N`, the number of new DIDs to add in this run, instead of `--target N`, the total ever discovered. A `--target` at or below the stored total added nothing, so adding users meant looking up that total first. The stored `discovered_count` is gone and the cursor table holds only the `listRepos` cursor; rerunning after a partial failure adds `N` again rather than topping up. [PR #222](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/222)
 
+3. Bluesky backfill fetch workers now run as two Railway replicas instead of four, after a replica ran out of memory. As with any change to `railway.ts`, it takes effect on `railway config apply`, not on deploy. [PR #223](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/223)
+
 ## 2026-09-23
 
 1. Bluesky backfill fetch workers now report to Grafana Cloud: counters for rows, serialized bytes, and repos landed, flush failures, and repo failures by reason and resulting DID status, plus gauges for buffered bytes and main- and dead-letter-queue depth. Each flush also logs one JSON line with its reason, status, repo count, and per-record-type rows and size, including flushes that fail. [PR #218](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/218)

@@ -22,7 +22,7 @@ export default defineRailway(() =>
         deploy: {
           startCommand: "python -m bluesky_backfill_app.fetch_repos.main",
           // SQS spreads DIDs across replicas; each holds its own buffer.
-          numReplicas: 4,
+          numReplicas: 2,
           restartPolicyType: "ALWAYS",
           // SIGTERM flushes a buffer of up to 1 GB to S3 before exiting.
           drainingSeconds: 300,

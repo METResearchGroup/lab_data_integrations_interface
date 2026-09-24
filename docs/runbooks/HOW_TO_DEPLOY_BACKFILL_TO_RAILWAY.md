@@ -3,7 +3,7 @@
 ## Overview
 
 Deploys `bluesky_backfill_app/fetch_repos/` as Railway project
-`bluesky-backfill`, service `fetch-repos`: 4 replicas pulling DIDs off the
+`bluesky-backfill`, service `fetch-repos`: 2 replicas pulling DIDs off the
 `bluesky-backfill-dids` queue. Queue users first, see
 [HOW_TO_QUEUE_BACKFILL_USERS.md](HOW_TO_QUEUE_BACKFILL_USERS.md).
 
