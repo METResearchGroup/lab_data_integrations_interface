@@ -3,9 +3,11 @@ import logging
 from bluesky_backfill_app.aws.constants import (
     PERMANENT_REASONS,
     REASON_LANDING_WRITE_ERROR,
+    REASON_REPO_TOO_LARGE,
     STATUS_DEAD_LETTERED,
     STATUS_FAILED,
     STATUS_QUEUED,
+    STATUS_TOO_LARGE,
 )
 from bluesky_backfill_app.aws.did_store import DynamoDidStore
 from bluesky_backfill_app.aws.queue import Message, SqsQueue
@@ -27,9 +29,15 @@ def record_failure(
     message: Message,
     failure: RepoFailure,
 ) -> None:
-    """Permanent: `failed` + ack. Final delivery: `dead_lettered`. Otherwise left to redeliver."""
+    """Too large: `too_large` + ack. Permanent: `failed` + ack. Final delivery:
+    `dead_lettered`. Otherwise left to redeliver."""
 
-    if failure.reason in PERMANENT_REASONS:
+    if failure.reason == REASON_REPO_TOO_LARGE:
+        did_store.set_failed(message.did, STATUS_TOO_LARGE, failure.error, failure.reason)
+        queue.delete(message.handle)
+        logger.warning("%s too large: %r", message.did, failure.error)
+        record_repo_failure(failure.reason, STATUS_TOO_LARGE)
+    elif failure.reason in PERMANENT_REASONS:
         did_store.set_failed(message.did, STATUS_FAILED, failure.error, failure.reason)
         queue.delete(message.handle)
         logger.info("%s failed: %s", message.did, failure.reason)

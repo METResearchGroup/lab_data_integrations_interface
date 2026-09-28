@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-09-28
+
+1. Bluesky backfill fetch workers now stop downloading any repo past 1 GiB and mark its DID `too_large` for later handling, instead of timing out and retrying it five times. Each worker also holds less in memory: the raw CAR is freed once parsed, and the buffer holds Arrow tables whose exact size drives the 1 GiB flush, replacing Python dicts measured as JSON; a new peak-memory gauge and dashboard panel track the result. The service runs as one Railway replica. [PR #226](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/226)
+
 ## 2026-09-24
 
 1. Bluesky backfill fetch workers now run on Railway as project `bluesky-backfill`, service `fetch-repos`: four replicas long-polling the backfill SQS queue, restarted on exit, with five minutes between SIGTERM and SIGKILL so a buffer of up to 1 GB can flush to S3 before shutdown. The service is defined with Railway's Infrastructure as Code (`railway/bluesky_backfill_app/.railway/railway.ts`) rather than the deprecated `railway.json`, which Railway stops reading on 2026-12-01; unlike `railway.json` it is not read on deploy, so changes go out with `railway config apply`. AWS and Grafana credentials are declared there but set on Railway, never committed. [PR #221](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/221)

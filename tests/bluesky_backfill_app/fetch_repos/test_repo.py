@@ -13,7 +13,10 @@ from bluesky_ingestion_jetstream.constants import LIKES, POSTS
 
 REPO = "bluesky_backfill_app.fetch_repos.repo"
 DID = "did:plc:example"
-ROWS = {LIKES: [{"uri": f"at://{DID}/app.bsky.feed.like/1", "did": DID}]}
+
+
+def rows():
+    return {LIKES: [{"uri": f"at://{DID}/app.bsky.feed.like/1", "did": DID}]}
 
 
 def raise_(error):
@@ -26,11 +29,15 @@ def raise_(error):
 @pytest.fixture
 def fetched(monkeypatch):
     monkeypatch.setattr(f"{REPO}.fetch_repo", lambda did: b"car")
-    monkeypatch.setattr(f"{REPO}.decode", lambda did, car, ingested_at: ROWS)
+    monkeypatch.setattr(f"{REPO}.decode_car", lambda car: ({"roots": []}, {}))
+    monkeypatch.setattr(f"{REPO}.decode", lambda did, header, blocks, ingested_at: rows())
 
 
-def test_load_repo_returns_the_rows(fetched):
-    assert load_repo(DID) == ROWS
+def test_load_repo_returns_tables_stamped_with_the_run_id(fetched):
+    tables = load_repo(DID, "run-1")
+
+    assert tables[LIKES].column("uri").to_pylist() == [f"at://{DID}/app.bsky.feed.like/1"]
+    assert tables[LIKES].column("run_id").to_pylist() == ["run-1"]
 
 
 @pytest.mark.parametrize(
@@ -44,9 +51,18 @@ def test_load_repo_classifies_a_fetch_failure(monkeypatch, error, reason):
     monkeypatch.setattr(f"{REPO}.fetch_repo", raise_(error))
 
     with pytest.raises(RepoFailure) as caught:
-        load_repo(DID)
+        load_repo(DID, "run-1")
 
     assert (caught.value.reason, caught.value.error) == (reason, error)
+
+
+def test_load_repo_reports_an_unparseable_car(monkeypatch):
+    monkeypatch.setattr(f"{REPO}.fetch_repo", lambda did: b"not a car")
+
+    with pytest.raises(RepoFailure) as caught:
+        load_repo(DID, "run-1")
+
+    assert caught.value.reason == REASON_CAR_DECODE_ERROR
 
 
 def test_load_repo_reports_a_decode_failure(fetched, monkeypatch):
@@ -54,16 +70,16 @@ def test_load_repo_reports_a_decode_failure(fetched, monkeypatch):
     monkeypatch.setattr(f"{REPO}.decode", raise_(error))
 
     with pytest.raises(RepoFailure) as caught:
-        load_repo(DID)
+        load_repo(DID, "run-1")
 
     assert (caught.value.reason, caught.value.error) == (REASON_CAR_DECODE_ERROR, error)
 
 
 def test_load_repo_reports_a_row_that_does_not_fit_the_schema(fetched, monkeypatch):
     rows = {POSTS: [{"uri": "at://x", "text": 5}]}
-    monkeypatch.setattr(f"{REPO}.decode", lambda did, car, ingested_at: rows)
+    monkeypatch.setattr(f"{REPO}.decode", lambda did, header, blocks, ingested_at: rows)
 
     with pytest.raises(RepoFailure) as caught:
-        load_repo(DID)
+        load_repo(DID, "run-1")
 
     assert caught.value.reason == REASON_SCHEMA_MISMATCH

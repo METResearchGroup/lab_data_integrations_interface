@@ -303,6 +303,59 @@
       ]
     },
     {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Peak memory",
+      "description": "Max resident memory per worker since it started. Only goes up until the process restarts.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "min": 0,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "editorMode": "code",
+          "expr": "max by (instance) (bluesky_backfill_process_peak_memory_bytes)",
+          "range": true,
+          "instant": false,
+          "legendFormat": "{{instance}}"
+        }
+      ]
+    },
+    {
       "id": 6,
       "type": "row",
       "title": "Progress",
@@ -311,7 +364,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 13
       },
       "panels": []
     },
@@ -328,7 +381,7 @@
         "h": 4,
         "w": 12,
         "x": 0,
-        "y": 6
+        "y": 14
       },
       "fieldConfig": {
         "defaults": {
@@ -393,7 +446,7 @@
         "h": 4,
         "w": 12,
         "x": 12,
-        "y": 6
+        "y": 14
       },
       "fieldConfig": {
         "defaults": {
@@ -454,7 +507,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 10
+        "y": 18
       },
       "panels": []
     },
@@ -462,7 +515,7 @@
       "id": 10,
       "type": "piechart",
       "title": "Data Ingested",
-      "description": "Serialized JSON bytes landed, split by record type. A volume proxy, not parquet-on-disk.",
+      "description": "In-memory Arrow bytes landed, split by record type. A volume proxy, not parquet-on-disk. Serialized JSON bytes before the Arrow buffer.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -471,7 +524,7 @@
         "h": 10,
         "w": 10,
         "x": 0,
-        "y": 11
+        "y": 19
       },
       "fieldConfig": {
         "defaults": {
@@ -542,7 +595,7 @@
         "h": 4,
         "w": 14,
         "x": 10,
-        "y": 11
+        "y": 19
       },
       "fieldConfig": {
         "defaults": {
@@ -573,7 +626,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Serialized JSON"
+              "options": "Arrow bytes"
             },
             "properties": [
               {
@@ -626,7 +679,7 @@
           "expr": "sum(max_over_time(bluesky_backfill_bytes_written_total[$__range])) / 1e9",
           "instant": true,
           "range": false,
-          "legendFormat": "Serialized JSON"
+          "legendFormat": "Arrow bytes"
         }
       ]
     },
@@ -642,7 +695,7 @@
         "h": 6,
         "w": 14,
         "x": 10,
-        "y": 15
+        "y": 23
       },
       "fieldConfig": {
         "defaults": {
@@ -713,7 +766,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Serialized JSON"
+                "value": "Arrow bytes"
               },
               {
                 "id": "unit",
@@ -803,7 +856,7 @@
           }
         }
       ],
-      "description": "Rows and serialized JSON bytes per record type."
+      "description": "Rows and in-memory Arrow bytes per record type."
     },
     {
       "id": 13,
@@ -814,7 +867,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 21
+        "y": 29
       },
       "panels": []
     },
@@ -822,7 +875,7 @@
       "id": 14,
       "type": "table",
       "title": "Failures by reason and DID status",
-      "description": "did_status is the DID's DynamoDB status after the failure: failed, dead_lettered, or queued (left to redeliver).",
+      "description": "did_status is the DID's DynamoDB status after the failure: failed, dead_lettered, too_large (repo over the size cap, set aside), or queued (left to redeliver).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -831,7 +884,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 22
+        "y": 30
       },
       "fieldConfig": {
         "defaults": {
@@ -924,7 +977,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 39
       },
       "panels": []
     },
@@ -941,7 +994,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 40
       },
       "fieldConfig": {
         "defaults": {

@@ -12,6 +12,8 @@ STATUS_DONE = "done"
 STATUS_FAILED = "failed"
 # Out of deliveries; the message is in the DLQ.
 STATUS_DEAD_LETTERED = "dead_lettered"
+# Repo passed MAX_REPO_SIZE_BYTES; set aside, not retried.
+STATUS_TOO_LARGE = "too_large"
 
 STATUSES = (
     STATUS_DISCOVERED,
@@ -19,12 +21,13 @@ STATUSES = (
     STATUS_DONE,
     STATUS_FAILED,
     STATUS_DEAD_LETTERED,
+    STATUS_TOO_LARGE,
 )
 
 # Reason is a code; detail is the raw error. Only set for FAILURE_STATUSES.
 FAILURE_REASON_ATTRIBUTE = "failure_reason"
 FAILURE_DETAIL_ATTRIBUTE = "failure_detail"
-FAILURE_STATUSES = (STATUS_FAILED, STATUS_DEAD_LETTERED)
+FAILURE_STATUSES = (STATUS_FAILED, STATUS_DEAD_LETTERED, STATUS_TOO_LARGE)
 
 MAX_FAILURE_DETAIL_CHARS = 1024
 
@@ -38,6 +41,7 @@ REASON_HTTP_5XX = "http_5xx"
 REASON_TIMEOUT = "timeout"
 REASON_CONNECTION_ERROR = "connection_error"
 REASON_LANDING_WRITE_ERROR = "landing_write_error"
+REASON_REPO_TOO_LARGE = "repo_too_large"
 # Unclassified. Not retryable.
 REASON_UNKNOWN = "unknown"
 
@@ -57,7 +61,9 @@ TRANSIENT_REASONS = (
 )
 
 RETRYABLE_REASONS = frozenset(TRANSIENT_REASONS + BUG_REASONS)
-REASONS = PERMANENT_REASONS + BUG_REASONS + TRANSIENT_REASONS + (REASON_UNKNOWN,)
+REASONS = (
+    PERMANENT_REASONS + BUG_REASONS + TRANSIENT_REASONS + (REASON_REPO_TOO_LARGE, REASON_UNKNOWN)
+)
 
 # GSI key is `{status}#{shard}`; queries fan out across the shards.
 STATUS_INDEX = "status_index"
