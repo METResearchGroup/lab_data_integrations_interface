@@ -1,6 +1,8 @@
 import time
 from dataclasses import dataclass
 
+import pyarrow as pa
+
 from bluesky_backfill_app.aws.queue import Message
 from bluesky_backfill_app.fetch_repos.constants import (
     FLUSH_REASON_AGE,
@@ -9,39 +11,43 @@ from bluesky_backfill_app.fetch_repos.constants import (
     MAX_BUFFER_SIZE_BYTES,
 )
 from bluesky_ingestion_jetstream.constants import RECORD_TYPES, RecordType
-from bluesky_ingestion_jetstream.storage.buffer import Buffer
 
 
 class RepoBuffer:
-    """One row buffer per record type, plus the messages to ack. Flushed together."""
+    """Arrow tables per record type, one per repo, plus the messages to ack. Flushed together."""
 
     def __init__(
         self,
         max_size_bytes: int = MAX_BUFFER_SIZE_BYTES,
         max_age_seconds: float = MAX_BUFFER_AGE_SECONDS,
     ) -> None:
-        self.buffers = {record_type: Buffer() for record_type in RECORD_TYPES}
+        self.tables: dict[RecordType, list[pa.Table]] = {
+            record_type: [] for record_type in RECORD_TYPES
+        }
         self.messages: list[Message] = []
+        self.dids: set[str] = set()
+        self.size = 0
         self.max_size_bytes = max_size_bytes
         self.max_age_seconds = max_age_seconds
         self.oldest_received_at: float | None = None
 
-    @property
-    def size(self) -> int:
-        return sum(buffer.size for buffer in self.buffers.values())
-
     def add(
         self,
         message: Message,
-        rows: dict[RecordType, list[dict]],
+        tables: dict[RecordType, pa.Table],
         received_at: float,
     ) -> None:
-        """Buffer one repo. `received_at` is `time.monotonic()` at receive."""
+        """Buffer one repo. `received_at` is `time.monotonic()` at receive.
 
-        for record_type, type_rows in rows.items():
-            buffer = self.buffers[record_type]
-            for row in type_rows:
-                buffer.add(row)
+        A DID already buffered keeps its message, to ack, but not its rows again.
+        """
+
+        if message.did not in self.dids:
+            self.dids.add(message.did)
+            for record_type, table in tables.items():
+                if table.num_rows:
+                    self.tables[record_type].append(table)
+                    self.size += table.nbytes
 
         self.messages.append(message)
         if self.oldest_received_at is None:
@@ -65,15 +71,18 @@ class RepoBuffer:
         return FLUSH_REASON_AGE
 
     def clear(self) -> None:
-        for buffer in self.buffers.values():
-            buffer.clear()
+        """Rebinds rather than empties, so lists already handed to the writer survive."""
+
+        self.tables = {record_type: [] for record_type in RECORD_TYPES}
         self.messages = []
+        self.dids = set()
+        self.size = 0
         self.oldest_received_at = None
 
 
 @dataclass(frozen=True, slots=True)
 class FlushSummary:
-    """What one flush holds. `sizes` is serialized JSON bytes."""
+    """What one flush holds. `sizes` is in-memory Arrow bytes."""
 
     reason: str
     repos: int
@@ -86,9 +95,9 @@ def get_flush_summary(buffer: RepoBuffer, reason: str) -> FlushSummary:
 
     rows: dict[RecordType, int] = {}
     sizes: dict[RecordType, int] = {}
-    for record_type, type_buffer in buffer.buffers.items():
-        if type_buffer.rows:
-            rows[record_type] = len(type_buffer.rows)
-            sizes[record_type] = type_buffer.size
+    for record_type, tables in buffer.tables.items():
+        if tables:
+            rows[record_type] = sum(table.num_rows for table in tables)
+            sizes[record_type] = sum(table.nbytes for table in tables)
 
     return FlushSummary(reason=reason, repos=len(buffer.messages), rows=rows, sizes=sizes)

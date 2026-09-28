@@ -1,6 +1,7 @@
 from bluesky_ingestion_jetstream.aws.constants import S3_BUCKET
 
-# Flush on whichever trips first. Age runs from the oldest buffered receive.
+# Flush on whichever trips first. Size is in-memory Arrow bytes; age runs from the
+# oldest buffered receive.
 MAX_BUFFER_SIZE_BYTES = 1024 * 1024 * 1024
 MAX_BUFFER_AGE_SECONDS = 30.0 * 60.0
 

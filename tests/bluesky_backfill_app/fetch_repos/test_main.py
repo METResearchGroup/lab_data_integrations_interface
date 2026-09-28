@@ -12,6 +12,7 @@ from bluesky_backfill_app.aws.constants import (
 )
 from bluesky_backfill_app.aws.queue import Message
 from bluesky_backfill_app.fetch_repos.failures import RepoFailure
+from bluesky_backfill_app.fetch_repos.landing.writer import build_table
 from bluesky_backfill_app.fetch_repos.main import flush, process_message, run
 from bluesky_backfill_app.fetch_repos.storage.buffer import RepoBuffer
 from bluesky_ingestion_jetstream.constants import LIKES
@@ -57,8 +58,8 @@ def message(did, receive_count=1):
     return Message(did=did, run_id=None, handle=f"handle-{did}", receive_count=receive_count)
 
 
-def rows_for(did):
-    return {LIKES: [{"uri": f"at://{did}/app.bsky.feed.like/1", "did": did}]}
+def tables_for(did, run_id="run-1"):
+    return {LIKES: build_table(LIKES, [{"uri": f"at://{did}/app.bsky.feed.like/1", "did": did}])}
 
 
 def big_buffer():
@@ -74,28 +75,32 @@ def events(monkeypatch):
         return ["path"]
 
     monkeypatch.setattr(f"{MAIN}.write_buffer", write_buffer)
-    monkeypatch.setattr(f"{MAIN}.load_repo", rows_for)
+    monkeypatch.setattr(f"{MAIN}.load_repo", tables_for)
     return events
 
 
 def test_process_message_buffers_a_loaded_repo(events):
     buffer = big_buffer()
 
-    process_message(message("did:plc:a"), FakeDidStore(events), FakeQueue(events), buffer, 0.0)
+    process_message(
+        message("did:plc:a"), FakeDidStore(events), FakeQueue(events), buffer, "run-1", 0.0
+    )
 
     assert [m.did for m in buffer.messages] == ["did:plc:a"]
-    assert len(buffer.buffers[LIKES].rows) == 1
+    assert len(buffer.tables[LIKES]) == 1
     assert events == []
 
 
 def test_process_message_records_a_failure_instead_of_buffering(events, monkeypatch):
-    def load_repo(did):
+    def load_repo(did, run_id):
         raise RepoFailure(REASON_ACCOUNT_TAKENDOWN, ValueError())
 
     monkeypatch.setattr(f"{MAIN}.load_repo", load_repo)
     buffer = big_buffer()
 
-    process_message(message("did:plc:a"), FakeDidStore(events), FakeQueue(events), buffer, 0.0)
+    process_message(
+        message("did:plc:a"), FakeDidStore(events), FakeQueue(events), buffer, "run-1", 0.0
+    )
 
     assert buffer.messages == []
     assert events == [
@@ -106,7 +111,7 @@ def test_process_message_records_a_failure_instead_of_buffering(events, monkeypa
 
 def fill(buffer, *messages):
     for msg in messages:
-        buffer.add(msg, rows_for(msg.did), 0.0)
+        buffer.add(msg, tables_for(msg.did), 0.0)
 
 
 def test_flush_writes_then_marks_done_then_acks(events):
@@ -209,10 +214,10 @@ def test_run_does_not_flush_an_empty_buffer_when_stopped(events):
 
 
 def test_run_abandons_the_in_flight_repo_when_stopped(events, monkeypatch):
-    def load_repo(did):
+    def load_repo(did, run_id):
         if did == "did:plc:b":
             raise KeyboardInterrupt
-        return rows_for(did)
+        return tables_for(did)
 
     monkeypatch.setattr(f"{MAIN}.load_repo", load_repo)
     queue = FakeQueue(events, [message("did:plc:a"), message("did:plc:b")])

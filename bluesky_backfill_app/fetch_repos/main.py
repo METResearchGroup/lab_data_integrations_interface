@@ -47,14 +47,15 @@ def process_message(
     did_store: DynamoDidStore,
     queue: SqsQueue,
     buffer: RepoBuffer,
+    run_id: str,
     received_at: float,
 ) -> None:
     try:
-        rows = load_repo(message.did)
+        tables = load_repo(message.did, run_id)
     except RepoFailure as failure:
         record_failure(did_store, queue, message, failure)
         return
-    buffer.add(message, rows, received_at)
+    buffer.add(message, tables, received_at)
 
 
 def flush(
@@ -89,7 +90,7 @@ def run(did_store: DynamoDidStore, queue: SqsQueue, buffer: RepoBuffer, run_id: 
         while True:
             message = queue.receive()
             if message is not None:
-                process_message(message, did_store, queue, buffer, time.monotonic())
+                process_message(message, did_store, queue, buffer, run_id, time.monotonic())
             if buffer.should_flush():
                 flush(buffer, did_store, queue, run_id, buffer.flush_reason())
     finally:

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from bluesky_backfill_app.aws.queue import Message
+from bluesky_backfill_app.fetch_repos.landing.writer import build_table
 from bluesky_backfill_app.fetch_repos.storage.buffer import RepoBuffer
 from bluesky_backfill_app.telemetry import gauges
 from bluesky_backfill_app.telemetry.gauges import (
@@ -54,7 +55,11 @@ def test_buffer_reports_its_live_size():
     register_buffer(buffer)
     buffer.add(
         Message(did="did:plc:a", run_id="r", handle="h", receive_count=1),
-        {POSTS: [{"uri": "at://did:plc:a/app.bsky.feed.post/1", "did": "did:plc:a"}]},
+        {
+            POSTS: build_table(
+                POSTS, [{"uri": "at://did:plc:a/app.bsky.feed.post/1", "did": "did:plc:a"}]
+            )
+        },
         0.0,
     )
 

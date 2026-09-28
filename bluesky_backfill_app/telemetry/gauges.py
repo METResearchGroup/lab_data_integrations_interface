@@ -1,6 +1,6 @@
 """Gauges, read by the export thread every interval.
 
-- `buffer.bytes` -- serialized JSON bytes buffered now.
+- `buffer.bytes` -- in-memory Arrow bytes buffered now.
 - `queue.waiting_messages` by queue -- messages not yet received, main and DLQ.
 - `queue.in_flight_messages` -- messages received but not yet acked, main only.
 - `process.peak_memory.bytes` -- the process's max RSS since start.
@@ -76,7 +76,7 @@ meter.create_observable_gauge(
     "bluesky_backfill.buffer.bytes",
     callbacks=[observe_buffer_bytes],
     unit="By",
-    description="Serialized JSON bytes buffered, awaiting flush.",
+    description="In-memory Arrow bytes buffered, awaiting flush.",
 )
 meter.create_observable_gauge(
     "bluesky_backfill.process.peak_memory.bytes",

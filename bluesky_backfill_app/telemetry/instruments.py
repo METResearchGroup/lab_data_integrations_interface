@@ -29,7 +29,7 @@ rows_written = meter.create_counter(
 bytes_written = meter.create_counter(
     "bluesky_backfill.bytes.written",
     unit="By",
-    description="Serialized JSON bytes landed, by record type. A proxy for volume.",
+    description="In-memory Arrow bytes landed, by record type. A proxy for volume.",
 )
 repos_landed = meter.create_counter(
     "bluesky_backfill.repos.landed",

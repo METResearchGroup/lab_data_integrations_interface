@@ -515,7 +515,7 @@
       "id": 10,
       "type": "piechart",
       "title": "Data Ingested",
-      "description": "Serialized JSON bytes landed, split by record type. A volume proxy, not parquet-on-disk.",
+      "description": "In-memory Arrow bytes landed, split by record type. A volume proxy, not parquet-on-disk. Serialized JSON bytes before the Arrow buffer.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -626,7 +626,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Serialized JSON"
+              "options": "Arrow bytes"
             },
             "properties": [
               {
@@ -679,7 +679,7 @@
           "expr": "sum(max_over_time(bluesky_backfill_bytes_written_total[$__range])) / 1e9",
           "instant": true,
           "range": false,
-          "legendFormat": "Serialized JSON"
+          "legendFormat": "Arrow bytes"
         }
       ]
     },
@@ -766,7 +766,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Serialized JSON"
+                "value": "Arrow bytes"
               },
               {
                 "id": "unit",
@@ -856,7 +856,7 @@
           }
         }
       ],
-      "description": "Rows and serialized JSON bytes per record type."
+      "description": "Rows and in-memory Arrow bytes per record type."
     },
     {
       "id": 13,
