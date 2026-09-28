@@ -26,7 +26,8 @@ def raise_(error):
 @pytest.fixture
 def fetched(monkeypatch):
     monkeypatch.setattr(f"{REPO}.fetch_repo", lambda did: b"car")
-    monkeypatch.setattr(f"{REPO}.decode", lambda did, car, ingested_at: ROWS)
+    monkeypatch.setattr(f"{REPO}.decode_car", lambda car: ({"roots": []}, {}))
+    monkeypatch.setattr(f"{REPO}.decode", lambda did, header, blocks, ingested_at: ROWS)
 
 
 def test_load_repo_returns_the_rows(fetched):
@@ -49,6 +50,15 @@ def test_load_repo_classifies_a_fetch_failure(monkeypatch, error, reason):
     assert (caught.value.reason, caught.value.error) == (reason, error)
 
 
+def test_load_repo_reports_an_unparseable_car(monkeypatch):
+    monkeypatch.setattr(f"{REPO}.fetch_repo", lambda did: b"not a car")
+
+    with pytest.raises(RepoFailure) as caught:
+        load_repo(DID)
+
+    assert caught.value.reason == REASON_CAR_DECODE_ERROR
+
+
 def test_load_repo_reports_a_decode_failure(fetched, monkeypatch):
     error = ValueError("bad car")
     monkeypatch.setattr(f"{REPO}.decode", raise_(error))
@@ -61,7 +71,7 @@ def test_load_repo_reports_a_decode_failure(fetched, monkeypatch):
 
 def test_load_repo_reports_a_row_that_does_not_fit_the_schema(fetched, monkeypatch):
     rows = {POSTS: [{"uri": "at://x", "text": 5}]}
-    monkeypatch.setattr(f"{REPO}.decode", lambda did, car, ingested_at: rows)
+    monkeypatch.setattr(f"{REPO}.decode", lambda did, header, blocks, ingested_at: rows)
 
     with pytest.raises(RepoFailure) as caught:
         load_repo(DID)

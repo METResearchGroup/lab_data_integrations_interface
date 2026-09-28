@@ -1,3 +1,7 @@
+import resource
+import sys
+from types import SimpleNamespace
+
 import pytest
 
 from bluesky_backfill_app.aws.queue import Message
@@ -6,6 +10,7 @@ from bluesky_backfill_app.telemetry import gauges
 from bluesky_backfill_app.telemetry.gauges import (
     observe_buffer_bytes,
     observe_in_flight_messages,
+    observe_peak_memory_bytes,
     observe_waiting_messages,
     register_buffer,
     register_queues,
@@ -55,6 +60,20 @@ def test_buffer_reports_its_live_size():
 
     assert values(observe_buffer_bytes(None)) == [(buffer.size, {})]
     assert buffer.size > 0
+
+
+def test_peak_memory_converts_linux_kib_to_bytes(monkeypatch):
+    monkeypatch.setattr(resource, "getrusage", lambda _who: SimpleNamespace(ru_maxrss=2048))
+    monkeypatch.setattr(sys, "platform", "linux")
+
+    assert values(observe_peak_memory_bytes(None)) == [(2048 * 1024, {})]
+
+
+def test_peak_memory_reports_macos_bytes_as_is(monkeypatch):
+    monkeypatch.setattr(resource, "getrusage", lambda _who: SimpleNamespace(ru_maxrss=2048))
+    monkeypatch.setattr(sys, "platform", "darwin")
+
+    assert values(observe_peak_memory_bytes(None)) == [(2048, {})]
 
 
 def test_queues_report_nothing_before_registration():

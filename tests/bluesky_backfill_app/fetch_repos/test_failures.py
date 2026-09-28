@@ -7,11 +7,13 @@ from bluesky_backfill_app.aws.constants import (
     REASON_HTTP_5XX,
     REASON_LANDING_WRITE_ERROR,
     REASON_REPO_NOT_FOUND,
+    REASON_REPO_TOO_LARGE,
     REASON_SCHEMA_MISMATCH,
     REASON_UNKNOWN,
     STATUS_DEAD_LETTERED,
     STATUS_FAILED,
     STATUS_QUEUED,
+    STATUS_TOO_LARGE,
 )
 from bluesky_backfill_app.aws.queue import Message
 from bluesky_backfill_app.fetch_repos.failures import (
@@ -72,6 +74,22 @@ def test_a_permanent_failure_is_marked_failed_and_acked(reason, repos_failed):
     assert did_store.failed == [("did:plc:a", STATUS_FAILED, reason, ERROR)]
     assert queue.deleted == ["handle-did:plc:a"]
     assert repos_failed.adds == [counted(reason, STATUS_FAILED)]
+
+
+@pytest.mark.parametrize("receive_count", [1, MAX_RECEIVE_COUNT])
+def test_a_too_large_repo_is_set_aside_and_acked(receive_count, repos_failed):
+    did_store, queue = FakeDidStore(), FakeQueue()
+
+    record_failure(
+        did_store,
+        queue,
+        message(receive_count=receive_count),
+        RepoFailure(REASON_REPO_TOO_LARGE, ERROR),
+    )
+
+    assert did_store.failed == [("did:plc:a", STATUS_TOO_LARGE, REASON_REPO_TOO_LARGE, ERROR)]
+    assert queue.deleted == ["handle-did:plc:a"]
+    assert repos_failed.adds == [counted(REASON_REPO_TOO_LARGE, STATUS_TOO_LARGE)]
 
 
 @pytest.mark.parametrize(

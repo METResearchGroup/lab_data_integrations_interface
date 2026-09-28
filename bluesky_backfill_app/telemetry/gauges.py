@@ -3,11 +3,14 @@
 - `buffer.bytes` -- serialized JSON bytes buffered now.
 - `queue.waiting_messages` by queue -- messages not yet received, main and DLQ.
 - `queue.in_flight_messages` -- messages received but not yet acked, main only.
+- `process.peak_memory.bytes` -- the process's max RSS since start.
 
 Every worker reports the whole queue, so aggregate the queue gauges with `max`.
 """
 
 import logging
+import resource
+import sys
 from collections.abc import Iterable
 
 from opentelemetry import metrics
@@ -32,6 +35,13 @@ def observe_buffer_bytes(_options: CallbackOptions) -> Iterable[Observation]:
     if _buffer is None:
         return []
     return [Observation(_buffer.size)]
+
+
+def observe_peak_memory_bytes(_options: CallbackOptions) -> Iterable[Observation]:
+    """`ru_maxrss` is KiB on Linux, bytes on macOS."""
+
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return [Observation(peak if sys.platform == "darwin" else peak * 1024)]
 
 
 def observe_waiting_messages(_options: CallbackOptions) -> Iterable[Observation]:
@@ -67,6 +77,12 @@ meter.create_observable_gauge(
     callbacks=[observe_buffer_bytes],
     unit="By",
     description="Serialized JSON bytes buffered, awaiting flush.",
+)
+meter.create_observable_gauge(
+    "bluesky_backfill.process.peak_memory.bytes",
+    callbacks=[observe_peak_memory_bytes],
+    unit="By",
+    description="Max resident memory of the worker process since start.",
 )
 meter.create_observable_gauge(
     "bluesky_backfill.queue.waiting_messages",
