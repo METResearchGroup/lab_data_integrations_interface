@@ -29,19 +29,14 @@ DEMO_QUERIES = [
         csv=DATA_DIR / "most_engaged_posts_last_week.csv",
     ),
     DemoQuery(
-        text=(
-            "Which users have the highest ratio of engagement to followers? And which "
-            "users have posts that both get a lot of engagement and that engagement is "
-            "from accounts who follow them?"
-        ),
+        text="Which users have the highest ratio of engagement to followers?",
         summary=(
             "40 users ranked by engagements per follower over the last 30 days.\n\n"
-            "Highest ratio: @otisdaily.bsky.social at 4.8 engagements per follower.\n\n"
-            "High engagement (1+ per follower) where most of it (70%+) comes from followers:\n"
-            "  - @otisdaily.bsky.social: 4.82 per follower, 78% from followers\n"
-            "  - @selinpod.bsky.social: 2.15 per follower, 84% from followers\n"
-            "  - @fernfield.bsky.social: 1.22 per follower, 76% from followers\n"
-            "  - @samworks.bsky.social: 1.01 per follower, 89% from followers"
+            "  1. @otisdaily.bsky.social: 4.82 per follower (424 followers)\n"
+            "  2. @mayamakes.bsky.social: 3.44 per follower (3,830 followers)\n"
+            "  3. @miraplays.bsky.social: 2.51 per follower (2,271 followers)\n"
+            "  4. @selinpod.bsky.social: 2.15 per follower (5,677 followers)\n"
+            "  5. @wesworks.bsky.social: 2.08 per follower (923 followers)"
         ),
         csv=DATA_DIR / "engagement_to_follower_ratio.csv",
     ),

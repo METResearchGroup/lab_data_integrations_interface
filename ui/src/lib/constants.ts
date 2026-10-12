@@ -8,7 +8,7 @@ export const DEMO_QUERIES = [
 	},
 	{
 		label: "Engagement vs. followers",
-		text: "Which users have the highest ratio of engagement to followers? And which users have posts that both get a lot of engagement and that engagement is from accounts who follow them?",
+		text: "Which users have the highest ratio of engagement to followers?",
 	},
 	{
 		label: "Midterm sentiment",
