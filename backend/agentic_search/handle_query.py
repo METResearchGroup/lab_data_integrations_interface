@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from opentelemetry import trace
 from opentelemetry.trace import StatusCode
 
-from backend.agentic_search.mail import mail_failure, mail_invalid, mail_results
+from backend.agentic_search.mail import (
+    mail_demo_results,
+    mail_failure,
+    mail_invalid,
+    mail_results,
+)
 from backend.agentic_search.run_langgraph import run_langgraph
+from backend.demo.queries import DELAY_SECONDS, match_demo_query
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -17,6 +24,13 @@ tracer = trace.get_tracer(__name__)
 def handle_query(query: str, email: str) -> None:
     with tracer.start_as_current_span("agentic_search.query") as span:
         span.set_attribute("query", query)
+
+        demo = match_demo_query(query)
+        if demo is not None:
+            time.sleep(DELAY_SECONDS)
+            sent = mail_demo_results(email, query, demo.summary, demo.csv)
+            span.set_attribute("outcome", "demo" if sent else "mail_failed")
+            return
 
         try:
             validation, rejection, executed = run_langgraph(query)

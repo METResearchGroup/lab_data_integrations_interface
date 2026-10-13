@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 
 from opentelemetry import trace
 from opentelemetry.trace import StatusCode
@@ -34,13 +35,13 @@ def _gmail() -> Gmail:
     return Gmail(sender, password)
 
 
-def _send(email: str, subject: str, body: str) -> bool:
+def _send(email: str, subject: str, body: str, attachment: Path | None = None) -> bool:
     """Mail failures are logged, not raised: there is nowhere left to report them."""
 
     with tracer.start_as_current_span("mail") as span:
         span.set_attribute("subject", subject)
         try:
-            _gmail().send(to=email, subject=subject, body=body)
+            _gmail().send(to=email, subject=subject, body=body, attachment=attachment)
         except Exception as error:
             logger.exception("could not mail %s to %s", subject, email)
             span.record_exception(error)
@@ -55,6 +56,17 @@ def mail_results(email: str, query: str, result_url: str) -> bool:
         SUBJECT_READY,
         f"Your query:\n\n  {query}\n\n"
         f"Download the results (link expires in 24 hours):\n\n  {result_url}\n",
+    )
+
+
+def mail_demo_results(email: str, query: str, summary: str, attachment: Path) -> bool:
+    return _send(
+        email,
+        SUBJECT_READY,
+        f"Your query:\n\n  {query}\n\n{summary}\n\n"
+        f"Full results are attached ({attachment.name}).\n\n"
+        "Sample data for demonstration.\n",
+        attachment,
     )
 
 
