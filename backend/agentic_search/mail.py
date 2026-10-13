@@ -21,6 +21,9 @@ SUBJECT_READY = "Your query results are ready"
 SUBJECT_INVALID = "Your query could not be run"
 SUBJECT_FAILED = "Your query failed"
 
+FEEDBACK_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSevZGsEOGMul1xxfog5FZagVnn5rmuf2zZU51iKgc-7-zdXJA/viewform"
+FEEDBACK = f"Not what you expected? Let us know:\n\n  {FEEDBACK_FORM_URL}\n"
+
 
 def _gmail() -> Gmail:
     sender = os.getenv(SENDER_VARIABLE)
@@ -55,7 +58,8 @@ def mail_results(email: str, query: str, result_url: str) -> bool:
         email,
         SUBJECT_READY,
         f"Your query:\n\n  {query}\n\n"
-        f"Download the results (link expires in 24 hours):\n\n  {result_url}\n",
+        f"Download the results (link expires in 24 hours):\n\n  {result_url}\n\n"
+        f"{FEEDBACK}",
     )
 
 
@@ -65,7 +69,8 @@ def mail_demo_results(email: str, query: str, summary: str, attachment: Path) ->
         SUBJECT_READY,
         f"Your query:\n\n  {query}\n\n{summary}\n\n"
         f"Full results are attached ({attachment.name}).\n\n"
-        "Sample data for demonstration.\n",
+        "Sample data for demonstration.\n\n"
+        f"{FEEDBACK}",
         attachment,
     )
 
@@ -75,7 +80,7 @@ def mail_invalid(email: str, query: str, issues: list[str]) -> bool:
     return _send(
         email,
         SUBJECT_INVALID,
-        f"Your query:\n\n  {query}\n\nIt could not be run:\n\n{listed}\n",
+        f"Your query:\n\n  {query}\n\nIt could not be run:\n\n{listed}\n\n{FEEDBACK}",
     )
 
 
@@ -83,5 +88,5 @@ def mail_failure(email: str, query: str) -> None:
     _send(
         email,
         SUBJECT_FAILED,
-        f"Your query:\n\n  {query}\n\nIt hit an error and did not finish.\n",
+        f"Your query:\n\n  {query}\n\nIt hit an error and did not finish.\n\n{FEEDBACK}",
     )
