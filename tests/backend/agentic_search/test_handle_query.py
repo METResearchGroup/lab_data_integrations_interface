@@ -29,7 +29,7 @@ def sent(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, str]]:
     captured: list[dict[str, str]] = []
 
     class FakeGmail:
-        def send(self, *, to: str, subject: str, body: str, attachment=None) -> None:
+        def send(self, *, to: str, subject: str, body: str) -> None:
             captured.append({"to": to, "subject": subject, "body": body})
 
     monkeypatch.setattr(mail, "_gmail", lambda: FakeGmail())
