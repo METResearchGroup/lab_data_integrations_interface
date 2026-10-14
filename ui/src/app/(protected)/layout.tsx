@@ -1,8 +1,6 @@
-import DemoToggle from "@/components/DemoToggle";
 import SignOutButton from "@/components/SignOutButton";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { Suspense } from "react";
 
 /**
  * Gate for every route in the (protected) group.
@@ -30,9 +28,6 @@ export default async function ProtectedLayout({
 					Lab Data Integrations
 				</span>
 				<div className="flex items-center gap-4">
-					<Suspense>
-						<DemoToggle />
-					</Suspense>
 					<span className="text-sm text-zinc-500">{user.email}</span>
 					<SignOutButton />
 				</div>

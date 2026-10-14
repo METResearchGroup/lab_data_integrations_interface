@@ -5,17 +5,12 @@ import { validateQuery } from "@/lib/validation";
 import { useState } from "react";
 
 interface QueryFormProps {
-	initialQuery?: string;
 	onSubmit: (query: string) => void;
 	disabled?: boolean;
 }
 
-export default function QueryForm({
-	initialQuery = "",
-	onSubmit,
-	disabled,
-}: QueryFormProps) {
-	const [query, setQuery] = useState(initialQuery);
+export default function QueryForm({ onSubmit, disabled }: QueryFormProps) {
+	const [query, setQuery] = useState("");
 	const [error, setError] = useState<string>();
 
 	function handleSubmit() {
