@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import logging
 import os
 
@@ -18,6 +19,7 @@ ALGORITHMS = ["ES256"]
 AUDIENCE = "authenticated"
 
 
+@functools.lru_cache(maxsize=1)
 def _jwk_client() -> PyJWKClient:
     url = os.getenv(URL_VARIABLE)
     if not url:
@@ -31,8 +33,11 @@ def current_user_email(
 ) -> str:
     token = credentials.credentials
     try:
-        # The public key whose kid matches the token's header.
-        signing_key = _jwk_client().get_signing_key_from_jwt(token)
+        # Cached keys only: an unknown kid must not trigger a JWKS refetch.
+        kid = jwt.get_unverified_header(token).get("kid")
+        signing_key = kid and PyJWKClient.match_kid(_jwk_client().get_signing_keys(), kid)
+        if signing_key is None:
+            raise jwt.InvalidTokenError(f"unknown signing key {kid!r}")
         # Signature, expiry and audience.
         claims = jwt.decode(
             token,
