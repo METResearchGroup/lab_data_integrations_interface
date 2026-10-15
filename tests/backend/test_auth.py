@@ -99,3 +99,14 @@ def test_unknown_kid_is_rejected_without_refetching(signing_key, jwks) -> None:
         _verify(_token(signing_key, kid="made-up"))
     assert raised.value.status_code == 401
     assert jwks.refreshes == 0
+
+
+def test_token_without_a_kid_is_rejected(signing_key) -> None:
+    token = jwt.encode(
+        {"email": EMAIL, "aud": auth.AUDIENCE, "exp": datetime.now(UTC) + timedelta(hours=1)},
+        signing_key,
+        algorithm="ES256",
+    )
+    with pytest.raises(HTTPException) as raised:
+        _verify(token)
+    assert raised.value.status_code == 401
