@@ -35,7 +35,7 @@ def current_user_email(
     try:
         # Cached keys only: an unknown kid must not trigger a JWKS refetch.
         kid = jwt.get_unverified_header(token).get("kid")
-        signing_key = PyJWKClient.match_kid(_jwk_client().get_signing_keys(), kid)
+        signing_key = kid and PyJWKClient.match_kid(_jwk_client().get_signing_keys(), kid)
         if signing_key is None:
             raise jwt.InvalidTokenError(f"unknown signing key {kid!r}")
         # Signature, expiry and audience.
