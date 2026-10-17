@@ -1,4 +1,4 @@
-import { ALLOWED_EMAIL_DOMAIN, MIN_QUERY_LENGTH } from "@/lib/constants";
+import { ALLOWED_EMAIL_DOMAINS, MIN_QUERY_LENGTH } from "@/lib/constants";
 
 export function validateQuery(query: string): string | undefined {
 	const trimmed = query.trim();
@@ -11,8 +11,13 @@ export function validateQuery(query: string): string | undefined {
 
 // UX only; the Supabase signup hook is the real gate.
 export function validateSignupEmail(email: string): string | undefined {
-	if (!email.trim().toLowerCase().endsWith(`@${ALLOWED_EMAIL_DOMAIN}`)) {
-		return `Use your @${ALLOWED_EMAIL_DOMAIN} email.`;
+	const normalized = email.trim().toLowerCase();
+	if (!ALLOWED_EMAIL_DOMAINS.some((d) => normalized.endsWith(`@${d}`))) {
+		return `Use your ${formatAllowedDomains()} email.`;
 	}
 	return undefined;
+}
+
+export function formatAllowedDomains(): string {
+	return ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(" or ");
 }

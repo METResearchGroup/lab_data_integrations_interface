@@ -1,6 +1,6 @@
 "use client";
 
-import { ALLOWED_EMAIL_DOMAIN } from "@/lib/constants";
+import { ALLOWED_EMAIL_DOMAINS } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/client";
 import { validateSignupEmail } from "@/lib/validation";
 import Link from "next/link";
@@ -176,7 +176,7 @@ export default function SignupForm() {
 					onChange={(e) => setEmail(e.target.value)}
 					required
 					autoComplete="email"
-					placeholder={`you@${ALLOWED_EMAIL_DOMAIN}`}
+					placeholder={`you@${ALLOWED_EMAIL_DOMAINS[0]}`}
 					disabled={isSubmitting}
 					className={INPUT_CLASS}
 				/>
