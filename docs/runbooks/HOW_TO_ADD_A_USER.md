@@ -2,7 +2,7 @@
 
 ## Overview
 
-`@kellogg.northwestern.edu` users can sign up themselves at `/signup` — see
+`@kellogg.northwestern.edu` and `@u.northwestern.edu` users can sign up themselves at `/signup` — see
 [HOW_TO_ENABLE_SELF_SERVE_SIGNUP.md](HOW_TO_ENABLE_SELF_SERVE_SIGNUP.md).
 Invites are for everyone else, or to add someone directly: invite from the
 dashboard, user sets a password, signs in with email + password after that.

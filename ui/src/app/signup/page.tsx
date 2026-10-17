@@ -1,6 +1,6 @@
 import SignupForm from "@/components/SignupForm";
-import { ALLOWED_EMAIL_DOMAIN } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/server";
+import { formatAllowedDomains } from "@/lib/validation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -23,7 +23,7 @@ export default async function SignupPage() {
 				<div className="flex flex-col gap-1">
 					<h1 className="text-lg font-medium text-zinc-900">Create account</h1>
 					<p className="text-sm text-zinc-500">
-						Requires a @{ALLOWED_EMAIL_DOMAIN} email.
+						Requires a {formatAllowedDomains()} email.
 					</p>
 				</div>
 

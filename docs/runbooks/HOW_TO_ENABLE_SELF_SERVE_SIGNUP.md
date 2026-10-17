@@ -2,7 +2,7 @@
 
 ## Overview
 
-Anyone with a `@kellogg.northwestern.edu` email can create an account at
+Anyone with a `@kellogg.northwestern.edu` or `@u.northwestern.edu` email can create an account at
 `/signup`. They verify the address with a 6-digit code emailed to them, then
 land in the app. Invites ([HOW_TO_ADD_A_USER.md](HOW_TO_ADD_A_USER.md)) keep
 working.
@@ -35,11 +35,12 @@ declare
   email text := lower(event->'user'->>'email');
 begin
   if email is null or (email not like '%@kellogg.northwestern.edu'
+                       and email not like '%@u.northwestern.edu'
                        and email <> 'person@gmail.com') then
     return jsonb_build_object(
       'error', jsonb_build_object(
         'http_code', 403,
-        'message', 'Sign up requires a @kellogg.northwestern.edu email.'
+        'message', 'Sign up requires a @kellogg.northwestern.edu or @u.northwestern.edu email.'
       )
     );
   end if;
@@ -56,9 +57,9 @@ Then `https://supabase.com/dashboard/project/<project-ref>/auth/hooks`
 Postgres, schema `public`, function `hook_restrict_signup_by_email_domain` →
 enable.
 
-Domain must match `ALLOWED_EMAIL_DOMAIN` in `ui/src/lib/constants.ts`.
+Domains must match `ALLOWED_EMAIL_DOMAINS` in `ui/src/lib/constants.ts`.
 
-The hook also blocks console invites to non-Kellogg addresses. Replace
+The hook also blocks console invites to other addresses. Replace
 `person@gmail.com` with the address to let through; for more, use
 `email not in ('a@gmail.com', 'b@gmail.com')`. Re-running the `create or
 replace` keeps the hook attached.
@@ -169,7 +170,7 @@ If the template editor is locked, finish step 2 first.
 
 ## Verify
 
-1. `/signup` with a non-Kellogg email → blocked by the form.
+1. `/signup` with a non-Northwestern email → blocked by the form.
 2. Bypass the form:
    ```bash
    curl -s -X POST "https://<project-ref>.supabase.co/auth/v1/signup" \
@@ -179,7 +180,7 @@ If the template editor is locked, finish step 2 first.
    ```
    → 403 with the hook's message. If it succeeds, step 1 isn't enabled —
    turn signups off until it is, and delete the user it created.
-3. `/signup` with a real Kellogg address → code arrives → enter it → lands in
+3. `/signup` with a real Kellogg or u.northwestern.edu address → code arrives → enter it → lands in
    the app.
 
 ## Rollback
