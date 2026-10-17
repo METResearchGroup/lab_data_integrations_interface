@@ -34,7 +34,8 @@ as $$
 declare
   email text := lower(event->'user'->>'email');
 begin
-  if email is null or email not like '%@kellogg.northwestern.edu' then
+  if email is null or (email not like '%@kellogg.northwestern.edu'
+                       and email <> 'person@gmail.com') then
     return jsonb_build_object(
       'error', jsonb_build_object(
         'http_code', 403,
@@ -57,8 +58,10 @@ enable.
 
 Domain must match `ALLOWED_EMAIL_DOMAIN` in `ui/src/lib/constants.ts`.
 
-The hook may also block console invites to non-Kellogg addresses. To let one
-through, add `or email = 'person@example.com'` to the `if`.
+The hook also blocks console invites to non-Kellogg addresses. Replace
+`person@gmail.com` with the address to let through; for more, use
+`email not in ('a@gmail.com', 'b@gmail.com')`. Re-running the `create or
+replace` keeps the hook attached.
 
 ## 2. Custom SMTP
 
