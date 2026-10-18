@@ -23,7 +23,7 @@ def _jwk_client() -> PyJWKClient:
     if not url:
         raise RuntimeError(f"{URL_VARIABLE} is unset, so access tokens cannot be verified")
 
-    return PyJWKClient(f"{url.rstrip('/')}/auth/v1/.well-known/jwks.json")
+    return PyJWKClient(f"{url.rstrip('/')}/auth/v1/.well-known/jwks.json", cache_jwk_set=False)
 
 
 def current_user_email(
