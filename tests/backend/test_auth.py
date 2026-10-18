@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import math
-import time
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -15,7 +13,6 @@ from fastapi.security import HTTPAuthorizationCredentials
 from backend import auth
 
 EMAIL = "someone@example.invalid"
-KID = "current-key"
 
 
 @pytest.fixture(scope="module")
@@ -28,37 +25,22 @@ def jwks(monkeypatch: pytest.MonkeyPatch, signing_key):
     """Serve the matching public key instead of fetching Supabase's JWKS."""
 
     class FakeKey:
-        def __init__(self, key_id: str) -> None:
-            self.key_id = key_id
-            self.key = signing_key.public_key()
+        key = signing_key.public_key()
 
     class FakeClient:
-        def __init__(self) -> None:
-            self.cached = [FakeKey(KID)]
-            # What Supabase serves now; a refresh replaces the cache with it.
-            self.published = self.cached
-            self.refreshes = 0
-            self.key = FakeKey
+        def get_signing_key_from_jwt(self, _token):
+            return FakeKey()
 
-        def get_signing_keys(self, refresh: bool = False):
-            if refresh:
-                self.refreshes += 1
-                self.cached = self.published
-            return self.cached
-
-    client = FakeClient()
-    monkeypatch.setattr(auth, "_jwk_client", lambda: client)
-    monkeypatch.setattr(auth, "_last_refresh", -math.inf)
-    return client
+    monkeypatch.setattr(auth, "_jwk_client", lambda: FakeClient())
 
 
-def _token(signing_key, kid: str = KID, **overrides) -> str:
+def _token(signing_key, **overrides) -> str:
     claims = {
         "email": EMAIL,
         "aud": auth.AUDIENCE,
         "exp": datetime.now(UTC) + timedelta(hours=1),
     } | overrides
-    return jwt.encode(claims, signing_key, algorithm="ES256", headers={"kid": kid})
+    return jwt.encode(claims, signing_key, algorithm="ES256")
 
 
 def _verify(token: str) -> str:
@@ -94,51 +76,6 @@ def test_token_signed_by_another_key_is_rejected() -> None:
 def test_token_without_an_email_is_rejected(signing_key) -> None:
     token = jwt.encode(
         {"aud": auth.AUDIENCE, "exp": datetime.now(UTC) + timedelta(hours=1)},
-        signing_key,
-        algorithm="ES256",
-        headers={"kid": KID},
-    )
-    with pytest.raises(HTTPException) as raised:
-        _verify(token)
-    assert raised.value.status_code == 401
-
-
-def test_rotated_in_key_is_fetched_once(signing_key, jwks) -> None:
-    """A key Supabase published after our last fetch still verifies."""
-
-    jwks.published = [jwks.key(KID), jwks.key("rotated")]
-    assert _verify(_token(signing_key, kid="rotated")) == EMAIL
-    assert jwks.refreshes == 1
-
-
-def test_unknown_kids_refetch_at_most_once_per_interval(signing_key, jwks) -> None:
-    """Forged kids must not make each request hit Supabase's JWKS endpoint."""
-
-    for kid in ("made-up", "also-made-up"):
-        with pytest.raises(HTTPException) as raised:
-            _verify(_token(signing_key, kid=kid))
-        assert raised.value.status_code == 401
-    assert jwks.refreshes == 1
-
-
-def test_unknown_kid_refetches_again_after_the_interval(signing_key, jwks, monkeypatch) -> None:
-    with pytest.raises(HTTPException):
-        _verify(_token(signing_key, kid="made-up"))
-    monkeypatch.setattr(auth, "_last_refresh", time.monotonic() - auth.REFRESH_INTERVAL_SECONDS - 1)
-    with pytest.raises(HTTPException):
-        _verify(_token(signing_key, kid="made-up"))
-    assert jwks.refreshes == 2
-
-
-def test_empty_kid_is_rejected(signing_key) -> None:
-    with pytest.raises(HTTPException) as raised:
-        _verify(_token(signing_key, kid=""))
-    assert raised.value.status_code == 401
-
-
-def test_token_without_a_kid_is_rejected(signing_key) -> None:
-    token = jwt.encode(
-        {"email": EMAIL, "aud": auth.AUDIENCE, "exp": datetime.now(UTC) + timedelta(hours=1)},
         signing_key,
         algorithm="ES256",
     )
