@@ -5,6 +5,12 @@
   - [Background](#background)
   - [Goal](#goal)
     - [Questions on research goals](#questions-on-research-goals)
+  - [Key user journeys](#key-user-journeys)
+    - [Score a sample](#score-a-sample)
+    - [Query the labels](#query-the-labels)
+    - [Check the sample](#check-the-sample)
+    - [Apply a dollar cap](#apply-a-dollar-cap)
+    - [End to end data flow](#end-to-end-data-flow)
   - [Starter attributes](#starter-attributes)
     - [Questions on attributes](#questions-on-attributes)
   - [Where scoring fits](#where-scoring-fits)
@@ -65,6 +71,149 @@ The first milestone is a checked sample, then one day of labels you can query in
 4. Do you need one row per post in the CSV, with the probability on the row, or are daily counts enough for the first paper?
 5. Is Jev the replacement for Perspective, or a second label source you want beside Perspective until the shutdown?
 6. Are toxicity and hostility on a named account acceptable for anyone who can query posts today, or do those columns need a smaller audience than `bluesky_raw.posts`?
+
+## Key user journeys
+
+OPEN on a node is a decision the question lists still ask you to make. The table names, the 10 GB cap, and the model ids in the diagrams match the later sections.
+
+### Score a sample
+
+You score a sample before any full day, because the question wording is part of the label.
+
+```mermaid
+sequenceDiagram
+    participant You as Researcher
+    participant Job as Batch job
+    participant Posts as bluesky_raw.posts
+    participant Jev
+    participant Labels as post_classifications
+    Note over You: OPEN which attributes, and Noul, Choice, or Score
+    You->>Job: Send the question set and start a sample
+    Note over Job: OPEN language, corpus, and sample rate
+    Job->>Posts: Read the sample
+    Posts-->>Job: uri, text, and created_at
+    Note over Jev: OPEN pin jev-1.13.0 or jev-1.14.0
+    Job->>Jev: One call per post
+    Jev-->>Job: Probabilities and versioned model id
+    Job->>Labels: Write one row per attempt
+    Note over Labels: Key is uri, model id, and question set id
+```
+
+You skip the Jev call on a second run when a success row already has the same URI, model id, and question set.
+
+### Query the labels
+
+Once the label rows exist, your question has to join them to `bluesky_raw.posts` on URI.
+
+```mermaid
+flowchart TD
+    ask["You ask for toxic posts in a date range"]
+    path{"OPEN: Athena SQL you write, or the search box?"}
+    hand["You write the join in Athena"]
+    box["Search box extracts an intent"]
+    gen["SQL generator emits the join"]
+    check{"OPEN: 10 GB check prices both tables?"}
+    refuse["Check refuses the query or misses the scan"]
+    join["Join posts to labels on uri, pinned model id and question set"]
+    mail["Athena emails the CSV"]
+    ask --> path
+    path -->|Athena SQL| hand
+    path -->|Search box| box
+    hand --> join
+    box --> gen
+    gen --> check
+    check -->|Priced| join
+    check -->|Not yet| refuse
+    join --> mail
+```
+
+You get the CSV from the search box only after the 10 GB check prices both tables.
+
+### Check the sample
+
+Because you would score a full day with the first wording, the sample has to meet your bar.
+
+```mermaid
+flowchart TD
+    sample["Score about 10,000 posts"]
+    twitter{"OPEN: use the Twitter set, F1 0.7323?"}
+    compare["Compare moral outrage wording to that F1"]
+    humans["Two readers label Bluesky posts"]
+    diagram["OPEN: reliability diagram before any threshold"]
+    bar{"OPEN: sample meets the bar you set?"}
+    reword["New wording and new question set id"]
+    pin{"OPEN: pin jev-1.13.0 or jev-1.14.0?"}
+    day["Approve one full day"]
+    sample --> twitter
+    twitter -->|Yes| compare
+    twitter -->|No| humans
+    compare --> humans
+    humans --> diagram
+    diagram --> bar
+    bar -->|No| reword
+    reword --> sample
+    bar -->|Yes| pin
+    pin --> day
+```
+
+You pin `jev-1.13.0` or `jev-1.14.0` only after the sample meets your bar.
+
+### Apply a dollar cap
+
+You approve the full day only when the estimate is under the dollar cap from cost question 2.
+
+```mermaid
+flowchart TD
+    measure["Measure input tokens on a few hundred posts"]
+    estimate["Estimate dollars for the corpus you named"]
+    cap{"OPEN: estimate under your dollar cap?"}
+    approve["You approve the run"]
+    shrink["You shrink the sample or raise the cap"]
+    run["Job writes label rows with input_tokens"]
+    hit{"Sum of input_tokens would pass the cap?"}
+    stop["Job stops until you approve again"]
+    done["Run finishes inside the cap"]
+    measure --> estimate
+    estimate --> cap
+    cap -->|Yes| approve
+    cap -->|No| shrink
+    shrink --> estimate
+    approve --> run
+    run --> hit
+    hit -->|Yes| stop
+    hit -->|No| done
+```
+
+The job stops once the sum of stored `input_tokens` would pass your approved cap.
+
+### End to end data flow
+
+You can score Jetstream posts today, because the backfill merge into Iceberg is still a design doc.
+
+```mermaid
+flowchart TD
+    jet["Jetstream creates, from 2026-08-01"]
+    land["Backfill landing Parquet, through 2026-08-07"]
+    posts["bluesky_raw.posts"]
+    job["Batch job, one Jev call per post"]
+    labels["post_classifications"]
+    query{"OPEN: Athena SQL or search box?"}
+    hand["You write the join"]
+    box["Search box emits the join"]
+    athena["Athena CSV by email"]
+    jet --> posts
+    land -.->|"OPEN: merge not in Terraform"| posts
+    posts --> job
+    job --> labels
+    posts --> query
+    labels --> query
+    query -->|Athena SQL| hand
+    query -->|Search box| box
+    hand --> athena
+    box --> athena
+```
+
+You receive one CSV by email once posts and labels are joined.
 
 ## Starter attributes
 
