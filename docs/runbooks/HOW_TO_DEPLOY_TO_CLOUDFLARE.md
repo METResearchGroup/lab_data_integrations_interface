@@ -449,6 +449,17 @@ new Worker version immediately. The container only reads the value the next
 time it starts. After changing a secret, let the instance sleep, or redeploy
 the image, before expecting the process to see it.
 
+`SUPABASE_URL` comes from the same Secrets Manager secret as the UI.
+`scripts/set_api_supabase_url.py` reads `NEXT_PUBLIC_SUPABASE_URL` from
+`lab-data-integrations-supabase-public` and stores it as the API Worker
+secret. It does not print the value, and it refuses a host that is not a
+`supabase.co` project host. Run it from the repo root before `wrangler
+deploy` in `cloudflare/backend/`. `backend/auth.py` verifies ES256 tokens
+with PyJWT, which needs the `cryptography` package. `pyjwt[crypto]` in
+`pyproject.toml` installs that package. Without it, a real Supabase token
+is rejected with `Invalid access token` and the container log says
+`ES256 requires 'cryptography' to be installed`.
+
 Local `wrangler dev` reads `cloudflare/backend/.dev.vars` (gitignored). Copy
 `.dev.vars.example`. Jetstream and the backfill worker have their own
 `.dev.vars.example` files.
@@ -530,7 +541,7 @@ not send `X-Origin-Secret`. See the origin-secret row below.
 | `AWS_SECRET_ACCESS_KEY` | boto3 | Secret on the API, Jetstream, and backfill Workers | Same. |
 | `AWS_SESSION_TOKEN` | boto3 | Secret, optional, on each of those Workers | Only for temporary credentials. Unset for the long-lived key. |
 | `OPENAI_API_KEY` | `EnvVarsContainer` in `lib/load_env_vars.py` | API secret | SQL generation on `/query`. Secrets Manager `openai-api-key`, key `OPENAI_API_KEY`. |
-| `SUPABASE_URL` | `backend/auth.py` | API secret | Verifying the bearer token on `/query`. Same host as `NEXT_PUBLIC_SUPABASE_URL`. |
+| `SUPABASE_URL` | `backend/auth.py` | API secret. `scripts/set_api_supabase_url.py` copies `NEXT_PUBLIC_SUPABASE_URL` from Secrets Manager `lab-data-integrations-supabase-public`. | Verifying the bearer token on `/query`. Same host as the UI. |
 | `GMAIL_SENDER_EMAIL` | `backend/agentic_search/mail.py` | API secret | Mailing `/query` results. Secrets Manager `lab-data-integrations-gmail` in us-east-2, JSON field `GMAIL_SENDER_EMAIL`. |
 | `GMAIL_APP_PASSWORD` | `backend/agentic_search/mail.py` | API secret | Same secret, JSON field `GMAIL_APP_PASSWORD`. `mail.py` removes spaces before SMTP login. |
 | `ORIGIN_SECRET` | `backend/origin.py` | API secret, optional | Leave unset on Cloudflare. Supabase auth on `/query` is the gate. When this is set, requests other than `/health` need header `X-Origin-Secret`. |
