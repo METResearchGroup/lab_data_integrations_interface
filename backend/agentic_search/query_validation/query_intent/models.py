@@ -6,6 +6,7 @@ from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
+from pydantic.json_schema import SkipJsonSchema
 
 from bluesky_ingestion_jetstream.constants import RecordType
 
@@ -37,12 +38,16 @@ class QueryIntent(BaseModel):
         default="any",
         description="any: one term is enough. all: every term must appear.",
     )
-    whole_word: bool = Field(
+    use_whole_word: bool = Field(
         default=True,
         description=(
             "True wraps each term in an ASCII word boundary. False is a "
             "substring match, used for hashtags, mentions, and CJK text."
         ),
+    )
+    end_date_inferred: SkipJsonSchema[bool] = Field(
+        default=False,
+        description="True when a missing end was set to the current UTC date.",
     )
 
     @field_validator("keywords")

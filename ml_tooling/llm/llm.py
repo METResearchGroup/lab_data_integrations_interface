@@ -3,10 +3,6 @@
 Run from the repo root:
 
     PYTHONPATH=. uv run python ml_tooling/llm/llm.py
-
-The key is ``OPENAI_API_KEY`` from ``EnvVarsContainer``, which reads AWS
-Secrets Manager id ``openai-api-key`` in us-east-2. The client receives that
-value as ``api_key``.
 """
 
 from __future__ import annotations

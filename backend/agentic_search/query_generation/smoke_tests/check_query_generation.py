@@ -63,7 +63,7 @@ def main() -> None:
         print(
             f"  intent: record_type={intent.record_type} columns={intent.columns} "
             f"keywords={intent.keywords} match={intent.match} "
-            f"whole_word={intent.whole_word} dates={intent.start_date}..{intent.end_date}"
+            f"use_whole_word={intent.use_whole_word} dates={intent.start_date}..{intent.end_date}"
         )
 
         generated = generate_sql(intent)

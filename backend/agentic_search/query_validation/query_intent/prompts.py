@@ -1,3 +1,6 @@
+"""Prompt for turning a question into a QueryIntent."""
+
+EXTRACT_USER_QUERY_INTENT_PROMPT = """\
 Map the user's question onto our Bluesky tables.
 
 Today is {today}.
@@ -23,8 +26,8 @@ term, so leave an over-cap list intact rather than dropping or splitting it.
 match is "any" when one term is enough, and "all" when every term must
 appear. A single term is "any".
 
-whole_word is true for ordinary words and phrases, so "cat" does not match
-"category" and "climate change" matches that phrase. Set whole_word false
+use_whole_word is true for ordinary words and phrases, so "cat" does not match
+"category" and "climate change" matches that phrase. Set use_whole_word false
 when a word boundary would not match the term:
 - hashtags and mentions, because "#" and "@" are not word characters
 - Chinese, Japanese, or Korean text, because the boundary is ASCII and does
@@ -32,9 +35,12 @@ when a word boundary would not match the term:
 A mention is the handle as written in the post, such as "@alice.bsky.social",
 not the author's DID.
 
-When keywords are set, fill both dates from bounds the question actually
-states. Do not invent a date range. Keywords apply only to posts; do not
-switch the record type to posts to make a filter fit.
+When keywords are set, copy a start or an end only when the question
+states that side. "since", "after", and "from X" with no end leave end_date
+null. The program sets that end to today's UTC date. "since August" in 2026
+means start 2026-08-01. When neither date is stated, leave both null. Do not
+invent a start. Keywords apply only to posts; do not switch the record type
+to posts to make a filter fit.
 
 Do not put matched_keywords in columns. The query adds that column itself.
 
@@ -49,40 +55,48 @@ Worked examples, for a catalog holding posts (uri, text, langs), likes
 
   "zxcvb qwerty"
     is_nonsense=true record_type=null columns=[] keywords=[] match=any
-    whole_word=true start=null end=null
+    use_whole_word=true start=null end=null
   "list every block someone made"
     is_nonsense=false record_type=null columns=[] keywords=[] match=any
-    whole_word=true start=null end=null
+    use_whole_word=true start=null end=null
   "likes from the last three days"
     is_nonsense=false record_type=likes columns=["uri"] keywords=[] match=any
-    whole_word=true start=2026-06-07 end=2026-06-10
+    use_whole_word=true start=2026-06-07 end=2026-06-10
   "follows with their vanity handles"
     is_nonsense=false record_type=follows columns=["subject_did","vanity handles"]
-    keywords=[] match=any whole_word=true start=null end=null
+    keywords=[] match=any use_whole_word=true start=null end=null
   "likes from February 2024"
     is_nonsense=false record_type=likes columns=["uri"] keywords=[] match=any
-    whole_word=true start=2024-02-01 end=2024-02-29
+    use_whole_word=true start=2024-02-01 end=2024-02-29
   "posts from June 1 through June 3 2026 that say climate"
     is_nonsense=false record_type=posts columns=["text"] keywords=["climate"]
-    match=any whole_word=true start=2026-06-01 end=2026-06-03
+    match=any use_whole_word=true start=2026-06-01 end=2026-06-03
   "posts from the last three days that mention trump or biden"
     is_nonsense=false record_type=posts columns=["text"]
-    keywords=["trump","biden"] match=any whole_word=true
+    keywords=["trump","biden"] match=any use_whole_word=true
     start=2026-06-07 end=2026-06-10
   "posts from May 2026 that mention both climate and policy"
     is_nonsense=false record_type=posts columns=["text"]
-    keywords=["climate","policy"] match=all whole_word=true
+    keywords=["climate","policy"] match=all use_whole_word=true
     start=2026-05-01 end=2026-05-31
   "posts from June 1 through June 3 2026 with the phrase climate change"
     is_nonsense=false record_type=posts columns=["text"]
-    keywords=["climate change"] match=any whole_word=true
+    keywords=["climate change"] match=any use_whole_word=true
     start=2026-06-01 end=2026-06-03
   "posts from June 1 through June 3 2026 tagged #climate"
     is_nonsense=false record_type=posts columns=["text"] keywords=["#climate"]
-    match=any whole_word=false start=2026-06-01 end=2026-06-03
+    match=any use_whole_word=false start=2026-06-01 end=2026-06-03
   "posts from June 1 through June 3 2026 that mention 气候"
     is_nonsense=false record_type=posts columns=["text"] keywords=["气候"]
-    match=any whole_word=false start=2026-06-01 end=2026-06-03
+    match=any use_whole_word=false start=2026-06-01 end=2026-06-03
   "posts from the last three days, with text and language"
     is_nonsense=false record_type=posts columns=["text","langs"] keywords=[]
-    match=any whole_word=true start=2026-06-07 end=2026-06-10
+    match=any use_whole_word=true start=2026-06-07 end=2026-06-10
+
+  "posts since May 2026 that say climate"
+    is_nonsense=false record_type=posts columns=["text"] keywords=["climate"]
+    match=any use_whole_word=true start=2026-05-01 end=null
+  "posts that say climate"
+    is_nonsense=false record_type=posts columns=["text"] keywords=["climate"]
+    match=any use_whole_word=true start=null end=null
+"""

@@ -15,7 +15,9 @@ def check_keywords(intent: QueryIntent) -> list[ValidationIssue]:
     """Refuse text filters that are not a bounded scan of posts.
 
     KEYWORDS_REQUIRE_POSTS when the filter targets anything but posts.
-    KEYWORDS_REQUIRE_BOUNDED_RANGE when either date is open.
+    KEYWORDS_REQUIRE_BOUNDED_RANGE when either date is still missing.
+    extract_intent fills a missing end from the current UTC date when a start
+    is present, so this issue is a missing start, or both dates missing.
     EMPTY_KEYWORD when a term is blank.
     TOO_MANY_KEYWORDS and KEYWORD_TOO_LONG past the shared caps.
     An empty keyword list is no filter, and passes.

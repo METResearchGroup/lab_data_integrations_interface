@@ -35,19 +35,9 @@ flowchart LR
   V -. invalid .-> M
 ```
 
-**Validation before SQL:** one LLM call turns the question into a `QueryIntent` (record type, columns, date range, and any post-text keywords). That intent is then checked in plain code — nonsense input, columns the table does not have, dates outside coverage, a keyword filter on anything but posts, a keyword filter with either date open, a blank term, or a term list past the cap (8 terms, 80 characters each). An invalid query stops there and never reaches Athena.
+**Validation before SQL:** one LLM call turns the question into a `QueryIntent` (record type, columns, date range). That intent is then checked in plain code — nonsense input, columns the table does not have, dates outside coverage. An invalid query stops there and never reaches Athena.
 
-**Keyword filters:** `keywords` empty means no text filter. Otherwise `generate_sql` matches `text` with a case-insensitive `regexp_like`. The model still supplies only the intent; the predicate is built in code. `any` is one alternation. `all` is a separate predicate per term, AND-ed. `whole_word` wraps each term in an ASCII `\b` boundary. A `matched_keywords` column records the first term that hit. The scan estimate includes `text` for these queries, including when the question did not select that column.
-
-Limits of that filter:
-
-- Matching is literal. There is no stemming and no ranking. Rows come back in `created_at` order.
-- Cost scales with the days scanned. The filter reads `text` for every day in the range, which is what the 10 GB cap is counting.
-- Word boundaries are ASCII. They do not fall between characters in Chinese, Japanese, or Korean text, so those terms are extracted with `whole_word` off and match as substrings.
-- A mention matches the handle as it is written in the post text, such as `@name.bsky.social`. It matches that character sequence, not the author's DID and not a handle stored outside the post.
-- `#` and `@` are not word characters, and Athena's regex engine has no lookbehind, so a `\b` in front of them does not match. Hashtags and mentions are substring matches. `#climate` also matches `#climatechange`.
-
-The steps that turn each term into a `regexp_like` pattern, with worked examples, are in [docs/agentic_search_keyword_matching.md](docs/agentic_search_keyword_matching.md).
+Keyword filters on post text are described in [docs/runbooks/agentic_search_keyword_matching.md](docs/runbooks/agentic_search_keyword_matching.md).
 
 **Async by design:** the endpoint acknowledges with `202` and hands the work to a background task, so a long Athena scan never blocks the request. Every outcome — results, validation issues, or an error — is mailed.
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, datetime
 
 from backend.agentic_search.query_validation.check_data_availability import (
     check_data_availability,
@@ -22,7 +22,7 @@ def build_snapshot() -> dict[RecordType, TableMetadata]:
     Returns columns and date range for each table in Iceberg
     """
 
-    today = date.today()
+    today = datetime.now(UTC).date()
     return {
         record_type: TableMetadata(
             columns=tuple(schema.names),

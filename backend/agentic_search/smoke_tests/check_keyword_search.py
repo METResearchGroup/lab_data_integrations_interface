@@ -14,7 +14,7 @@ Run from the project root:
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import boto3
 
@@ -25,7 +25,8 @@ from backend.agentic_search.query_postprocessing.check_scan_cost import (
     MAX_SCAN_BYTES,
     estimate_scan_bytes,
 )
-from backend.agentic_search.query_validation.models import TableMetadata
+from backend.agentic_search.query_validation.check_keywords import check_keywords
+from backend.agentic_search.query_validation.models import TableMetadata, ValidationIssue
 from backend.agentic_search.query_validation.orchestrator import build_snapshot
 from backend.agentic_search.query_validation.query_intent.extract import extract_intent
 from backend.agentic_search.query_validation.query_intent.models import (
@@ -42,45 +43,60 @@ SMALL_SCAN_BYTES = 15 * BYTES_PER_GB
 COMMON_KEYWORD = "the"
 DAY_LOOKBACK = 21
 
-# name, question, terms that should show up in the SQL, whether a filter is expected
-QUESTIONS: list[tuple[str, str, tuple[str, ...], bool]] = [
+# name, question, terms that should show up in the SQL, date mode.
+# bounded: both dates stated. none: no keyword filter.
+# open_end: a start and no end, so the end becomes today UTC.
+# undated: neither date, which validation refuses.
+QUESTIONS: list[tuple[str, str, tuple[str, ...], str]] = [
     (
         "single keyword",
         "Show the text of posts from 2026-08-15 through 2026-08-15 that say climate.",
         ("climate",),
-        True,
+        "bounded",
     ),
     (
         "any of several",
         "Show the text of posts from 2026-08-15 through 2026-08-16 that mention trump or biden.",
         ("trump", "biden"),
-        True,
+        "bounded",
     ),
     (
         "all of several",
         "Show the text of posts from 2026-08-15 through 2026-08-15 "
         "that mention both climate and policy.",
         ("climate", "policy"),
-        True,
+        "bounded",
     ),
     (
         "phrase",
         "Show the text of posts from 2026-08-15 through 2026-08-15 "
         'with the phrase "climate change".',
         ("climate change",),
-        True,
+        "bounded",
     ),
     (
         "hashtag",
         "Show the text of posts from 2026-08-15 through 2026-08-15 tagged #climate.",
         ("#climate",),
-        True,
+        "bounded",
     ),
     (
         "no keyword filter",
         "Posts from 2026-08-15 through 2026-08-15 with their text and language.",
         (),
-        False,
+        "none",
+    ),
+    (
+        "since August",
+        "Show the text of posts since August 2026 that say climate.",
+        ("climate",),
+        "open_end",
+    ),
+    (
+        "no date",
+        "Show the text of posts that say climate.",
+        ("climate",),
+        "undated",
     ),
 ]
 
@@ -102,7 +118,9 @@ def _print_intent(intent: QueryIntent) -> None:
     print(
         f"  intent: record_type={intent.record_type} columns={intent.columns} "
         f"keywords={intent.keywords} match={intent.match} "
-        f"whole_word={intent.whole_word} dates={intent.start_date}..{intent.end_date}"
+        f"use_whole_word={intent.use_whole_word} "
+        f"dates={intent.start_date}..{intent.end_date} "
+        f"end_inferred={intent.end_date_inferred}"
     )
 
 
@@ -116,20 +134,45 @@ def _sql_matches(
     sql: str,
     intent: QueryIntent,
     terms: tuple[str, ...],
-    expect_filter: bool,
+    mode: str,
 ) -> bool:
     lowered = sql.lower()
-    if expect_filter:
-        missing = [term for term in terms if term.lower() not in lowered]
-        return "regexp_like" in lowered and not missing and bool(intent.keywords)
-    return "regexp_like" not in lowered and not intent.keywords
+    if mode == "none":
+        return "regexp_like" not in lowered and not intent.keywords
+    missing = [term for term in terms if term.lower() not in lowered]
+    return "regexp_like" in lowered and not missing and bool(intent.keywords)
+
+
+def _date_problem(intent: QueryIntent, sql: str, mode: str) -> str | None:
+    if mode == "bounded" and (intent.start_date is None or intent.end_date is None):
+        return "keyword question needs both dates"
+    if mode != "open_end":
+        return None
+    today = datetime.now(UTC).date()
+    if intent.start_date != date(2026, 8, 1) or intent.end_date != today:
+        return f"expected 2026-08-01 through {today.isoformat()}"
+    if not intent.end_date_inferred:
+        return "expected the end date to be marked as inferred"
+    if f"end_date {today.isoformat()} UTC" not in sql:
+        return "expected the SQL comment to name the inferred UTC end date"
+    return None
+
+
+def _undated_problem(intent: QueryIntent) -> str | None:
+    if intent.start_date is not None or intent.end_date is not None:
+        return f"expected no dates, got {intent.start_date}..{intent.end_date}"
+    issues = check_keywords(intent)
+    if ValidationIssue.KEYWORDS_REQUIRE_BOUNDED_RANGE not in issues:
+        return "expected keywords_require_bounded_range"
+    print(f"  refused: {[issue.value for issue in issues]}")
+    return None
 
 
 def _one_question(
     name: str,
     question: str,
     terms: tuple[str, ...],
-    expect_filter: bool,
+    mode: str,
     snapshot: dict[RecordType, TableMetadata],
 ) -> bool:
     print(f"\n--- {name} ---")
@@ -141,6 +184,13 @@ def _one_question(
         return False
 
     _print_intent(intent)
+    if mode == "undated":
+        problem = _undated_problem(intent)
+        if problem is None:
+            print("  PASS")
+            return True
+        print(f"  FAIL: {problem}")
+        return False
     if intent.record_type is None:
         print("  FAIL: no record type, so no SQL")
         return False
@@ -152,13 +202,14 @@ def _one_question(
         return False
 
     _print_sql(sql)
-    if expect_filter and (intent.start_date is None or intent.end_date is None):
-        print("  FAIL: keyword question needs both dates")
+    problem = _date_problem(intent, sql, mode)
+    if problem is not None:
+        print(f"  FAIL: {problem}")
         return False
-    if _sql_matches(sql, intent, terms, expect_filter):
+    if _sql_matches(sql, intent, terms, mode):
         print("  PASS")
         return True
-    expected = f"regexp_like and terms {terms}" if expect_filter else "no keyword filter"
+    expected = "no keyword filter" if mode == "none" else f"regexp_like and terms {terms}"
     print(f"  FAIL: expected {expected}")
     return False
 
@@ -166,8 +217,8 @@ def _one_question(
 def check_extraction() -> list[str]:
     snapshot = build_snapshot()
     failures = []
-    for name, question, terms, expect_filter in QUESTIONS:
-        if not _one_question(name, question, terms, expect_filter, snapshot):
+    for name, question, terms, mode in QUESTIONS:
+        if not _one_question(name, question, terms, mode, snapshot):
             failures.append(name)
     return failures
 
@@ -181,7 +232,7 @@ def _day_intent(day: date) -> QueryIntent:
         end_date=day,
         keywords=[COMMON_KEYWORD],
         match="any",
-        whole_word=True,
+        use_whole_word=True,
     )
 
 
@@ -207,7 +258,7 @@ def _column_bytes(table, day: date, column: str) -> int | None:
 
 
 def _latest_day_with_data(table) -> tuple[date, int] | None:
-    today = date.today()
+    today = datetime.now(UTC).date()
     for offset in range(2, DAY_LOOKBACK + 1):
         day = today - timedelta(days=offset)
         scan_bytes = estimate_scan_bytes(table, _day_intent(day))

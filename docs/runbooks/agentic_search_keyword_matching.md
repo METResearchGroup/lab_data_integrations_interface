@@ -10,11 +10,11 @@ Each remaining character is copied through, except the RE2 metacharacters `\ ^ $
 
 The term is then placed in a SQL string, and any single quote inside it is doubled, which is how SQL writes one quote. `O'Brien` is stored in the statement as `O''Brien`. Athena's regex engine sees one quote.
 
-`whole_word` true wraps the escaped term in `\b` on both sides. `whole_word` false leaves the escaped term as a substring. Every pattern starts with `(?i)`, which makes the match case insensitive for the rest of that pattern. The word-boundary test still uses ASCII word characters only. `(?i)` does not treat other letters as word characters.
+`use_whole_word` true wraps the escaped term in `\b` on both sides. `use_whole_word` false leaves the escaped term as a substring. Every pattern starts with `(?i)`, which makes the match case insensitive for the rest of that pattern. The word-boundary test still uses ASCII word characters only. `(?i)` does not treat other letters as word characters.
 
 ## Worked patterns
 
-A plain word, with `whole_word` true, is one predicate:
+A plain word, with `use_whole_word` true, is one predicate:
 
 ```sql
 regexp_like("text", '(?i)\bclimate\b')
@@ -22,7 +22,7 @@ regexp_like("text", '(?i)\bclimate\b')
 
 `climate` matches `climate` and `Climate`. The same pattern does not match `climates`, because the character after `e` is still a word character, so there is no boundary there.
 
-A phrase is one term, with the space left as a space. `whole_word` true puts the boundaries around the whole phrase:
+A phrase is one term, with the space left as a space. `use_whole_word` true puts the boundaries around the whole phrase:
 
 ```sql
 regexp_like("text", '(?i)\bclimate change\b')
@@ -30,7 +30,7 @@ regexp_like("text", '(?i)\bclimate change\b')
 
 The space has to be there. `climatechange` does not match, and neither does `climate  change` with two spaces.
 
-A hashtag is extracted with `whole_word` false, because `#` is not a word character:
+A hashtag is extracted with `use_whole_word` false, because `#` is not a word character:
 
 ```sql
 regexp_like("text", '(?i)#climate')
@@ -44,13 +44,17 @@ Athena runs RE2. In that engine a word character is an ASCII letter, a digit, or
 
 So `\bclimate\b` matches `climate` at the start of a post, and it matches `(climate)` and `climate,` because `(` and `,` are not word characters. It does not match `climates`.
 
-`\b` does not sit in front of `#` or `@`, because those characters are not word characters and the character before them in ordinary text is not a word character either. `(?i)\b#climate\b` does not match a normal hashtag. The extract prompt therefore sets `whole_word` false for hashtags, mentions, and for Chinese, Japanese, and Korean terms. Those terms match as substrings. A mention matches the handle characters in the post, such as `@alice.bsky.social`, and the dots are escaped. The match is not the author's DID.
+`\b` does not sit in front of `#` or `@`, because those characters are not word characters and the character before them in ordinary text is not a word character either. `(?i)\b#climate\b` does not match a normal hashtag. The extract prompt therefore sets `use_whole_word` false for hashtags, mentions, and for Chinese, Japanese, and Korean terms. Those terms match as substrings. A mention matches the handle characters in the post, such as `@alice.bsky.social`, and the dots are escaped. The match is not the author's DID.
 
-Chinese, Japanese, and Korean characters are not ASCII word characters, so `\b` does not fall between them. A term in those scripts with `whole_word` true would not match the usual post text. Substring matching is what the extract step asks for instead.
+Chinese, Japanese, and Korean characters are not ASCII word characters, so `\b` does not fall between them. A term in those scripts with `use_whole_word` true would not match the usual post text. Substring matching is what the extract step asks for instead.
 
 ## Case
 
-`(?i)` applies to letters in the term. `climate` matches `CLIMATE`. The escaped punctuation stays literal. The original term's capitalization is what `matched_keywords` reports, not the capitalization that appeared in the post.
+The `text` column is not lowercased. `(?i)` at the start of the pattern makes letters match in any case, so `climate` matches `CLIMATE`. The term itself is the characters the question named, after surrounding whitespace is stripped. `matched_keywords` reports that term, so a question that says `Climate` reports `Climate` when the post says `climate`. The escaped punctuation stays literal.
+
+## Dates
+
+A keyword question needs a start. When the question states a start and no end, such as "posts since August 2026", `extract_intent` sets the end to the current calendar date in UTC (`datetime.now(UTC).date()`) and marks `end_date_inferred`. `generate_sql` puts that date in a leading SQL comment. The `WHERE` clause uses `created_at < TIMESTAMP '<next day> 00:00:00'`, the same timestamp form as every other date filter, so the named UTC day is included. `created_at` is stored in UTC. The results email and the refusal email both state that date. When the question states neither date, both stay empty and validation sends `keywords_require_bounded_range`. A start is not filled in.
 
 ## How several terms combine
 
@@ -97,7 +101,7 @@ flowchart TD
   caps -->|no| refuse[Raise, and do not build SQL]
   caps -->|yes| escape[Escape RE2 metacharacters]
   escape --> quote[Double single quotes for the SQL string]
-  quote --> word{whole_word}
+  quote --> word{use_whole_word}
   word -->|yes| boundary[Wrap the term in ASCII word boundaries]
   word -->|no| substring[Keep the escaped term as a substring]
   boundary --> flag[Prefix the pattern with case insensitive flag]
@@ -108,25 +112,3 @@ flowchart TD
   one --> report[CASE column reports the first matching term]
   each --> report
 ```
-
-## Open decisions
-
-### First matching term only
-
-`matched_keywords` reports the first term in the list whose pattern matches, including when `match` is `all`. Keep the single term. The column stays one string, and a term can contain a comma, so joining every hit with a comma would be ambiguous. A later change can add a second column if a researcher needs every hit.
-
-### Hashtags and mentions are substrings
-
-`\b` does not match in front of `#` or `@`, and RE2 has no lookbehind, so `#climate` also matches `#climatechange`. Keep the substring. A token boundary that RE2 can express is `(?:^|[^A-Za-z0-9_])` before the tag and `(?:[^A-Za-z0-9_]|$)` after it. Add that pattern when a researcher asks for the tag and not a longer tag.
-
-### Caps, and a list past either cap is refused
-
-The caps are 8 terms and 80 characters. Keep both, and keep refusing a list that exceeds either one. Dropping the extra terms would hide the fact that the question was cut. Eight short terms are enough for a question, and they keep the pattern small.
-
-### A keyword question needs both dates
-
-The issue is `KEYWORDS_REQUIRE_BOUNDED_RANGE` when either date is missing. Keep requiring both dates. An open end would read `text` for every stored day. The model is told to leave a date empty when the question does not state it, so the researcher has to state both ends. A question such as "posts since August that mention climate" stays invalid until the end date is in the question.
-
-### The scan estimate includes created_at
-
-On 2026-10-21 that column was about 11.5 MB, about 5 percent of that day's `text` scan, and Athena's partition prune did not read it. Keep counting the column. The estimate is a ceiling. Leaving the column out would allow a query whose later Athena scan exceeded the 10 GB cap. The extra few percent makes the allowed window shorter, which is the safer error.
