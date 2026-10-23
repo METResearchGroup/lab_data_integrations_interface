@@ -690,7 +690,6 @@ Dashboard equivalent, if you apply it by hand:
 
 ## Open questions
 
-- The API image installs the whole root `uv.lock`, including packages the
-  API process does not import (spaCy, scikit-learn, Prefect). Slimming that
-  install is a separate stacked draft, so this preview image stays as it is
-  until that draft lands.
+- The live preview was rolled from the stacked image-split branch on
+  2026-10-23. Deploying the Docker file on this branch puts the shared
+  3.77 GB image back on the API, Jetstream, and backfill Workers.
