@@ -3,8 +3,10 @@ Prints the SQL extract_intent + generate_sql produce for a few keyword questions
 When AWS credentials are present, counts rows for the keyword "the" over one
 closed day and measures that day's text column against the 10 GB cap.
 
-Needs OPENAI_API_KEY for the extraction half. The Athena half needs credentials
-for us-east-2. It runs only when the day's estimated scan is at most 15 GB.
+The extraction half loads OPENAI_API_KEY through EnvVarsContainer (AWS
+Secrets Manager id openai-api-key in us-east-2). The Athena half needs
+credentials for us-east-2 and runs only when the day's estimated scan is at
+most 15 GB.
 
 Run from the project root:
   python -m backend.agentic_search.smoke_tests.check_keyword_search
@@ -12,11 +14,9 @@ Run from the project root:
 
 from __future__ import annotations
 
-import os
 from datetime import date, timedelta
 
 import boto3
-from dotenv import load_dotenv
 
 from backend.agentic_search.query_execution.execute import WORKGROUP
 from backend.agentic_search.query_generation.generate import generate_sql
@@ -46,7 +46,7 @@ DAY_LOOKBACK = 21
 QUESTIONS: list[tuple[str, str, tuple[str, ...], bool]] = [
     (
         "single keyword",
-        "Show the text of posts from 2026-08-15 that say climate.",
+        "Show the text of posts from 2026-08-15 through 2026-08-15 that say climate.",
         ("climate",),
         True,
     ),
@@ -58,25 +58,27 @@ QUESTIONS: list[tuple[str, str, tuple[str, ...], bool]] = [
     ),
     (
         "all of several",
-        "Show the text of posts from 2026-08-15 that mention both climate and policy.",
+        "Show the text of posts from 2026-08-15 through 2026-08-15 "
+        "that mention both climate and policy.",
         ("climate", "policy"),
         True,
     ),
     (
         "phrase",
-        'Show the text of posts from 2026-08-15 with the phrase "climate change".',
+        "Show the text of posts from 2026-08-15 through 2026-08-15 "
+        'with the phrase "climate change".',
         ("climate change",),
         True,
     ),
     (
         "hashtag",
-        "Show the text of posts from 2026-08-15 tagged #climate.",
+        "Show the text of posts from 2026-08-15 through 2026-08-15 tagged #climate.",
         ("#climate",),
         True,
     ),
     (
         "no keyword filter",
-        "Posts from 2026-08-15 with their text and language.",
+        "Posts from 2026-08-15 through 2026-08-15 with their text and language.",
         (),
         False,
     ),
@@ -86,7 +88,8 @@ QUESTIONS: list[tuple[str, str, tuple[str, ...], bool]] = [
 def _safe_error(exc: Exception) -> str:
     text = str(exc)
     lowered = text.lower()
-    if any(token in lowered for token in ("akia", "secret", "aws_access_key", "token", "password")):
+    markers = ("akia", "secret", "aws_access_key", "token", "password", "sk-", "bearer")
+    if any(token in lowered for token in markers):
         return f"{type(exc).__name__} (details redacted)"
     return f"{type(exc).__name__}: {text}"
 
@@ -149,6 +152,9 @@ def _one_question(
         return False
 
     _print_sql(sql)
+    if expect_filter and (intent.start_date is None or intent.end_date is None):
+        print("  FAIL: keyword question needs both dates")
+        return False
     if _sql_matches(sql, intent, terms, expect_filter):
         print("  PASS")
         return True
@@ -158,10 +164,6 @@ def _one_question(
 
 
 def check_extraction() -> list[str]:
-    if not os.getenv("OPENAI_API_KEY"):
-        print("OPENAI_API_KEY is unset; skipped extract + generate.")
-        return []
-
     snapshot = build_snapshot()
     failures = []
     for name, question, terms, expect_filter in QUESTIONS:
@@ -298,7 +300,6 @@ def check_live_scan() -> list[str]:
 
 
 def main() -> None:
-    load_dotenv()
     print("--- extract + generate ---")
     failures = check_extraction()
     failures += check_live_scan()
