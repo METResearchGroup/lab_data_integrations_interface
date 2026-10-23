@@ -54,9 +54,12 @@ was not needed.
 A sleeping or newly provisioned container has to pull the image and import
 the API before `/health` answers. Expect several seconds after a normal
 sleep, and longer the first time the account provisions the instance (the
-dashboard can show "provisioning" for a few minutes). The Worker waits up to
-180 seconds for port 8000 (`cloudflare/backend/src/index.ts`). The helper's
-default wait is 20 seconds, which is too short for this image.
+dashboard can show "provisioning" for a few minutes). On the first preview
+provision the image pull took about 3 minutes and the VM start took about 6
+seconds. The next start, after a rollout, answered `/health` in about 6
+seconds. The Worker waits up to 180 seconds for port 8000
+(`cloudflare/backend/src/index.ts`). The helper's default wait is 20 seconds,
+which is too short for this image.
 
 ### Instance lifetime and sleep
 
@@ -278,9 +281,8 @@ not send `X-Origin-Secret`. See the origin-secret row below.
 setting the secret without an injector makes `/query` return 403
 `{"detail":"Forbidden"}` for the UI, including CORS preflight. Leave it unset
 until that injector exists. `/health` stays exempt either way. A missing
-bearer token is a different 403, `{"detail":"Not authenticated"}`, from
-`HTTPBearer` in `backend/auth.py`. A bad token is 401
-`{"detail":"Invalid access token"}`.
+bearer token is 401 `{"detail":"Not authenticated"}`, from `HTTPBearer` in
+`backend/auth.py`. A bad token is 401 `{"detail":"Invalid access token"}`.
 
 Region, bucket, Glue database, and Athena workgroup are constants in code
 (`us-east-2`). They are not env vars.
@@ -299,9 +301,8 @@ python scripts/cloudflare_smoke.py \
 It checks:
 
 1. `GET /health` returns `{"status":"ok"}`.
-2. `POST /query` with no credentials returns 403. `Not authenticated` means
-   the origin guard is open and the bearer check ran. `Forbidden` means
-   `ORIGIN_SECRET` is set.
+2. `POST /query` with no credentials returns 401 `Not authenticated` when
+   the origin guard is open. `403 Forbidden` means `ORIGIN_SECRET` is set.
 3. `POST /query` with `Authorization: Bearer not-a-jwt` returns 401 once
    `SUPABASE_URL` is set. That path does not touch S3. A real S3 round trip
    needs a signed-in Supabase user; the script does not have one.

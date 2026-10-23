@@ -73,10 +73,10 @@ def main() -> None:
     )
     query_detail = detail(body)
     print(f"POST /query without credentials -> {status} detail={query_detail!r}")
-    # HTTPBearer rejects a missing Authorization header with 403 before the
-    # handler runs. The origin middleware returns the same status with
-    # detail "Forbidden" when ORIGIN_SECRET is set and the header is absent.
-    if status == 403 and query_detail == "Not authenticated":
+    # HTTPBearer rejects a missing Authorization header with 401 before the
+    # handler runs. The origin middleware returns 403 detail "Forbidden" when
+    # ORIGIN_SECRET is set and X-Origin-Secret is absent.
+    if status == 401 and query_detail == "Not authenticated":
         print("  origin guard is open; the bearer check rejected the call")
     elif status == 403 and query_detail == "Forbidden":
         print("  origin guard rejected the call (ORIGIN_SECRET is set)")
