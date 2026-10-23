@@ -13,7 +13,9 @@ Railway config stays in the repo. See [What can be removed later](#what-can-be-r
 | | |
 |---|---|
 | API config | `cloudflare/backend/wrangler.jsonc` |
-| API image | `cloudflare/backend/Dockerfile` (build context is the repo root) |
+| API image | `cloudflare/backend/Dockerfile` (build context is the repo root). Syncs groups `api`, `ml`, and `ingestion`. |
+| Jetstream image | `cloudflare/jetstream/Dockerfile`. Syncs group `ingestion`. |
+| Backfill image | `cloudflare/backfill/Dockerfile`. Syncs group `backfill`. |
 | API start | `uvicorn backend.main:app --host 0.0.0.0 --port 8000` |
 | API Worker name | `ldi-api-preview` |
 | Jetstream config | `cloudflare/jetstream/wrangler.jsonc` |
@@ -28,9 +30,9 @@ Railway config stays in the repo. See [What can be removed later](#what-can-be-r
 | Account | `CLOUDFLARE_ACCOUNT_ID` from Secrets Manager. Do not commit it. |
 | Subdomain | `mind-technology-lab.workers.dev` |
 
-Jetstream and the backfill worker use the API image. Each one replaces the
-uvicorn command at start. See the Docker file comment above the backfill
-`COPY`.
+Jetstream and the backfill worker each have their own image. They do not
+install the API's FastAPI or model packages. The backfill image also skips
+PyIceberg. Local `uv sync` still installs every group.
 
 Preview URLs, once deployed:
 
@@ -425,8 +427,10 @@ git, and experiment data out of the context. The root `telemetry` sample app
 is ignored as `/telemetry`, so the `telemetry` packages inside Jetstream and
 the backfill app are still copied.
 
-The image runs `uv sync --frozen --no-dev --no-install-project` and leaves the
-packages on `PYTHONPATH`. That matches `uvicorn backend.main:app` on Railway.
+The API image runs `uv sync --frozen --no-dev --no-default-groups
+--no-install-project` with groups `api`, `ml`, and `ingestion`. Jetstream
+syncs `ingestion`. The backfill image syncs `backfill`. Packages stay on
+`PYTHONPATH`. The API command matches `uvicorn backend.main:app` on Railway.
 Env vars arrive as process environment. `backend/main.py` calls `load_dotenv()`,
 which does not override variables that are already set. `EnvVarsContainer` in
 `lib/load_env_vars.py` reads `OPENAI_API_KEY` from the environment after
@@ -535,7 +539,7 @@ First request after the first deploy can fail while Cloudflare provisions the
 instance. `GET /health` should then return `{"status":"ok"}`.
 
 Deploy Jetstream and the backfill worker from their own directories. Each
-deploy builds the same Docker file. Pass `--secrets-file` on the first
+deploy builds that Worker's Docker file. Pass `--secrets-file` on the first
 deploy so AWS credentials are present before the process starts. See
 [Jetstream](#jetstream) and [Backfill](#backfill).
 
@@ -773,6 +777,5 @@ Dashboard equivalent, if you apply it by hand:
 
 ## Open questions
 
-- The live preview was rolled from the stacked image-split branch on
-  2026-10-23. Deploying the Docker file on this branch puts the shared
-  3.77 GB image back on the API, Jetstream, and backfill Workers.
+None from the image split. The preview Workers still run the previous image
+until these Docker files are deployed.

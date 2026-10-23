@@ -40,7 +40,7 @@
 	"containers": [
 		{
 			"class_name": "JetstreamContainer",
-			"image": "../backend/Dockerfile",
+			"image": "./Dockerfile",
 			"image_build_context": "../..",
 			"instance_type": "standard-1",
 			"max_instances": 1,

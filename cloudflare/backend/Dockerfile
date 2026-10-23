@@ -21,7 +21,11 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+# api: FastAPI, uvicorn, SQL checks. ml: the LangGraph query path.
+# ingestion: PyIceberg and the Arrow schemas that /query imports.
+# collection (spaCy, Prefect, scikit-learn) stays out of this image.
+RUN uv sync --frozen --no-dev --no-default-groups --no-install-project \
+    --group api --group ml --group ingestion
 
 # backend/agentic_search imports these packages by absolute name. Copying the
 # trees keeps load_env_vars.py and the AWS clients on their existing paths.
@@ -29,8 +33,6 @@ COPY backend ./backend
 COPY lib ./lib
 COPY bluesky_ingestion_jetstream ./bluesky_ingestion_jetstream
 COPY ml_tooling ./ml_tooling
-# Jetstream and the backfill worker reuse this image and replace CMD at start.
-COPY bluesky_backfill_app ./bluesky_backfill_app
 
 ENV PATH="/app/.venv/bin:${PATH}"
 

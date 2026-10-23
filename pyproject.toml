@@ -3,48 +3,16 @@ name = "lab-data-integrations-interface"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11,<3.12"
+# Shared by the API, Jetstream, and backfill images. Heavier stacks live in
+# dependency groups below. `uv sync` installs every default group, which is
+# the local dev install. Each image passes `--no-default-groups` and names
+# only its groups. See the Dockerfiles under cloudflare/.
 dependencies = [
-    "atproto>=0.0.68",
-    "langchain>=1.2.17",
-    "langchain-openai>=1.2.1",
-    "langgraph>=1.2.10",
-    "pydantic>=2.13.3",
-    "fastapi>=0.136.1",
-    "python-dotenv>=1.2.2",
-    "typer>=0.25.1",
-    "websockets>=15.0.1",
-    "numpy>=2.4.4",
-    "scikit-learn>=1.8.0",
-    # Capped below 15 because pyiceberg pins rich<15 for its CLI's table output.
-    # Nothing here needs 15: the highest floor in the tree is pydocket's 13.9.4.
-    "rich>=13.9.4,<15",
-    "tenacity>=9.0.0",
-    "spacy>=3.7.0",
-    "pandas>=2.0.0",
-    "duckdb>=1.0.0",
-    "pyarrow==24.0.0",
-    # pyiceberg-core supplies the Rust partition transforms; partitioned writes
-    # are unsupported without it.
-    "pyiceberg[glue,pyiceberg-core]>=0.10.0",
-    "praw>=7.7.0",
-    "prefect>=3.0.0",
-    "pyyaml>=6.0.0",
-    "tqdm>=4.66.0",
-    "langdetect>=1.0.9",
-    "tweepy>=4.14.0",
     "boto3>=1.35.0",
+    "python-dotenv>=1.2.2",
+    "pyarrow==24.0.0",
     "opentelemetry-distro~=0.64b0",
     "opentelemetry-exporter-otlp~=1.43.0",
-    "opentelemetry-instrumentation-fastapi~=0.64b0",
-    "opentelemetry-instrumentation-logging~=0.64b0",
-    "opentelemetry-instrumentation-botocore~=0.64b0",
-    # crypto extra installs cryptography, which ES256 verification needs.
-    "pyjwt[crypto]>=2.13.0",
-    "google-api-python-client>=2.198.0",
-    "matplotlib>=3.11.1",
-    "tabulate>=0.10.0",
-    "sqlglot>=30.18.0",
-    "openinference-instrumentation-openai>=0.1.60",
 ]
 
 [project.optional-dependencies]
@@ -71,9 +39,67 @@ dev = [
     "ruff>=0.9.0",
     "vulture>=2.16",
 ]
+# API image: this group, plus ml and ingestion. uvicorn is the process
+# command, so it is not imported by backend.main and has to be listed here.
+# Importing backend.main also imports langchain and pyiceberg.
+api = [
+    "fastapi>=0.136.1",
+    "uvicorn>=0.32",
+    "pydantic>=2.13.3",
+    # crypto extra installs cryptography, which ES256 verification needs.
+    "pyjwt[crypto]>=2.13.0",
+    "sqlglot>=30.18.0",
+    "opentelemetry-instrumentation-fastapi~=0.64b0",
+    "opentelemetry-instrumentation-logging~=0.64b0",
+    "opentelemetry-instrumentation-botocore~=0.64b0",
+]
+ml = [
+    "langchain>=1.2.17",
+    "langchain-openai>=1.2.1",
+    "langgraph>=1.2.10",
+    "openinference-instrumentation-openai>=0.1.60",
+]
+# Jetstream image, and the API image, because /query imports the catalog
+# and the Arrow schemas. Backfill does not import pyiceberg.
+ingestion = [
+    # Capped below 15 because pyiceberg pins rich<15 for its CLI's table output.
+    # Nothing here needs 15: the highest floor in the tree is pydocket's 13.9.4.
+    "rich>=13.9.4,<15",
+    "tenacity>=9.0.0",
+    "websockets>=15.0.1",
+    # pyiceberg-core supplies the Rust partition transforms; partitioned writes
+    # are unsupported without it.
+    "pyiceberg[glue,pyiceberg-core]>=0.10.0",
+]
+# Backfill image. libipld is imported directly; it used to arrive via atproto.
+backfill = [
+    "typer>=0.25.1",
+    "libipld>=3.4.1",
+]
+# Local tools and experiments. Not installed in the container images.
+collection = [
+    "atproto>=0.0.68",
+    "duckdb>=1.0.0",
+    "google-api-python-client>=2.198.0",
+    "httplib2>=0.22.0",
+    "langdetect>=1.0.9",
+    "matplotlib>=3.11.1",
+    "numpy>=2.4.4",
+    "openai>=1.0.0",
+    "pandas>=2.0.0",
+    "praw>=7.7.0",
+    "prefect>=3.0.0",
+    "pyyaml>=6.0.0",
+    "scikit-learn>=1.8.0",
+    "spacy>=3.7.0",
+    "tabulate>=0.10.0",
+    "tqdm>=4.66.0",
+    "tweepy>=4.14.0",
+]
 
 [tool.uv]
 exclude-newer = "7 days"
+default-groups = ["dev", "api", "ml", "ingestion", "backfill", "collection"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
