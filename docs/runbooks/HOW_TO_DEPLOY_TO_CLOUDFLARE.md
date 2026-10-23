@@ -495,8 +495,8 @@ not send `X-Origin-Secret`. See the origin-secret row below.
 | `AWS_SESSION_TOKEN` | boto3 | Secret, optional, on each of those Workers | Only for temporary credentials. Unset for the long-lived key. |
 | `OPENAI_API_KEY` | `EnvVarsContainer` in `lib/load_env_vars.py` | API secret | SQL generation on `/query`. Secrets Manager `openai-api-key`, key `OPENAI_API_KEY`. |
 | `SUPABASE_URL` | `backend/auth.py` | API secret | Verifying the bearer token on `/query`. Same host as `NEXT_PUBLIC_SUPABASE_URL`. |
-| `GMAIL_SENDER_EMAIL` | `backend/agentic_search/mail.py` | API secret | Mailing `/query` results. Not in Secrets Manager or this environment. |
-| `GMAIL_APP_PASSWORD` | `backend/agentic_search/mail.py` | API secret | Same. |
+| `GMAIL_SENDER_EMAIL` | `backend/agentic_search/mail.py` | API secret | Mailing `/query` results. Secrets Manager `lab-data-integrations-gmail` in us-east-2, JSON field `GMAIL_SENDER_EMAIL`. |
+| `GMAIL_APP_PASSWORD` | `backend/agentic_search/mail.py` | API secret | Same secret, JSON field `GMAIL_APP_PASSWORD`. `mail.py` removes spaces before SMTP login. |
 | `ORIGIN_SECRET` | `backend/origin.py` | API secret, optional | When set, requests other than `/health` need header `X-Origin-Secret`. Unset on the preview. |
 | `OTEL_EXPORTER_OTLP_HEADERS` | telemetry setup in the API, Jetstream, and the backfill app | Secret, optional, on each Worker | Grafana. Unset means telemetry is off. |
 | `MAIL_TEST_RECIPIENT` | mail smoke tests | API secret, optional | Not used by the server. |
@@ -519,6 +519,17 @@ bearer token is 401 `{"detail":"Not authenticated"}`, from `HTTPBearer` in
 
 Region, bucket, Glue database, and Athena workgroup are constants in code
 (`us-east-2`). They are not env vars.
+
+`GMAIL_SENDER_EMAIL` and `GMAIL_APP_PASSWORD` are set on the preview API
+Worker from `lab-data-integrations-gmail`. The container process receives
+them only when it starts, from `containerEnv` in
+`cloudflare/backend/src/index.ts`. A process that is already running keeps
+the environment from that start. After you change either secret, restart
+the container.
+
+A send check uses the sender address as the recipient. Leave
+`MAIL_TEST_RECIPIENT` unset. Send one message, and do not print the address
+or the app password.
 
 ## Verifying
 
@@ -576,8 +587,6 @@ Do not delete these until the replacement is the one Mark uses.
 
 - Should the UI Worker inject `X-Origin-Secret` on the way to the API, or
   should `ORIGIN_SECRET` stay unset now that CloudFront is not in front?
-- Where should `GMAIL_SENDER_EMAIL` and `GMAIL_APP_PASSWORD` live? They are
-  not in Secrets Manager.
 - The Supabase publishable settings live on the Vercel project, not in
   Secrets Manager. Should they move?
 - Preview `workers.dev` URLs are public. Do they need Cloudflare Access?
