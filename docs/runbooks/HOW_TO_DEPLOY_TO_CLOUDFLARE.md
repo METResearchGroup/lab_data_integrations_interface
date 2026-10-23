@@ -40,7 +40,8 @@ Preview URLs, once deployed:
 - Backfill status: `https://ldi-backfill-preview.mind-technology-lab.workers.dev/status`
 
 These names are preview Workers on the lab account. They are not a production
-cutover. `workers.dev` URLs are public unless Access is put in front of them.
+cutover. The UI and API `workers.dev` URLs are meant to sit behind Cloudflare
+Access. Access is not on yet. See [Cloudflare Access](#cloudflare-access).
 
 The pattern follows
 [mind_technology_lab_experiments#39](https://github.com/METResearchGroup/mind_technology_lab_experiments/pull/39)
@@ -462,19 +463,24 @@ The API uses Wrangler because it is a Container project; do not run `cf deploy`
 in `cloudflare/backend/`.
 
 `NEXT_PUBLIC_*` values are inlined into the browser bundle at build time
-(`ui/src/lib/api.ts`, `ui/src/lib/supabase/env.ts`). Set them in the
-environment before `npm run deploy:vinext`. `ui/scripts/require-public-env.mjs`
-refuses to build if any of the three is missing, and refuses a trailing slash
-on the API URL. The Supabase URL and publishable key are the same values as
-the Vercel project `lab-data-integrations-interface`. They are not in Secrets
-Manager. Do not commit them. The API URL in `cloudflare.config.ts` must match
-`NEXT_PUBLIC_API_URL`.
+(`ui/src/lib/api.ts`, `ui/src/lib/supabase/env.ts`). `npm run deploy:vinext`
+runs `ui/scripts/require-public-env.mjs` first. That script requires
+`NEXT_PUBLIC_API_URL` in the environment, and it refuses a trailing slash.
+When `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+are both unset, it reads them from Secrets Manager in `us-east-2`, secret
+`lab-data-integrations-supabase-public`. The JSON fields use those same
+names. The script does not print the values. If you set one Supabase
+variable and not the other, it stops. If the secret is missing, it stops
+and names the secret. Do not commit the values. The API URL in
+`cloudflare.config.ts` must match `NEXT_PUBLIC_API_URL`.
+
+The reader uses boto3. It tries `PYTHON`, then the repo `.venv`, then
+`python3`. AWS credentials for `us-east-2` have to be available the same
+way the rest of this deploy reads Secrets Manager.
 
 ```bash
 cd ui
 export NEXT_PUBLIC_API_URL=https://ldi-api-preview.mind-technology-lab.workers.dev
-export NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
-export NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable key>
 export CLOUDFLARE_API_TOKEN=...
 export CLOUDFLARE_ACCOUNT_ID=...
 npm ci
@@ -497,25 +503,30 @@ not send `X-Origin-Secret`. See the origin-secret row below.
 | `SUPABASE_URL` | `backend/auth.py` | API secret | Verifying the bearer token on `/query`. Same host as `NEXT_PUBLIC_SUPABASE_URL`. |
 | `GMAIL_SENDER_EMAIL` | `backend/agentic_search/mail.py` | API secret | Mailing `/query` results. Secrets Manager `lab-data-integrations-gmail` in us-east-2, JSON field `GMAIL_SENDER_EMAIL`. |
 | `GMAIL_APP_PASSWORD` | `backend/agentic_search/mail.py` | API secret | Same secret, JSON field `GMAIL_APP_PASSWORD`. `mail.py` removes spaces before SMTP login. |
-| `ORIGIN_SECRET` | `backend/origin.py` | API secret, optional | When set, requests other than `/health` need header `X-Origin-Secret`. Unset on the preview. |
+| `ORIGIN_SECRET` | `backend/origin.py` | API secret, optional | Leave unset on Cloudflare. Supabase auth on `/query` is the gate. When this is set, requests other than `/health` need header `X-Origin-Secret`. |
 | `OTEL_EXPORTER_OTLP_HEADERS` | telemetry setup in the API, Jetstream, and the backfill app | Secret, optional, on each Worker | Grafana. Unset means telemetry is off. |
 | `MAIL_TEST_RECIPIENT` | mail smoke tests | API secret, optional | Not used by the server. |
 | `JETSTREAM_ENABLED` | `cloudflare/jetstream/src/index.ts` | Jetstream var, default `true`. A secret of the same name overrides it. | `true` allows the supervisor to start the writer. Any other value makes the supervisor send SIGTERM. |
 | `BACKFILL_TRIGGER_TOKEN` | `cloudflare/backfill/src/index.ts` | Backfill secret. Not copied into the container. | `POST /start` and `POST /stop`. Unset means those routes return 401 and do not start a run. |
 | `NEXT_PUBLIC_API_URL` | `ui/src/lib/api.ts` | Build env, and a text binding on the UI Worker | Where the browser sends `/query`. |
-| `NEXT_PUBLIC_SUPABASE_URL` | `ui/src/lib/supabase/env.ts` | Build env | Login and session. |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `ui/src/lib/supabase/env.ts` | Build env | Login and session. |
+| `NEXT_PUBLIC_SUPABASE_URL` | `ui/src/lib/supabase/env.ts` | Build env. Read from Secrets Manager `lab-data-integrations-supabase-public` when unset. | Login and session. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `ui/src/lib/supabase/env.ts` | Build env. Same secret, JSON field of the same name. | Login and session. |
 | `CLOUDFLARE_API_TOKEN` | Wrangler / `cf` | Shell only | Deploy. Not an app variable. |
 | `CLOUDFLARE_ACCOUNT_ID` | Wrangler / `cf` | Shell only | Deploy. Not an app variable. |
 
-`ORIGIN_SECRET` used to be injected by CloudFront so browsers never saw it
-(`docs/runbooks/HOW_TO_ENABLE_DDOS_PROTECTION.md`). The UI still does not send
-`X-Origin-Secret`. On Cloudflare the Worker URL is the public origin, so
-setting the secret without an injector makes `/query` return 403
-`{"detail":"Forbidden"}` for the UI, including CORS preflight. Leave it unset
-until that injector exists. `/health` stays exempt either way. A missing
-bearer token is 401 `{"detail":"Not authenticated"}`, from `HTTPBearer` in
-`backend/auth.py`. A bad token is 401 `{"detail":"Invalid access token"}`.
+`ORIGIN_SECRET` stays unset on Cloudflare. Supabase auth on `/query` is the
+gate. The UI does not send `X-Origin-Secret`. Setting the secret without
+something that adds the header makes `/query` return 403
+`{"detail":"Forbidden"}` for the UI, including CORS preflight. `/health`
+stays exempt either way. A missing bearer token is 401
+`{"detail":"Not authenticated"}`, from `HTTPBearer` in `backend/auth.py`. A
+bad token is 401 `{"detail":"Invalid access token"}`.
+
+CloudFront used to add the header so browsers never saw it
+(`docs/runbooks/HOW_TO_ENABLE_DDOS_PROTECTION.md`). That injector is
+`terraform/backend_edge/`. `backend/origin.py` is the check. Both become
+removable once Railway and CloudFront are retired. Do not remove them yet.
+Railway can still set the secret.
 
 Region, bucket, Glue database, and Athena workgroup are constants in code
 (`us-east-2`). They are not env vars.
@@ -581,16 +592,80 @@ Do not delete these until the replacement is the one Mark uses.
 | `railway/bluesky_backfill_app/.railway/` | Nothing still deploys the backfill worker to Railway. The Container is `ldi-backfill-preview`. |
 | `docs/runbooks/HOW_TO_DEPLOY_BACKFILL_TO_RAILWAY.md` | Same. |
 | `docs/runbooks/HOW_TO_ADD_PREVIEW_BUILD_CHECKS_RAILWAY` | Nothing deploys to Railway. |
-| `terraform/backend_edge/` | CloudFront in front of Railway is retired. The origin secret's injector lived here. |
+| `terraform/backend_edge/` | Railway and CloudFront are retired. This directory is the origin-secret injector. |
+| `backend/origin.py` | Railway and CloudFront are retired, and nothing still sets `ORIGIN_SECRET`. The middleware is a no-op while the secret is unset. |
+
+## Cloudflare Access
+
+The preview UI and API should require a one-time PIN before a person can
+open them. Allowed emails end in `@northwestern.edu`, `@u.northwestern.edu`,
+or `@kellogg.northwestern.edu`, plus `markptorres1@gmail.com`. The login
+method on that allow policy is one-time PIN. Do not use an Include rule of
+"everyone" or "any one-time PIN" without those emails. That would let any
+inbox in.
+
+This is not on the account yet. `GET /accounts/{account_id}/access/apps`
+returns HTTP 403 `access.api.error.not_enabled`: Access is not enabled.
+Someone has to open the Cloudflare dashboard and click Enable Access. The
+token can call the Access API. The failure is the account setting, not a
+missing token permission. After Access is enabled, applying the config
+needs `Access: Apps and Policies Write` and `Access: Organizations,
+Identity Providers, and Groups Write`. A later authentication error (code
+10000) means one of those permissions is missing on the token.
+
+The exact config is `cloudflare/access/apply_preview_access.py`. With
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` set:
+
+```bash
+python cloudflare/access/apply_preview_access.py
+```
+
+Until Access is enabled, that command stops and prints the same gap. It
+does not print the token or the account id. It does not protect every
+Worker on the account. Jetstream (`/status`) and the backfill worker stay
+off this policy. Backfill `POST /start` still requires its own bearer token.
+
+What the script creates once Access is on:
+
+1. An identity provider named `One-time PIN login`, type `onetimepin`, if
+   one does not already exist.
+2. One reusable Access policy, `LDI preview OTP allow`, decision `allow`.
+   Include email domains `northwestern.edu`, `u.northwestern.edu`, and
+   `kellogg.northwestern.edu`, plus the email `markptorres1@gmail.com`.
+   Require login method equal to that one-time PIN provider.
+3. A self-hosted application `ldi-ui-preview`. Destination type `public`,
+   URI `ldi-ui-preview.mind-technology-lab.workers.dev`. The allow policy
+   is the only policy. Session duration `24h`. The login page redirects
+   to the one-time PIN provider.
+4. A self-hosted application `ldi-api-preview` for
+   `ldi-api-preview.mind-technology-lab.workers.dev`, with the same allow
+   policy. The destination has public overrides for `/health` and `/query`.
+   An override makes that path skip Access. Override paths do not cover
+   subpaths, which matches the two routes the API actually serves.
+
+`/query` stays reachable without an Access login because the UI calls it
+from the browser (`ui/src/lib/api.ts`). The UI host and the API host are
+different sites: `workers.dev` is a public suffix, so the Access cookie
+from the UI is not sent to the API. A service token would have to be
+inlined into the client bundle to go with that `fetch`, and that would
+publish the token. The public override is the fit. Supabase still rejects
+a missing or bad bearer token. `/health` stays public so a smoke check
+can call it without a PIN. Any other path on the API host, such as the
+generated docs, still asks for the PIN.
+
+Dashboard equivalent, if you apply it by hand:
+
+1. Zero Trust, then Integrations, then Identity providers. Add One-time PIN.
+2. Access controls, then Policies. Create a reusable Allow policy with the
+   emails and domains above, and require One-time PIN.
+3. Add a self-hosted application for the UI hostname and attach that policy.
+4. Add a self-hosted application for the API hostname, attach that policy,
+   and add destination overrides that make `/health` and `/query` public.
+5. Do not add an `all_workers` destination.
 
 ## Open questions
 
-- Should the UI Worker inject `X-Origin-Secret` on the way to the API, or
-  should `ORIGIN_SECRET` stay unset now that CloudFront is not in front?
-- The Supabase publishable settings live on the Vercel project, not in
-  Secrets Manager. Should they move?
-- Preview `workers.dev` URLs are public. Do they need Cloudflare Access?
-- The image installs the whole root `uv.lock`, including packages the API
-  process does not import (spaCy, scikit-learn, Prefect). Slimming that
-  install would shorten cold starts. It is a separate change from the Railway
-  install.
+- The API image installs the whole root `uv.lock`, including packages the
+  API process does not import (spaCy, scikit-learn, Prefect). Slimming that
+  install is a separate stacked draft, so this preview image stays as it is
+  until that draft lands.
