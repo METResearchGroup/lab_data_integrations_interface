@@ -780,5 +780,7 @@ Dashboard equivalent, if you apply it by hand:
 
 ## Open questions
 
-None from the image split. The preview Workers still run the previous image
-until these Docker files are deployed.
+None from the image split. On 2026-10-23 the preview Workers were rolled
+onto these images. `docker images` reports the API image at 1.31 GB,
+Jetstream at 1.16 GB, and the backfill image at 908 MB. The previous
+shared image was 3.77 GB.

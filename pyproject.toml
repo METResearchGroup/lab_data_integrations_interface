@@ -122,9 +122,8 @@ pythonVersion = "3.11"
 typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
-# experimentation/iceberg resolves against its own venv (pyiceberg pins
-# rich<15, the root project requires rich>=15), so the root interpreter cannot
-# type-check it.
+# experimentation/iceberg keeps its own requirements file and venv.
+# The ingestion group caps rich below 15, which matches the pyiceberg pin.
 exclude = ["tests", "experiments", "experimentation/iceberg"]
 
 [tool.vulture]
