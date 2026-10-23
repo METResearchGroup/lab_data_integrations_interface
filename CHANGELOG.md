@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-10-23
+
+1. Agentic search can filter posts by the words in `text`. The model fills `keywords`, `match` (`any` or `all`), and `whole_word` on `QueryIntent` and still does not write SQL; `generate_sql` builds a case-insensitive `regexp_like` predicate, with an ASCII `\b` when `whole_word` is set, and adds a `matched_keywords` column for the first term that hit. Keywords are refused on anything but posts, without both dates, or when a term is blank or past the cap of 8 terms and 80 characters. The scan estimate counts `text` whenever a keyword filter reads it, including when that column was not selected. Matching is literal: no stemming or ranking, cost follows the days scanned, ASCII word boundaries do not apply to CJK text, and a mention matches handle text inside the post. [PR #246](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/246)
+
 ## 2026-09-28
 
 1. Bluesky backfill fetch workers now stop downloading any repo past 1 GiB and mark its DID `too_large` for later handling, instead of timing out and retrying it five times. Each worker also holds less in memory: the raw CAR is freed once parsed, and the buffer holds Arrow tables whose exact size drives the 1 GiB flush, replacing Python dicts measured as JSON; a new peak-memory gauge and dashboard panel track the result. The service runs as one Railway replica. [PR #226](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/226)

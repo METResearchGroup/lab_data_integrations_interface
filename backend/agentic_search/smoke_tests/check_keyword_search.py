@@ -257,10 +257,14 @@ def check_live_scan() -> list[str]:
         f"  estimated keyword scan (text + created_at): "
         f"{scan_bytes} bytes ({scan_bytes / BYTES_PER_GB:.3f} GB)"
     )
+    cap_gb = MAX_SCAN_BYTES / BYTES_PER_GB
     if text_bytes is None:
         print("  text column size: unavailable (a file omitted column_sizes)")
     else:
         print(f"  text column: {text_bytes} bytes ({text_bytes / BYTES_PER_GB:.3f} GB)")
+        if text_bytes:
+            text_days = MAX_SCAN_BYTES / text_bytes
+            print(f"  days of text alone under the {cap_gb:.0f} GB cap: {text_days:.1f}")
     if created_bytes is None:
         print("  created_at column size: unavailable (a file omitted column_sizes)")
     else:
@@ -268,9 +272,7 @@ def check_live_scan() -> list[str]:
 
     if scan_bytes:
         days = MAX_SCAN_BYTES / scan_bytes
-        print(
-            f"  days of this shape under the {MAX_SCAN_BYTES / BYTES_PER_GB:.0f} GB cap: {days:.1f}"
-        )
+        print(f"  days of text + created_at under the {cap_gb:.0f} GB cap: {days:.1f}")
         print("  selecting more columns than text shortens that. SELECT * reads the whole file.")
 
     if scan_bytes > SMALL_SCAN_BYTES:
