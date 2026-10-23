@@ -16,14 +16,6 @@ const FORWARDED = [
 	"OTEL_EXPORTER_OTLP_HEADERS",
 ] as const;
 
-// Image pull on the first start can take a few minutes. Each attempt polls
-// one port. A process that never binds a port still counts as started when
-// the runtime reports that the container is not listening and the instance
-// is running. See @cloudflare/containers startContainerIfNotRunning.
-const START_WINDOW_MS = 240_000;
-const POLL_MS = 3_000;
-const PORT_TO_CHECK = 8000;
-
 // Platform cap. Without this, Cloudflare stops the container shortly after the
 // Durable Object goes idle, which is what happened on the first boot. The
 // minute cron and the constructor set it again, so a restart of the object
@@ -52,8 +44,9 @@ export function containerEnv(env: Env): Record<string, string> {
 	return vars;
 }
 
-function isUp(status: string): boolean {
-	return status === "running" || status === "healthy";
+function errorText(error: unknown): string {
+	const message = error instanceof Error ? error.message : String(error);
+	return message.slice(0, 300);
 }
 
 /**
@@ -68,17 +61,26 @@ function isUp(status: string): boolean {
  * cron sets it again, and the constructor sets it again when the object
  * restarts and the process is already up. The cron also restarts the process
  * if it has exited, and stops it when JETSTREAM_ENABLED is not "true".
+ *
+ * Container.start() from the library probes a TCP port. This process does
+ * not listen. On the last probe, a "Network connection lost" error aborts
+ * the Durable Object. The preview then has no instance, and the next start
+ * fails with "no container instance" until the platform hands one out again.
+ * supervise calls ctx.container.start() and does not probe a port.
  */
 export class JetstreamContainer extends Container<Env> {
 	sleepAfter = "30m";
 	enableInternet = true;
 	entrypoint = ENTRYPOINT;
 
+	private exitWatch: Promise<void> | undefined;
+
 	constructor(ctx: DurableObjectState<{}>, env: Env) {
 		super(ctx, env);
 		const container = ctx.container;
 		if (container?.running) {
 			void ctx.blockConcurrencyWhile(() => container.setInactivityTimeout(KEEPALIVE_MS));
+			this.watchExit();
 		}
 	}
 
@@ -102,16 +104,10 @@ export class JetstreamContainer extends Container<Env> {
 		return new Response("Not found", { status: 404 });
 	}
 
-	private platformRunning(): boolean {
-		const runtime = this as unknown as { container?: { running?: boolean } };
-		return runtime.container?.running === true;
-	}
-
 	private async statusBody(): Promise<{ enabled: boolean; running: boolean }> {
-		const state = await this.getState();
 		return {
 			enabled: this.env.JETSTREAM_ENABLED === "true",
-			running: this.platformRunning() || isUp(state.status),
+			running: this.ctx.container?.running === true,
 		};
 	}
 
@@ -121,12 +117,56 @@ export class JetstreamContainer extends Container<Env> {
 			return;
 		}
 		await container.setInactivityTimeout(KEEPALIVE_MS);
+		this.renewActivityTimeout();
 		console.log("jetstream inactivity timeout set", KEEPALIVE_MS);
+	}
+
+	private watchExit(): void {
+		if (this.exitWatch) {
+			return;
+		}
+		const container = this.ctx.container;
+		if (!container?.running) {
+			return;
+		}
+		const pending = container
+			.monitor()
+			.then(() => {
+				this.exitWatch = undefined;
+				console.log("jetstream container exited");
+			})
+			.catch((error: unknown) => {
+				this.exitWatch = undefined;
+				const message = errorText(error);
+				console.log("jetstream container stopped", message);
+				if (message.includes("Network connection lost") && this.ctx.container?.running) {
+					console.log("jetstream clearing a lost container connection");
+					void this.ctx.container.destroy();
+				}
+			});
+		this.exitWatch = pending;
+		this.ctx.waitUntil(pending);
+	}
+
+	private startContainer(): void {
+		const container = this.ctx.container;
+		if (!container) {
+			throw new Error("jetstream container is not configured");
+		}
+		if (container.running) {
+			return;
+		}
+		container.start({
+			env: containerEnv(this.env),
+			entrypoint: [...ENTRYPOINT],
+			enableInternet: true,
+		});
+		console.log("jetstream container start requested");
 	}
 
 	private async supervise(): Promise<void> {
 		const enabled = this.env.JETSTREAM_ENABLED === "true";
-		const { running } = await this.statusBody();
+		const running = this.ctx.container?.running === true;
 		if (!enabled) {
 			if (running) {
 				await this.stop();
@@ -135,24 +175,14 @@ export class JetstreamContainer extends Container<Env> {
 		}
 		if (!running) {
 			try {
-				await this.start(
-					{
-						envVars: containerEnv(this.env),
-						entrypoint: ENTRYPOINT,
-						enableInternet: true,
-					},
-					{
-						portToCheck: PORT_TO_CHECK,
-						retries: Math.ceil(START_WINDOW_MS / POLL_MS),
-						waitInterval: POLL_MS,
-					},
-				);
+				this.startContainer();
 			} catch (error) {
-				console.error("jetstream start failed", error);
+				console.error("jetstream start failed", errorText(error));
+				return;
 			}
 		}
-		if (this.platformRunning()) {
-			this.renewActivityTimeout();
+		if (this.ctx.container?.running) {
+			this.watchExit();
 			await this.keepAlive();
 		}
 	}

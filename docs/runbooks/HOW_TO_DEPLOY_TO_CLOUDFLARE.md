@@ -208,6 +208,16 @@ running. The constructor calls it again when the Durable Object restarts and
 the container is already running, because the timeout does not survive that
 restart.
 
+`supervise` starts the process with `ctx.container.start()`. It does not use
+`Container.start()` from `@cloudflare/containers`. That method probes a TCP
+port, and this process does not listen. When the probe's last error is
+`Network connection lost`, the library aborts the Durable Object. The
+preview then has no container instance, and later start attempts fail with
+`no container instance` until the platform hands one out again. `running` on
+`GET /status` is `ctx.container.running`. A lost connection while the
+instance still looks running is destroyed so the next minute can start a
+new one. `monitor()` logs the exit.
+
 A cron of `* * * * *` on the Worker calls `supervise` inside the Durable
 Object. When `JETSTREAM_ENABLED` is the string `true`, supervise starts the
 process if it is down. If the process is already up, supervise sets the 6
