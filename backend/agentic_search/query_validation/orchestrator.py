@@ -8,6 +8,7 @@ from backend.agentic_search.query_validation.check_data_availability import (
     check_data_availability,
 )
 from backend.agentic_search.query_validation.check_data_types import check_data_types
+from backend.agentic_search.query_validation.check_keywords import check_keywords
 from backend.agentic_search.query_validation.check_nonsense import check_nonsense
 from backend.agentic_search.query_validation.models import TableMetadata, ValidationResult
 from backend.agentic_search.query_validation.query_intent.extract import extract_intent
@@ -40,6 +41,7 @@ def validate_intent(
     if not issues:
         issues += check_data_types(intent, snapshot)
         issues += check_data_availability(intent, snapshot)
+        issues += check_keywords(intent)
 
     return ValidationResult(valid=not issues, issues=issues, intent=intent)
 
