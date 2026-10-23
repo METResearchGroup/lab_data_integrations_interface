@@ -36,7 +36,7 @@ If the checkout is `main` and `cloudflare/` is absent, report "Cloudflare previe
 1. State the git revision and whether `cloudflare/` is present.
 2. Build the required-name list from the docs in the checkout, not from memory of this prompt, when the docs disagree with this prompt. Call out the disagreement.
 3. For each name, record present or missing on each store (wrangler config, Worker secret, Secrets Manager, docs). For present values, record an equality hash across stores. Do not record the value.
-4. Flag a missing required name, a hash mismatch, a `supabase.co` host-shape failure, and an `ORIGIN_SECRET` that is set on Cloudflare.
+4. Flag a missing required name, a hash mismatch, a host that does not end in `supabase.co`, and an `ORIGIN_SECRET` that is set on Cloudflare.
 5. Open a draft issue when any flag is set. The issue body is the table of names and flags. No values, no hashes of values that appear only once and could be reversed by a small search space. If a value is short, skip the hash and write "present, hash omitted because the value is short".
 
 ## Report

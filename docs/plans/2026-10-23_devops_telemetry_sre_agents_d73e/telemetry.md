@@ -10,7 +10,7 @@ Worker and container telemetry from Cloudflare is not on `main`. It depends on d
 
 ### Python services
 
-`backend/`, `bluesky_ingestion_jetstream/`, and `bluesky_backfill_app/` already build OTLP exporters. They export when `OTEL_EXPORTER_OTLP_HEADERS` is set. On Railway the runbooks tell you to set it per service. On the #245 Workers, `containerEnv` copies the same variable into the container when the Worker secret is non-empty. Set the secret on the API, Jetstream, and backfill Workers, or the containers export nothing.
+`backend/` and `bluesky_ingestion_jetstream/` export traces, logs, and metrics when `OTEL_EXPORTER_OTLP_HEADERS` is set. `bluesky_backfill_app/telemetry/setup.py` wires metrics and logs only. On Railway the runbooks tell you to set the header per service. On the #245 Workers, `containerEnv` copies the same variable into the container when the Worker secret is non-empty. Set the secret on the API, Jetstream, and backfill Workers, or the containers export nothing.
 
 ### Workers
 

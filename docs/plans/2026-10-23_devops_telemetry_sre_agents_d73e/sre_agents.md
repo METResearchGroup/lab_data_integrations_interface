@@ -32,7 +32,7 @@ flowchart TD
   report --> approval
 ```
 
-Cursor documents the triggers at [Automations](https://cursor.com/docs/cloud-agent/automations) and in the [automations announcement](https://cursor.com/blog/automations). Triggers include a schedule, GitHub events, PagerDuty, Sentry, and a private webhook with a bearer key. This plan uses the schedule, GitHub, and the webhook. It does not add PagerDuty or Sentry. Cloudflare notification webhooks are documented at [configure webhooks](https://developers.cloudflare.com/notifications/get-started/configure-webhooks/).
+Cursor documents the triggers at [Automations](https://cursor.com/docs/cloud-agent/automations) and in the [automations announcement](https://cursor.com/blog/automations). Triggers include a schedule, GitHub events, PagerDuty, Sentry, and a private webhook with a bearer key. The automations in the plan use the schedule, GitHub, and the webhook, and they do not add PagerDuty or Sentry. Cloudflare notification webhooks are documented at [configure webhooks](https://developers.cloudflare.com/notifications/get-started/configure-webhooks/).
 
 The source notes also name a Grok Bot routine for the daily digest. The repo has no Grok Bot config. The digest playbook is the same report either way. If you add the Grok Bot routine, point it at [the digest prompt](draft_prompts/05_daily_health_digest.md) and do not give it a second, shorter prompt.
 

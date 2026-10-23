@@ -14,7 +14,7 @@ The service token name on the draft is `ldi-preview-smoke`, created by `cloudfla
 
 Size in the source notes: medium.
 
-Depends on #245, because the smoke script and the wrangler projects are not on `main`. #247 does not change the smoke script. If #247 merges first, the deploy should use the slimmer images, since the API image on #245 without `cryptography` is the ES256 failure.
+Depends on #245, because the smoke script and the wrangler projects are not on `main`. #247 does not change the smoke script. #247 is stacked on #245, so the slimmer API image, which includes `cryptography`, is included only when that stack merges together. The #245 image without `cryptography` is the ES256 failure.
 
 ## 2. Pre-deploy config check
 
@@ -24,13 +24,13 @@ The preview failures were a missing pair of UI text bindings (`NEXT_PUBLIC_SUPAB
 
 Size in the source notes: small.
 
-Depends on #245 for the Worker secret names. The host-shape rule can be written before the cutover, and it should run against Railway and Secrets Manager too, because the bad URL was in Secrets Manager.
+Depends on #245 for the Worker secret names. The host shape rule can be written before the cutover, and it should run against Railway and Secrets Manager too, because the bad URL was in Secrets Manager.
 
 ## 3. Container startup and memory smoke
 
 After deploy, each container should become healthy within a bounded number of minutes, and stay under its memory ceiling for 5 minutes. One backfill run should process 10 known-small accounts.
 
-#245 starts Jetstream with `ctx.container.start()` and a minute cron, and it does not probe a port. The backfill worker starts only on `POST /start` with `BACKFILL_TRIGGER_TOKEN`. Nothing in CI starts a backfill. On `main` the flush cap is 2 GiB. On #245 it is 128 MiB after the 4 GiB preview ran out of memory. A memory smoke is what would catch the cap regressing upward again. The notes did not pick the minute bound. Leave `N` as an explicit input when you write the job, and record the number in the runbook.
+#245 starts Jetstream with `ctx.container.start()` and a minute cron, and it does not probe a port. The backfill worker starts only on `POST /start` with `BACKFILL_TRIGGER_TOKEN`. Nothing in CI starts a backfill. On `main` the flush cap is 2 GiB. On #245 it is 128 MiB after the 4 GiB preview ran out of memory. A memory smoke is what would catch the cap regressing upward again. The notes did not pick the minute bound. Leave the minute bound as an explicit input when you write the job, and record the number in the runbook.
 
 Size in the source notes: medium.
 
