@@ -82,10 +82,11 @@ seconds. The Worker waits up to 180 seconds for port 8000
 (`cloudflare/backend/src/index.ts`). The helper's default wait is 20 seconds,
 which is too short for this image.
 
-Jetstream and the backfill worker do not listen on a port. Their Workers call
-`start()` and treat "the container is not listening" as success once the
-instance is running. The first start still waits on the image pull, up to
-about 4 minutes inside that call.
+Jetstream and the backfill worker do not listen on a port. Both Workers
+call `ctx.container.start()` and skip the TCP probe inside
+`Container.start()` from `@cloudflare/containers`. That probe aborts the
+Durable Object when its last error is `Network connection lost`. The first
+start still spends its time pulling the image.
 
 ### Instance lifetime and sleep
 
@@ -251,7 +252,10 @@ smaller cap is what lets that instance commit during catch-up.
 
 `supervise` also runs `exec` on the container and logs whether pid 1 is the
 Jetstream module and that process's resident memory in kilobytes. It does
-not log the command line or the environment. Read the item in `us-east-2`:
+not log the command line or the environment.
+
+To see whether a writer has committed, read `updated_at` on the cursor item
+in `us-east-2`:
 
 ```bash
 aws dynamodb get-item \
@@ -308,7 +312,9 @@ includes the image pull. `GET /status` then reports `running: true`, and
 The backfill fetch worker is its own Container, Worker name
 `ldi-backfill-preview`, Durable Object name `backfill`, `max_instances: 1`,
 instance type `standard-1`. The command is
-`python -m bluesky_backfill_app.fetch_repos.main`. It reads `AWS_ACCESS_KEY_ID`,
+`python -m bluesky_backfill_app.fetch_repos.main`. The Worker starts that
+command with `ctx.container.start()` and does not probe a port. The process
+reads `AWS_ACCESS_KEY_ID`,
 `AWS_SECRET_ACCESS_KEY`, and optionally `AWS_SESSION_TOKEN` and
 `OTEL_EXPORTER_OTLP_HEADERS`. The queue name and the DynamoDB tables are
 constants in code. It does not need to stay up. You start a run when you

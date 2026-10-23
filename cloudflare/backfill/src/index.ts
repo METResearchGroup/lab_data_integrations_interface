@@ -1,6 +1,8 @@
 import { Container } from "@cloudflare/containers";
 
-// The image's CMD is uvicorn. This container replaces it at start.
+// The fetch worker does not listen. Start it with ctx.container.start().
+// Container.start() from @cloudflare/containers probes a TCP port, and when
+// the last error is "Network connection lost" it aborts the Durable Object.
 const ENTRYPOINT = [
 	"/app/.venv/bin/python",
 	"-m",
@@ -13,13 +15,6 @@ const FORWARDED = [
 	"AWS_SESSION_TOKEN",
 	"OTEL_EXPORTER_OTLP_HEADERS",
 ] as const;
-
-// Same start window as Jetstream. The fetch worker does not bind a port.
-// start() still returns once the instance is running and the runtime reports
-// that nothing is listening. See @cloudflare/containers.
-const START_WINDOW_MS = 240_000;
-const POLL_MS = 3_000;
-const PORT_TO_CHECK = 8000;
 
 // Latest POST /start arms this long a run. The SQS loop does not extend it.
 const RUN_WINDOW_SECONDS = 6 * 60 * 60;
@@ -46,6 +41,11 @@ export function containerEnv(env: Env): Record<string, string> {
 		}
 	}
 	return vars;
+}
+
+function errorText(error: unknown): string {
+	const message = error instanceof Error ? error.message : String(error);
+	return message.slice(0, 300);
 }
 
 function isUp(status: string): boolean {
@@ -148,19 +148,19 @@ export class BackfillContainer extends Container<Env> {
 		return this.platformRunning() || isUp(state.status);
 	}
 
-	private async launch(): Promise<void> {
-		await this.start(
-			{
-				envVars: containerEnv(this.env),
-				entrypoint: ENTRYPOINT,
-				enableInternet: true,
-			},
-			{
-				portToCheck: PORT_TO_CHECK,
-				retries: Math.ceil(START_WINDOW_MS / POLL_MS),
-				waitInterval: POLL_MS,
-			},
-		);
+	private launch(): void {
+		const container = this.ctx.container;
+		if (!container) {
+			throw new Error("backfill container is not configured");
+		}
+		if (container.running) {
+			return;
+		}
+		container.start({
+			env: containerEnv(this.env),
+			entrypoint: [...ENTRYPOINT],
+			enableInternet: true,
+		});
 	}
 
 	private async armWindow(): Promise<void> {
@@ -176,12 +176,16 @@ export class BackfillContainer extends Container<Env> {
 
 	private async begin(): Promise<Response> {
 		try {
-			await this.launch();
+			this.launch();
 		} catch (error) {
-			console.error("backfill start failed", error);
+			console.error("backfill start failed", errorText(error));
 			if (!(await this.running())) {
 				return Response.json({ detail: "container start failed" }, { status: 500 });
 			}
+		}
+		if (!(await this.running())) {
+			console.error("backfill start returned before the container was running");
+			return Response.json({ detail: "container start failed" }, { status: 500 });
 		}
 		await this.armWindow();
 		return Response.json({ running: true });
