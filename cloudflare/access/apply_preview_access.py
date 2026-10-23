@@ -23,6 +23,9 @@ import urllib.request
 UI_HOST = "ldi-ui-preview.mind-technology-lab.workers.dev"
 API_HOST = "ldi-api-preview.mind-technology-lab.workers.dev"
 POLICY_NAME = "LDI preview OTP allow"
+SERVICE_TOKEN_NAME = "ldi-preview-smoke"
+SERVICE_POLICY_NAME = "LDI preview smoke service auth"
+ACCESS_SMOKE_SECRET_ID = "lab-data-integrations-access-smoke"
 OTP_NAME = "One-time PIN login"
 EMAIL_DOMAINS = (
     "northwestern.edu",
@@ -75,7 +78,17 @@ def not_enabled_message() -> str:
 def apply_preview_access(token: str, account_id: str) -> None:
     otp_id = ensure_otp(token, account_id)
     policy_id = ensure_allow_policy(token, account_id, otp_id)
-    ensure_application(token, account_id, ui_application(policy_id, otp_id))
+    service_token_id = ensure_service_token(token, account_id)
+    if service_token_id is None:
+        ensure_application(token, account_id, ui_application(policy_id, otp_id))
+    else:
+        service_policy_id = ensure_service_policy(token, account_id, service_token_id)
+        ensure_application(
+            token,
+            account_id,
+            ui_application(policy_id, otp_id, service_token_policy_id=service_policy_id),
+        )
+        print(f"Service auth policy {SERVICE_POLICY_NAME} is on {UI_HOST}.")
     ensure_application(token, account_id, api_application(policy_id, otp_id))
     print(f"Access policy {POLICY_NAME} is on {UI_HOST} and {API_HOST}.")
     print(f"Public paths on the API: {', '.join(PUBLIC_PATHS)}.")
@@ -131,14 +144,25 @@ def allow_policy(otp_id: str) -> dict[str, object]:
     }
 
 
-def ui_application(policy_id: str, otp_id: str) -> dict[str, object]:
-    return application(
+def ui_application(
+    policy_id: str,
+    otp_id: str,
+    *,
+    service_token_policy_id: str | None = None,
+) -> dict[str, object]:
+    body = application(
         name="ldi-ui-preview",
         host=UI_HOST,
         policy_id=policy_id,
         otp_id=otp_id,
         overrides=[],
     )
+    if service_token_policy_id is not None:
+        body["policies"] = [
+            {"id": service_token_policy_id, "precedence": 1},
+            {"id": policy_id, "precedence": 2},
+        ]
+    return body
 
 
 def api_application(policy_id: str, otp_id: str) -> dict[str, object]:
@@ -174,6 +198,122 @@ def application(
         "destinations": [destination],
         "policies": [{"id": policy_id, "precedence": 1}],
     }
+
+
+def ensure_service_token(token: str, account_id: str) -> str | None:
+    tokens = list_results(token, account_id, "/access/service_tokens")
+    existing = find_one(tokens, "name", SERVICE_TOKEN_NAME, "Access service token")
+    if existing is not None:
+        if not smoke_secret_present():
+            raise SystemExit(
+                "Access service token "
+                + SERVICE_TOKEN_NAME
+                + " already exists, and Secrets Manager "
+                + ACCESS_SMOKE_SECRET_ID
+                + " does not have both smoke fields. Delete that token in Zero Trust and run this again."
+            )
+        return str(existing["id"])
+    try:
+        created = write_json(
+            token,
+            account_id,
+            "POST",
+            "/access/service_tokens",
+            {"name": SERVICE_TOKEN_NAME, "duration": "8760h"},
+        )
+    except AccessApiError as error:
+        if error.status == 403:
+            print(
+                "Could not create Access service token "
+                + SERVICE_TOKEN_NAME
+                + ". The API token needs permission Access: Service Tokens Write. "
+                + "OTP login stays in place."
+            )
+            return None
+        raise
+    client_id = created.get("client_id")
+    client_secret = created.get("client_secret")
+    token_id = created.get("id")
+    if (
+        not isinstance(client_id, str)
+        or not isinstance(client_secret, str)
+        or not isinstance(token_id, str)
+        or not client_id
+        or not client_secret
+    ):
+        raise SystemExit("Access did not return a service token id pair.")
+    store_smoke_secret(client_id, client_secret)
+    print(
+        "Stored the smoke service token in Secrets Manager "
+        + ACCESS_SMOKE_SECRET_ID
+        + ". Values were not printed."
+    )
+    return token_id
+
+
+def ensure_service_policy(token: str, account_id: str, service_token_id: str) -> str:
+    body = {
+        "name": SERVICE_POLICY_NAME,
+        "decision": "non_identity",
+        "include": [{"service_token": {"token_id": service_token_id}}],
+    }
+    policies = list_results(token, account_id, "/access/policies")
+    existing = find_one(policies, "name", SERVICE_POLICY_NAME, "Access policy")
+    if existing is None:
+        created = write_json(token, account_id, "POST", "/access/policies", body)
+        return str(created["id"])
+    policy_id = str(existing["id"])
+    write_json(token, account_id, "PUT", f"/access/policies/{policy_id}", body)
+    return policy_id
+
+
+def smoke_secret_present() -> bool:
+    try:
+        import boto3
+        from botocore.exceptions import ClientError
+    except ImportError:
+        return False
+    client = boto3.client("secretsmanager", region_name="us-east-2")
+    try:
+        response = client.get_secret_value(SecretId=ACCESS_SMOKE_SECRET_ID)
+    except ClientError:
+        return False
+    try:
+        data = json.loads(response.get("SecretString") or "")
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(data, dict):
+        return False
+    client_id = data.get("CF_ACCESS_CLIENT_ID")
+    client_secret = data.get("CF_ACCESS_CLIENT_SECRET")
+    return (
+        isinstance(client_id, str)
+        and bool(client_id)
+        and isinstance(client_secret, str)
+        and bool(client_secret)
+    )
+
+
+def store_smoke_secret(client_id: str, client_secret: str) -> None:
+    import boto3
+    from botocore.exceptions import ClientError
+
+    payload = json.dumps(
+        {
+            "CF_ACCESS_CLIENT_ID": client_id,
+            "CF_ACCESS_CLIENT_SECRET": client_secret,
+        }
+    )
+    client = boto3.client("secretsmanager", region_name="us-east-2")
+    try:
+        client.create_secret(Name=ACCESS_SMOKE_SECRET_ID, SecretString=payload)
+    except ClientError as error:
+        code = error.response.get("Error", {}).get("Code", "")
+        if code != "ResourceExistsException":
+            raise SystemExit(
+                "Could not store the smoke service token (" + code + "). Values were not printed."
+            ) from None
+        client.put_secret_value(SecretId=ACCESS_SMOKE_SECRET_ID, SecretString=payload)
 
 
 def find_one(
@@ -233,6 +373,7 @@ def request_json(
         headers={
             "Authorization": "Bearer " + token,
             "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0",
         },
     )
     try:
@@ -240,7 +381,8 @@ def request_json(
             raw = response.read().decode()
             status = response.status
     except urllib.error.HTTPError as error:
-        raise access_error(error.code, error.read().decode()) from None
+        err = access_error(error.code, error.read().decode())
+        raise AccessApiError(err.status, err.code, method + " " + path + " " + err.message) from None
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:

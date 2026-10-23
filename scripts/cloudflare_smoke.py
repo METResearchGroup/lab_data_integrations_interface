@@ -1,8 +1,12 @@
 """Smoke checks for the Cloudflare preview of the API and the UI.
 
-Does not print secret values. A full /query that reaches S3 needs a real
-Supabase access token, which this script does not have. Without one, /query
-stops at the bearer check (or at the origin guard, if ORIGIN_SECRET is set).
+Does not print secret values. An unauthenticated UI request must stop at
+Cloudflare Access. With the preview service token (env CF_ACCESS_CLIENT_ID
+and CF_ACCESS_CLIENT_SECRET, or Secrets Manager
+lab-data-integrations-access-smoke), / and /login must render the app.
+A full /query that reaches S3 needs a Supabase user. Set
+SUPABASE_TEST_EMAIL and SUPABASE_TEST_PASSWORD for that check. Without
+them, /query stops at the bearer check.
 
 Run from the repo root:
 
@@ -15,11 +19,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 USER_AGENT = "ldi-cloudflare-smoke/1.0"
 TIMEOUT_SECONDS = 180
+ACCESS_HOST_SUFFIX = "cloudflareaccess.com"
+ACCESS_SMOKE_SECRET_ID = "lab-data-integrations-access-smoke"
+SUPABASE_PUBLIC_SECRET_ID = "lab-data-integrations-supabase-public"
 
 
 def request(
@@ -130,15 +140,160 @@ def check_cors(api: str, ui: str, failures: list[str]) -> None:
         failures.append(f"CORS preflight did not echo the UI origin (status {status})")
 
 
-def check_ui(ui: str, failures: list[str]) -> None:
-    status, _, body = request(ui)
+def no_redirect_opener() -> urllib.request.OpenerDirector:
+    class StopRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    return urllib.request.build_opener(StopRedirect)
+
+
+def access_headers() -> dict[str, str]:
+    client_id = os.environ.get("CF_ACCESS_CLIENT_ID", "")
+    client_secret = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")
+    if client_id and client_secret:
+        return service_headers(client_id, client_secret)
+    loaded = secret_json(ACCESS_SMOKE_SECRET_ID)
+    if loaded is None:
+        return {}
+    client_id = loaded.get("CF_ACCESS_CLIENT_ID")
+    client_secret = loaded.get("CF_ACCESS_CLIENT_SECRET")
+    if not isinstance(client_id, str) or not isinstance(client_secret, str):
+        return {}
+    if not client_id or not client_secret:
+        return {}
+    return service_headers(client_id, client_secret)
+
+
+def service_headers(client_id: str, client_secret: str) -> dict[str, str]:
+    return {
+        "CF-Access-Client-Id": client_id,
+        "CF-Access-Client-Secret": client_secret,
+    }
+
+
+def secret_json(secret_id: str) -> dict[str, object] | None:
+    try:
+        import boto3
+        from botocore.exceptions import ClientError
+    except ImportError:
+        return None
+    client = boto3.client("secretsmanager", region_name="us-east-2")
+    try:
+        response = client.get_secret_value(SecretId=secret_id)
+    except ClientError:
+        return None
+    try:
+        data = json.loads(response.get("SecretString") or "")
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def check_access_wall(ui: str, failures: list[str]) -> None:
+    opener = no_redirect_opener()
+    req = urllib.request.Request(ui, headers={"User-Agent": USER_AGENT}, method="GET")
+    try:
+        with opener.open(req, timeout=TIMEOUT_SECONDS) as response:
+            status = response.status
+            location = response.headers.get("Location")
+    except urllib.error.HTTPError as error:
+        status = error.code
+        location = error.headers.get("Location")
+    host = ""
+    if location:
+        host = urllib.parse.urlparse(location).hostname or ""
+    print(f"GET UI without Access token -> {status} location_host={host}")
+    if status not in (301, 302, 303, 307, 308) or ACCESS_HOST_SUFFIX not in host:
+        failures.append(f"UI without an Access token did not redirect to Access ({status})")
+
+
+def check_authenticated_page(
+    url: str,
+    label: str,
+    headers: dict[str, str],
+    failures: list[str],
+) -> None:
+    started = time.perf_counter()
+    status, _, body = request(url, headers=headers)
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
     text = body.decode("utf-8", errors="replace")
-    print(f"GET UI -> {status} bytes={len(body)}")
+    print(f"GET {label} with Access token -> {status} bytes={len(body)} ms={elapsed_ms}")
     if status != 200:
-        failures.append(f"UI returned {status}")
+        failures.append(f"{label} behind Access returned {status}")
         return
-    if "Lab Data Integrations" not in text and "Sign in" not in text:
-        failures.append("UI body did not contain the app title or the sign-in page")
+    if "Internal Server Error" in text:
+        failures.append(f"{label} behind Access rendered Internal Server Error")
+        return
+    if "Sign in" not in text or 'type="password"' not in text:
+        failures.append(f"{label} behind Access did not render the Supabase sign-in form")
+
+
+def check_authenticated_ui(ui: str, failures: list[str]) -> None:
+    headers = access_headers()
+    if not headers:
+        failures.append(
+            "Authenticated UI check did not run. Set CF_ACCESS_CLIENT_ID and "
+            "CF_ACCESS_CLIENT_SECRET, or store them in Secrets Manager "
+            + ACCESS_SMOKE_SECRET_ID
+            + "."
+        )
+        return
+    check_authenticated_page(ui + "/", "UI /", headers, failures)
+    check_authenticated_page(ui + "/login", "UI /login", headers, failures)
+
+
+def check_signed_in_query(api: str, ui: str, failures: list[str]) -> None:
+    email = os.environ.get("SUPABASE_TEST_EMAIL", "")
+    password = os.environ.get("SUPABASE_TEST_PASSWORD", "")
+    if not email or not password:
+        print(
+            "SKIP signed-in /query. Set SUPABASE_TEST_EMAIL and "
+            "SUPABASE_TEST_PASSWORD for a Supabase user. No test user is stored."
+        )
+        return
+    public = secret_json(SUPABASE_PUBLIC_SECRET_ID)
+    if public is None:
+        failures.append("Could not read the Supabase public settings for a signed-in /query.")
+        return
+    url = public.get("NEXT_PUBLIC_SUPABASE_URL")
+    key = public.get("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
+    if not isinstance(url, str) or not isinstance(key, str) or not url or not key:
+        failures.append("Supabase public settings are missing a field.")
+        return
+    status, _, body = request(
+        url.rstrip("/") + "/auth/v1/token?grant_type=password",
+        method="POST",
+        headers={"apikey": key, "Content-Type": "application/json"},
+        body=json.dumps({"email": email, "password": password}).encode(),
+    )
+    if status != 200:
+        failures.append(f"Supabase password sign-in returned {status}")
+        return
+    try:
+        token = json.loads(body).get("access_token")
+    except json.JSONDecodeError:
+        token = None
+    if not isinstance(token, str) or not token:
+        failures.append("Supabase password sign-in did not return an access token.")
+        return
+    query_status, _, query_body = request(
+        f"{api}/query",
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token,
+            "Origin": ui,
+        },
+        body=json.dumps("smoke").encode(),
+    )
+    print(f"POST /query with a Supabase session -> {query_status}")
+    if query_status != 202:
+        failures.append(
+            f"signed-in /query returned {query_status} {detail(query_body)!r}"
+        )
 
 
 def report(failures: list[str]) -> None:
@@ -163,7 +318,9 @@ def main() -> None:
     check_missing_bearer(api, failures)
     check_bogus_bearer(api, failures)
     check_cors(api, ui, failures)
-    check_ui(ui, failures)
+    check_access_wall(ui, failures)
+    check_authenticated_ui(ui, failures)
+    check_signed_in_query(api, ui, failures)
     report(failures)
 
 

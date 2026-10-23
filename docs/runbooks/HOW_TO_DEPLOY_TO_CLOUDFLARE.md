@@ -487,17 +487,22 @@ supported. `ui/cloudflare.config.ts` is the Worker config (`cf` / vinext).
 The API uses Wrangler because it is a Container project; do not run `cf deploy`
 in `cloudflare/backend/`.
 
-`NEXT_PUBLIC_*` values are inlined into the browser bundle at build time
-(`ui/src/lib/api.ts`, `ui/src/lib/supabase/env.ts`). `npm run deploy:vinext`
-runs `ui/scripts/require-public-env.mjs` first. That script requires
-`NEXT_PUBLIC_API_URL` in the environment, and it refuses a trailing slash.
-When `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-are both unset, it reads them from Secrets Manager in `us-east-2`, secret
-`lab-data-integrations-supabase-public`. The JSON fields use those same
-names. The script does not print the values. If you set one Supabase
-variable and not the other, it stops. If the secret is missing, it stops
-and names the secret. Do not commit the values. The API URL in
-`cloudflare.config.ts` must match `NEXT_PUBLIC_API_URL`.
+The browser bundle inlines `NEXT_PUBLIC_*` at build time (`ui/src/lib/api.ts`,
+`ui/src/lib/supabase/env.ts`). `proxy.ts` reads the same names from
+`process.env` on each request. With `nodejs_compat` and a compatibility date
+after 2025-04-01, the Worker copies text bindings into `process.env`.
+`cloudflare.config.ts` publishes the two Supabase names as text bindings.
+They are not committed. A deploy that omits them returns plain text
+`Internal Server Error` from `proxy.ts` before the page renders.
+
+`npm run deploy:vinext` loads the names, then starts `vinext-cloudflare
+deploy` in that same process. The loader refuses a trailing slash on
+`NEXT_PUBLIC_API_URL`. When both Supabase names are unset, it reads
+Secrets Manager secret `lab-data-integrations-supabase-public` in
+`us-east-2`. It does not print the values. The Supabase URL host has to be
+a `supabase.co` project host. One Supabase name without the other stops
+the deploy. A missing secret stops the deploy and names the secret. The
+API URL in `cloudflare.config.ts` has to match `NEXT_PUBLIC_API_URL`.
 
 The reader uses boto3. It tries `PYTHON`, then the repo `.venv`, then
 `python3`. AWS credentials for `us-east-2` have to be available the same
@@ -534,8 +539,8 @@ not send `X-Origin-Secret`. See the origin-secret row below.
 | `JETSTREAM_ENABLED` | `cloudflare/jetstream/src/index.ts` | Jetstream var, default `true`. A secret of the same name overrides it. | `true` allows the supervisor to start the writer. Any other value makes the supervisor send SIGTERM. |
 | `BACKFILL_TRIGGER_TOKEN` | `cloudflare/backfill/src/index.ts` | Backfill secret. Not copied into the container. | `POST /start` and `POST /stop`. Unset means those routes return 401 and do not start a run. |
 | `NEXT_PUBLIC_API_URL` | `ui/src/lib/api.ts` | Build env, and a text binding on the UI Worker | Where the browser sends `/query`. |
-| `NEXT_PUBLIC_SUPABASE_URL` | `ui/src/lib/supabase/env.ts` | Build env. Read from Secrets Manager `lab-data-integrations-supabase-public` when unset. | Login and session. |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `ui/src/lib/supabase/env.ts` | Build env. Same secret, JSON field of the same name. | Login and session. |
+| `NEXT_PUBLIC_SUPABASE_URL` | `ui/src/lib/supabase/env.ts` | Build env, and a text binding on the UI Worker. Read from Secrets Manager `lab-data-integrations-supabase-public` when unset. | Login and session. The Worker returns plain text `Internal Server Error` when this binding is missing, because `proxy.ts` throws before the page renders. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `ui/src/lib/supabase/env.ts` | Build env, and a text binding on the UI Worker. Same secret, JSON field of the same name. | Login and session. Same failure as the URL when the binding is missing. |
 | `CLOUDFLARE_API_TOKEN` | Wrangler / `cf` | Shell only | Deploy. Not an app variable. |
 | `CLOUDFLARE_ACCOUNT_ID` | Wrangler / `cf` | Shell only | Deploy. Not an app variable. |
 
@@ -584,10 +589,24 @@ It checks:
 2. `POST /query` with no credentials returns 401 `Not authenticated` when
    the origin guard is open. `403 Forbidden` means `ORIGIN_SECRET` is set.
 3. `POST /query` with `Authorization: Bearer not-a-jwt` returns 401 once
-   `SUPABASE_URL` is set. That path does not touch S3. A real S3 round trip
-   needs a signed-in Supabase user; the script does not have one.
+   `SUPABASE_URL` is set. That path does not touch S3.
 4. `OPTIONS /query` from the UI origin echoes that origin.
-5. The UI URL returns 200 and the page title or the sign-in copy.
+5. `GET` on the UI without a service token redirects to Cloudflare Access.
+   Stopping at that wall is not a check of the UI Worker.
+6. With `CF-Access-Client-Id` and `CF-Access-Client-Secret` set, or with
+   those fields in Secrets Manager `lab-data-integrations-access-smoke`,
+   `GET /` and `GET /login` return 200 and the Supabase sign-in form
+   (email, password, and "Sign in"). The script prints the elapsed
+   milliseconds. A body of `Internal Server Error` fails the check.
+   `cloudflare/access/apply_preview_access.py` creates the service token
+   `ldi-preview-smoke` and the service auth policy on the UI app. Creating
+   the token needs API token permission Access: Service Tokens Write. Without
+   that permission the smoke check fails instead of treating the Access wall
+   as a pass.
+7. When `SUPABASE_TEST_EMAIL` and `SUPABASE_TEST_PASSWORD` are set, the
+   script signs in to Supabase and `POST /query` must return 202. No test
+   user is stored. Without those two variables the script says it skipped
+   that check.
 
 Jetstream, after you have confirmed the cursor is idle and the supervisor
 has had a minute to start:

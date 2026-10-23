@@ -116,6 +116,22 @@ function loadSupabasePublic() {
 	);
 }
 
+function execDeploy(argv) {
+	const index = argv.indexOf("--exec");
+	if (index === -1) return;
+	const command = argv.slice(index + 1);
+	if (command.length === 0) {
+		fail("--exec needs the deploy command.");
+	}
+	// The Worker config reads these names while vinext-cloudflare deploy is
+	// running. A separate shell command after this process would not see them.
+	const result = spawnSync(command[0], command.slice(1), {
+		stdio: "inherit",
+		env: process.env,
+	});
+	process.exit(result.status === null ? 1 : result.status);
+}
+
 if (!process.env.NEXT_PUBLIC_API_URL) {
 	fail(
 		"Set NEXT_PUBLIC_API_URL before building the UI. The value is inlined into the client bundle.",
@@ -124,6 +140,24 @@ if (!process.env.NEXT_PUBLIC_API_URL) {
 
 loadSupabasePublic();
 
+function assertSupabaseHost() {
+	let host = "";
+	try {
+		host = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname;
+	} catch {
+		fail("NEXT_PUBLIC_SUPABASE_URL is not an absolute URL. The value was not printed.");
+	}
+	if (!host.endsWith(".supabase.co")) {
+		fail(
+			"NEXT_PUBLIC_SUPABASE_URL must be a supabase.co project host. The value was not printed.",
+		);
+	}
+}
+
+assertSupabaseHost();
+
 if (process.env.NEXT_PUBLIC_API_URL.endsWith("/")) {
 	fail("NEXT_PUBLIC_API_URL must not have a trailing slash.");
 }
+
+execDeploy(process.argv.slice(2));
