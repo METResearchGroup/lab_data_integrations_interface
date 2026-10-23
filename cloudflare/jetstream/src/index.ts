@@ -184,6 +184,33 @@ export class JetstreamContainer extends Container<Env> {
 		if (this.ctx.container?.running) {
 			this.watchExit();
 			await this.keepAlive();
+			await this.logProcess();
+		}
+	}
+
+	private async logProcess(): Promise<void> {
+		const container = this.ctx.container;
+		if (!container?.running) {
+			return;
+		}
+		try {
+			const process = await container.exec([
+				"/app/.venv/bin/python",
+				"-c",
+				(
+					"import pathlib\n"
+					+ "cmd = pathlib.Path('/proc/1/cmdline').read_bytes().replace(bytes([0]), b' ').decode()\n"
+					+ "status = pathlib.Path('/proc/1/status').read_text().splitlines()\n"
+					+ "rss = next(line.split()[1] for line in status if line.startswith('VmRSS'))\n"
+					+ "kind = 'writer' if 'bluesky_ingestion_jetstream' in cmd else 'other'\n"
+					+ "print(kind, rss)\n"
+				),
+			]);
+			const output = await process.output();
+			const text = new TextDecoder().decode(output.stdout).trim();
+			console.log("jetstream process", output.exitCode, text.slice(0, 80));
+		} catch (error) {
+			console.log("jetstream process check failed", errorText(error));
 		}
 	}
 }

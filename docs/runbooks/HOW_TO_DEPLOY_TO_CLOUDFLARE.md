@@ -242,7 +242,16 @@ start or stop the process. There is no public start or stop route.
 Before you let it start, confirm that no other Jetstream writer is
 committing. A live writer updates `updated_at` on the cursor item at least
 every 30 minutes while events are arriving (`MAX_BUFFER_AGE_SECONDS` in
-`bluesky_ingestion_jetstream/constants.py`). Read the item in `us-east-2`:
+`bluesky_ingestion_jetstream/constants.py`). It updates sooner when the
+buffers reach `MAX_BUFFER_SIZE_BYTES` (128 MiB of serialized JSON). That
+cap used to be 2 GiB. On the 4 GiB `standard-1` instance, a replay from an
+old cursor grew the process to about 2.2 GiB of resident memory in four
+minutes and then the kernel killed it with exit 137, before a flush. The
+smaller cap is what lets that instance commit during catch-up.
+
+`supervise` also runs `exec` on the container and logs whether pid 1 is the
+Jetstream module and that process's resident memory in kilobytes. It does
+not log the command line or the environment. Read the item in `us-east-2`:
 
 ```bash
 aws dynamodb get-item \
