@@ -188,20 +188,33 @@ environment the Railway service read: `AWS_ACCESS_KEY_ID`,
 constants in code. The cursor table is `bluesky_jetstream_cursor`, and the
 item key is `stream_id` = `bluesky_jetstream`.
 
-It stays up because `JetstreamContainer.onActivityExpired` does not call
-`stop()`. The library's default for that hook sends SIGTERM when `sleepAfter`
-elapses. `sleepAfter` here is `30m`. Proxied HTTP is what resets the timer,
-and this process does not serve HTTP, so the default hook would stop it
-about 30 minutes after the last timer refresh. The override is the switch
-that leaves the process running. The container is billed the whole time it
-stays up.
+Two timers can stop the process. Both are set so a healthy writer stays up,
+and the container is billed the whole time it stays up.
+
+`JetstreamContainer.onActivityExpired` leaves the process running. The
+library's default for that hook sends SIGTERM when `sleepAfter` elapses.
+`sleepAfter` here is `30m`. Proxied HTTP is what resets the library timer,
+and this process does not serve HTTP. With the default hook, the process
+would stop about 30 minutes after the last refresh. The override is what
+keeps that hook from sending SIGTERM.
+
+Cloudflare also stops a container shortly after its Durable Object goes
+idle, unless the object calls `setInactivityTimeout`. The platform cap on
+that call is 6 hours. The first preview start was stopped this way, about 6
+minutes after boot, while the library hook had not fired. `supervise` calls
+`container.setInactivityTimeout` for 6 hours whenever the process is
+running. The constructor calls it again when the Durable Object restarts and
+the container is already running, because the timeout does not survive that
+restart.
 
 A cron of `* * * * *` on the Worker calls `supervise` inside the Durable
 Object. When `JETSTREAM_ENABLED` is the string `true`, supervise starts the
-process if it is down, and it refreshes the activity timer if the process is
-already up. When the var is any other value, supervise sends SIGTERM if the
-process is up. The cron is the restart supervisor and the off switch. It is
-not a keep-warm ping, and the API Worker does not have one.
+process if it is down. If the process is already up, supervise sets the 6
+hour platform timeout again. When the var is any other value, supervise
+sends SIGTERM if the process is up. If the cron stays down for the full 6
+hours, the platform timeout elapses and Cloudflare sends SIGTERM. The cron
+is how a dead process gets restarted, and it is how you turn the writer off.
+The API Worker does not have this cron.
 
 Cloudflare sends SIGTERM when it stops the instance, including a host move
 and an image rollout. It waits about 15 minutes, then sends SIGKILL.
@@ -327,14 +340,22 @@ curl -fsS \
 The first `/start` can take several minutes while Cloudflare pulls the image.
 If the client gives up, check `/status` before you post `/start` again.
 
-A run stops 6 hours after the latest `POST /start`. Two clocks enforce that.
+A run stops 6 hours after the latest `POST /start`. Three clocks enforce that.
+
+`/start` calls `setInactivityTimeout` for 6 hours. Without that call,
+Cloudflare stops the container shortly after the Durable Object goes idle.
+The process then ends when the `/start` request finishes. The constructor
+sets the remaining time again if the object restarts while the process is
+still up.
+
 `sleepAfter` is `6h`, so the default activity hook sends SIGTERM at 6 hours
 on a Durable Object that stays in memory. `/start` also stores a schedule
-that calls `stop()` 6 hours later, and that schedule still fires if the
-Durable Object restarts and refreshes its in-memory timer. The SQS loop does
-not reset either clock. Another `POST /start` while the process is already
-up moves the deadline out by 6 hours from that request. There is no cron, so
-a process that exits stays down until you post `/start` again.
+that calls `stop()` 6 hours later. That schedule still fires if the Durable
+Object restarts and refreshes its in-memory timer. The SQS loop does not
+extend the platform timeout, the library timer, or the stored deadline.
+Another `POST /start` while the process is already up moves the deadline out
+by 6 hours from that request. There is no cron, so a process that exits
+stays down until you post `/start` again.
 
 SIGTERM is what `/stop` sends, and it is what the 6 hour deadline sends.
 `bluesky_backfill_app/fetch_repos/main.py` turns SIGTERM into

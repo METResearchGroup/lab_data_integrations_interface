@@ -24,6 +24,12 @@ const START_WINDOW_MS = 240_000;
 const POLL_MS = 3_000;
 const PORT_TO_CHECK = 8000;
 
+// Platform cap. Without this, Cloudflare stops the container shortly after the
+// Durable Object goes idle, which is what happened on the first boot. The
+// minute cron and the constructor set it again, so a restart of the object
+// does not clear the keep-alive.
+const KEEPALIVE_MS = 6 * 60 * 60 * 1000;
+
 const SUPERVISE_HEADER = "x-ldi-supervise";
 
 export interface Env {
@@ -57,13 +63,24 @@ function isUp(status: string): boolean {
  * what the DynamoDB cursor assumes. sleepAfter is 30m, and the default
  * onActivityExpired would SIGTERM the process then, because nothing proxies
  * HTTP at it to reset the timer. The override below does not stop it.
- * A cron every minute restarts the process if it has exited, and stops it
- * when JETSTREAM_ENABLED is not "true".
+ * Cloudflare also stops a container shortly after its Durable Object goes
+ * idle unless setInactivityTimeout is set. The cap is 6 hours, so the minute
+ * cron sets it again, and the constructor sets it again when the object
+ * restarts and the process is already up. The cron also restarts the process
+ * if it has exited, and stops it when JETSTREAM_ENABLED is not "true".
  */
 export class JetstreamContainer extends Container<Env> {
 	sleepAfter = "30m";
 	enableInternet = true;
 	entrypoint = ENTRYPOINT;
+
+	constructor(ctx: DurableObjectState<{}>, env: Env) {
+		super(ctx, env);
+		const container = ctx.container;
+		if (container?.running) {
+			void ctx.blockConcurrencyWhile(() => container.setInactivityTimeout(KEEPALIVE_MS));
+		}
+	}
 
 	override async onActivityExpired(): Promise<void> {
 		// Leave the process running. The base method calls stop().
@@ -98,6 +115,15 @@ export class JetstreamContainer extends Container<Env> {
 		};
 	}
 
+	private async keepAlive(): Promise<void> {
+		const container = this.ctx.container;
+		if (!container?.running) {
+			return;
+		}
+		await container.setInactivityTimeout(KEEPALIVE_MS);
+		console.log("jetstream inactivity timeout set", KEEPALIVE_MS);
+	}
+
 	private async supervise(): Promise<void> {
 		const enabled = this.env.JETSTREAM_ENABLED === "true";
 		const { running } = await this.statusBody();
@@ -107,25 +133,27 @@ export class JetstreamContainer extends Container<Env> {
 			}
 			return;
 		}
-		if (running) {
-			this.renewActivityTimeout();
-			return;
+		if (!running) {
+			try {
+				await this.start(
+					{
+						envVars: containerEnv(this.env),
+						entrypoint: ENTRYPOINT,
+						enableInternet: true,
+					},
+					{
+						portToCheck: PORT_TO_CHECK,
+						retries: Math.ceil(START_WINDOW_MS / POLL_MS),
+						waitInterval: POLL_MS,
+					},
+				);
+			} catch (error) {
+				console.error("jetstream start failed", error);
+			}
 		}
-		try {
-			await this.start(
-				{
-					envVars: containerEnv(this.env),
-					entrypoint: ENTRYPOINT,
-					enableInternet: true,
-				},
-				{
-					portToCheck: PORT_TO_CHECK,
-					retries: Math.ceil(START_WINDOW_MS / POLL_MS),
-					waitInterval: POLL_MS,
-				},
-			);
-		} catch (error) {
-			console.error("jetstream start failed", error);
+		if (this.platformRunning()) {
+			this.renewActivityTimeout();
+			await this.keepAlive();
 		}
 	}
 }
