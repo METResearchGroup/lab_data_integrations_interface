@@ -64,6 +64,9 @@ The hook also blocks console invites to other addresses. Replace
 `email not in ('a@gmail.com', 'b@gmail.com')`. Re-running the `create or
 replace` keeps the hook attached.
 
+It also gates Microsoft sign-in
+([HOW_TO_ENABLE_MICROSOFT_SIGN_IN.md](HOW_TO_ENABLE_MICROSOFT_SIGN_IN.md)).
+
 ## 2. Custom SMTP
 
 Supabase's built-in sender only delivers to the project's team members and is

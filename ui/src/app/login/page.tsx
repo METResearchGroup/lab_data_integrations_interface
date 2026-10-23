@@ -1,5 +1,7 @@
 import LoginForm from "@/components/LoginForm";
+import MicrosoftSignInButton from "@/components/MicrosoftSignInButton";
 import { createClient } from "@/lib/supabase/server";
+import { safeNext } from "@/lib/validation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -8,24 +10,12 @@ export const metadata: Metadata = {
 	title: "Sign in",
 };
 
-/**
- * Constrain the post-login destination to a path on this site.
- *
- * `next` comes from the query string, so without this an attacker could send
- * someone a link like `/login?next=https://evil.example` and have the app
- * redirect there after a successful sign-in. Protocol-relative URLs (`//host`)
- * are rejected for the same reason.
- */
-function safeNext(next: string | string[] | undefined): string {
-	if (typeof next !== "string") return "/";
-	if (!next.startsWith("/") || next.startsWith("//")) return "/";
-	return next;
-}
-
-// Set by /auth/confirm.
+// Set by /auth/confirm and /auth/callback.
 const LINK_ERRORS: Record<string, string> = {
 	invalid_link: "That email link is invalid.",
 	expired_link: "That email link has expired or was already used.",
+	oauth_failed:
+		"Microsoft sign-in failed. It needs a Northwestern Microsoft account.",
 };
 
 export default async function LoginPage({
@@ -57,6 +47,8 @@ export default async function LoginPage({
 				</div>
 
 				{linkError && <p className="text-sm text-red-600">{linkError}</p>}
+
+				<MicrosoftSignInButton next={destination} />
 
 				<LoginForm next={destination} />
 
