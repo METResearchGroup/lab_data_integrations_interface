@@ -25,7 +25,8 @@
 		"cpu_ms": 300000
 	},
 	// "true" lets the minute supervisor start the writer. Any other value makes
-	// that supervisor send SIGTERM. A secret of the same name overrides this var.
+	// that supervisor send SIGTERM. Do not also create a secret of this name.
+	// The API rejects it because the var already owns the binding.
 	"vars": {
 		"JETSTREAM_ENABLED": "true",
 		"DEPLOYMENT_ENVIRONMENT": "cloudflare-preview",

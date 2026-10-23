@@ -272,25 +272,33 @@ Jetstream container running. This environment has no Railway token, so the
 Railway API cannot answer the question. The cursor is the record that a
 writer committed.
 
-If you cannot confirm the cursor is idle, deploy with the writer held:
+If you cannot confirm the cursor is idle, deploy with the writer held.
+A secret cannot use the name `JETSTREAM_ENABLED`. That name is already the
+var, and Cloudflare returns error 10053. This deploy does not rebuild the
+image. `--durable-objects-code-update-mode immediate` makes the running
+object read the new value. Without it, `GET /status` can keep reporting the
+old value.
 
 ```bash
 cd cloudflare/jetstream
-printf '%s' "false" | npx wrangler secret put JETSTREAM_ENABLED
+npx wrangler deploy --containers-rollout none \
+  --var JETSTREAM_ENABLED:false \
+  --durable-objects-code-update-mode immediate
 ```
 
-A secret overrides the var of the same name. The next minute, supervise
-sends SIGTERM if a process is up, and it does not start one. To turn the
-writer back on after you have confirmed the cursor is idle:
+Wait until `GET /status` reports `"enabled": false` and `"running": false`.
+Use a browser User-Agent. workers.dev rejects the default Python user agent
+with error 1010. To turn the writer back on, deploy again without the var
+override. The value in `wrangler.jsonc` is `true`.
 
 ```bash
-printf '%s' "true" | npx wrangler secret put JETSTREAM_ENABLED
+npx wrangler deploy --containers-rollout none \
+  --durable-objects-code-update-mode immediate
 ```
 
-`npx wrangler secret delete JETSTREAM_ENABLED` falls back to the var in
-`wrangler.jsonc`, which is `true`. `secret put` deploys a new Worker version
-and does not rebuild the image. The running process keeps the environment it
-had at start until the next start.
+Wait until `GET /status` reports `"enabled": true` and `"running": true`.
+The new process reads `bluesky_jetstream_cursor` and resumes from it. The
+process keeps the environment from that start until the next start.
 
 Deploy from `cloudflare/jetstream/` with `CLOUDFLARE_API_TOKEN` and
 `CLOUDFLARE_ACCOUNT_ID` exported. Pass the AWS keys in a secrets file so the
@@ -498,11 +506,10 @@ npx wrangler deploy --containers-rollout none
 
 Repeat from `cloudflare/jetstream` and `cloudflare/backfill`. The container
 still has the environment from the start that is already running. Restart
-the API and Jetstream after that deploy. Jetstream does not sleep on its
-own. Set the `JETSTREAM_ENABLED` secret to `false`, wait until `GET /status`
-reports `running: false`, then delete that secret so the var `true` applies
-and the supervisor starts the writer again. The cursor in
-`bluesky_jetstream_cursor` is what the new process resumes from.
+the API by requesting `GET /health` after its instance has stopped. Jetstream
+does not sleep on its own. Hold it and start it again with the commands in
+[Jetstream](#jetstream). The new process resumes from
+`bluesky_jetstream_cursor`.
 
 Local `wrangler dev` reads `cloudflare/backend/.dev.vars` (gitignored). Copy
 `.dev.vars.example`. Jetstream and the backfill worker have their own
@@ -593,7 +600,7 @@ not send `X-Origin-Secret`. See the origin-secret row below.
 | `MAIL_TEST_RECIPIENT` | mail smoke tests | API secret, optional | Not used by the server. |
 | `DEPLOYMENT_ENVIRONMENT` | `build_resource` in the API, Jetstream, and the backfill app | Var on each of those Workers, value `cloudflare-preview` | Adds resource attribute `deployment.environment`. Railway does not set it. |
 | `OTEL_RESOURCE_ATTRIBUTES` | OpenTelemetry `Resource.create` | Var on each of those Workers, value `deployment.environment=cloudflare-preview` | Same attribute, picked up by an image built before `build_resource` learned the variable. |
-| `JETSTREAM_ENABLED` | `cloudflare/jetstream/src/index.ts` | Jetstream var, default `true`. A secret of the same name overrides it. | `true` allows the supervisor to start the writer. Any other value makes the supervisor send SIGTERM. |
+| `JETSTREAM_ENABLED` | `cloudflare/jetstream/src/index.ts` | Jetstream var, default `true`. A secret of the same name is rejected with error 10053. | `true` allows the supervisor to start the writer. Any other value makes the supervisor send SIGTERM. Hold the writer with `wrangler deploy --containers-rollout none --var JETSTREAM_ENABLED:false --durable-objects-code-update-mode immediate`. |
 | `BACKFILL_TRIGGER_TOKEN` | `cloudflare/backfill/src/index.ts` | Backfill secret. Not copied into the container. | `POST /start` and `POST /stop`. Unset means those routes return 401 and do not start a run. |
 | `NEXT_PUBLIC_API_URL` | `ui/src/lib/api.ts` | Build env, and a text binding on the UI Worker | Where the browser sends `/query`. |
 | `NEXT_PUBLIC_SUPABASE_URL` | `ui/src/lib/supabase/env.ts` | Build env, and a text binding on the UI Worker. Read from Secrets Manager `lab-data-integrations-supabase-public` when unset. | Login and session. The Worker returns plain text `Internal Server Error` when this binding is missing, because `proxy.ts` throws before the page renders. |
