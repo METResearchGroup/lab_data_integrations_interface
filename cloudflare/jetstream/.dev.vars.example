@@ -1,0 +1,9 @@
+# Local `wrangler dev` only. Copy to .dev.vars. Do not commit .dev.vars.
+# Deployed values are Wrangler secrets, not this file. See
+# docs/runbooks/HOW_TO_DEPLOY_TO_CLOUDFLARE.md.
+
+JETSTREAM_ENABLED=false
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+# AWS_SESSION_TOKEN=
+# OTEL_EXPORTER_OTLP_HEADERS=

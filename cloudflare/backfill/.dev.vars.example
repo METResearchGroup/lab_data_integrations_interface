@@ -1,0 +1,12 @@
+# Local `wrangler dev` only. Copy to .dev.vars. Do not commit .dev.vars.
+# Deployed values are Wrangler secrets, not this file. See
+# docs/runbooks/HOW_TO_DEPLOY_TO_CLOUDFLARE.md.
+#
+# Leave BACKFILL_TRIGGER_TOKEN unset until you are ready to call /start.
+# An unset token makes POST /start and POST /stop return 401.
+
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+# AWS_SESSION_TOKEN=
+# OTEL_EXPORTER_OTLP_HEADERS=
+# BACKFILL_TRIGGER_TOKEN=

@@ -22,7 +22,8 @@ experimentation
 docs
 tests
 data
-telemetry
+# Root sample app only. The ingestion packages have their own telemetry/.
+/telemetry
 terraform
 strategy_planning
 feature_generation

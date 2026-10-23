@@ -3,8 +3,10 @@
 ## Overview
 
 The FastAPI backend runs as a Cloudflare Container. The Next.js UI in `ui/`
-runs as a Cloudflare Worker, built with vinext. Object storage stays on AWS
-S3. This deploy does not use Cloudflare R2.
+runs as a Cloudflare Worker, built with vinext. Jetstream runs as its own
+always-on Container. The backfill fetch worker runs as its own Container that
+you start when you want a run. Object storage stays on AWS S3. This deploy
+does not use Cloudflare R2.
 
 Railway config stays in the repo. See [What can be removed later](#what-can-be-removed-later).
 
@@ -14,16 +16,28 @@ Railway config stays in the repo. See [What can be removed later](#what-can-be-r
 | API image | `cloudflare/backend/Dockerfile` (build context is the repo root) |
 | API start | `uvicorn backend.main:app --host 0.0.0.0 --port 8000` |
 | API Worker name | `ldi-api-preview` |
+| Jetstream config | `cloudflare/jetstream/wrangler.jsonc` |
+| Jetstream start | `python -m bluesky_ingestion_jetstream.main` |
+| Jetstream Worker name | `ldi-jetstream-preview` |
+| Backfill config | `cloudflare/backfill/wrangler.jsonc` |
+| Backfill start | `python -m bluesky_backfill_app.fetch_repos.main` |
+| Backfill Worker name | `ldi-backfill-preview` |
 | UI config | `ui/cloudflare.config.ts` |
 | UI deploy | `npm run deploy:vinext` from `ui/` |
 | UI Worker name | `ldi-ui-preview` |
 | Account | `CLOUDFLARE_ACCOUNT_ID` from Secrets Manager. Do not commit it. |
 | Subdomain | `mind-technology-lab.workers.dev` |
 
+Jetstream and the backfill worker use the API image. Each one replaces the
+uvicorn command at start. See the Docker file comment above the backfill
+`COPY`.
+
 Preview URLs, once deployed:
 
 - API: `https://ldi-api-preview.mind-technology-lab.workers.dev`
 - UI: `https://ldi-ui-preview.mind-technology-lab.workers.dev`
+- Jetstream status: `https://ldi-jetstream-preview.mind-technology-lab.workers.dev/status`
+- Backfill status: `https://ldi-backfill-preview.mind-technology-lab.workers.dev/status`
 
 These names are preview Workers on the lab account. They are not a production
 cutover. `workers.dev` URLs are public unless Access is put in front of them.
@@ -45,6 +59,12 @@ email in a background task inside that process (`backend/routes/query.py`).
 The rate limiter in `backend/rate_limit.py` is in-memory. None of that fits a
 request-scoped isolate, and the native wheels do not run on Pyodide.
 
+Jetstream and the backfill fetch worker are the same kind of process. Each
+one is an infinite loop (a WebSocket firehose, an SQS long poll). Each has
+its own Container and `max_instances: 1`. They are not on the API container.
+A shared process would tie the firehose to the API's 30 minute sleep, and a
+second copy of Jetstream would write the production bucket twice.
+
 The UI does fit a Worker. vinext checked this app at 100% compatibility,
 including `src/proxy.ts`, and deploys it with `@vinext/cloudflare`. OpenNext
 was not needed.
@@ -61,50 +81,69 @@ seconds. The Worker waits up to 180 seconds for port 8000
 (`cloudflare/backend/src/index.ts`). The helper's default wait is 20 seconds,
 which is too short for this image.
 
+Jetstream and the backfill worker do not listen on a port. Their Workers call
+`start()` and treat "the container is not listening" as success once the
+instance is running. The first start still waits on the image pull, up to
+about 4 minutes inside that call.
+
 ### Instance lifetime and sleep
 
-One Durable Object name, `api`, plus `max_instances: 1`, keeps a single
-container. `sleepAfter` is `30m`. The timer resets when a request is proxied
-through the Worker. It does not reset while `/query`'s background task is
-still running after the 202. A query that runs longer than 30 minutes with no
-further HTTP traffic is stopped.
+One Durable Object name, `api`, plus `max_instances: 1`, keeps a single API
+container. `sleepAfter` is `30m`. Cloudflare resets that timer when the Worker
+proxies an HTTP request through to the container. Billing for the instance
+stops when it sleeps. Disk is ephemeral and is wiped on sleep, which is fine:
+tables live in S3 and Glue, and the rate-limiter state is allowed to reset.
 
-There is no always-on switch. Billing stops when the instance sleeps. Disk is
-ephemeral and is wiped on sleep, which is fine: tables live in S3 and Glue,
-and the rate-limiter state is allowed to reset.
+`/query` returns 202, and the rest of the work continues inside the process
+as a background task. That background work does not reset the sleep timer.
+If a query runs longer than 30 minutes, and no other proxied request arrives
+during those 30 minutes, Cloudflare stops the container while the query is
+still running. The caller already has the 202. The Athena query, the model
+call, or the email can be cut off in the middle.
 
-To keep an instance warm, add a cron on the Worker that fetches `/health`
-more often than `sleepAfter`. Five minutes is enough for the 30 minute
-window:
-
-```jsonc
-"triggers": { "crons": ["*/5 * * * *"] }
-```
-
-```ts
-async scheduled(_controller, env, ctx) {
-  const container = env.API_CONTAINER.getByName("api");
-  ctx.waitUntil(container.fetch("https://ldi-api-preview.internal/health"));
-}
-```
-
-That cron is not enabled. It turns the preview into an always-on bill.
-
-Overriding `onActivityExpired` and not stopping the container also prevents
-sleep. That is the shape to use for a process that must not stop. It bills
-for every second the instance stays up.
+There is no cron that fetches `/health` to keep the API awake. Leave it that
+way. A keep-warm cron would bill the API as an always-on instance.
 
 Cloudflare can still restart the host. The container gets SIGTERM, then about
 15 minutes before SIGKILL. The Jetstream and backfill processes already
-handle SIGTERM.
+handle SIGTERM. See the sections below for what each one does with that
+signal.
 
 ### Instance size
 
-`standard-1`: 1/2 vCPU, 4 GiB memory, 8 GB disk. `lite` (256 MiB) and `basic`
-(1 GiB) are too small for this import set. The image has to fit on the disk.
-The largest preset is `standard-4` (4 vCPU, 12 GiB, 20 GB). If the process is
-killed during import, move `instance_type` to `standard-2` (1 vCPU, 6 GiB,
-12 GB) and redeploy.
+The API, Jetstream, and the backfill worker all use `standard-1` for now.
+That size is 1/2 vCPU, 4 GiB of memory, and 8 GB of disk. The built image is
+about 3.8 GB, so it fits on that disk with room for the writable layer.
+`lite` and `basic` are too small for this image and for the import.
+
+Instance types, from the Containers limits page as of 2026-10-21:
+
+| Instance type | vCPU | Memory | Disk |
+|---|---|---|---|
+| `lite` | 1/16 | 256 MiB | 2 GB |
+| `basic` | 1/4 | 1 GiB | 4 GB |
+| `standard-1` | 1/2 | 4 GiB | 8 GB |
+| `standard-2` | 1 | 6 GiB | 12 GB |
+| `standard-3` | 2 | 8 GiB | 16 GB |
+| `standard-4` | 4 | 12 GiB | 20 GB |
+
+`dev` is an alias of `lite`. `standard` is an alias of `standard-1`. The
+image has to be smaller than the instance disk.
+
+Stay on `standard-1` until one of these shows up, then change
+`instance_type` in the Wrangler config and redeploy that Worker.
+
+- Memory. The process is killed while Python is still importing, the
+  container exits with code 137, or the logs say the process ran out of
+  memory. Move to `standard-2` (1 vCPU, 6 GiB, 12 GB disk).
+- CPU. The 1/2 vCPU stays busy for a long stretch during `/query`, or the
+  Jetstream cursor in DynamoDB falls further behind while the process is up.
+  The cursor falling behind means the process cannot flush as fast as events
+  arrive. Move to `standard-2`, then `standard-3`, then `standard-4` if it
+  is still behind.
+- Disk. The image no longer fits, or the container runs out of disk while
+  it writes a temporary file. `standard-2` has 12 GB of disk. The image
+  limit is the disk size.
 
 ### Cost
 
@@ -116,43 +155,206 @@ is $0.00000007 per GB-second. Egress in North America and Europe is $0.025
 per GB after 1 TB. Figures are from the Containers pricing page as of
 2026-10-05 and the limits page as of 2026-10-21.
 
-`standard-1` left running all month is about 4 GiB × 730 hours. Memory
+`standard-1` left running all month is about 4 GiB times 730 hours. Memory
 overage is about $26. Disk overage on the 8 GB volume is about $1.40. CPU is
 billed on active use, not on the 1/2 vCPU reservation. An idle process is a
-few dollars; a pegged 1/2 vCPU adds about $25. A single always-on API is
-roughly $35 to $60 per month on top of the plan, before logs and egress.
+few dollars. A pegged 1/2 vCPU adds about $25. One always-on `standard-1` is
+roughly $35 to $60 per month on top of the plan, before logs and before
+egress from the container out to AWS.
 
-Scale to zero is the preview default. One 30-minute wake per day for a month
-is about 60 GiB-hours, near $0.30 of memory past the included 25, plus the
-plan. The UI Worker for this lab's traffic fits in the paid request allotment.
+Jetstream is the always-on container, so that $35 to $60 is the Jetstream
+line. The firehose spends much of its time waiting on the socket, so the CPU
+part can land under the pegged figure. Uploads to S3 are egress on top of
+that range.
 
-### Ingestion and backfill
+The API scales to zero. One 30-minute wake per day for a month is about 60
+GiB-hours, near $0.30 of memory past the included 25, plus the plan. Real
+`/query` traffic adds a wake for each quiet stretch longer than 30 minutes.
+The UI Worker for this lab's traffic fits in the paid request allotment.
 
-Jetstream and the backfill fetch worker belong on Containers if they are
-turned back on. They are infinite loops (a WebSocket firehose, an SQS long
-poll). A Worker cannot host either. Each needs its own Container, `max_instances: 1`
-(the Jetstream cursor in DynamoDB is single-writer), and sleep disabled, by
-the cron above or by not stopping on `onActivityExpired`.
+The backfill worker bills only while a run you started is up. A few hours is
+well under a dollar at these rates. A run you forget is stopped 6 hours
+after the latest `/start`, so one forgotten run is a few dollars, not a
+month of `standard-1`.
 
-Do not put them on the API container. A sleep after 30 idle minutes would
-drop the firehose, and a second copy would double-write.
+### Jetstream
 
-They are not deployed here. Railway is already shut down, and starting either
-process writes to the production bucket and DynamoDB tables. Turning them on
-is a separate decision. An always-on `standard-1` for each is another $35 to
-$60 per month, so both plus the API is on the order of $100 to $180 if all
-three stay up.
+Jetstream is its own Container, Worker name `ldi-jetstream-preview`, Durable
+Object name `jetstream`, `max_instances: 1`, instance type `standard-1`. The
+command is `python -m bluesky_ingestion_jetstream.main`. It reads the same
+environment the Railway service read: `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, and optionally `AWS_SESSION_TOKEN` and
+`OTEL_EXPORTER_OTLP_HEADERS`. Region, bucket, Glue, and the cursor table are
+constants in code. The cursor table is `bluesky_jetstream_cursor`, and the
+item key is `stream_id` = `bluesky_jetstream`.
 
-`telemetry/app` was not a Railway service. It is not part of this deploy.
+It stays up because `JetstreamContainer.onActivityExpired` does not call
+`stop()`. The library's default for that hook sends SIGTERM when `sleepAfter`
+elapses. `sleepAfter` here is `30m`. Proxied HTTP is what resets the timer,
+and this process does not serve HTTP, so the default hook would stop it
+about 30 minutes after the last timer refresh. The override is the switch
+that leaves the process running. The container is billed the whole time it
+stays up.
+
+A cron of `* * * * *` on the Worker calls `supervise` inside the Durable
+Object. When `JETSTREAM_ENABLED` is the string `true`, supervise starts the
+process if it is down, and it refreshes the activity timer if the process is
+already up. When the var is any other value, supervise sends SIGTERM if the
+process is up. The cron is the restart supervisor and the off switch. It is
+not a keep-warm ping, and the API Worker does not have one.
+
+Cloudflare sends SIGTERM when it stops the instance, including a host move
+and an image rollout. It waits about 15 minutes, then sends SIGKILL.
+`bluesky_ingestion_jetstream/main.py` turns SIGTERM into `KeyboardInterrupt`,
+logs `stopped`, and flushes telemetry. It does not flush the in-memory
+buffers on that path. The DynamoDB cursor stays at the last successful
+flush. The next process reads the firehose again from that cursor. If
+`JETSTREAM_ENABLED` is still `true`, the supervisor starts that next process
+within about a minute.
+
+`GET /status` returns JSON `{"enabled": true, "running": true}` and does not
+start or stop the process. There is no public start or stop route.
+
+Before you let it start, confirm that no other Jetstream writer is
+committing. A live writer updates `updated_at` on the cursor item at least
+every 30 minutes while events are arriving (`MAX_BUFFER_AGE_SECONDS` in
+`bluesky_ingestion_jetstream/constants.py`). Read the item in `us-east-2`:
+
+```bash
+aws dynamodb get-item \
+  --region us-east-2 \
+  --table-name bluesky_jetstream_cursor \
+  --key '{"stream_id":{"S":"bluesky_jetstream"}}' \
+  --consistent-read \
+  --projection-expression "updated_at"
+```
+
+If `updated_at` is newer than about 30 minutes, another writer is committing.
+Also list container applications and confirm you do not already have a
+Jetstream container running. This environment has no Railway token, so the
+Railway API cannot answer the question. The cursor is the record that a
+writer committed.
+
+If you cannot confirm the cursor is idle, deploy with the writer held:
+
+```bash
+cd cloudflare/jetstream
+printf '%s' "false" | npx wrangler secret put JETSTREAM_ENABLED
+```
+
+A secret overrides the var of the same name. The next minute, supervise
+sends SIGTERM if a process is up, and it does not start one. To turn the
+writer back on after you have confirmed the cursor is idle:
+
+```bash
+printf '%s' "true" | npx wrangler secret put JETSTREAM_ENABLED
+```
+
+`npx wrangler secret delete JETSTREAM_ENABLED` falls back to the var in
+`wrangler.jsonc`, which is `true`. `secret put` deploys a new Worker version
+and does not rebuild the image. The running process keeps the environment it
+had at start until the next start.
+
+Deploy from `cloudflare/jetstream/` with `CLOUDFLARE_API_TOKEN` and
+`CLOUDFLARE_ACCOUNT_ID` exported. Pass the AWS keys in a secrets file so the
+first start has them. Do not print the file.
+
+```bash
+cd cloudflare/jetstream
+npx wrangler deploy --secrets-file /path/to/jetstream.secrets.env
+```
+
+The file is `KEY=value` lines for `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY` only. After the first deploy, the cron starts the
+process within a minute when `JETSTREAM_ENABLED` is `true`. The first start
+includes the image pull. `GET /status` then reports `running: true`, and
+`updated_at` on the cursor moves after the next flush.
+
+### Backfill
+
+The backfill fetch worker is its own Container, Worker name
+`ldi-backfill-preview`, Durable Object name `backfill`, `max_instances: 1`,
+instance type `standard-1`. The command is
+`python -m bluesky_backfill_app.fetch_repos.main`. It reads `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, and optionally `AWS_SESSION_TOKEN` and
+`OTEL_EXPORTER_OTLP_HEADERS`. The queue name and the DynamoDB tables are
+constants in code. It does not need to stay up. You start a run when you
+want one.
+
+Nothing in this repo starts a run on deploy. `POST /start` and `POST /stop`
+require `Authorization: Bearer` matching the Worker secret
+`BACKFILL_TRIGGER_TOKEN`. The comparison is timing-safe. If the secret is
+unset or the header does not match, the Worker returns 401 and does not
+start the process. The token is not copied into the container. `GET /status`
+is public and returns `{"running": true}` or `{"running": false}` only.
+`/status` does not start a run.
+
+Set the token from `cloudflare/backfill/`, with the Cloudflare credentials
+exported. Pick the token yourself and store it where you can read it again.
+Wrangler will not show it back to you.
+
+```bash
+cd cloudflare/backfill
+printf '%s' "$BACKFILL_TRIGGER_TOKEN" | npx wrangler secret put BACKFILL_TRIGGER_TOKEN
+```
+
+Start a run:
+
+```bash
+curl -fsS -X POST \
+  -H "Authorization: Bearer $BACKFILL_TRIGGER_TOKEN" \
+  -H "User-Agent: ldi-backfill-trigger/1.0" \
+  https://ldi-backfill-preview.mind-technology-lab.workers.dev/start
+```
+
+Stop a run:
+
+```bash
+curl -fsS -X POST \
+  -H "Authorization: Bearer $BACKFILL_TRIGGER_TOKEN" \
+  -H "User-Agent: ldi-backfill-trigger/1.0" \
+  https://ldi-backfill-preview.mind-technology-lab.workers.dev/stop
+```
+
+Check whether a run is up, without starting one:
+
+```bash
+curl -fsS \
+  -H "User-Agent: ldi-backfill-trigger/1.0" \
+  https://ldi-backfill-preview.mind-technology-lab.workers.dev/status
+```
+
+The first `/start` can take several minutes while Cloudflare pulls the image.
+If the client gives up, check `/status` before you post `/start` again.
+
+A run stops 6 hours after the latest `POST /start`. Two clocks enforce that.
+`sleepAfter` is `6h`, so the default activity hook sends SIGTERM at 6 hours
+on a Durable Object that stays in memory. `/start` also stores a schedule
+that calls `stop()` 6 hours later, and that schedule still fires if the
+Durable Object restarts and refreshes its in-memory timer. The SQS loop does
+not reset either clock. Another `POST /start` while the process is already
+up moves the deadline out by 6 hours from that request. There is no cron, so
+a process that exits stays down until you post `/start` again.
+
+SIGTERM is what `/stop` sends, and it is what the 6 hour deadline sends.
+`bluesky_backfill_app/fetch_repos/main.py` turns SIGTERM into
+`KeyboardInterrupt`. The `run()` finally block flushes a remaining buffer
+with reason `stop`, and then telemetry is flushed. Cloudflare waits about 15
+minutes after SIGTERM before SIGKILL, which covers that drain. The Railway
+service used a 300 second drain.
+
+Deploy the Worker from `cloudflare/backfill/` the same way as Jetstream,
+with an AWS secrets file, and without calling `/start`. Put
+`BACKFILL_TRIGGER_TOKEN` only when you are about to run a backfill.
 
 ## What was ported
 
 | Service | Railway / other | This change |
 |---|---|---|
-| FastAPI backend | `railway/backend.json`, HTTP | Ported to Container `ldi-api-preview` |
+| FastAPI backend | `railway/backend.json`, HTTP | Ported to Container `ldi-api-preview`. Scales to zero after 30 minutes. |
 | Next.js UI | Vercel, not Railway | Ported to Worker `ldi-ui-preview` |
-| Jetstream ingester | `railway/bluesky_ingestion_jetstream.json`, no HTTP | Not ported. Needs an always-on Container. Would write production data. |
-| Backfill fetch workers | `railway/bluesky_backfill_app/.railway/railway.ts` | Not ported. Same reason. SIGTERM drain already fits the 15 minute container grace. |
+| Jetstream ingester | `railway/bluesky_ingestion_jetstream.json`, no HTTP | Ported to always-on Container `ldi-jetstream-preview`. Writes the production bucket and the cursor table. |
+| Backfill fetch workers | `railway/bluesky_backfill_app/.railway/railway.ts` | Ported to on-demand Container `ldi-backfill-preview`. A run starts only from `POST /start`. |
 | `gather_users` | CLI, not Railway | Not ported |
 | `telemetry/app` | Sample app, not Railway | Not ported |
 
@@ -164,7 +366,9 @@ Imports are absolute from the repo root (`from backend.main`, `from lib.aws`,
 `from bluesky_ingestion_jetstream...`). One `pyproject.toml` / `uv.lock`
 covers the repo. The image is built with the repo root as context
 (`image_build_context` in the Wrangler config). `.dockerignore` keeps `.venv`,
-git, and experiment data out of the context.
+git, and experiment data out of the context. The root `telemetry` sample app
+is ignored as `/telemetry`, so the `telemetry` packages inside Jetstream and
+the backfill app are still copied.
 
 The image runs `uv sync --frozen --no-dev --no-install-project` and leaves the
 packages on `PYTHONPATH`. That matches `uvicorn backend.main:app` on Railway.
@@ -199,7 +403,8 @@ time it starts. After changing a secret, let the instance sleep, or redeploy
 the image, before expecting the process to see it.
 
 Local `wrangler dev` reads `cloudflare/backend/.dev.vars` (gitignored). Copy
-`.dev.vars.example`.
+`.dev.vars.example`. Jetstream and the backfill worker have their own
+`.dev.vars.example` files.
 
 The lab Cloudflare token is the Secrets Manager secret `cloudflare-api-token`
 in `us-east-2`. The JSON keys are `CLOUDFLARE_API_TOKEN` and
@@ -219,6 +424,11 @@ npx wrangler deploy
 
 First request after the first deploy can fail while Cloudflare provisions the
 instance. `GET /health` should then return `{"status":"ok"}`.
+
+Deploy Jetstream and the backfill worker from their own directories. Each
+deploy builds the same Docker file. Pass `--secrets-file` on the first
+deploy so AWS credentials are present before the process starts. See
+[Jetstream](#jetstream) and [Backfill](#backfill).
 
 ## UI
 
@@ -258,17 +468,19 @@ not send `X-Origin-Secret`. See the origin-secret row below.
 | Name | Who reads it | Wrangler | Required for |
 |---|---|---|---|
 | `CORS_ORIGINS` | `backend/main.py` | API var | Browser calls from the UI. Preview value includes the UI `workers.dev` origin and localhost. |
-| `PORT` | uvicorn | Set by the container router to `8000` | Listen port. Not a secret. |
-| `AWS_ACCESS_KEY_ID` | boto3, via `lib/aws/clients.py` | API secret | `/query` Athena and S3. From this environment's AWS credentials. |
-| `AWS_SECRET_ACCESS_KEY` | boto3 | API secret | Same. |
-| `AWS_SESSION_TOKEN` | boto3 | API secret, optional | Only for temporary credentials. Unset for the long-lived key. |
+| `PORT` | uvicorn | Set by the API container router to `8000` | Listen port. Not a secret. |
+| `AWS_ACCESS_KEY_ID` | boto3, via `lib/aws/clients.py` | Secret on the API, Jetstream, and backfill Workers | Athena, S3, DynamoDB, SQS. From this environment's AWS credentials. |
+| `AWS_SECRET_ACCESS_KEY` | boto3 | Secret on the API, Jetstream, and backfill Workers | Same. |
+| `AWS_SESSION_TOKEN` | boto3 | Secret, optional, on each of those Workers | Only for temporary credentials. Unset for the long-lived key. |
 | `OPENAI_API_KEY` | `EnvVarsContainer` in `lib/load_env_vars.py` | API secret | SQL generation on `/query`. Secrets Manager `openai-api-key`, key `OPENAI_API_KEY`. |
 | `SUPABASE_URL` | `backend/auth.py` | API secret | Verifying the bearer token on `/query`. Same host as `NEXT_PUBLIC_SUPABASE_URL`. |
 | `GMAIL_SENDER_EMAIL` | `backend/agentic_search/mail.py` | API secret | Mailing `/query` results. Not in Secrets Manager or this environment. |
 | `GMAIL_APP_PASSWORD` | `backend/agentic_search/mail.py` | API secret | Same. |
 | `ORIGIN_SECRET` | `backend/origin.py` | API secret, optional | When set, requests other than `/health` need header `X-Origin-Secret`. Unset on the preview. |
-| `OTEL_EXPORTER_OTLP_HEADERS` | `backend/telemetry/setup.py` | API secret, optional | Grafana. Unset means telemetry is off. |
+| `OTEL_EXPORTER_OTLP_HEADERS` | telemetry setup in the API, Jetstream, and the backfill app | Secret, optional, on each Worker | Grafana. Unset means telemetry is off. |
 | `MAIL_TEST_RECIPIENT` | mail smoke tests | API secret, optional | Not used by the server. |
+| `JETSTREAM_ENABLED` | `cloudflare/jetstream/src/index.ts` | Jetstream var, default `true`. A secret of the same name overrides it. | `true` allows the supervisor to start the writer. Any other value makes the supervisor send SIGTERM. |
+| `BACKFILL_TRIGGER_TOKEN` | `cloudflare/backfill/src/index.ts` | Backfill secret. Not copied into the container. | `POST /start` and `POST /stop`. Unset means those routes return 401 and do not start a run. |
 | `NEXT_PUBLIC_API_URL` | `ui/src/lib/api.ts` | Build env, and a text binding on the UI Worker | Where the browser sends `/query`. |
 | `NEXT_PUBLIC_SUPABASE_URL` | `ui/src/lib/supabase/env.ts` | Build env | Login and session. |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `ui/src/lib/supabase/env.ts` | Build env | Login and session. |
@@ -309,6 +521,20 @@ It checks:
 4. `OPTIONS /query` from the UI origin echoes that origin.
 5. The UI URL returns 200 and the page title or the sign-in copy.
 
+Jetstream, after you have confirmed the cursor is idle and the supervisor
+has had a minute to start:
+
+```bash
+curl -fsS \
+  -H "User-Agent: ldi-cloudflare-smoke/1.0" \
+  https://ldi-jetstream-preview.mind-technology-lab.workers.dev/status
+```
+
+`running` should be `true` when `JETSTREAM_ENABLED` is `true`, and
+`updated_at` on `bluesky_jetstream_cursor` should move after a flush. Do not
+post `/start` on the backfill worker as a smoke check. `GET /status` on that
+Worker should return `{"running": false}` until you intentionally start a run.
+
 ## What can be removed later
 
 Do not delete these until the replacement is the one Mark uses.
@@ -318,9 +544,9 @@ Do not delete these until the replacement is the one Mark uses.
 | `railway/backend.json` | The API Container is the backend you use, and nothing still points Railway at this file. |
 | `docs/runbooks/HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md` | Same. The file still says the backend only serves `/health` and needs no AWS credentials. The code has `/query`. |
 | `docs/runbooks/HOW_TO_DEPLOY_UI_TO_VERCEL.md` | The UI Worker replaces the Vercel project. |
-| `railway/bluesky_ingestion_jetstream.json` | Jetstream is retired, or it has its own Container. |
+| `railway/bluesky_ingestion_jetstream.json` | Nothing still deploys Jetstream to Railway. The Container is `ldi-jetstream-preview`. |
 | `docs/runbooks/HOW_TO_DEPLOY_JETSTREAM_TO_RAILWAY.md` | Same. |
-| `railway/bluesky_backfill_app/.railway/` | Backfill is retired, or it has its own Container. |
+| `railway/bluesky_backfill_app/.railway/` | Nothing still deploys the backfill worker to Railway. The Container is `ldi-backfill-preview`. |
 | `docs/runbooks/HOW_TO_DEPLOY_BACKFILL_TO_RAILWAY.md` | Same. |
 | `docs/runbooks/HOW_TO_ADD_PREVIEW_BUILD_CHECKS_RAILWAY` | Nothing deploys to Railway. |
 | `terraform/backend_edge/` | CloudFront in front of Railway is retired. The origin secret's injector lived here. |
@@ -329,13 +555,6 @@ Do not delete these until the replacement is the one Mark uses.
 
 - Should the UI Worker inject `X-Origin-Secret` on the way to the API, or
   should `ORIGIN_SECRET` stay unset now that CloudFront is not in front?
-- Should Jetstream and the backfill worker be started as always-on
-  Containers? They write production S3 and DynamoDB, and each is an always-on
-  bill.
-- Is `standard-1` enough once a real `/query` runs, or should the API move to
-  `standard-2`?
-- Should the API cron stay off (scale to zero, cold starts) or ping `/health`
-  so the instance never sleeps?
 - Where should `GMAIL_SENDER_EMAIL` and `GMAIL_APP_PASSWORD` live? They are
   not in Secrets Manager.
 - The Supabase publishable settings live on the Vercel project, not in

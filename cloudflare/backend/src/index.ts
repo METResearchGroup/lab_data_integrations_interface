@@ -54,9 +54,10 @@ export function containerEnv(env: Env): Record<string, string> {
  * getByName("api") pins every request to the same Durable Object, and
  * max_instances is 1, so the in-process rate limiter in backend/rate_limit.py
  * still sees every caller. The container sleeps after 30 minutes without a
- * proxied request. /query returns 202 and keeps working inside the process, so
- * that window has to be longer than a query. The sleep timer does not reset
- * while that background work runs.
+ * proxied request. /query returns 202 and keeps working inside the process.
+ * That background work does not reset the sleep timer. A query longer than
+ * 30 minutes is stopped if no other request is proxied during the window.
+ * There is no keep-warm cron.
  */
 export class ApiContainer extends Container<Env> {
 	defaultPort = PORT;

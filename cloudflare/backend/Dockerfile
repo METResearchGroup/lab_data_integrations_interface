@@ -29,6 +29,8 @@ COPY backend ./backend
 COPY lib ./lib
 COPY bluesky_ingestion_jetstream ./bluesky_ingestion_jetstream
 COPY ml_tooling ./ml_tooling
+# Jetstream and the backfill worker reuse this image and replace CMD at start.
+COPY bluesky_backfill_app ./bluesky_backfill_app
 
 ENV PATH="/app/.venv/bin:${PATH}"
 

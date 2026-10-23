@@ -1,0 +1,59 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "ldi-jetstream-preview",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-10-23",
+	"workers_dev": true,
+	"observability": {
+		"enabled": true,
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 1
+		},
+		"traces": {
+			"enabled": true,
+			"head_sampling_rate": 1
+		}
+	},
+	// The supervisor can wait on image pull. This cap is Worker CPU, separate
+	// from the container's CPU bill.
+	"limits": {
+		"cpu_ms": 300000
+	},
+	// "true" lets the minute supervisor start the writer. Any other value makes
+	// that supervisor send SIGTERM. A secret of the same name overrides this var.
+	"vars": {
+		"JETSTREAM_ENABLED": "true"
+	},
+	// Restart supervisor. The process stays up between runs because
+	// onActivityExpired does not stop it. See src/index.ts.
+	"triggers": {
+		"crons": ["* * * * *"]
+	},
+	"containers": [
+		{
+			"class_name": "JetstreamContainer",
+			"image": "../backend/Dockerfile",
+			"image_build_context": "../..",
+			"instance_type": "standard-1",
+			"max_instances": 1,
+			"observability": {
+				"enabled": true
+			}
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "JETSTREAM_CONTAINER",
+				"class_name": "JetstreamContainer"
+			}
+		]
+	},
+	"exports": {
+		"JetstreamContainer": {
+			"type": "durable-object",
+			"storage": "sqlite"
+		}
+	}
+}
