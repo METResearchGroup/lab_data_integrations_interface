@@ -1,11 +1,9 @@
-from typing import Callable
+from collections.abc import Callable, Iterable
 
-from typing_extensions import Iterable
+from feature_generation.shared.decorators import feature_generation_runner
 
-def decorator_for_handling_retries_and_writes_and_metadata_updates():
-    pass
 
-@decorator_for_handling_retries_and_writes_and_metadata_updates
+@feature_generation_runner
 def jev_feature_generator():
     return
 
@@ -54,9 +52,9 @@ def run_single_feature_generation_run(
     feature_metadata: dict,
     candidate_posts: Iterable[str]
 ):
-    del candidate_posts
     run_feature_generator(
-        feature_metadata=feature_metadata
+        feature_metadata=feature_metadata,
+        candidate_posts=candidate_posts,
     )
     return
 
