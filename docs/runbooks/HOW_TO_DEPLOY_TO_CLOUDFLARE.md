@@ -116,9 +116,12 @@ signal.
 ### Instance size
 
 The API, Jetstream, and the backfill worker all use `standard-1` for now.
-That size is 1/2 vCPU, 4 GiB of memory, and 8 GB of disk. The built image is
-about 3.8 GB, so it fits on that disk with room for the writable layer.
-`lite` and `basic` are too small for this image and for the import.
+That size is 1/2 vCPU, 4 GiB of memory, and 8 GB of disk. The previous shared
+image was 3.77 GB. After the dependency split, `docker images` reports the
+API image at 1.31 GB, Jetstream at 1.16 GB, and the backfill image at 908 MB.
+Each one fits on the `standard-1` disk with room for the writable layer.
+`basic` has 1 GiB of memory, which is still too small for these processes.
+`lite` has 256 MiB of memory and 2 GB of disk.
 
 Instance types, from the Containers limits page as of 2026-10-21:
 
