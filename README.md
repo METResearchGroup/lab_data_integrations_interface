@@ -47,6 +47,8 @@ Limits of that filter:
 - A mention matches the handle as it is written in the post text, such as `@name.bsky.social`. It matches that character sequence, not the author's DID and not a handle stored outside the post.
 - `#` and `@` are not word characters, and Athena's regex engine has no lookbehind, so a `\b` in front of them does not match. Hashtags and mentions are substring matches. `#climate` also matches `#climatechange`.
 
+The steps that turn each term into a `regexp_like` pattern, with worked examples, are in [docs/agentic_search_keyword_matching.md](docs/agentic_search_keyword_matching.md).
+
 **Async by design:** the endpoint acknowledges with `202` and hands the work to a background task, so a long Athena scan never blocks the request. Every outcome — results, validation issues, or an error — is mailed.
 
 ## Repository map
