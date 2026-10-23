@@ -1,7 +1,21 @@
+from typing import Callable
+
 from typing_extensions import Iterable
 
+def decorator_for_handling_retries_and_writes_and_metadata_updates():
+    pass
+
+@decorator_for_handling_retries_and_writes_and_metadata_updates
+def jev_feature_generator():
+    return
+
+
+feature_to_generator_registry: dict[str, Callable] = {
+    "jev": jev_feature_generator
+}
+
 class FeatureGenerationRunMetadata:
-    feature_generation_runs = []
+    feature_metadata = []
 
 def dequeue() -> Iterable[str]:
     return []
@@ -27,9 +41,23 @@ def load_posts():
     filtered_pending_posts: Iterable[str] = filter_pending_posts(pending_posts)
     return filtered_pending_posts
 
-def run_single_feature_generation_run(candidate_posts: Iterable[str]):
+def run_feature_generator(
+    feature_metadata: dict,
+    candidate_posts: Iterable[str]
+):
+    feature_name: str = feature_metadata["name"]
+    generator_func: Callable = feature_to_generator_registry[feature_name]
+    generator_func(candidate_posts)
+
+
+def run_single_feature_generation_run(
+    feature_metadata: dict,
+    candidate_posts: Iterable[str]
+):
     del candidate_posts
-    # update_run_metadata()
+    run_feature_generator(
+        feature_metadata=feature_metadata
+    )
     return
 
 def close_feature_generation_run():
@@ -43,6 +71,9 @@ def main():
         candidate_posts=candidate_posts,
         run_metadata=run_metadata
     )
-    for feature_generation_run in run_metadata.feature_generation_runs:
-        run_single_feature_generation_run(candidate_posts=candidate_posts)
+    for feature_metadata in run_metadata.feature_metadata:
+        run_single_feature_generation_run(
+            feature_metadata=feature_metadata,
+            candidate_posts=candidate_posts
+        )
     close_feature_generation_run()
