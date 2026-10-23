@@ -12,5 +12,7 @@ SUPABASE_URL=
 # Leave unset unless you are testing the origin guard.
 # ORIGIN_SECRET=
 # OTEL_EXPORTER_OTLP_HEADERS=
+# DEPLOYMENT_ENVIRONMENT=cloudflare-preview
+# OTEL_RESOURCE_ATTRIBUTES=deployment.environment=cloudflare-preview
 # AWS_SESSION_TOKEN=
 # MAIL_TEST_RECIPIENT=

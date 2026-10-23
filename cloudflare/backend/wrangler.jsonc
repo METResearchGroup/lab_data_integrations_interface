@@ -8,11 +8,15 @@
 		"enabled": true,
 		"logs": {
 			"enabled": true,
-			"head_sampling_rate": 1
+			"head_sampling_rate": 1,
+			"persist": false,
+			"destinations": ["ldi-preview-grafana-logs"]
 		},
 		"traces": {
 			"enabled": true,
-			"head_sampling_rate": 1
+			"head_sampling_rate": 1,
+			"persist": false,
+			"destinations": ["ldi-preview-grafana-traces"]
 		}
 	},
 	// Cold start waits on image pull plus Python imports. The paid CPU cap has
@@ -23,7 +27,9 @@
 	},
 	// No spaces. backend/main.py splits on commas and does not trim.
 	"vars": {
-		"CORS_ORIGINS": "https://ldi-ui-preview.mind-technology-lab.workers.dev,http://localhost:3000,http://127.0.0.1:3000"
+		"CORS_ORIGINS": "https://ldi-ui-preview.mind-technology-lab.workers.dev,http://localhost:3000,http://127.0.0.1:3000",
+		"DEPLOYMENT_ENVIRONMENT": "cloudflare-preview",
+		"OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=cloudflare-preview"
 	},
 	"containers": [
 		{

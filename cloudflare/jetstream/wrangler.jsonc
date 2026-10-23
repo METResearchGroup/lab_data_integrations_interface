@@ -8,11 +8,15 @@
 		"enabled": true,
 		"logs": {
 			"enabled": true,
-			"head_sampling_rate": 1
+			"head_sampling_rate": 1,
+			"persist": false,
+			"destinations": ["ldi-preview-grafana-logs"]
 		},
 		"traces": {
 			"enabled": true,
-			"head_sampling_rate": 1
+			"head_sampling_rate": 1,
+			"persist": false,
+			"destinations": ["ldi-preview-grafana-traces"]
 		}
 	},
 	// The supervisor can wait on image pull. This cap is Worker CPU, separate
@@ -23,7 +27,9 @@
 	// "true" lets the minute supervisor start the writer. Any other value makes
 	// that supervisor send SIGTERM. A secret of the same name overrides this var.
 	"vars": {
-		"JETSTREAM_ENABLED": "true"
+		"JETSTREAM_ENABLED": "true",
+		"DEPLOYMENT_ENVIRONMENT": "cloudflare-preview",
+		"OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=cloudflare-preview"
 	},
 	// Restart supervisor. The process stays up between runs because
 	// onActivityExpired does not stop it. See src/index.ts.

@@ -23,8 +23,18 @@ export default defineConfig({
 		workersDev: true,
 		observability: {
 			enabled: true,
-			logs: { enabled: true, headSamplingRate: 1, persist: true },
-			traces: { enabled: true, headSamplingRate: 1, persist: true },
+			logs: {
+				enabled: true,
+				headSamplingRate: 1,
+				persist: false,
+				destinations: ["ldi-preview-grafana-logs"],
+			},
+			traces: {
+				enabled: true,
+				headSamplingRate: 1,
+				persist: false,
+				destinations: ["ldi-preview-grafana-traces"],
+			},
 		},
 		assets: {
 			htmlHandling: "none",

@@ -14,6 +14,8 @@ const FORWARDED = [
 	"AWS_SECRET_ACCESS_KEY",
 	"AWS_SESSION_TOKEN",
 	"OTEL_EXPORTER_OTLP_HEADERS",
+	"OTEL_RESOURCE_ATTRIBUTES",
+	"DEPLOYMENT_ENVIRONMENT",
 ] as const;
 
 // Latest POST /start arms this long a run. The SQS loop does not extend it.
@@ -30,6 +32,8 @@ export interface Env {
 	AWS_SECRET_ACCESS_KEY?: string;
 	AWS_SESSION_TOKEN?: string;
 	OTEL_EXPORTER_OTLP_HEADERS?: string;
+	OTEL_RESOURCE_ATTRIBUTES?: string;
+	DEPLOYMENT_ENVIRONMENT?: string;
 }
 
 export function containerEnv(env: Env): Record<string, string> {

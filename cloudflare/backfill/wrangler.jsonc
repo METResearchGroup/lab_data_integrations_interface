@@ -8,17 +8,25 @@
 		"enabled": true,
 		"logs": {
 			"enabled": true,
-			"head_sampling_rate": 1
+			"head_sampling_rate": 1,
+			"persist": false,
+			"destinations": ["ldi-preview-grafana-logs"]
 		},
 		"traces": {
 			"enabled": true,
-			"head_sampling_rate": 1
+			"head_sampling_rate": 1,
+			"persist": false,
+			"destinations": ["ldi-preview-grafana-traces"]
 		}
 	},
 	// The first /start can wait on image pull. This cap is Worker CPU, separate
 	// from the container's CPU bill.
 	"limits": {
 		"cpu_ms": 300000
+	},
+	"vars": {
+		"DEPLOYMENT_ENVIRONMENT": "cloudflare-preview",
+		"OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=cloudflare-preview"
 	},
 	"containers": [
 		{

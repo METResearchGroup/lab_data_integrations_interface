@@ -460,6 +460,50 @@ with PyJWT, which needs the `cryptography` package. `pyjwt[crypto]` in
 is rejected with `Invalid access token` and the container log says
 `ES256 requires 'cryptography' to be installed`.
 
+`scripts/set_grafana_otlp_header.py` reads `OTEL_EXPORTER_OTLP_HEADERS` from
+Secrets Manager `lab-data-integrations-interface-grafana-cloud-oltp-header`
+in `us-east-2` and stores it on `ldi-api-preview`, `ldi-jetstream-preview`,
+and `ldi-backfill-preview`. It does not print the value. The value has to
+start with `Authorization=Basic%20`. A raw space is refused, because the
+Python exporter needs the space written as `%20`. Run it from the repo root
+with `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and AWS credentials
+for `us-east-2`.
+
+The same script creates or updates two Workers observability destinations,
+`ldi-preview-grafana-logs` and `ldi-preview-grafana-traces`, on the gateway
+in `backend/telemetry/constants.py`. It then points the API, Jetstream,
+backfill, and UI Workers at those destinations with `persist: false`, so
+Cloudflare does not keep a second copy of Worker logs and traces. Container
+stdout still goes to the containers dataset. The destination Authorization
+header is the same credential with the `%20` decoded to a space.
+
+The preview Wrangler configs also set `DEPLOYMENT_ENVIRONMENT` to
+`cloudflare-preview` and `OTEL_RESOURCE_ATTRIBUTES` to
+`deployment.environment=cloudflare-preview`. Railway does not set either
+name. `build_resource` adds `deployment.environment` when
+`DEPLOYMENT_ENVIRONMENT` is set. `Resource.create` also copies
+`OTEL_RESOURCE_ATTRIBUTES`, which is how an image built before that Python
+change still labels its signals. Those vars are not secrets. They are
+applied by `wrangler deploy`, not by `wrangler secret put`.
+
+`wrangler secret put` does not upload the Worker script and does not rebuild
+the image. After the script, deploy each container Worker with
+`--containers-rollout none` so the new vars are forwarded and the image that
+is already running stays in place:
+
+```bash
+cd cloudflare/backend
+npx wrangler deploy --containers-rollout none
+```
+
+Repeat from `cloudflare/jetstream` and `cloudflare/backfill`. The container
+still has the environment from the start that is already running. Restart
+the API and Jetstream after that deploy. Jetstream does not sleep on its
+own. Set the `JETSTREAM_ENABLED` secret to `false`, wait until `GET /status`
+reports `running: false`, then delete that secret so the var `true` applies
+and the supervisor starts the writer again. The cursor in
+`bluesky_jetstream_cursor` is what the new process resumes from.
+
 Local `wrangler dev` reads `cloudflare/backend/.dev.vars` (gitignored). Copy
 `.dev.vars.example`. Jetstream and the backfill worker have their own
 `.dev.vars.example` files.
@@ -545,8 +589,10 @@ not send `X-Origin-Secret`. See the origin-secret row below.
 | `GMAIL_SENDER_EMAIL` | `backend/agentic_search/mail.py` | API secret | Mailing `/query` results. Secrets Manager `lab-data-integrations-gmail` in us-east-2, JSON field `GMAIL_SENDER_EMAIL`. |
 | `GMAIL_APP_PASSWORD` | `backend/agentic_search/mail.py` | API secret | Same secret, JSON field `GMAIL_APP_PASSWORD`. `mail.py` removes spaces before SMTP login. |
 | `ORIGIN_SECRET` | `backend/origin.py` | API secret, optional | Leave unset on Cloudflare. Supabase auth on `/query` is the gate. When this is set, requests other than `/health` need header `X-Origin-Secret`. |
-| `OTEL_EXPORTER_OTLP_HEADERS` | telemetry setup in the API, Jetstream, and the backfill app | Secret, optional, on each Worker | Grafana. Unset means telemetry is off. |
+| `OTEL_EXPORTER_OTLP_HEADERS` | telemetry setup in the API, Jetstream, and the backfill app | Secret, optional, on each Worker. `scripts/set_grafana_otlp_header.py` copies it from Secrets Manager `lab-data-integrations-interface-grafana-cloud-oltp-header`. | Grafana. Unset means telemetry is off. |
 | `MAIL_TEST_RECIPIENT` | mail smoke tests | API secret, optional | Not used by the server. |
+| `DEPLOYMENT_ENVIRONMENT` | `build_resource` in the API, Jetstream, and the backfill app | Var on each of those Workers, value `cloudflare-preview` | Adds resource attribute `deployment.environment`. Railway does not set it. |
+| `OTEL_RESOURCE_ATTRIBUTES` | OpenTelemetry `Resource.create` | Var on each of those Workers, value `deployment.environment=cloudflare-preview` | Same attribute, picked up by an image built before `build_resource` learned the variable. |
 | `JETSTREAM_ENABLED` | `cloudflare/jetstream/src/index.ts` | Jetstream var, default `true`. A secret of the same name overrides it. | `true` allows the supervisor to start the writer. Any other value makes the supervisor send SIGTERM. |
 | `BACKFILL_TRIGGER_TOKEN` | `cloudflare/backfill/src/index.ts` | Backfill secret. Not copied into the container. | `POST /start` and `POST /stop`. Unset means those routes return 401 and do not start a run. |
 | `NEXT_PUBLIC_API_URL` | `ui/src/lib/api.ts` | Build env, and a text binding on the UI Worker | Where the browser sends `/query`. |
