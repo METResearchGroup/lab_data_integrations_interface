@@ -13,7 +13,9 @@ Railway config stays in the repo. See [What can be removed later](#what-can-be-r
 | | |
 |---|---|
 | API config | `cloudflare/backend/wrangler.jsonc` |
-| API image | `cloudflare/backend/Dockerfile` (build context is the repo root) |
+| API image | `cloudflare/backend/Dockerfile` (build context is the repo root). Syncs groups `api`, `ml`, and `ingestion`. |
+| Jetstream image | `cloudflare/jetstream/Dockerfile`. Syncs group `ingestion`. |
+| Backfill image | `cloudflare/backfill/Dockerfile`. Syncs group `backfill`. |
 | API start | `uvicorn backend.main:app --host 0.0.0.0 --port 8000` |
 | API Worker name | `ldi-api-preview` |
 | Jetstream config | `cloudflare/jetstream/wrangler.jsonc` |
@@ -28,9 +30,9 @@ Railway config stays in the repo. See [What can be removed later](#what-can-be-r
 | Account | `CLOUDFLARE_ACCOUNT_ID` from Secrets Manager. Do not commit it. |
 | Subdomain | `mind-technology-lab.workers.dev` |
 
-Jetstream and the backfill worker use the API image. Each one replaces the
-uvicorn command at start. See the Docker file comment above the backfill
-`COPY`.
+Jetstream and the backfill worker each have their own image. They do not
+install the API's FastAPI or model packages. The backfill image also skips
+PyIceberg. Local `uv sync` still installs every group.
 
 Preview URLs, once deployed:
 
@@ -114,9 +116,12 @@ signal.
 ### Instance size
 
 The API, Jetstream, and the backfill worker all use `standard-1` for now.
-That size is 1/2 vCPU, 4 GiB of memory, and 8 GB of disk. The built image is
-about 3.8 GB, so it fits on that disk with room for the writable layer.
-`lite` and `basic` are too small for this image and for the import.
+That size is 1/2 vCPU, 4 GiB of memory, and 8 GB of disk. The previous shared
+image was 3.77 GB. After the dependency split, `docker images` reports the
+API image at 1.31 GB, Jetstream at 1.16 GB, and the backfill image at 908 MB.
+Each one fits on the `standard-1` disk with room for the writable layer.
+`basic` has 1 GiB of memory, which is still too small for these processes.
+`lite` has 256 MiB of memory and 2 GB of disk.
 
 Instance types, from the Containers limits page as of 2026-10-21:
 
@@ -425,8 +430,10 @@ git, and experiment data out of the context. The root `telemetry` sample app
 is ignored as `/telemetry`, so the `telemetry` packages inside Jetstream and
 the backfill app are still copied.
 
-The image runs `uv sync --frozen --no-dev --no-install-project` and leaves the
-packages on `PYTHONPATH`. That matches `uvicorn backend.main:app` on Railway.
+The API image runs `uv sync --frozen --no-dev --no-default-groups
+--no-install-project` with groups `api`, `ml`, and `ingestion`. Jetstream
+syncs `ingestion`. The backfill image syncs `backfill`. Packages stay on
+`PYTHONPATH`. The API command matches `uvicorn backend.main:app` on Railway.
 Env vars arrive as process environment. `backend/main.py` calls `load_dotenv()`,
 which does not override variables that are already set. `EnvVarsContainer` in
 `lib/load_env_vars.py` reads `OPENAI_API_KEY` from the environment after
@@ -535,7 +542,7 @@ First request after the first deploy can fail while Cloudflare provisions the
 instance. `GET /health` should then return `{"status":"ok"}`.
 
 Deploy Jetstream and the backfill worker from their own directories. Each
-deploy builds the same Docker file. Pass `--secrets-file` on the first
+deploy builds that Worker's Docker file. Pass `--secrets-file` on the first
 deploy so AWS credentials are present before the process starts. See
 [Jetstream](#jetstream) and [Backfill](#backfill).
 
@@ -773,6 +780,7 @@ Dashboard equivalent, if you apply it by hand:
 
 ## Open questions
 
-- The live preview was rolled from the stacked image-split branch on
-  2026-10-23. Deploying the Docker file on this branch puts the shared
-  3.77 GB image back on the API, Jetstream, and backfill Workers.
+None from the image split. On 2026-10-23 the preview Workers were rolled
+onto these images. `docker images` reports the API image at 1.31 GB,
+Jetstream at 1.16 GB, and the backfill image at 908 MB. The previous
+shared image was 3.77 GB.
