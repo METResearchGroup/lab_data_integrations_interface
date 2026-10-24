@@ -32,6 +32,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from typing import NoReturn
 
 SECRET_ID = "lab-data-integrations-interface-grafana-cloud-oltp-header"
 SECRET_REGION = "us-east-2"
@@ -60,7 +61,7 @@ OBSERVABILITY_WORKERS = (
 )
 
 
-def fail(message: str) -> None:
+def fail(message: str) -> NoReturn:
     print(message, file=sys.stderr)
     raise SystemExit(1)
 
@@ -99,10 +100,7 @@ def otlp_header() -> str:
     if not isinstance(header, str) or not header:
         fail(f"Secrets Manager secret {SECRET_ID} is missing {FIELD}.")
     if not header.startswith(ENCODED_PREFIX):
-        fail(
-            f"{FIELD} must start with Authorization=Basic%20. "
-            "The value was not printed."
-        )
+        fail(f"{FIELD} must start with Authorization=Basic%20. The value was not printed.")
     if " " in header:
         fail(f"{FIELD} contains a raw space. The Python exporter needs %20.")
     return header
@@ -168,7 +166,7 @@ def cloudflare_json(method: str, path: str, body: dict | None, secret: str) -> d
     if not payload.get("success", True):
         fail(f"Cloudflare {method} {path} was not successful.")
     result = payload.get("result")
-    if not isinstance(result, (dict, list)):
+    if not isinstance(result, dict | list):
         fail(f"Cloudflare {method} {path} returned an unexpected result.")
     return payload
 

@@ -20,6 +20,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import NoReturn
 from urllib.parse import urlparse
 
 SECRET_ID = "lab-data-integrations-supabase-public"
@@ -28,7 +29,7 @@ FIELD = "NEXT_PUBLIC_SUPABASE_URL"
 WORKER_DIR = Path(__file__).resolve().parent.parent / "cloudflare" / "backend"
 
 
-def fail(message: str) -> None:
+def fail(message: str) -> NoReturn:
     print(message, file=sys.stderr)
     raise SystemExit(1)
 

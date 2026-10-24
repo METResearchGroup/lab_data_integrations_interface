@@ -145,7 +145,9 @@ function assertSupabaseHost() {
 	try {
 		host = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname;
 	} catch {
-		fail("NEXT_PUBLIC_SUPABASE_URL is not an absolute URL. The value was not printed.");
+		fail(
+			"NEXT_PUBLIC_SUPABASE_URL is not an absolute URL. The value was not printed.",
+		);
 	}
 	if (!host.endsWith(".supabase.co")) {
 		fail(

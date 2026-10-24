@@ -143,6 +143,7 @@ def check_cors(api: str, ui: str, failures: list[str]) -> None:
 def no_redirect_opener() -> urllib.request.OpenerDirector:
     class StopRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, req, fp, code, msg, headers, newurl):
+            del req, fp, code, msg, headers, newurl
             return None
 
     return urllib.request.build_opener(StopRedirect)
@@ -291,9 +292,7 @@ def check_signed_in_query(api: str, ui: str, failures: list[str]) -> None:
     )
     print(f"POST /query with a Supabase session -> {query_status}")
     if query_status != 202:
-        failures.append(
-            f"signed-in /query returned {query_status} {detail(query_body)!r}"
-        )
+        failures.append(f"signed-in /query returned {query_status} {detail(query_body)!r}")
 
 
 def report(failures: list[str]) -> None:

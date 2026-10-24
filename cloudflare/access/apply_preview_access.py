@@ -210,7 +210,8 @@ def ensure_service_token(token: str, account_id: str) -> str | None:
                 + SERVICE_TOKEN_NAME
                 + " already exists, and Secrets Manager "
                 + ACCESS_SMOKE_SECRET_ID
-                + " does not have both smoke fields. Delete that token in Zero Trust and run this again."
+                + " does not have both smoke fields. "
+                + "Delete that token in Zero Trust and run this again."
             )
         return str(existing["id"])
     try:
@@ -382,7 +383,9 @@ def request_json(
             status = response.status
     except urllib.error.HTTPError as error:
         err = access_error(error.code, error.read().decode())
-        raise AccessApiError(err.status, err.code, method + " " + path + " " + err.message) from None
+        raise AccessApiError(
+            err.status, err.code, method + " " + path + " " + err.message
+        ) from None
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:
