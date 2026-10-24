@@ -1,0 +1,57 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "ldi-backfill-preview",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-10-23",
+	"workers_dev": true,
+	"observability": {
+		"enabled": true,
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"persist": false,
+			"destinations": ["ldi-preview-grafana-logs"]
+		},
+		"traces": {
+			"enabled": true,
+			"head_sampling_rate": 1,
+			"persist": false,
+			"destinations": ["ldi-preview-grafana-traces"]
+		}
+	},
+	// The first /start can wait on image pull. This cap is Worker CPU, separate
+	// from the container's CPU bill.
+	"limits": {
+		"cpu_ms": 300000
+	},
+	"vars": {
+		"DEPLOYMENT_ENVIRONMENT": "cloudflare-preview",
+		"OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=cloudflare-preview"
+	},
+	"containers": [
+		{
+			"class_name": "BackfillContainer",
+			"image": "./Dockerfile",
+			"image_build_context": "../..",
+			"instance_type": "standard-1",
+			"max_instances": 1,
+			"observability": {
+				"enabled": true
+			}
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "BACKFILL_CONTAINER",
+				"class_name": "BackfillContainer"
+			}
+		]
+	},
+	"exports": {
+		"BackfillContainer": {
+			"type": "durable-object",
+			"storage": "sqlite"
+		}
+	}
+}

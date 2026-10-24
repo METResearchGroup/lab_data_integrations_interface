@@ -40,9 +40,18 @@ def is_configured() -> bool:
 
 
 def build_resource() -> Resource:
-    """Identity shared by both signals."""
+    """Identity shared by both signals.
 
-    return Resource.create({SERVICE_NAME_KEY: SERVICE_NAME})
+    DEPLOYMENT_ENVIRONMENT, when set, adds deployment.environment. The
+    Cloudflare preview sets it to cloudflare-preview. Railway leaves it unset,
+    so the two deploys can be filtered apart in Grafana.
+    """
+
+    attributes: dict[str, str] = {SERVICE_NAME_KEY: SERVICE_NAME}
+    environment = os.getenv("DEPLOYMENT_ENVIRONMENT")
+    if environment:
+        attributes["deployment.environment"] = environment
+    return Resource.create(attributes)
 
 
 def build_tracer_provider(resource: Resource) -> TracerProvider:

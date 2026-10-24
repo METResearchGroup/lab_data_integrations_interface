@@ -82,3 +82,19 @@ by an env var the deployment could forget.
    - Tempo (TraceQL): `{ resource.service.name = "backend" }`
    - Loki (LogQL): `{ service_name = "backend" }`
    - Mimir (PromQL): `http_server_duration_milliseconds_bucket{service_name="backend"}`
+
+The Cloudflare preview sets `deployment.environment` to `cloudflare-preview`.
+Railway does not. Add that attribute when you want the preview only.
+
+- Tempo: `{ resource.service.name = "backend" && resource.deployment.environment = "cloudflare-preview" }`
+- Loki: `{ service_name = "backend", deployment_environment = "cloudflare-preview" }`
+- Mimir: `http_server_duration_milliseconds_bucket{service_name="backend", deployment_environment="cloudflare-preview"}`
+
+Jetstream's service name is `bluesky-ingestion-jetstream`. It exports metrics
+and logs. The backfill service name is `bluesky-backfill-fetch-repos`. It
+exports metrics and logs. The API service name is `backend`. It exports
+traces and logs. See
+[HOW_TO_DEPLOY_TO_CLOUDFLARE.md](HOW_TO_DEPLOY_TO_CLOUDFLARE.md) for the
+secret `lab-data-integrations-interface-grafana-cloud-oltp-header` and the
+Worker destinations `ldi-preview-grafana-logs` and
+`ldi-preview-grafana-traces`.

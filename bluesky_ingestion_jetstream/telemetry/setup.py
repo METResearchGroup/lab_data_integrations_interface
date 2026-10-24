@@ -39,10 +39,16 @@ def build_resource(service_name: str) -> Resource:
     """Identity shared by both signals.
 
     The SDK adds a random `service.instance.id` per process, so replicas get
-    separate series.
+    separate series. DEPLOYMENT_ENVIRONMENT, when set, adds
+    deployment.environment. The Cloudflare preview sets it to
+    cloudflare-preview. Railway leaves it unset.
     """
 
-    return Resource.create({SERVICE_NAME_KEY: service_name})
+    attributes: dict[str, str] = {SERVICE_NAME_KEY: service_name}
+    environment = os.getenv("DEPLOYMENT_ENVIRONMENT")
+    if environment:
+        attributes["deployment.environment"] = environment
+    return Resource.create(attributes)
 
 
 def build_meter_provider(resource: Resource) -> MeterProvider:
