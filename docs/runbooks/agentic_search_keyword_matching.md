@@ -54,7 +54,7 @@ The `text` column is not lowercased. `(?i)` at the start of the pattern makes le
 
 ## Dates
 
-A keyword question needs a start. When the question states a start and no end, such as "posts since August 2026", `extract_intent` sets the end to the current calendar date in UTC (`datetime.now(UTC).date()`) and marks `end_date_inferred`. `generate_sql` puts that date in a leading SQL comment. The `WHERE` clause uses `created_at < TIMESTAMP '<next day> 00:00:00'`, the same timestamp form as every other date filter, so the named UTC day is included. `created_at` is stored in UTC. The results email and the refusal email both state that date. When the question states neither date, both stay empty and validation sends `keywords_require_bounded_range`. A start is not filled in.
+`resolve_dates` decides which sides the question states, then fills the open ones. "since" and "after" are a start only, including "since yesterday". "until" and "before" are an end only. A named month, a single day, or "the last N days" is both sides, and "from May" is the month, because "from" by itself is not an open start. A missing end becomes the current UTC date from `get_current_date()`. A missing start becomes that end minus 7 days. `created_at` is stored in UTC. The `WHERE` clause uses `created_at >= TIMESTAMP '<start> 00:00:00'` and `created_at < TIMESTAMP '<day after the end> 00:00:00'`, so both calendar days are included. The results email and the refusal email name each side the program filled in. A stated side that did not parse stays empty, and a keyword query then gets `keywords_require_bounded_range`. The same rules apply to every question. The pull request description has the full date interface.
 
 ## How several terms combine
 

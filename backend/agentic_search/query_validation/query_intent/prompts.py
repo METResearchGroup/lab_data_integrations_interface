@@ -35,11 +35,15 @@ when a word boundary would not match the term:
 A mention is the handle as written in the post, such as "@alice.bsky.social",
 not the author's DID.
 
-When keywords are set, copy a start or an end only when the question
-states that side. "since", "after", and "from X" with no end leave end_date
-null. The program sets that end to today's UTC date. "since August" in 2026
-means start 2026-08-01. When neither date is stated, leave both null. Do not
-invent a start. Keywords apply only to posts; do not switch the record type
+Copy a start or an end only when the question states that side. A named
+month, a single day, or "the last N days" fills both dates, including
+"from May 2026" and "yesterday" with no open word. "since" and "after"
+with no end leave end_date null, including "since yesterday". "until" and
+"before" with no start leave start_date null. "from" by itself is not an
+open start. When the question states neither date, leave both null. The
+program fills a missing end with today's UTC date, then a missing start
+with the date 7 days before that end. "since August" in 2026 means start
+2026-08-01. Keywords apply only to posts; do not switch the record type
 to posts to make a filter fit.
 
 Do not put matched_keywords in columns. The query adds that column itself.
@@ -96,6 +100,9 @@ Worked examples, for a catalog holding posts (uri, text, langs), likes
   "posts since May 2026 that say climate"
     is_nonsense=false record_type=posts columns=["text"] keywords=["climate"]
     match=any use_whole_word=true start=2026-05-01 end=null
+  "posts until June 3 2026 that say climate"
+    is_nonsense=false record_type=posts columns=["text"] keywords=["climate"]
+    match=any use_whole_word=true start=null end=2026-06-03
   "posts that say climate"
     is_nonsense=false record_type=posts columns=["text"] keywords=["climate"]
     match=any use_whole_word=true start=null end=null

@@ -14,7 +14,7 @@ Run from the project root:
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 
 import boto3
 
@@ -25,9 +25,14 @@ from backend.agentic_search.query_postprocessing.check_scan_cost import (
     MAX_SCAN_BYTES,
     estimate_scan_bytes,
 )
-from backend.agentic_search.query_validation.check_keywords import check_keywords
-from backend.agentic_search.query_validation.models import TableMetadata, ValidationIssue
+from backend.agentic_search.query_validation.models import TableMetadata
 from backend.agentic_search.query_validation.orchestrator import build_snapshot
+from backend.agentic_search.query_validation.query_intent.dates import (
+    _jev_sides,
+    _regex_sides,
+    last_jev_status,
+    resolve_dates,
+)
 from backend.agentic_search.query_validation.query_intent.extract import extract_intent
 from backend.agentic_search.query_validation.query_intent.models import (
     TEXT_COLUMN,
@@ -37,6 +42,8 @@ from bluesky_ingestion_jetstream.aws.catalog import build_catalog
 from bluesky_ingestion_jetstream.aws.constants import GLUE_DATABASE, PARTITION_SOURCE_COLUMN
 from bluesky_ingestion_jetstream.constants import RecordType
 from lib.aws.athena import Athena
+from lib.load_env_vars import EnvVarsContainer
+from lib.timestamp_utils import get_current_date
 
 # A one-day keyword scan above this is no longer the small check this script runs.
 SMALL_SCAN_BYTES = 15 * BYTES_PER_GB
@@ -46,7 +53,8 @@ DAY_LOOKBACK = 21
 # name, question, terms that should show up in the SQL, date mode.
 # bounded: both dates stated. none: no keyword filter.
 # open_end: a start and no end, so the end becomes today UTC.
-# undated: neither date, which validation refuses.
+# end_only: an end and no start, so the start is 7 days before that end.
+# default_week: neither date, so the range is the 7 days ending today UTC.
 QUESTIONS: list[tuple[str, str, tuple[str, ...], str]] = [
     (
         "single keyword",
@@ -96,7 +104,13 @@ QUESTIONS: list[tuple[str, str, tuple[str, ...], str]] = [
         "no date",
         "Show the text of posts that say climate.",
         ("climate",),
-        "undated",
+        "default_week",
+    ),
+    (
+        "until a date",
+        "Show the text of posts until 2026-08-15 that say climate.",
+        ("climate",),
+        "end_only",
     ),
 ]
 
@@ -120,6 +134,7 @@ def _print_intent(intent: QueryIntent) -> None:
         f"keywords={intent.keywords} match={intent.match} "
         f"use_whole_word={intent.use_whole_word} "
         f"dates={intent.start_date}..{intent.end_date} "
+        f"start_inferred={intent.start_date_inferred} "
         f"end_inferred={intent.end_date_inferred}"
     )
 
@@ -143,28 +158,51 @@ def _sql_matches(
     return "regexp_like" in lowered and not missing and bool(intent.keywords)
 
 
-def _date_problem(intent: QueryIntent, sql: str, mode: str) -> str | None:
-    if mode == "bounded" and (intent.start_date is None or intent.end_date is None):
-        return "keyword question needs both dates"
-    if mode != "open_end":
-        return None
-    today = datetime.now(UTC).date()
+def _exclusive(day: date) -> str:
+    return f"TIMESTAMP '{(day + timedelta(days=1)).isoformat()} 00:00:00'"
+
+
+def _open_end_problem(intent: QueryIntent, sql: str, today: date) -> str | None:
     if intent.start_date != date(2026, 8, 1) or intent.end_date != today:
         return f"expected 2026-08-01 through {today.isoformat()}"
-    if not intent.end_date_inferred:
-        return "expected the end date to be marked as inferred"
-    if f"end_date {today.isoformat()} UTC" not in sql:
-        return "expected the SQL comment to name the inferred UTC end date"
+    if intent.start_date_inferred or not intent.end_date_inferred:
+        return "expected only the end date to be inferred"
+    if _exclusive(today) not in sql:
+        return "expected the WHERE bound to include the inferred UTC end"
     return None
 
 
-def _undated_problem(intent: QueryIntent) -> str | None:
-    if intent.start_date is not None or intent.end_date is not None:
-        return f"expected no dates, got {intent.start_date}..{intent.end_date}"
-    issues = check_keywords(intent)
-    if ValidationIssue.KEYWORDS_REQUIRE_BOUNDED_RANGE not in issues:
-        return "expected keywords_require_bounded_range"
-    print(f"  refused: {[issue.value for issue in issues]}")
+def _end_only_problem(intent: QueryIntent) -> str | None:
+    end = date(2026, 8, 15)
+    start = end - timedelta(days=7)
+    if intent.start_date != start or intent.end_date != end:
+        return f"expected {start.isoformat()} through {end.isoformat()}"
+    if not intent.start_date_inferred or intent.end_date_inferred:
+        return "expected only the start date to be inferred"
+    return None
+
+
+def _default_week_problem(intent: QueryIntent, sql: str, today: date) -> str | None:
+    start = today - timedelta(days=7)
+    if intent.start_date != start or intent.end_date != today:
+        return f"expected {start.isoformat()} through {today.isoformat()}"
+    if not intent.start_date_inferred or not intent.end_date_inferred:
+        return "expected both dates to be inferred"
+    if _exclusive(today) not in sql:
+        return "expected the WHERE bound to include the inferred UTC end"
+    return None
+
+
+def _date_problem(intent: QueryIntent, sql: str, mode: str) -> str | None:
+    today = get_current_date()
+    if mode == "bounded" and (intent.start_date is None or intent.end_date is None):
+        return "keyword question needs both dates"
+    if mode == "open_end":
+        return _open_end_problem(intent, sql, today)
+    if mode == "end_only":
+        return _end_only_problem(intent)
+    if mode == "default_week":
+        return _default_week_problem(intent, sql, today)
     return None
 
 
@@ -184,13 +222,6 @@ def _one_question(
         return False
 
     _print_intent(intent)
-    if mode == "undated":
-        problem = _undated_problem(intent)
-        if problem is None:
-            print("  PASS")
-            return True
-        print(f"  FAIL: {problem}")
-        return False
     if intent.record_type is None:
         print("  FAIL: no record type, so no SQL")
         return False
@@ -212,6 +243,106 @@ def _one_question(
     expected = "no keyword filter" if mode == "none" else f"regexp_like and terms {terms}"
     print(f"  FAIL: expected {expected}")
     return False
+
+
+def check_jev() -> list[str]:
+    """One ambiguous question, so the regex step defers to Jev. Prints the label only."""
+
+    question = "Show the text of posts from the week of the debate that say climate."
+    print("\n--- jev bounds ---")
+    print(f"  question: {question}")
+    try:
+        EnvVarsContainer.get_env_var("JEV_API_KEY", required=True)
+    except ValueError as exc:
+        print(f"  FAIL key: {_safe_error(exc)}")
+        return ["jev"]
+    choice = _jev_sides(question)
+    print(f"  choice: {choice}")
+    print(f"  status: {last_jev_status()}")
+    if choice in ("both", "start_only", "end_only", "neither"):
+        print("  PASS")
+        return []
+    print("  FAIL: Jev did not return a bounds choice")
+    return ["jev"]
+
+
+def check_date_rules() -> list[str]:
+    """The fill rules, with the dates the model would have copied. No model call."""
+
+    today = get_current_date()
+    yesterday = today - timedelta(days=1)
+    august = date(2026, 8, 1)
+    invented = date(2026, 8, 31)
+    cases = (
+        (
+            "since yesterday",
+            "posts since yesterday that say climate",
+            yesterday,
+            invented,
+            yesterday,
+            today,
+            False,
+            True,
+        ),
+        (
+            "until yesterday",
+            "posts until yesterday that say climate",
+            invented,
+            yesterday,
+            yesterday - timedelta(days=7),
+            yesterday,
+            True,
+            False,
+        ),
+        (
+            "named month",
+            "posts in August 2026 that say climate",
+            august,
+            invented,
+            august,
+            invented,
+            False,
+            False,
+        ),
+        (
+            "from a month",
+            "posts from May 2026 that say climate",
+            date(2026, 5, 1),
+            date(2026, 5, 31),
+            date(2026, 5, 1),
+            date(2026, 5, 31),
+            False,
+            False,
+        ),
+    )
+    print("\n--- date rules ---")
+    failures = []
+    for name, query, stated_start, stated_end, start, end, start_inferred, end_inferred in cases:
+        resolved = resolve_dates(query, stated_start, stated_end)
+        ok = (
+            resolved.start_date == start
+            and resolved.end_date == end
+            and resolved.start_date_inferred is start_inferred
+            and resolved.end_date_inferred is end_inferred
+        )
+        print(
+            f"  {name}: {resolved.start_date}..{resolved.end_date} "
+            f"start_inferred={resolved.start_date_inferred} "
+            f"end_inferred={resolved.end_date_inferred}"
+        )
+        if ok:
+            print("  PASS")
+        else:
+            print(f"  FAIL: expected {start}..{end}")
+            failures.append(name)
+    ambiguous = "posts from the week of the debate that say climate"
+    if _regex_sides(ambiguous) is None:
+        print("  ambiguous from-phrase: regex defers")
+        print("  PASS")
+    else:
+        print(f"  FAIL: regex classified the debate week as {_regex_sides(ambiguous)}")
+        failures.append("ambiguous from-phrase")
+    return failures
 
 
 def check_extraction() -> list[str]:
@@ -258,7 +389,7 @@ def _column_bytes(table, day: date, column: str) -> int | None:
 
 
 def _latest_day_with_data(table) -> tuple[date, int] | None:
-    today = datetime.now(UTC).date()
+    today = get_current_date()
     for offset in range(2, DAY_LOOKBACK + 1):
         day = today - timedelta(days=offset)
         scan_bytes = estimate_scan_bytes(table, _day_intent(day))
@@ -352,7 +483,9 @@ def check_live_scan() -> list[str]:
 
 def main() -> None:
     print("--- extract + generate ---")
-    failures = check_extraction()
+    failures = check_date_rules()
+    failures += check_extraction()
+    failures += check_jev()
     failures += check_live_scan()
     if failures:
         raise SystemExit(f"failed: {', '.join(failures)}")

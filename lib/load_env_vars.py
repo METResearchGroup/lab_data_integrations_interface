@@ -4,6 +4,7 @@ This module exists to avoid import-time side effects spread across the codebase.
 It encapsulates:
 - Loading .env from repo root via python-dotenv
 - OPENAI_API_KEY from AWS Secrets Manager id openai-api-key in us-east-2
+- JEV_API_KEY from AWS Secrets Manager id jev-typesafe-api-key in us-east-2
 - Type-safe retrieval with optional required-flag
 
 Public API: EnvVarsContainer.get_env_var(name, required=False)
@@ -26,8 +27,13 @@ _OPENAI_API_KEY = "OPENAI_API_KEY"
 _OPENAI_SECRET_ID = "openai-api-key"
 _OPENAI_JSON_FIELDS = ("OPENAI_API_KEY", "openai_api_key", "api_key", "key")
 
+_JEV_API_KEY = "JEV_API_KEY"
+_JEV_SECRET_ID = "jev-typesafe-api-key"
+_JEV_JSON_FIELDS = ("JEV_API_KEY", "jev_api_key", "TYPESAFE_API_KEY", "api_key", "key")
+
 ENV_VAR_TYPES: Final[dict[str, type[str]]] = {
     "OPENAI_API_KEY": str,
+    "JEV_API_KEY": str,
     "WANDB_API_KEY": str,
     "REDDIT_CLIENT_ID": str,
     "REDDIT_SECRET": str,
@@ -55,6 +61,7 @@ class EnvVarsContainer:
         self._env_vars: dict[str, str | None] = {}
         self._env_var_types: dict[str, type[str]] = ENV_VAR_TYPES
         self._openai_load_error: str | None = None
+        self._jev_load_error: str | None = None
         self._init_lock = threading.Lock()
 
     @classmethod
@@ -75,6 +82,13 @@ class EnvVarsContainer:
             detail = instance._openai_load_error or (
                 "OPENAI_API_KEY is required but is missing. "
                 "Load it through EnvVarsContainer from id openai-api-key in us-east-2."
+            )
+            raise ValueError(detail)
+
+        if required and name == _JEV_API_KEY and _missing(raw):
+            detail = instance._jev_load_error or (
+                "JEV_API_KEY is required but is missing. "
+                "Load it through EnvVarsContainer from id jev-typesafe-api-key in us-east-2."
             )
             raise ValueError(detail)
 
@@ -118,11 +132,13 @@ class EnvVarsContainer:
         # This name is loaded from Secrets Manager below. Drop any copy .env
         # or the process environment left behind so callers cannot use it.
         os.environ.pop(_OPENAI_API_KEY, None)
+        os.environ.pop(_JEV_API_KEY, None)
         for key in self._env_var_types:
-            if key == _OPENAI_API_KEY:
+            if key in (_OPENAI_API_KEY, _JEV_API_KEY):
                 continue
             self._env_vars[key] = os.getenv(key)
         self._load_openai_api_key()
+        self._load_jev_api_key()
 
     def _load_openai_api_key(self) -> None:
         """Read OPENAI_API_KEY from Secrets Manager. Leave it empty when that fails."""
@@ -133,6 +149,20 @@ class EnvVarsContainer:
         except ValueError as exc:
             self._env_vars[_OPENAI_API_KEY] = None
             self._openai_load_error = str(exc)
+
+    def _load_jev_api_key(self) -> None:
+        """Read JEV_API_KEY from Secrets Manager. Leave it empty when that fails."""
+
+        try:
+            self._env_vars[_JEV_API_KEY] = _fetch_named_key(
+                secret_id=_JEV_SECRET_ID,
+                label=_JEV_API_KEY,
+                fields=_JEV_JSON_FIELDS,
+            )
+            self._jev_load_error = None
+        except ValueError as exc:
+            self._env_vars[_JEV_API_KEY] = None
+            self._jev_load_error = str(exc)
 
 
 def _missing(raw: str | None) -> bool:
@@ -146,7 +176,7 @@ def _safe_field_name(field: object) -> str:
     return text
 
 
-def _openai_key_from_text(text: str) -> str:
+def _key_from_text(text: str, *, label: str, secret_id: str, fields: tuple[str, ...]) -> str:
     stripped = text.strip()
     if not stripped.startswith("{"):
         return stripped
@@ -154,23 +184,23 @@ def _openai_key_from_text(text: str) -> str:
         parsed = json.loads(stripped)
     except json.JSONDecodeError:
         raise ValueError(
-            "OPENAI_API_KEY could not be loaded from id openai-api-key in "
+            f"{label} could not be loaded from id {secret_id} in "
             f"{AWS_REGION}: the stored string starts with '{{' and is not JSON."
         ) from None
     if not isinstance(parsed, dict):
         raise ValueError(
-            "OPENAI_API_KEY could not be loaded from id openai-api-key in "
+            f"{label} could not be loaded from id {secret_id} in "
             f"{AWS_REGION}: the stored JSON value is not an object."
         )
-    for field in _OPENAI_JSON_FIELDS:
+    for field in fields:
         value = parsed.get(field)
         if isinstance(value, str) and value.strip():
             return value.strip()
-    fields = ", ".join(sorted(_safe_field_name(field) for field in parsed))
+    present = ", ".join(sorted(_safe_field_name(field) for field in parsed))
     raise ValueError(
-        "OPENAI_API_KEY could not be loaded from id openai-api-key in "
+        f"{label} could not be loaded from id {secret_id} in "
         f"{AWS_REGION}: the JSON object has none of the expected fields. "
-        f"Fields present: {fields}."
+        f"Fields present: {present}."
     )
 
 
@@ -183,20 +213,27 @@ def _error_code(exc: Exception) -> str:
     return type(exc).__name__
 
 
-def _fetch_openai_api_key() -> str:
+def _fetch_named_key(*, secret_id: str, label: str, fields: tuple[str, ...]) -> str:
     try:
         client = build_client("secretsmanager", AWS_REGION, None)
-        payload = client.get_secret_value(SecretId=_OPENAI_SECRET_ID)
+        payload = client.get_secret_value(SecretId=secret_id)
     except Exception as exc:
         raise ValueError(
-            "OPENAI_API_KEY could not be loaded from id openai-api-key in "
-            f"{AWS_REGION} ({_error_code(exc)})."
+            f"{label} could not be loaded from id {secret_id} in {AWS_REGION} ({_error_code(exc)})."
         ) from None
 
     raw = payload.get("SecretString") if isinstance(payload, dict) else None
     if not isinstance(raw, str) or not raw.strip():
         raise ValueError(
-            "OPENAI_API_KEY could not be loaded from id openai-api-key in "
+            f"{label} could not be loaded from id {secret_id} in "
             f"{AWS_REGION}: the stored string is empty."
         )
-    return _openai_key_from_text(raw)
+    return _key_from_text(raw, label=label, secret_id=secret_id, fields=fields)
+
+
+def _fetch_openai_api_key() -> str:
+    return _fetch_named_key(
+        secret_id=_OPENAI_SECRET_ID,
+        label=_OPENAI_API_KEY,
+        fields=_OPENAI_JSON_FIELDS,
+    )

@@ -16,8 +16,9 @@ def check_keywords(intent: QueryIntent) -> list[ValidationIssue]:
 
     KEYWORDS_REQUIRE_POSTS when the filter targets anything but posts.
     KEYWORDS_REQUIRE_BOUNDED_RANGE when either date is still missing.
-    extract_intent fills a missing end from the current UTC date when a start
-    is present, so this issue is a missing start, or both dates missing.
+    resolve_dates fills an unstated end with the current UTC date and an
+    unstated start with 7 days before that end, so a missing date here means
+    a stated side did not parse.
     EMPTY_KEYWORD when a term is blank.
     TOO_MANY_KEYWORDS and KEYWORD_TOO_LONG past the shared caps.
     An empty keyword list is no filter, and passes.

@@ -201,18 +201,6 @@ def _order_by_clause() -> str:
     return f"ORDER BY {PARTITION_SOURCE_COLUMN}"
 
 
-def _inferred_end_comment(intent: QueryIntent) -> str:
-    """Name an end date the program filled in, so the SQL shows that date."""
-
-    if not intent.end_date_inferred or intent.end_date is None:
-        return ""
-    day = intent.end_date.isoformat()
-    return (
-        f"-- end_date {day} UTC; the question stated a start and no end, "
-        "so this is the current UTC date\n"
-    )
-
-
 def generate_sql(intent: QueryIntent) -> GeneratedQuery:
     """Assumes the intent already passed validation.
 
@@ -241,5 +229,7 @@ def generate_sql(intent: QueryIntent) -> GeneratedQuery:
         ),
         _order_by_clause(),
     ]
-    sql = "\n".join(clause for clause in clauses if clause)
-    return GeneratedQuery(sql=_inferred_end_comment(intent) + sql, record_type=intent.record_type)
+    return GeneratedQuery(
+        sql="\n".join(clause for clause in clauses if clause),
+        record_type=intent.record_type,
+    )

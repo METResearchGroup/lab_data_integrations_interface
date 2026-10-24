@@ -45,6 +45,10 @@ class QueryIntent(BaseModel):
             "substring match, used for hashtags, mentions, and CJK text."
         ),
     )
+    start_date_inferred: SkipJsonSchema[bool] = Field(
+        default=False,
+        description="True when a missing start was set to 7 days before the end.",
+    )
     end_date_inferred: SkipJsonSchema[bool] = Field(
         default=False,
         description="True when a missing end was set to the current UTC date.",
