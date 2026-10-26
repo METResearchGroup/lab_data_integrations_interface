@@ -701,7 +701,7 @@ Worker should return `{"running": false}` until you intentionally start a run.
 The API, Jetstream, and the backfill worker ran on Railway, and the UI ran
 on Vercel. CloudFront was in front of the API and added an
 `X-Origin-Secret` header, which `backend/origin.py` checked. The configs
-in the list below are gone.
+in the list below are gone from the repo.
 
 - `railway/`
 - `docs/runbooks/HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md`
@@ -709,7 +709,6 @@ in the list below are gone.
 - `docs/runbooks/HOW_TO_DEPLOY_BACKFILL_TO_RAILWAY.md`
 - `docs/runbooks/HOW_TO_ADD_PREVIEW_BUILD_CHECKS_RAILWAY`
 - `docs/runbooks/HOW_TO_DEPLOY_UI_TO_VERCEL.md`
-- `terraform/backend_edge/`
 - `backend/origin.py`
 
 You deploy the UI, API, Jetstream, and the backfill worker only through
@@ -722,11 +721,126 @@ as written. Disconnecting the old projects is outside this repo.
 `ui/package-lock.json` still lists `@vercel/og` because Next.js depends
 on that package for Open Graph images. The package is not a deploy config.
 
-Copied skill examples under
-`.cursor/skills/create-implementation-plan/examples/langsmith-traces-vercel-ui/`
-and `.cursor/skills/write-changelog/examples/example1.md` still say
-Railway or Vercel, because the examples describe other projects. The
-examples are not this app's deploy.
+`.cursor/skills/write-changelog/examples/example1.md` still says Railway.
+The file is a changelog format example for another project, so the skill
+stays. The Vercel-only plan example under
+`create-implementation-plan/examples/` was removed.
+
+`terraform/backend_edge/` is still in the repo. Deleting the directory
+does not destroy the CloudFront distribution, the WAF web ACL, or the
+state in S3. The module stays until you finish the destroy below, because
+`terraform destroy` needs `terraform/backend_edge/`. Do not merge PR #250
+until the destroy is done and checked. After you confirm the AWS resources
+are gone, delete `terraform/backend_edge/` before the merge. A later
+`terraform apply` would create the distribution again.
+
+## Destroy the CloudFront distribution
+
+Run the steps below yourself before PR #250 merges. The lab account is
+`517478598677`. The state bucket is in `us-east-2`. The WAF web ACL for
+CloudFront is in `us-east-1`, because AWS requires that scope there. The
+distribution itself is global. The module creates no DNS records.
+
+Do not print `origin_secret`, `terraform output`, or a full distribution
+config. The origin custom header value is the secret.
+
+From the repo root, on the branch that still contains
+`terraform/backend_edge/`:
+
+```bash
+aws sts get-caller-identity --query Account --output text
+```
+
+Stop if the account is not `517478598677`.
+
+```bash
+cd terraform/backend_edge
+terraform init
+```
+
+`terraform init` reads the backend in `main.tf`. The bucket is
+`lab-data-integrations-interface-tfstate` and the key is
+`backend_edge/terraform.tfstate`. The region is `us-east-2`.
+
+Read only the origin hostname. Do not print the rest of the distribution.
+
+```bash
+aws cloudfront list-distributions \
+  --query "DistributionList.IsTruncated" \
+  --output text
+```
+
+When the command prints `true`, the hostname may be on the next page. Set
+`ORIGIN_DOMAIN` from that page and skip the first-page command below.
+
+```bash
+ORIGIN_DOMAIN=$(aws cloudfront list-distributions \
+  --marker "$(aws cloudfront list-distributions --query 'DistributionList.NextMarker' --output text)" \
+  --query "DistributionList.Items[?Comment=='backend API'].Origins.Items[].DomainName" \
+  --output text)
+printf '%s\n' "$ORIGIN_DOMAIN"
+```
+
+When the command prints `false`, one page is the full list. One page holds
+100 distributions. Set `ORIGIN_DOMAIN` from that page:
+
+```bash
+ORIGIN_DOMAIN=$(aws cloudfront list-distributions \
+  --query "DistributionList.Items[?Comment=='backend API'].Origins.Items[].DomainName" \
+  --output text)
+printf '%s\n' "$ORIGIN_DOMAIN"
+```
+
+`printf` shows the hostname only. If `ORIGIN_DOMAIN` is empty after a
+complete list, the distribution may already be gone. Set `ORIGIN_DOMAIN`
+to the hostname you used when the module was applied, with no scheme. The
+variable has no default, so destroy still needs it.
+
+```bash
+terraform plan -destroy -var origin_domain="$ORIGIN_DOMAIN"
+```
+
+Read the plan. It should destroy only `aws_cloudfront_distribution.backend`,
+`aws_wafv2_web_acl.backend`, and `random_password.origin_secret`. If the
+plan lists other resources, stop. If the plan shows a custom header value,
+do not copy it. If the plan destroys nothing, the stack was never applied
+or is already gone. Skip `terraform destroy` and go to the checks.
+
+```bash
+terraform destroy -var origin_domain="$ORIGIN_DOMAIN"
+```
+
+Terraform asks for confirmation. Answer yes only after the plan was limited
+to the three resources above.
+
+Check that the resources are gone. Empty output is the expected result.
+
+```bash
+aws cloudfront list-distributions \
+  --query "DistributionList.Items[?Comment=='backend API'].Id" \
+  --output text
+
+aws wafv2 list-web-acls --scope CLOUDFRONT --region us-east-1 \
+  --query "WebACLs[?Name=='backend-edge'].Name" \
+  --output text
+
+cd ../../cloudflare/backend
+npx wrangler secret list
+```
+
+`wrangler secret list` prints names, not values. You need
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` exported, and you are in
+`cloudflare/backend`, so the Worker is `ldi-api-preview`. If the list
+includes `ORIGIN_SECRET`, delete that name:
+
+```bash
+npx wrangler secret delete ORIGIN_SECRET
+```
+
+If the name is absent, there is nothing to delete. Do not pass a value to
+`secret delete`.
+
+Then delete `terraform/backend_edge/` on the removal branch before merge.
 
 ## Cloudflare Access
 

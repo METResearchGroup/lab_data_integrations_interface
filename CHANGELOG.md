@@ -2,7 +2,7 @@
 
 ## 2026-10-26
 
-1. The API, UI, Jetstream, and backfill worker now deploy only through Cloudflare. Railway and Vercel configs, their deploy runbooks, and the CloudFront shared-secret check in front of the API are removed. [PR #250](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/250)
+1. The API, UI, Jetstream, and backfill worker now deploy only through Cloudflare. Railway and Vercel configs and their deploy runbooks are removed. The CloudFront distribution stays in AWS until the destroy steps in the Cloudflare runbook are applied. [PR #250](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/250)
 
 ## 2026-09-28
 
