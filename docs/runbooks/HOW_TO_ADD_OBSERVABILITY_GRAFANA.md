@@ -53,10 +53,11 @@ credential is environmental:
 |---|---|---|
 | `OTEL_EXPORTER_OTLP_HEADERS` | `Authorization=Basic%20<base64(instanceID:token)>` | Note the `%20` — the Python OTLP exporter needs the header value URL-encoded, a literal space breaks it. |
 
-It lives in the root `.env` for local dev. On Cloudflare, the API, Jetstream,
-and backfill processes read it from Secrets Manager when the name is absent.
-`scripts/set_grafana_otlp_header.py` uses the same field for the Grafana
-destinations and does not store it on a Worker. See
+`OTEL_EXPORTER_OTLP_HEADERS` lives in the root `.env` for local dev. On
+Cloudflare, the API, Jetstream, and backfill processes read it from Secrets
+Manager when the name is absent. `scripts/set_grafana_otlp_header.py` uses
+the same field for the Grafana destinations and does not store it on a
+Worker. See
 [HOW_TO_DEPLOY_TO_CLOUDFLARE.md](HOW_TO_DEPLOY_TO_CLOUDFLARE.md).
 
 Setting it is also the on/off switch: `setup_telemetry()` returns early when

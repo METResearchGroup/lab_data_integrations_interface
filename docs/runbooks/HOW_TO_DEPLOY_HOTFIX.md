@@ -18,7 +18,7 @@ Ship a small, urgent fix with preview verification and post-deploy checks.
    - Local dev, and/or
    - the Cloudflare preview Workers. See [HOW_TO_DEPLOY_TO_CLOUDFLARE.md](HOW_TO_DEPLOY_TO_CLOUDFLARE.md).
 4. **Ship the fix** by merging. The live path in this repo is the Cloudflare preview in [HOW_TO_DEPLOY_TO_CLOUDFLARE.md](HOW_TO_DEPLOY_TO_CLOUDFLARE.md).
-5. **Confirm the services you deployed answer.** That is the UI Worker and the API Container, plus Jetstream or the backfill worker when the change touches them.
+5. **Confirm the UI Worker and the API Container answer.** Also confirm Jetstream or the backfill worker when the change touches them.
 6. **Check telemetry** for stability and regressions:
    - Errors / logs for the affected paths
    - Core metrics you care about for this change

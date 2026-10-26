@@ -698,7 +698,10 @@ Worker should return `{"running": false}` until you intentionally start a run.
 
 ## Removed hosts
 
-Railway hosted the API, Jetstream, and the backfill worker. Vercel hosted the UI. CloudFront sat in front of the API and added an `X-Origin-Secret` header that `backend/origin.py` checked. Those configs are gone:
+The API, Jetstream, and the backfill worker ran on Railway, and the UI ran
+on Vercel. CloudFront was in front of the API and added an
+`X-Origin-Secret` header, which `backend/origin.py` checked. The configs
+in the list below are gone.
 
 - `railway/`
 - `docs/runbooks/HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md`
@@ -709,9 +712,21 @@ Railway hosted the API, Jetstream, and the backfill worker. Vercel hosted the UI
 - `terraform/backend_edge/`
 - `backend/origin.py`
 
-The UI, API, Jetstream, and backfill worker deploy only through this runbook. Supabase auth on `/query` and Cloudflare Access on the preview hosts are the gates. `CHANGELOG.md` still names Railway and Vercel in older entries. Those entries were left as written. Disconnecting the old projects is outside this repo.
+You deploy the UI, API, Jetstream, and the backfill worker only through
+this runbook. Supabase auth on `/query` is the gate for that route.
+Cloudflare Access is the gate for the preview hosts once Access is
+enabled. See [Cloudflare Access](#cloudflare-access). `CHANGELOG.md` still
+names Railway and Vercel in older entries, and the older entries were left
+as written. Disconnecting the old projects is outside this repo.
 
-`ui/package-lock.json` still lists `@vercel/og` because Next.js depends on that package for Open Graph images. That package is not a deploy config.
+`ui/package-lock.json` still lists `@vercel/og` because Next.js depends
+on that package for Open Graph images. The package is not a deploy config.
+
+Copied skill examples under
+`.cursor/skills/create-implementation-plan/examples/langsmith-traces-vercel-ui/`
+and `.cursor/skills/write-changelog/examples/example1.md` still say
+Railway or Vercel, because the examples describe other projects. The
+examples are not this app's deploy.
 
 ## Cloudflare Access
 
