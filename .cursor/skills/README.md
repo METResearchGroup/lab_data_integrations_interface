@@ -29,16 +29,17 @@ Cursor and Codex skills. Source of truth: `skills/` in this repo.
 | **setup-new-repo** | Bootstrap a new repo: uv/pyproject, copy global Cursor skills, npx skills add (railway/shadcn/fastapi/langgraph/vercel), pre-commit+CI, gitignore, GitHub via gh. Slash-only. |
 | **handoff** | End-of-session handoff generator that writes `handoff.md` with PR link, done summary, remaining to-dos, and last left off. |
 | **create-advisory-brief** | Distills repo context into a copy-paste markdown prompt for an external AI (no codebase access) to evaluate options and recommend a path. Slash-only. |
-| **implement-from-spec** | Implements a scoped unit of work from an approved design/plan: caller-first scaffold, contracts agreed upon, test design, then one-function-at-a-time. References under `skills/implement-from-spec/`. Agent can auto-apply. |
+| **implement-from-spec** | Implements a scoped unit of work from an approved design/plan: caller-first scaffold, contracts agreed upon, smallest change, tests only for production logic, then one function at a time. References under `skills/implement-from-spec/`. Agent can auto-apply. |
 
 ## Some notes on how these fit together
 
-The `implement-*` skills fit as part of a stack. We structure multi-PR builds as epics, managed by `implement-epic`. Each PR is then built using `implement-plan-and-open-pr`, which uses `impleent-from-spec` to actually write the code.
+The `implement-*` skills fit as part of a stack. Before any of them run, `create-high-level-proposal` writes a `proposal.md` that the user confirms. We structure multi-PR builds as epics, managed by `implement-epic`. Each PR is then built using `implement-plan-and-open-pr`, which uses `implement-from-spec` to actually write the code.
 
 ```
+create-high-level-proposal             # proposal.md: scope, file structure, schemas, decisions; user confirms
 implement-epic                         # manager: stack, CI, children
   per child:
-    create-implementation-plan          # one-PR plan against current stack base
+    create-implementation-plan          # one-PR plan against current stack base; builds on proposal.md if it exists
     implement-plan-and-open-pr        # one plan → one PR (`gh stack` instead of `gh pr create`)
       implement-from-spec             # write code for one task; commits as it goes
       write-docstring

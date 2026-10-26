@@ -1,6 +1,8 @@
 # Example: Pipeline + MemoryRepository
 
-Example walkthrough for `implement-from-spec`. Mirror this order; do not invent a different sequence. Each step below is a separate Git commit.
+Example walkthrough for `implement-from-spec`. Mirror the order below, and do not invent a different sequence. Each step below is a separate Git commit.
+
+This walkthrough includes tests because `run`, `transform_record`, and `MemoryRepository` are production logic with real behavior. A one-off exploratory script does not get tests. If `SKILL.md` says the task does not need tests, skip the test-design step and keep the other steps in this order.
 
 Task: Build a simple script that loads data from the DB, transforms it, and writes it back via `MemoryRepository`.
 
@@ -82,9 +84,11 @@ class MemoryRepository:
     def __init__(self) -> None:
         self._store: dict[str, Record] = {}
 
-    def get(self, record_id: str) -> Record: ...
+    def get(self, record_id: str) -> Record:
+        ...
 
-    def write(self, record: TransformedRecord) -> TransformedRecord: ...
+    def write(self, record: TransformedRecord) -> TransformedRecord:
+        ...
 ```
 
 ```python
@@ -92,7 +96,8 @@ class MemoryRepository:
 from models import Record, TransformedRecord
 
 
-def transform_record(record: Record) -> TransformedRecord: ...
+def transform_record(record: Record) -> TransformedRecord:
+    ...
 ```
 
 Caller shape (still thin, but now typed):
@@ -153,7 +158,9 @@ def test_get_missing_raises():
 
 def test_transform_doubles_value_and_sets_label():
     record = Record(id="1", value=10)
-    assert transform_record(record) == TransformedRecord(id="1", value=20, label="doubled")
+    assert transform_record(record) == TransformedRecord(
+        id="1", value=20, label="doubled"
+    )
 
 
 def test_write_persists_and_returns():
