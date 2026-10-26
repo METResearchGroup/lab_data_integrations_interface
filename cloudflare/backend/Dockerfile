@@ -12,7 +12,7 @@ WORKDIR /app
 
 # Bytecode compilation keeps the first import of the API from paying that cost
 # again on every cold start. The app is not installed as a package: uvicorn
-# imports backend.main from PYTHONPATH, which is how Railway starts it too.
+# imports backend.main from PYTHONPATH. The start command is uvicorn.
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/app/.venv \

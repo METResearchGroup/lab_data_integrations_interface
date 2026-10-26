@@ -163,7 +163,7 @@ If the template editor is locked, finish step 2 first.
 
 `https://supabase.com/dashboard/project/<project-ref>/auth/url-configuration`
 
-- **Site URL**: Vercel production URL (likely already set).
+- **Site URL**: the deployed UI origin (likely already set).
 - **Redirect URLs**: add `http://localhost:3000/**` for local dev.
 
 ---

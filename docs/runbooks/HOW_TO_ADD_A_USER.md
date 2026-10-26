@@ -24,7 +24,7 @@ the address bar.
 `https://supabase.com/dashboard/project/<project-ref>/auth/url-configuration`
 (sidebar: Authentication → URL Configuration)
 
-Set **Site URL** to `https://<your-ui-domain>` (Vercel production).
+Set **Site URL** to the deployed UI origin (the Cloudflare Worker URL in preview).
 
 ### 2. Invite email template
 

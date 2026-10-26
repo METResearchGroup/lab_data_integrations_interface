@@ -8,11 +8,9 @@ A skipped step is printed and does not fail the run.
 
 1. GET {api}/health. Expect 200 and body {"status":"ok"}.
 2. POST {api}/query with body "smoke" and no Authorization header.
-   Expect 401 and detail "Not authenticated". 403 and detail "Forbidden"
-   means ORIGIN_SECRET is set. That result is reported and does not fail.
+   Expect 401 and detail "Not authenticated".
 3. POST {api}/query with body "smoke" and Authorization "Bearer not-a-jwt".
-   Expect 401 and detail "Invalid access token". 403 and detail "Forbidden"
-   is reported and does not fail.
+   Expect 401 and detail "Invalid access token".
 4. OPTIONS {api}/query with Origin set to {ui}. Expect
    Access-Control-Allow-Origin equal to {ui}.
 5. GET {ui} with no Access token. Do not follow redirects. Expect status
@@ -97,13 +95,9 @@ def check_health(api: str, failures: list[str]) -> None:
 
 def missing_bearer_failure(status: int, query_detail: str) -> str | None:
     # HTTPBearer rejects a missing Authorization header with 401 before the
-    # handler runs. The origin middleware returns 403 detail "Forbidden" when
-    # ORIGIN_SECRET is set and X-Origin-Secret is absent.
+    # handler runs.
     if status == 401 and query_detail == "Not authenticated":
-        print("  origin guard is open; the bearer check rejected the call")
-        return None
-    if status == 403 and query_detail == "Forbidden":
-        print("  origin guard rejected the call (ORIGIN_SECRET is set)")
+        print("  the bearer check rejected the call")
         return None
     return f"/query without credentials returned {status} {query_detail!r}"
 
@@ -123,9 +117,6 @@ def check_missing_bearer(api: str, failures: list[str]) -> None:
 def bogus_bearer_failure(status: int, token_detail: str) -> str | None:
     if status == 401 and token_detail == "Invalid access token":
         print("  Supabase JWT check ran; S3 is not reached without a valid token")
-        return None
-    if status == 403 and token_detail == "Forbidden":
-        print("  origin guard rejected the call before JWT verification")
         return None
     return f"/query with a bogus bearer returned {status} {token_detail!r}"
 

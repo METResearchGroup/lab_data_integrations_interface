@@ -8,8 +8,6 @@ always-on Container. The backfill fetch worker runs as its own Container that
 you start when you want a run. Object storage stays on AWS S3. This deploy
 does not use Cloudflare R2.
 
-Railway config stays in the repo. See [What can be removed later](#what-can-be-removed-later).
-
 | | |
 |---|---|
 | API config | `cloudflare/backend/wrangler.jsonc` |
@@ -280,9 +278,8 @@ aws dynamodb get-item \
 
 If `updated_at` is newer than about 30 minutes, another writer is committing.
 Also list container applications and confirm you do not already have a
-Jetstream container running. This environment has no Railway token, so the
-Railway API cannot answer the question. The cursor is the record that a
-writer committed.
+Jetstream container running. The cursor is the record that a writer
+committed.
 
 If you cannot confirm the cursor is idle, deploy with the writer held.
 A secret cannot use the name `JETSTREAM_ENABLED`. That name is already the
@@ -410,23 +407,22 @@ SIGTERM is what `/stop` sends, and it is what the 6 hour deadline sends.
 `bluesky_backfill_app/fetch_repos/main.py` turns SIGTERM into
 `KeyboardInterrupt`. The `run()` finally block flushes a remaining buffer
 with reason `stop`, and then telemetry is flushed. Cloudflare waits about 15
-minutes after SIGTERM before SIGKILL, which covers that drain. The Railway
-service used a 300 second drain.
+minutes after SIGTERM before SIGKILL, which covers that drain.
 
 Deploy the Worker from `cloudflare/backfill/` the same way as Jetstream,
 with an AWS secrets file, and without calling `/start`. Put
 `BACKFILL_TRIGGER_TOKEN` only when you are about to run a backfill.
 
-## What was ported
+## What this deploy runs
 
-| Service | Railway / other | This change |
-|---|---|---|
-| FastAPI backend | `railway/backend.json`, HTTP | Ported to Container `ldi-api-preview`. Scales to zero after 30 minutes. |
-| Next.js UI | Vercel, not Railway | Ported to Worker `ldi-ui-preview` |
-| Jetstream ingester | `railway/bluesky_ingestion_jetstream.json`, no HTTP | Ported to always-on Container `ldi-jetstream-preview`. Writes the production bucket and the cursor table. |
-| Backfill fetch workers | `railway/bluesky_backfill_app/.railway/railway.ts` | Ported to on-demand Container `ldi-backfill-preview`. A run starts only from `POST /start`. |
-| `gather_users` | CLI, not Railway | Not ported |
-| `telemetry/app` | Sample app, not Railway | Not ported |
+| Service | Where it runs |
+|---|---|
+| FastAPI backend | Container `ldi-api-preview`. Scales to zero after 30 minutes. |
+| Next.js UI | Worker `ldi-ui-preview` |
+| Jetstream ingester | Always-on Container `ldi-jetstream-preview`. Writes the production bucket and the cursor table. |
+| Backfill fetch workers | On-demand Container `ldi-backfill-preview`. A run starts only from `POST /start`. |
+| `gather_users` | Not part of this deploy. It stays a CLI. |
+| `telemetry/app` | Not part of this deploy. It stays a sample app. |
 
 ## Backend
 
@@ -443,7 +439,7 @@ the backfill app are still copied.
 The API image runs `uv sync --frozen --no-dev --no-default-groups
 --no-install-project` with groups `api`, `ml`, and `ingestion`. Jetstream
 syncs `ingestion`. The backfill image syncs `backfill`. Packages stay on
-`PYTHONPATH`. The API command matches `uvicorn backend.main:app` on Railway.
+`PYTHONPATH`. The API command is `uvicorn backend.main:app`.
 A variable that is already present stays as it is, including an empty value.
 `backend/main.py` calls `load_dotenv()`, which does not override those
 variables, then `fill_unset_secrets()` in `lib/aws/secrets_env.py`. That
@@ -512,9 +508,8 @@ header is the same credential with the `%20` decoded to a space.
 
 The preview Wrangler configs also set `DEPLOYMENT_ENVIRONMENT` to
 `cloudflare-preview` and `OTEL_RESOURCE_ATTRIBUTES` to
-`deployment.environment=cloudflare-preview`. Railway does not set either
-name. `build_resource` adds `deployment.environment` when
-`DEPLOYMENT_ENVIRONMENT` is set. `Resource.create` also copies
+`deployment.environment=cloudflare-preview`. `build_resource` adds
+`deployment.environment` when `DEPLOYMENT_ENVIRONMENT` is set. `Resource.create` also copies
 `OTEL_RESOURCE_ATTRIBUTES`, which is how an image built before that Python
 change still labels its signals. Those vars are not secrets. They are
 applied by `wrangler deploy`, not by `wrangler secret put`.
@@ -607,8 +602,7 @@ npm ci
 npm run deploy:vinext
 ```
 
-The UI calls the API from the browser with the Supabase access token. It does
-not send `X-Origin-Secret`. See the origin-secret row below.
+The UI calls the API from the browser with the Supabase access token.
 
 ## Environment variables
 
@@ -623,10 +617,9 @@ not send `X-Origin-Secret`. See the origin-secret row below.
 | `SUPABASE_URL` | `backend/auth.py` | Not forwarded. Read from Secrets Manager `lab-data-integrations-supabase-public`, field `NEXT_PUBLIC_SUPABASE_URL`, when the name is absent. `scripts/set_api_supabase_url.py` checks the field and does not store it on the Worker. | Verifying the bearer token on `/query`. Same host as the UI. |
 | `GMAIL_SENDER_EMAIL` | `backend/agentic_search/mail.py` | Not forwarded. Read from Secrets Manager `lab-data-integrations-gmail` in us-east-2, JSON field `GMAIL_SENDER_EMAIL`, when the name is absent. | Mailing `/query` results. |
 | `GMAIL_APP_PASSWORD` | `backend/agentic_search/mail.py` | Not forwarded. Same secret, JSON field `GMAIL_APP_PASSWORD`, when the name is absent. | `mail.py` removes spaces before SMTP login. |
-| `ORIGIN_SECRET` | `backend/origin.py` | API secret, optional | Leave unset on Cloudflare. Supabase auth on `/query` is the gate. When this is set, requests other than `/health` need header `X-Origin-Secret`. |
 | `OTEL_EXPORTER_OTLP_HEADERS` | telemetry setup in the API, Jetstream, and the backfill app | Not forwarded. Read from Secrets Manager `lab-data-integrations-interface-grafana-cloud-oltp-header` when the name is absent. `scripts/set_grafana_otlp_header.py` uses that field for Grafana destinations and does not store it on the Worker. | Grafana. Absent means telemetry is off. |
 | `MAIL_TEST_RECIPIENT` | mail smoke tests | Not forwarded. Not read by the server. | Not used by the server. |
-| `DEPLOYMENT_ENVIRONMENT` | `build_resource` in the API, Jetstream, and the backfill app | Var on each of those Workers, value `cloudflare-preview` | Adds resource attribute `deployment.environment`. Railway does not set it. |
+| `DEPLOYMENT_ENVIRONMENT` | `build_resource` in the API, Jetstream, and the backfill app | Var on each of those Workers, value `cloudflare-preview` | Adds resource attribute `deployment.environment`. |
 | `OTEL_RESOURCE_ATTRIBUTES` | OpenTelemetry `Resource.create` | Var on each of those Workers, value `deployment.environment=cloudflare-preview` | Same attribute, picked up by an image built before `build_resource` learned the variable. |
 | `JETSTREAM_ENABLED` | `cloudflare/jetstream/src/index.ts` | Jetstream var, default `true`. A secret of the same name is rejected with error 10053. | `true` allows the supervisor to start the writer. Any other value makes the supervisor send SIGTERM. Hold the writer with `wrangler deploy --containers-rollout none --var JETSTREAM_ENABLED:false --durable-objects-code-update-mode immediate`. |
 | `BACKFILL_TRIGGER_TOKEN` | `cloudflare/backfill/src/index.ts` | Backfill secret. Not copied into the container. | `POST /start` and `POST /stop`. Unset means those routes return 401 and do not start a run. |
@@ -636,19 +629,9 @@ not send `X-Origin-Secret`. See the origin-secret row below.
 | `CLOUDFLARE_API_TOKEN` | Wrangler / `cf` | Shell only | Deploy. Not an app variable. |
 | `CLOUDFLARE_ACCOUNT_ID` | Wrangler / `cf` | Shell only | Deploy. Not an app variable. |
 
-`ORIGIN_SECRET` stays unset on Cloudflare. Supabase auth on `/query` is the
-gate. The UI does not send `X-Origin-Secret`. Setting the secret without
-something that adds the header makes `/query` return 403
-`{"detail":"Forbidden"}` for the UI, including CORS preflight. `/health`
-stays exempt either way. A missing bearer token is 401
+Supabase auth on `/query` is the gate. A missing bearer token is 401
 `{"detail":"Not authenticated"}`, from `HTTPBearer` in `backend/auth.py`. A
 bad token is 401 `{"detail":"Invalid access token"}`.
-
-CloudFront used to add the header so browsers never saw it
-(`docs/runbooks/HOW_TO_ENABLE_DDOS_PROTECTION.md`). That injector is
-`terraform/backend_edge/`. `backend/origin.py` is the check. Both become
-removable once Railway and CloudFront are retired. Do not remove them yet.
-Railway can still set the secret.
 
 Region, bucket, Glue database, and Athena workgroup are constants in code
 (`us-east-2`). They are not env vars.
@@ -678,8 +661,7 @@ The same list is the module docstring of `scripts/cloudflare_smoke.py`.
 The script does not print secret values or the Access redirect URL. It checks:
 
 1. `GET /health` returns `{"status":"ok"}`.
-2. `POST /query` with no credentials returns 401 `Not authenticated` when
-   the origin guard is open. `403 Forbidden` means `ORIGIN_SECRET` is set.
+2. `POST /query` with no credentials returns 401 `Not authenticated`.
 3. `POST /query` with `Authorization: Bearer not-a-jwt` returns 401 once
    `SUPABASE_URL` is set. That path does not touch S3.
 4. `OPTIONS /query` from the UI origin echoes that origin.
@@ -714,22 +696,22 @@ curl -fsS \
 post `/start` on the backfill worker as a smoke check. `GET /status` on that
 Worker should return `{"running": false}` until you intentionally start a run.
 
-## What can be removed later
+## Removed hosts
 
-Do not delete these until the replacement is the one Mark uses.
+Railway hosted the API, Jetstream, and the backfill worker. Vercel hosted the UI. CloudFront sat in front of the API and added an `X-Origin-Secret` header that `backend/origin.py` checked. Those configs are gone:
 
-| Path | Remove when |
-|---|---|
-| `railway/backend.json` | The API Container is the backend you use, and nothing still points Railway at this file. |
-| `docs/runbooks/HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md` | Same. The file still says the backend only serves `/health` and needs no AWS credentials. The code has `/query`. |
-| `docs/runbooks/HOW_TO_DEPLOY_UI_TO_VERCEL.md` | The UI Worker replaces the Vercel project. |
-| `railway/bluesky_ingestion_jetstream.json` | Nothing still deploys Jetstream to Railway. The Container is `ldi-jetstream-preview`. |
-| `docs/runbooks/HOW_TO_DEPLOY_JETSTREAM_TO_RAILWAY.md` | Same. |
-| `railway/bluesky_backfill_app/.railway/` | Nothing still deploys the backfill worker to Railway. The Container is `ldi-backfill-preview`. |
-| `docs/runbooks/HOW_TO_DEPLOY_BACKFILL_TO_RAILWAY.md` | Same. |
-| `docs/runbooks/HOW_TO_ADD_PREVIEW_BUILD_CHECKS_RAILWAY` | Nothing deploys to Railway. |
-| `terraform/backend_edge/` | Railway and CloudFront are retired. This directory is the origin-secret injector. |
-| `backend/origin.py` | Railway and CloudFront are retired, and nothing still sets `ORIGIN_SECRET`. The middleware is a no-op while the secret is unset. |
+- `railway/`
+- `docs/runbooks/HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md`
+- `docs/runbooks/HOW_TO_DEPLOY_JETSTREAM_TO_RAILWAY.md`
+- `docs/runbooks/HOW_TO_DEPLOY_BACKFILL_TO_RAILWAY.md`
+- `docs/runbooks/HOW_TO_ADD_PREVIEW_BUILD_CHECKS_RAILWAY`
+- `docs/runbooks/HOW_TO_DEPLOY_UI_TO_VERCEL.md`
+- `terraform/backend_edge/`
+- `backend/origin.py`
+
+The UI, API, Jetstream, and backfill worker deploy only through this runbook. Supabase auth on `/query` and Cloudflare Access on the preview hosts are the gates. `CHANGELOG.md` still names Railway and Vercel in older entries. Those entries were left as written. Disconnecting the old projects is outside this repo.
+
+`ui/package-lock.json` still lists `@vercel/og` because Next.js depends on that package for Open Graph images. That package is not a deploy config.
 
 ## Cloudflare Access
 

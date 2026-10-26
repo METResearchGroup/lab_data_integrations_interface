@@ -37,8 +37,8 @@ def build_resource() -> Resource:
 
     The SDK adds a random `service.instance.id`, so workers get separate
     series. DEPLOYMENT_ENVIRONMENT, when set, adds deployment.environment.
-    The Cloudflare preview sets it to cloudflare-preview. Railway leaves it
-    unset.
+    The Cloudflare preview sets it to cloudflare-preview. Leave it unset
+    locally.
     """
 
     attributes: dict[str, str] = {SERVICE_NAME_KEY: SERVICE_NAME}

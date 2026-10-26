@@ -5,15 +5,13 @@ const PORT = 8000;
 // The process reads OpenAI, Gmail, Supabase, and the OTLP header from
 // Secrets Manager (lib/aws/secrets_env.py) when those variables are unset.
 // Forward AWS credentials for that read, plus deploy settings that are not
-// secrets. CORS_ORIGINS and PORT are set in containerEnv. ORIGIN_SECRET stays
-// in this list until the origin middleware is removed. An empty value is
-// omitted so an unset ORIGIN_SECRET leaves that middleware open.
-// MAIL_TEST_RECIPIENT is not read by the server, so it is not forwarded.
+// secrets. CORS_ORIGINS and PORT are set in containerEnv. Empty values are
+// omitted. MAIL_TEST_RECIPIENT is not read by the server, so it is not
+// forwarded.
 const FORWARDED = [
 	"AWS_ACCESS_KEY_ID",
 	"AWS_SECRET_ACCESS_KEY",
 	"AWS_SESSION_TOKEN",
-	"ORIGIN_SECRET",
 	"OTEL_RESOURCE_ATTRIBUTES",
 	"DEPLOYMENT_ENVIRONMENT",
 ] as const;
@@ -24,7 +22,6 @@ export interface Env {
 	AWS_ACCESS_KEY_ID?: string;
 	AWS_SECRET_ACCESS_KEY?: string;
 	AWS_SESSION_TOKEN?: string;
-	ORIGIN_SECRET?: string;
 	OTEL_RESOURCE_ATTRIBUTES?: string;
 	DEPLOYMENT_ENVIRONMENT?: string;
 }
