@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-10-26
+
+1. The API, UI, Jetstream, and backfill worker now deploy only through Cloudflare. Railway and Vercel configs, their deploy runbooks, and the CloudFront shared-secret check in front of the API are removed. [PR #250](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/250)
+
 ## 2026-09-28
 
 1. Bluesky backfill fetch workers now stop downloading any repo past 1 GiB and mark its DID `too_large` for later handling, instead of timing out and retrying it five times. Each worker also holds less in memory: the raw CAR is freed once parsed, and the buffer holds Arrow tables whose exact size drives the 1 GiB flush, replacing Python dicts measured as JSON; a new peak-memory gauge and dashboard panel track the result. The service runs as one Railway replica. [PR #226](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/226)
