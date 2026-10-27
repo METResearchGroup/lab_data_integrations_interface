@@ -1,0 +1,18 @@
+# Local `wrangler dev` only. Copy to .dev.vars. Do not commit .dev.vars.
+# Deployed values are Wrangler secrets, not this file. See
+# docs/runbooks/HOW_TO_DEPLOY_TO_CLOUDFLARE.md.
+
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+OPENAI_API_KEY=
+GMAIL_SENDER_EMAIL=
+GMAIL_APP_PASSWORD=
+SUPABASE_URL=
+# Leave unset unless you are testing the origin guard.
+# ORIGIN_SECRET=
+# OTEL_EXPORTER_OTLP_HEADERS=
+# DEPLOYMENT_ENVIRONMENT=cloudflare-preview
+# OTEL_RESOURCE_ATTRIBUTES=deployment.environment=cloudflare-preview
+# AWS_SESSION_TOKEN=
+# MAIL_TEST_RECIPIENT=
