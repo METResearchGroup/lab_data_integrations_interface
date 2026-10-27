@@ -417,3 +417,380 @@ Deploy the Worker from `cloudflare/backfill/` the same way as Jetstream,
 with an AWS secrets file, and without calling `/start`. Put
 `BACKFILL_TRIGGER_TOKEN` only when you are about to run a backfill.
 
+## What was ported
+
+| Service | Railway / other | This change |
+|---|---|---|
+| FastAPI backend | `railway/backend.json`, HTTP | Ported to Container `ldi-api-preview`. Scales to zero after 30 minutes. |
+| Next.js UI | Vercel, not Railway | Ported to Worker `ldi-ui-preview` |
+| Jetstream ingester | `railway/bluesky_ingestion_jetstream.json`, no HTTP | Ported to always-on Container `ldi-jetstream-preview`. Writes the production bucket and the cursor table. |
+| Backfill fetch workers | `railway/bluesky_backfill_app/.railway/railway.ts` | Ported to on-demand Container `ldi-backfill-preview`. A run starts only from `POST /start`. |
+| `gather_users` | CLI, not Railway | Not ported |
+| `telemetry/app` | Sample app, not Railway | Not ported |
+
+## Backend
+
+### Build context
+
+Imports are absolute from the repo root (`from backend.main`, `from lib.aws`,
+`from bluesky_ingestion_jetstream...`). One `pyproject.toml` / `uv.lock`
+covers the repo. The image is built with the repo root as context
+(`image_build_context` in the Wrangler config). `.dockerignore` keeps `.venv`,
+git, and experiment data out of the context. The root `telemetry` sample app
+is ignored as `/telemetry`, so the `telemetry` packages inside Jetstream and
+the backfill app are still copied.
+
+The API image runs `uv sync --frozen --no-dev --no-default-groups
+--no-install-project` with groups `api`, `ml`, and `ingestion`. Jetstream
+syncs `ingestion`. The backfill image syncs `backfill`. Packages stay on
+`PYTHONPATH`. The API command matches `uvicorn backend.main:app` on Railway.
+Env vars arrive as process environment. `backend/main.py` calls `load_dotenv()`,
+which does not override variables that are already set. `EnvVarsContainer` in
+`lib/load_env_vars.py` reads `OPENAI_API_KEY` from the environment after
+loading the root `.env`, which is absent in the image. No second loader was
+added.
+
+### Pointing traffic at the container
+
+`ldi-api-preview` is a Worker whose only job is to route every request to one
+container. The container listens on port 8000. Internet egress is on, because
+the API calls AWS, Supabase, OpenAI, and Gmail.
+
+`CORS_ORIGINS` is a Wrangler var, not a secret. `backend/main.py` splits on
+commas and does not trim, so the value must not contain spaces.
+
+### Secrets
+
+From `cloudflare/backend/`, with `CLOUDFLARE_API_TOKEN` and
+`CLOUDFLARE_ACCOUNT_ID` exported:
+
+```bash
+# stdin, so the value is not a shell argument and does not land in the command line
+printf '%s' "$AWS_ACCESS_KEY_ID" | npx wrangler secret put AWS_ACCESS_KEY_ID
+```
+
+Repeat for each secret in the table below. `wrangler secret put` deploys a
+new Worker version immediately. The container only reads the value the next
+time it starts. After changing a secret, let the instance sleep, or redeploy
+the image, before expecting the process to see it.
+
+`SUPABASE_URL` comes from the same Secrets Manager secret as the UI.
+`scripts/set_api_supabase_url.py` reads `NEXT_PUBLIC_SUPABASE_URL` from
+`lab-data-integrations-supabase-public` and stores it as the API Worker
+secret. It does not print the value, and it refuses a host that is not a
+`supabase.co` project host. Run it from the repo root before `wrangler
+deploy` in `cloudflare/backend/`. `backend/auth.py` verifies ES256 tokens
+with PyJWT, which needs the `cryptography` package. `pyjwt[crypto]` in
+`pyproject.toml` installs that package. Without it, a real Supabase token
+is rejected with `Invalid access token` and the container log says
+`ES256 requires 'cryptography' to be installed`.
+
+`scripts/set_grafana_otlp_header.py` reads `OTEL_EXPORTER_OTLP_HEADERS` from
+Secrets Manager `lab-data-integrations-interface-grafana-cloud-oltp-header`
+in `us-east-2` and stores it on `ldi-api-preview`, `ldi-jetstream-preview`,
+and `ldi-backfill-preview`. It does not print the value. The value has to
+start with `Authorization=Basic%20`. A raw space is refused, because the
+Python exporter needs the space written as `%20`. Run it from the repo root
+with `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and AWS credentials
+for `us-east-2`.
+
+The same script creates or updates two Workers observability destinations,
+`ldi-preview-grafana-logs` and `ldi-preview-grafana-traces`, on the gateway
+in `backend/telemetry/constants.py`. It then points the API, Jetstream,
+backfill, and UI Workers at those destinations with `persist: false`, so
+Cloudflare does not keep a second copy of Worker logs and traces. Container
+stdout still goes to the containers dataset. The destination Authorization
+header is the same credential with the `%20` decoded to a space.
+
+The preview Wrangler configs also set `DEPLOYMENT_ENVIRONMENT` to
+`cloudflare-preview` and `OTEL_RESOURCE_ATTRIBUTES` to
+`deployment.environment=cloudflare-preview`. Railway does not set either
+name. `build_resource` adds `deployment.environment` when
+`DEPLOYMENT_ENVIRONMENT` is set. `Resource.create` also copies
+`OTEL_RESOURCE_ATTRIBUTES`, which is how an image built before that Python
+change still labels its signals. Those vars are not secrets. They are
+applied by `wrangler deploy`, not by `wrangler secret put`.
+
+`wrangler secret put` does not upload the Worker script and does not rebuild
+the image. After the script, deploy each container Worker with
+`--containers-rollout none` so the new vars are forwarded and the image that
+is already running stays in place:
+
+```bash
+cd cloudflare/backend
+npx wrangler deploy --containers-rollout none
+```
+
+Repeat from `cloudflare/jetstream` and `cloudflare/backfill`. The container
+still has the environment from the start that is already running. Restart
+the API by requesting `GET /health` after its instance has stopped. Jetstream
+does not sleep on its own. Hold it and start it again with the commands in
+[Jetstream](#jetstream). The new process resumes from
+`bluesky_jetstream_cursor`.
+
+Local `wrangler dev` reads `cloudflare/backend/.dev.vars` (gitignored). Copy
+`.dev.vars.example`. Jetstream and the backfill worker have their own
+`.dev.vars.example` files.
+
+The lab Cloudflare token is the Secrets Manager secret `cloudflare-api-token`
+in `us-east-2`. The JSON keys are `CLOUDFLARE_API_TOKEN` and
+`CLOUDFLARE_ACCOUNT_ID`. Do not print either value. The token used for this
+preview can list Workers and container applications on the account. Confirm
+with `npx wrangler whoami` before a deploy. User-token verify
+(`/user/tokens/verify`) returns 401 for this account-owned token; that is
+expected. Account verify succeeds.
+
+Docker must be running. `wrangler deploy` builds the image and pushes it.
+Containers are linux/amd64.
+
+```bash
+cd cloudflare/backend
+npx wrangler deploy
+```
+
+First request after the first deploy can fail while Cloudflare provisions the
+instance. `GET /health` should then return `{"status":"ok"}`.
+
+Deploy Jetstream and the backfill worker from their own directories. Each
+deploy builds that Worker's Docker file. Pass `--secrets-file` on the first
+deploy so AWS credentials are present before the process starts. See
+[Jetstream](#jetstream) and [Backfill](#backfill).
+
+## UI
+
+vinext sits next to the existing Next.js scripts. `npm run dev` is still
+`next dev`. Cloudflare uses the vinext scripts.
+
+`vinext check` reported the App Router app, including `src/proxy.ts`, fully
+supported. `ui/cloudflare.config.ts` is the Worker config (`cf` / vinext).
+The API uses Wrangler because it is a Container project; do not run `cf deploy`
+in `cloudflare/backend/`.
+
+The browser bundle inlines `NEXT_PUBLIC_*` at build time (`ui/src/lib/api.ts`,
+`ui/src/lib/supabase/env.ts`). `proxy.ts` reads the same names from
+`process.env` on each request. With `nodejs_compat` and a compatibility date
+after 2025-04-01, the Worker copies text bindings into `process.env`.
+`cloudflare.config.ts` publishes the two Supabase names as text bindings.
+They are not committed. A deploy that omits them returns plain text
+`Internal Server Error` from `proxy.ts` before the page renders.
+
+`npm run deploy:vinext` loads the names, then starts `vinext-cloudflare
+deploy` in that same process. The loader refuses a trailing slash on
+`NEXT_PUBLIC_API_URL`. When both Supabase names are unset, it reads
+Secrets Manager secret `lab-data-integrations-supabase-public` in
+`us-east-2`. It does not print the values. The Supabase URL host has to be
+a `supabase.co` project host. One Supabase name without the other stops
+the deploy. A missing secret stops the deploy and names the secret. The
+API URL in `cloudflare.config.ts` has to match `NEXT_PUBLIC_API_URL`.
+
+The reader uses boto3. It tries `PYTHON`, then the repo `.venv`, then
+`python3`. AWS credentials for `us-east-2` have to be available the same
+way the rest of this deploy reads Secrets Manager.
+
+```bash
+cd ui
+export NEXT_PUBLIC_API_URL=https://ldi-api-preview.mind-technology-lab.workers.dev
+export CLOUDFLARE_API_TOKEN=...
+export CLOUDFLARE_ACCOUNT_ID=...
+npm ci
+npm run deploy:vinext
+```
+
+The UI calls the API from the browser with the Supabase access token. It does
+not send `X-Origin-Secret`. See the origin-secret row below.
+
+## Environment variables
+
+| Name | Who reads it | Wrangler | Required for |
+|---|---|---|---|
+| `CORS_ORIGINS` | `backend/main.py` | API var | Browser calls from the UI. Preview value includes the UI `workers.dev` origin and localhost. |
+| `PORT` | uvicorn | Set by the API container router to `8000` | Listen port. Not a secret. |
+| `AWS_ACCESS_KEY_ID` | boto3, via `lib/aws/clients.py` | Secret on the API, Jetstream, and backfill Workers | Athena, S3, DynamoDB, SQS. From this environment's AWS credentials. |
+| `AWS_SECRET_ACCESS_KEY` | boto3 | Secret on the API, Jetstream, and backfill Workers | Same. |
+| `AWS_SESSION_TOKEN` | boto3 | Secret, optional, on each of those Workers | Only for temporary credentials. Unset for the long-lived key. |
+| `OPENAI_API_KEY` | `EnvVarsContainer` in `lib/load_env_vars.py` | API secret | SQL generation on `/query`. Secrets Manager `openai-api-key`, key `OPENAI_API_KEY`. |
+| `SUPABASE_URL` | `backend/auth.py` | API secret. `scripts/set_api_supabase_url.py` copies `NEXT_PUBLIC_SUPABASE_URL` from Secrets Manager `lab-data-integrations-supabase-public`. | Verifying the bearer token on `/query`. Same host as the UI. |
+| `GMAIL_SENDER_EMAIL` | `backend/agentic_search/mail.py` | API secret | Mailing `/query` results. Secrets Manager `lab-data-integrations-gmail` in us-east-2, JSON field `GMAIL_SENDER_EMAIL`. |
+| `GMAIL_APP_PASSWORD` | `backend/agentic_search/mail.py` | API secret | Same secret, JSON field `GMAIL_APP_PASSWORD`. `mail.py` removes spaces before SMTP login. |
+| `ORIGIN_SECRET` | `backend/origin.py` | API secret, optional | Leave unset on Cloudflare. Supabase auth on `/query` is the gate. When this is set, requests other than `/health` need header `X-Origin-Secret`. |
+| `OTEL_EXPORTER_OTLP_HEADERS` | telemetry setup in the API, Jetstream, and the backfill app | Secret, optional, on each Worker. `scripts/set_grafana_otlp_header.py` copies it from Secrets Manager `lab-data-integrations-interface-grafana-cloud-oltp-header`. | Grafana. Unset means telemetry is off. |
+| `MAIL_TEST_RECIPIENT` | mail smoke tests | API secret, optional | Not used by the server. |
+| `DEPLOYMENT_ENVIRONMENT` | `build_resource` in the API, Jetstream, and the backfill app | Var on each of those Workers, value `cloudflare-preview` | Adds resource attribute `deployment.environment`. Railway does not set it. |
+| `OTEL_RESOURCE_ATTRIBUTES` | OpenTelemetry `Resource.create` | Var on each of those Workers, value `deployment.environment=cloudflare-preview` | Same attribute, picked up by an image built before `build_resource` learned the variable. |
+| `JETSTREAM_ENABLED` | `cloudflare/jetstream/src/index.ts` | Jetstream var, default `true`. A secret of the same name is rejected with error 10053. | `true` allows the supervisor to start the writer. Any other value makes the supervisor send SIGTERM. Hold the writer with `wrangler deploy --containers-rollout none --var JETSTREAM_ENABLED:false --durable-objects-code-update-mode immediate`. |
+| `BACKFILL_TRIGGER_TOKEN` | `cloudflare/backfill/src/index.ts` | Backfill secret. Not copied into the container. | `POST /start` and `POST /stop`. Unset means those routes return 401 and do not start a run. |
+| `NEXT_PUBLIC_API_URL` | `ui/src/lib/api.ts` | Build env, and a text binding on the UI Worker | Where the browser sends `/query`. |
+| `NEXT_PUBLIC_SUPABASE_URL` | `ui/src/lib/supabase/env.ts` | Build env, and a text binding on the UI Worker. Read from Secrets Manager `lab-data-integrations-supabase-public` when unset. | Login and session. The Worker returns plain text `Internal Server Error` when this binding is missing, because `proxy.ts` throws before the page renders. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `ui/src/lib/supabase/env.ts` | Build env, and a text binding on the UI Worker. Same secret, JSON field of the same name. | Login and session. Same failure as the URL when the binding is missing. |
+| `CLOUDFLARE_API_TOKEN` | Wrangler / `cf` | Shell only | Deploy. Not an app variable. |
+| `CLOUDFLARE_ACCOUNT_ID` | Wrangler / `cf` | Shell only | Deploy. Not an app variable. |
+
+`ORIGIN_SECRET` stays unset on Cloudflare. Supabase auth on `/query` is the
+gate. The UI does not send `X-Origin-Secret`. Setting the secret without
+something that adds the header makes `/query` return 403
+`{"detail":"Forbidden"}` for the UI, including CORS preflight. `/health`
+stays exempt either way. A missing bearer token is 401
+`{"detail":"Not authenticated"}`, from `HTTPBearer` in `backend/auth.py`. A
+bad token is 401 `{"detail":"Invalid access token"}`.
+
+CloudFront used to add the header so browsers never saw it
+(`docs/runbooks/HOW_TO_ENABLE_DDOS_PROTECTION.md`). That injector is
+`terraform/backend_edge/`. `backend/origin.py` is the check. Both become
+removable once Railway and CloudFront are retired. Do not remove them yet.
+Railway can still set the secret.
+
+Region, bucket, Glue database, and Athena workgroup are constants in code
+(`us-east-2`). They are not env vars.
+
+`GMAIL_SENDER_EMAIL` and `GMAIL_APP_PASSWORD` are set on the preview API
+Worker from `lab-data-integrations-gmail`. The container process receives
+them only when it starts, from `containerEnv` in
+`cloudflare/backend/src/index.ts`. A process that is already running keeps
+the environment from that start. After you change either secret, restart
+the container.
+
+A send check uses the sender address as the recipient. Leave
+`MAIL_TEST_RECIPIENT` unset. Send one message, and do not print the address
+or the app password.
+
+## Verifying
+
+`workers.dev` rejects the default Python user agent. The smoke script sets
+one.
+
+```bash
+python scripts/cloudflare_smoke.py \
+  --api-url https://ldi-api-preview.mind-technology-lab.workers.dev \
+  --ui-url https://ldi-ui-preview.mind-technology-lab.workers.dev
+```
+
+It checks:
+
+1. `GET /health` returns `{"status":"ok"}`.
+2. `POST /query` with no credentials returns 401 `Not authenticated` when
+   the origin guard is open. `403 Forbidden` means `ORIGIN_SECRET` is set.
+3. `POST /query` with `Authorization: Bearer not-a-jwt` returns 401 once
+   `SUPABASE_URL` is set. That path does not touch S3.
+4. `OPTIONS /query` from the UI origin echoes that origin.
+5. `GET` on the UI without a service token redirects to Cloudflare Access.
+   Stopping at that wall is not a check of the UI Worker.
+6. With `CF-Access-Client-Id` and `CF-Access-Client-Secret` set, or with
+   those fields in Secrets Manager `lab-data-integrations-access-smoke`,
+   `GET /` and `GET /login` return 200 and the Supabase sign-in form
+   (email, password, and "Sign in"). The script prints the elapsed
+   milliseconds. A body of `Internal Server Error` fails the check.
+   `cloudflare/access/apply_preview_access.py` creates the service token
+   `ldi-preview-smoke` and the service auth policy on the UI app. Creating
+   the token needs API token permission Access: Service Tokens Write. Without
+   that permission the smoke check fails instead of treating the Access wall
+   as a pass.
+7. When `SUPABASE_TEST_EMAIL` and `SUPABASE_TEST_PASSWORD` are set, the
+   script signs in to Supabase and `POST /query` must return 202. No test
+   user is stored. Without those two variables the script says it skipped
+   that check.
+
+Jetstream, after you have confirmed the cursor is idle and the supervisor
+has had a minute to start:
+
+```bash
+curl -fsS \
+  -H "User-Agent: ldi-cloudflare-smoke/1.0" \
+  https://ldi-jetstream-preview.mind-technology-lab.workers.dev/status
+```
+
+`running` should be `true` when `JETSTREAM_ENABLED` is `true`, and
+`updated_at` on `bluesky_jetstream_cursor` should move after a flush. Do not
+post `/start` on the backfill worker as a smoke check. `GET /status` on that
+Worker should return `{"running": false}` until you intentionally start a run.
+
+## What can be removed later
+
+Do not delete these until the replacement is the one Mark uses.
+
+| Path | Remove when |
+|---|---|
+| `railway/backend.json` | The API Container is the backend you use, and nothing still points Railway at this file. |
+| `docs/runbooks/HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md` | Same. The file still says the backend only serves `/health` and needs no AWS credentials. The code has `/query`. |
+| `docs/runbooks/HOW_TO_DEPLOY_UI_TO_VERCEL.md` | The UI Worker replaces the Vercel project. |
+| `railway/bluesky_ingestion_jetstream.json` | Nothing still deploys Jetstream to Railway. The Container is `ldi-jetstream-preview`. |
+| `docs/runbooks/HOW_TO_DEPLOY_JETSTREAM_TO_RAILWAY.md` | Same. |
+| `railway/bluesky_backfill_app/.railway/` | Nothing still deploys the backfill worker to Railway. The Container is `ldi-backfill-preview`. |
+| `docs/runbooks/HOW_TO_DEPLOY_BACKFILL_TO_RAILWAY.md` | Same. |
+| `docs/runbooks/HOW_TO_ADD_PREVIEW_BUILD_CHECKS_RAILWAY` | Nothing deploys to Railway. |
+| `terraform/backend_edge/` | Railway and CloudFront are retired. This directory is the origin-secret injector. |
+| `backend/origin.py` | Railway and CloudFront are retired, and nothing still sets `ORIGIN_SECRET`. The middleware is a no-op while the secret is unset. |
+
+## Cloudflare Access
+
+The preview UI and API should require a one-time PIN before a person can
+open them. Allowed emails end in `@northwestern.edu`, `@u.northwestern.edu`,
+or `@kellogg.northwestern.edu`, plus `markptorres1@gmail.com`. The login
+method on that allow policy is one-time PIN. Do not use an Include rule of
+"everyone" or "any one-time PIN" without those emails. That would let any
+inbox in.
+
+This is not on the account yet. `GET /accounts/{account_id}/access/apps`
+returns HTTP 403 `access.api.error.not_enabled`: Access is not enabled.
+Someone has to open the Cloudflare dashboard and click Enable Access. The
+token can call the Access API. The failure is the account setting, not a
+missing token permission. After Access is enabled, applying the config
+needs `Access: Apps and Policies Write` and `Access: Organizations,
+Identity Providers, and Groups Write`. A later authentication error (code
+10000) means one of those permissions is missing on the token.
+
+The exact config is `cloudflare/access/apply_preview_access.py`. With
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` set:
+
+```bash
+python cloudflare/access/apply_preview_access.py
+```
+
+Until Access is enabled, that command stops and prints the same gap. It
+does not print the token or the account id. It does not protect every
+Worker on the account. Jetstream (`/status`) and the backfill worker stay
+off this policy. Backfill `POST /start` still requires its own bearer token.
+
+What the script creates once Access is on:
+
+1. An identity provider named `One-time PIN login`, type `onetimepin`, if
+   one does not already exist.
+2. One reusable Access policy, `LDI preview OTP allow`, decision `allow`.
+   Include email domains `northwestern.edu`, `u.northwestern.edu`, and
+   `kellogg.northwestern.edu`, plus the email `markptorres1@gmail.com`.
+   Require login method equal to that one-time PIN provider.
+3. A self-hosted application `ldi-ui-preview`. Destination type `public`,
+   URI `ldi-ui-preview.mind-technology-lab.workers.dev`. The allow policy
+   is the only policy. Session duration `24h`. The login page redirects
+   to the one-time PIN provider.
+4. A self-hosted application `ldi-api-preview` for
+   `ldi-api-preview.mind-technology-lab.workers.dev`, with the same allow
+   policy. The destination has public overrides for `/health` and `/query`.
+   An override makes that path skip Access. Override paths do not cover
+   subpaths, which matches the two routes the API actually serves.
+
+`/query` stays reachable without an Access login because the UI calls it
+from the browser (`ui/src/lib/api.ts`). The UI host and the API host are
+different sites: `workers.dev` is a public suffix, so the Access cookie
+from the UI is not sent to the API. A service token would have to be
+inlined into the client bundle to go with that `fetch`, and that would
+publish the token. The public override is the fit. Supabase still rejects
+a missing or bad bearer token. `/health` stays public so a smoke check
+can call it without a PIN. Any other path on the API host, such as the
+generated docs, still asks for the PIN.
+
+Dashboard equivalent, if you apply it by hand:
+
+1. Zero Trust, then Integrations, then Identity providers. Add One-time PIN.
+2. Access controls, then Policies. Create a reusable Allow policy with the
+   emails and domains above, and require One-time PIN.
+3. Add a self-hosted application for the UI hostname and attach that policy.
+4. Add a self-hosted application for the API hostname, attach that policy,
+   and add destination overrides that make `/health` and `/query` public.
+5. Do not add an `all_workers` destination.
+
+## Open questions
+
+None from the image split. On 2026-10-23 the preview Workers were rolled
+onto these images. `docker images` reports the API image at 1.31 GB,
+Jetstream at 1.16 GB, and the backfill image at 908 MB. The previous
+shared image was 3.77 GB.
