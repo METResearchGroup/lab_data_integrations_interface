@@ -9,6 +9,7 @@ import typer
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_openai import ChatOpenAI
+from pydantic import SecretStr
 from tqdm import tqdm
 
 from collector.column_name_conversion import COLUMN_NAME_CONVERSION
@@ -79,8 +80,12 @@ def get_chain(prompt: tuple[str, str]) -> Runnable:
             ("human", user_prompt),
         ]
     )
-    EnvVarsContainer.get_env_var("OPENAI_API_KEY", required=True)
-    llm = ChatOpenAI(model=DEFAULT_MODEL, temperature=MODEL_TEMPERATURE)
+    api_key = EnvVarsContainer.get_env_var("OPENAI_API_KEY", required=True)
+    llm = ChatOpenAI(
+        model=DEFAULT_MODEL,
+        temperature=MODEL_TEMPERATURE,
+        api_key=SecretStr(api_key),
+    )
     return template | llm.with_structured_output(LlmBatchedPosts)
 
 
