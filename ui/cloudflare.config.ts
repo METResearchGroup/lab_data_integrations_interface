@@ -16,6 +16,8 @@ function publicText(name: string) {
 
 export default defineConfig({
 	worker: defineWorker({
+		// workers.dev hostname. A later cutover can rename this Worker to ldi-ui.
+		// That rename changes the public host and the Access application.
 		name: "ldi-ui-preview",
 		entrypoint: "vinext/server/fetch-handler",
 		compatibilityDate: "2026-10-23",
@@ -44,8 +46,9 @@ export default defineConfig({
 		env: {
 			ASSETS: bindings.assets(),
 			IMAGES: bindings.images(),
-			// Keep this in step with NEXT_PUBLIC_API_URL in the build environment
-			// (ui/src/lib/api.ts).
+			// NEXT_PUBLIC_* is inlined by Next.js into the browser bundle.
+			// vinext serves that bundle, so the prefix stays. Keep
+			// NEXT_PUBLIC_API_URL in step with ui/src/lib/api.ts.
 			NEXT_PUBLIC_API_URL: bindings.text(
 				"https://ldi-api-preview.mind-technology-lab.workers.dev",
 			),
