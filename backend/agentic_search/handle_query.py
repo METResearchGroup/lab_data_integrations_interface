@@ -17,7 +17,29 @@ tracer = trace.get_tracer(__name__)
 
 
 def _date_note(validation: ValidationResult | None) -> str:
-    """Tell the researcher which date sides the program filled in."""
+    """Build the email note for each date side the program filled in.
+
+    Parameters
+    ----------
+    validation : ValidationResult | None
+        The validation result for the question. None when the run failed
+        before validation.
+
+    Returns
+    -------
+    str
+        The note plus a blank line, or "" when no side was filled in.
+
+    Examples
+    --------
+    A start of 2026-08-08 with ``start_date_inferred`` true returns
+    "Start date 2026-08-08 is 7 days before the end, because the question stated no start.\\n\\n".
+
+    An end of 2026-10-27 with ``end_date_inferred`` true returns
+    "End date 2026-10-27 is the current UTC date, because the question stated no end.\\n\\n".
+
+    Both flags false, or a missing validation result, returns "".
+    """
 
     intent = None if validation is None else validation.intent
     if intent is None:
