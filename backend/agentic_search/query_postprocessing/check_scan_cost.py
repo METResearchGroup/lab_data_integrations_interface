@@ -39,10 +39,10 @@ def _row_filter(intent: QueryIntent) -> str:
 
 
 def _columns_read(intent: QueryIntent) -> list[str] | None:
-    """None means every column is read, which is what SELECT * does.
+    """Return the columns whose on-disk size the estimate counts.
 
-    A keyword filter reads text even when the question did not select it.
-    SELECT * already reads text, so the full file size stands.
+    None means every column is read, which is what SELECT * does.
+    A keyword filter adds text when the question did not select it.
     """
 
     if not intent.columns:
@@ -89,12 +89,8 @@ def reason_over_scan_limit(table: Table, intent: QueryIntent) -> str | None:
     if scan_bytes <= MAX_SCAN_BYTES:
         return None
 
-    if intent.keywords:
-        advice = "narrow the date range; a keyword filter reads text for every day in the range"
-    else:
-        advice = "narrow the date range or ask for fewer columns"
     return (
         f"the query scans about {scan_bytes / BYTES_PER_GB:.1f} GB, "
         f"over the {MAX_SCAN_BYTES / BYTES_PER_GB:.0f} GB limit; "
-        f"{advice}"
+        "narrow the date range"
     )
