@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
-
 from backend.agentic_search.query_validation.check_data_availability import (
     check_data_availability,
 )
@@ -15,6 +13,7 @@ from backend.agentic_search.query_validation.query_intent.extract import extract
 from backend.agentic_search.query_validation.query_intent.models import QueryIntent
 from bluesky_ingestion_jetstream.constants import DATA_START_DATE, RecordType
 from bluesky_ingestion_jetstream.schemas.arrow_schemas import RECORD_TYPE_TO_SCHEMA
+from lib.timestamp_utils import get_current_date
 
 
 def build_snapshot() -> dict[RecordType, TableMetadata]:
@@ -22,7 +21,7 @@ def build_snapshot() -> dict[RecordType, TableMetadata]:
     Returns columns and date range for each table in Iceberg
     """
 
-    today = date.today()
+    today = get_current_date()
     return {
         record_type: TableMetadata(
             columns=tuple(schema.names),

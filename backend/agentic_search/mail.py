@@ -52,22 +52,23 @@ def _send(email: str, subject: str, body: str) -> bool:
         return True
 
 
-def mail_results(email: str, query: str, result_url: str) -> bool:
+def mail_results(email: str, query: str, result_url: str, note: str = "") -> bool:
     return _send(
         email,
         SUBJECT_READY,
         f"Your query:\n\n  {query}\n\n"
+        f"{note}"
         f"Download the results (link expires in 24 hours):\n\n  {result_url}\n\n"
         f"{FEEDBACK}",
     )
 
 
-def mail_invalid(email: str, query: str, issues: list[str]) -> bool:
+def mail_invalid(email: str, query: str, issues: list[str], note: str = "") -> bool:
     listed = "\n".join(f"  - {issue}" for issue in issues)
     return _send(
         email,
         SUBJECT_INVALID,
-        f"Your query:\n\n  {query}\n\nIt could not be run:\n\n{listed}\n\n{FEEDBACK}",
+        f"Your query:\n\n  {query}\n\n{note}It could not be run:\n\n{listed}\n\n{FEEDBACK}",
     )
 
 
