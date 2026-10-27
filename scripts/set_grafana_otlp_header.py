@@ -1,20 +1,18 @@
-"""Copy the Grafana Cloud OTLP header onto the preview Workers.
+"""Point Workers observability at Grafana Cloud.
 
 Reads OTEL_EXPORTER_OTLP_HEADERS from Secrets Manager
-lab-data-integrations-interface-grafana-cloud-oltp-header in us-east-2 and
-stores that value as the Wrangler secret of the same name on
-ldi-api-preview, ldi-jetstream-preview, and ldi-backfill-preview. Does not
-print the value. Does not change the Secrets Manager secret.
+lab-data-integrations-interface-grafana-cloud-oltp-header in us-east-2.
+Does not print the value. Does not change the Secrets Manager secret.
+Does not store the header on a Worker. The API, Jetstream, and backfill
+processes read that field themselves when the variable is absent.
 
-Also creates or updates two Workers observability destinations,
+Creates or updates two Workers observability destinations,
 ldi-preview-grafana-logs and ldi-preview-grafana-traces, using the same
-credential. The destination Authorization header uses a real space. The
-Worker secret keeps the %20 encoding the Python exporter requires.
-
-The container reads the secret only when it starts. Deploy the Worker with
-`--containers-rollout none` so the new vars are forwarded, then restart the
-API and Jetstream containers. See
-docs/runbooks/HOW_TO_DEPLOY_TO_CLOUDFLARE.md.
+credential. Those names are the live destination names. A later cutover
+can drop "preview" from them. Renaming splits the Grafana series and the
+Worker config, so this script keeps the current names. The destination
+Authorization header uses a real space. The process keeps the %20 encoding
+the Python exporter requires.
 
     python scripts/set_grafana_otlp_header.py
 
@@ -26,19 +24,16 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
 from typing import NoReturn
 
 SECRET_ID = "lab-data-integrations-interface-grafana-cloud-oltp-header"
 SECRET_REGION = "us-east-2"
 FIELD = "OTEL_EXPORTER_OTLP_HEADERS"
 ENCODED_PREFIX = "Authorization=Basic%20"
-ROOT = Path(__file__).resolve().parent.parent
 
 # Same gateway as backend/telemetry/constants.py. Destinations need the signal path.
 OTLP_BASE = "https://otlp-gateway-prod-us-east-3.grafana.net/otlp"
@@ -47,11 +42,6 @@ TRACES_DESTINATION = "ldi-preview-grafana-traces"
 DESTINATIONS = (
     (LOGS_DESTINATION, "opentelemetry-logs", f"{OTLP_BASE}/v1/logs"),
     (TRACES_DESTINATION, "opentelemetry-traces", f"{OTLP_BASE}/v1/traces"),
-)
-WORKERS = (
-    ("ldi-api-preview", ROOT / "cloudflare" / "backend"),
-    ("ldi-jetstream-preview", ROOT / "cloudflare" / "jetstream"),
-    ("ldi-backfill-preview", ROOT / "cloudflare" / "backfill"),
 )
 OBSERVABILITY_WORKERS = (
     "ldi-api-preview",
@@ -114,31 +104,6 @@ def authorization_value(header: str) -> str:
     if not decoded.startswith("Basic ") or decoded.count(" ") != 1:
         fail("The header did not decode to a Basic authorization value.")
     return decoded
-
-
-def put_worker_secret(worker: str, directory: Path, header: str) -> None:
-    result = subprocess.run(
-        [
-            "npx",
-            "wrangler",
-            "secret",
-            "put",
-            FIELD,
-            "--name",
-            worker,
-        ],
-        input=header,
-        text=True,
-        cwd=directory,
-        capture_output=True,
-    )
-    for stream in (result.stdout, result.stderr):
-        cleaned = scrub(stream, header)
-        if cleaned:
-            print(cleaned)
-    if result.returncode != 0:
-        fail(f"wrangler secret put {FIELD} failed for {worker}. The value was not printed.")
-    print(f"Set {FIELD} on {worker} from {SECRET_ID}.")
 
 
 def cloudflare_json(method: str, path: str, body: dict | None, secret: str) -> dict:
@@ -241,8 +206,6 @@ def point_workers_at_grafana(secret: str) -> None:
 
 def main() -> None:
     header = otlp_header()
-    for worker, directory in WORKERS:
-        put_worker_secret(worker, directory, header)
     ensure_destinations(authorization_value(header), header)
     point_workers_at_grafana(header)
 
