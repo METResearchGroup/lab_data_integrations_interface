@@ -2,23 +2,20 @@ import { Container } from "@cloudflare/containers";
 
 const PORT = 8000;
 
-// Names the container process reads with os.getenv / load_dotenv / EnvVarsContainer.
-// Wrangler secrets and vars land on the Worker. This list copies the ones that
-// are actually set into the container environment at start. Empty values are
-// omitted so an unset ORIGIN_SECRET stays unset and the middleware stays open.
+// The process reads OpenAI, Gmail, Supabase, and the OTLP header from
+// Secrets Manager (lib/aws/secrets_env.py) when those variables are unset.
+// Forward AWS credentials for that read, plus deploy settings that are not
+// secrets. CORS_ORIGINS and PORT are set in containerEnv. ORIGIN_SECRET stays
+// in this list until the origin middleware is removed. An empty value is
+// omitted so an unset ORIGIN_SECRET leaves that middleware open.
+// MAIL_TEST_RECIPIENT is not read by the server, so it is not forwarded.
 const FORWARDED = [
 	"AWS_ACCESS_KEY_ID",
 	"AWS_SECRET_ACCESS_KEY",
 	"AWS_SESSION_TOKEN",
-	"OPENAI_API_KEY",
-	"GMAIL_SENDER_EMAIL",
-	"GMAIL_APP_PASSWORD",
-	"SUPABASE_URL",
 	"ORIGIN_SECRET",
-	"OTEL_EXPORTER_OTLP_HEADERS",
 	"OTEL_RESOURCE_ATTRIBUTES",
 	"DEPLOYMENT_ENVIRONMENT",
-	"MAIL_TEST_RECIPIENT",
 ] as const;
 
 export interface Env {
@@ -27,15 +24,9 @@ export interface Env {
 	AWS_ACCESS_KEY_ID?: string;
 	AWS_SECRET_ACCESS_KEY?: string;
 	AWS_SESSION_TOKEN?: string;
-	OPENAI_API_KEY?: string;
-	GMAIL_SENDER_EMAIL?: string;
-	GMAIL_APP_PASSWORD?: string;
-	SUPABASE_URL?: string;
 	ORIGIN_SECRET?: string;
-	OTEL_EXPORTER_OTLP_HEADERS?: string;
 	OTEL_RESOURCE_ATTRIBUTES?: string;
 	DEPLOYMENT_ENVIRONMENT?: string;
-	MAIL_TEST_RECIPIENT?: string;
 }
 
 export function containerEnv(env: Env): Record<string, string> {
@@ -53,7 +44,7 @@ export function containerEnv(env: Env): Record<string, string> {
 }
 
 /**
- * One long-lived FastAPI process for the whole preview.
+ * One long-lived FastAPI process for this API host.
  *
  * getByName("api") pins every request to the same Durable Object, and
  * max_instances is 1, so the in-process rate limiter in backend/rate_limit.py
