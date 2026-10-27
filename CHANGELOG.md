@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-10-23
+
+1. Agentic search can filter posts by the words in `text`. `generate_sql` writes a case-insensitive `regexp_like` predicate that reports the first matching term. A question with no end uses the current UTC date, a question with no start uses 7 days before that end, a list past 8 terms or 80 characters is refused, and the scan estimate counts `text` plus `created_at` (`docs/runbooks/agentic_search_keyword_matching.md`). [PR #246](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/246)
+
+2. Agentic search and the collector upsampler read the OpenAI key from AWS Secrets Manager id `openai-api-key` in us-east-2. `EnvVarsContainer` loads that value as `api_key`, and it also reads `JEV_API_KEY` from id `jev-typesafe-api-key` for date classification. [PR #246](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/246)
+
 ## 2026-09-28
 
 1. Bluesky backfill fetch workers now stop downloading any repo past 1 GiB and mark its DID `too_large` for later handling, instead of timing out and retrying it five times. Each worker also holds less in memory: the raw CAR is freed once parsed, and the buffer holds Arrow tables whose exact size drives the 1 GiB flush, replacing Python dicts measured as JSON; a new peak-memory gauge and dashboard panel track the result. The service runs as one Railway replica. [PR #226](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/226)
