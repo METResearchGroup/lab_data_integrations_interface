@@ -9,11 +9,14 @@ const ENTRYPOINT = [
 	"bluesky_backfill_app.fetch_repos.main",
 ];
 
+// The process reads the OTLP header from Secrets Manager when that name is
+// absent (lib/aws/secrets_env.py). Forward AWS credentials for that read,
+// plus deploy settings that are not secrets. BACKFILL_TRIGGER_TOKEN stays
+// on the Worker and is not copied into the container.
 const FORWARDED = [
 	"AWS_ACCESS_KEY_ID",
 	"AWS_SECRET_ACCESS_KEY",
 	"AWS_SESSION_TOKEN",
-	"OTEL_EXPORTER_OTLP_HEADERS",
 	"OTEL_RESOURCE_ATTRIBUTES",
 	"DEPLOYMENT_ENVIRONMENT",
 ] as const;
@@ -31,7 +34,6 @@ export interface Env {
 	AWS_ACCESS_KEY_ID?: string;
 	AWS_SECRET_ACCESS_KEY?: string;
 	AWS_SESSION_TOKEN?: string;
-	OTEL_EXPORTER_OTLP_HEADERS?: string;
 	OTEL_RESOURCE_ATTRIBUTES?: string;
 	DEPLOYMENT_ENVIRONMENT?: string;
 }
