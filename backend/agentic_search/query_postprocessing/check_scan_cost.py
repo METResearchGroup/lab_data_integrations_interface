@@ -12,7 +12,7 @@ from datetime import date, timedelta
 from pyiceberg.schema import Schema
 from pyiceberg.table import FileScanTask, Table
 
-from backend.agentic_search.query_validation.query_intent.models import QueryIntent
+from backend.agentic_search.query_validation.query_intent.models import TEXT_COLUMN, QueryIntent
 from bluesky_ingestion_jetstream.aws.constants import PARTITION_SOURCE_COLUMN
 
 BYTES_PER_GB = 2**30
@@ -38,7 +38,22 @@ def _row_filter(intent: QueryIntent) -> str:
     return " AND ".join(conditions) if conditions else "True"
 
 
-def _leaf_ids(schema: Schema, columns: list[str]) -> set[int] | None:
+def _columns_read(intent: QueryIntent) -> list[str] | None:
+    """None means every column is read, which is what SELECT * does.
+
+    A keyword filter reads text even when the question did not select it.
+    SELECT * already reads text, so the full file size stands.
+    """
+
+    if not intent.columns:
+        return None
+    columns = list(intent.columns)
+    if intent.keywords and TEXT_COLUMN not in columns:
+        columns.append(TEXT_COLUMN)
+    return columns
+
+
+def _leaf_ids(schema: Schema, columns: list[str] | None) -> set[int] | None:
     """Sizes are recorded per leaf column. None means every column is read."""
 
     if not columns:
@@ -62,7 +77,7 @@ def _task_bytes(task: FileScanTask, leaf_ids: set[int] | None) -> int:
 
 
 def estimate_scan_bytes(table: Table, intent: QueryIntent) -> int:
-    leaf_ids = _leaf_ids(table.schema(), intent.columns)
+    leaf_ids = _leaf_ids(table.schema(), _columns_read(intent))
     tasks = table.scan(row_filter=_row_filter(intent)).plan_files()
     return sum(_task_bytes(task, leaf_ids) for task in tasks)
 
@@ -74,8 +89,12 @@ def reason_over_scan_limit(table: Table, intent: QueryIntent) -> str | None:
     if scan_bytes <= MAX_SCAN_BYTES:
         return None
 
+    if intent.keywords:
+        advice = "narrow the date range; a keyword filter reads text for every day in the range"
+    else:
+        advice = "narrow the date range or ask for fewer columns"
     return (
         f"the query scans about {scan_bytes / BYTES_PER_GB:.1f} GB, "
         f"over the {MAX_SCAN_BYTES / BYTES_PER_GB:.0f} GB limit; "
-        "narrow the date range or ask for fewer columns"
+        f"{advice}"
     )
