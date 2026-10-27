@@ -141,6 +141,7 @@ def test_regex_defers_an_ambiguous_phrase_and_jev_is_mocked(
     """
 
     assert dates._regex_sides(DEBATE) is None
+    classifier_present = hasattr(dates, "ask_choice")
     calls = {"n": 0}
 
     def fake_choice(*_args: object, **_kwargs: object) -> str:
@@ -152,7 +153,8 @@ def test_regex_defers_an_ambiguous_phrase_and_jev_is_mocked(
     invented_end = date(2026, 9, 7)
     resolved = dates.resolve_dates(DEBATE, invented_start, invented_end)
 
-    if calls["n"] == 0:
+    if not classifier_present:
+        assert calls["n"] == 0
         assert resolved.start_date == invented_start
         assert resolved.end_date == invented_end
         assert resolved.start_date_inferred is False
