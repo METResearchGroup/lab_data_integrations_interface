@@ -36,8 +36,8 @@ Two things worth knowing about the numbers:
 
 ## Setup
 
-pyiceberg pins `rich<15`. The root ingestion group now uses that same cap.
-This experiment still has its own requirements file, so it keeps its own venv:
+pyiceberg pins `rich<15` and the root project requires `rich>=15`, so this
+experiment cannot share the root venv:
 
 ```bash
 uv venv --python 3.11 experimentation/iceberg/.venv
