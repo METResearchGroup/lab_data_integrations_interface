@@ -41,8 +41,12 @@ Preview URLs, once deployed:
 - Jetstream status: `https://ldi-jetstream-preview.mind-technology-lab.workers.dev/status`
 - Backfill status: `https://ldi-backfill-preview.mind-technology-lab.workers.dev/status`
 
-These names are preview Workers on the lab account. They are not a production
-cutover. The UI and API `workers.dev` URLs are meant to sit behind Cloudflare
+These names are the live `workers.dev` hostnames. "preview" means the first
+Cloudflare host, not a git preview environment. A later cutover can rename
+them to `ldi-api`, `ldi-ui`, `ldi-jetstream`, and `ldi-backfill`. That rename
+changes the public hosts, the Access applications, and the UI API URL, so
+this document keeps the current names. They are not a production cutover.
+The UI and API `workers.dev` URLs are meant to sit behind Cloudflare
 Access. Access is not on yet. See [Cloudflare Access](#cloudflare-access).
 
 The pattern follows
@@ -188,12 +192,15 @@ month of `standard-1`.
 
 Jetstream is its own Container, Worker name `ldi-jetstream-preview`, Durable
 Object name `jetstream`, `max_instances: 1`, instance type `standard-1`. The
-command is `python -m bluesky_ingestion_jetstream.main`. It reads the same
-environment the Railway service read: `AWS_ACCESS_KEY_ID`,
-`AWS_SECRET_ACCESS_KEY`, and optionally `AWS_SESSION_TOKEN` and
-`OTEL_EXPORTER_OTLP_HEADERS`. Region, bucket, Glue, and the cursor table are
-constants in code. The cursor table is `bluesky_jetstream_cursor`, and the
-item key is `stream_id` = `bluesky_jetstream`.
+command is `python -m bluesky_ingestion_jetstream.main`. The Worker forwards
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optionally
+`AWS_SESSION_TOKEN`, plus `DEPLOYMENT_ENVIRONMENT` and
+`OTEL_RESOURCE_ATTRIBUTES`. When `OTEL_EXPORTER_OTLP_HEADERS` is absent, the
+process reads it from Secrets Manager
+`lab-data-integrations-interface-grafana-cloud-oltp-header`. Region, bucket,
+Glue, and the cursor table are constants in code. The cursor table is
+`bluesky_jetstream_cursor`, and the item key is `stream_id` =
+`bluesky_jetstream`.
 
 Two timers can stop the process. Both are set so a healthy writer stays up,
 and the container is billed the whole time it stays up.
@@ -326,11 +333,14 @@ The backfill fetch worker is its own Container, Worker name
 `ldi-backfill-preview`, Durable Object name `backfill`, `max_instances: 1`,
 instance type `standard-1`. The command is
 `python -m bluesky_backfill_app.fetch_repos.main`. The Worker starts that
-command with `ctx.container.start()` and does not probe a port. The process
-reads `AWS_ACCESS_KEY_ID`,
-`AWS_SECRET_ACCESS_KEY`, and optionally `AWS_SESSION_TOKEN` and
-`OTEL_EXPORTER_OTLP_HEADERS`. The queue name and the DynamoDB tables are
-constants in code. It does not need to stay up. You start a run when you
+command with `ctx.container.start()` and does not probe a port. The Worker
+forwards `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optionally
+`AWS_SESSION_TOKEN`, plus `DEPLOYMENT_ENVIRONMENT` and
+`OTEL_RESOURCE_ATTRIBUTES`. When `OTEL_EXPORTER_OTLP_HEADERS` is absent, the
+process reads it from Secrets Manager
+`lab-data-integrations-interface-grafana-cloud-oltp-header`. The queue name
+and the DynamoDB tables are constants in code. It does not need to stay up.
+You start a run when you
 want one.
 
 Nothing in this repo starts a run on deploy. `POST /start` and `POST /stop`
