@@ -1,5 +1,7 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
+	// workers.dev hostname. A later cutover can rename this Worker to ldi-jetstream.
+	// That rename changes the public host.
 	"name": "ldi-jetstream-preview",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-10-23",

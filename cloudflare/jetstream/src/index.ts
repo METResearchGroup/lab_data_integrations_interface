@@ -7,13 +7,13 @@ const ENTRYPOINT = [
 	"bluesky_ingestion_jetstream.main",
 ];
 
-// Names the process reads with os.getenv / load_dotenv. Empty values are
-// omitted so an unset optional variable stays unset.
+// The process reads the OTLP header from Secrets Manager when that name is
+// absent (lib/aws/secrets_env.py). Forward AWS credentials for that read,
+// plus deploy settings that are not secrets. Empty values are omitted.
 const FORWARDED = [
 	"AWS_ACCESS_KEY_ID",
 	"AWS_SECRET_ACCESS_KEY",
 	"AWS_SESSION_TOKEN",
-	"OTEL_EXPORTER_OTLP_HEADERS",
 	"OTEL_RESOURCE_ATTRIBUTES",
 	"DEPLOYMENT_ENVIRONMENT",
 ] as const;
@@ -32,7 +32,6 @@ export interface Env {
 	AWS_ACCESS_KEY_ID?: string;
 	AWS_SECRET_ACCESS_KEY?: string;
 	AWS_SESSION_TOKEN?: string;
-	OTEL_EXPORTER_OTLP_HEADERS?: string;
 	OTEL_RESOURCE_ATTRIBUTES?: string;
 	DEPLOYMENT_ENVIRONMENT?: string;
 }
@@ -54,7 +53,7 @@ function errorText(error: unknown): string {
 }
 
 /**
- * One Jetstream writer for the preview account.
+ * One Jetstream writer for this host.
  *
  * getByName("jetstream") and max_instances 1 keep a single process, which is
  * what the DynamoDB cursor assumes. sleepAfter is 30m, and the default
@@ -68,7 +67,7 @@ function errorText(error: unknown): string {
  *
  * Container.start() from the library probes a TCP port. This process does
  * not listen. On the last probe, a "Network connection lost" error aborts
- * the Durable Object. The preview then has no instance, and the next start
+ * the Durable Object. This host then has no instance, and the next start
  * fails with "no container instance" until the platform hands one out again.
  * supervise calls ctx.container.start() and does not probe a port.
  */
