@@ -1,8 +1,7 @@
 """Skip this suite when collected by the root interpreter.
 
-These tests need pyiceberg, which cannot be installed into the root venv (it
-pins rich<15, the project requires rich>=15). Run them with the experiment's own
-interpreter:
+These tests import pyiceberg. Run them with the experiment's own
+interpreter when that package is not installed in the root venv:
 
     experimentation/iceberg/.venv/bin/python -m pytest experimentation/iceberg/tests
 """
