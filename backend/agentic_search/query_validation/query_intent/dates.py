@@ -7,9 +7,28 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from lib.timestamp_utils import get_current_date
+from ml_tooling.llm.jev import ask_choice, last_status
 
 # Seven days before the end date. The inclusive window is eight calendar days.
 START_LOOKBACK_DAYS = 7
+
+_SIDES = ("both", "start_only", "end_only", "neither")
+_BOUNDS_INSTRUCTIONS = (
+    "Which date bounds does this question state? "
+    "A named month, a single day, 'the last N days', "
+    "'through', 'between', or 'from X to Y' is both. "
+    "'since' or 'after' with no 'until' or 'before' is start_only, "
+    "including 'since yesterday'. "
+    "'until' or 'before' with no 'since' or 'after' is end_only. "
+    "No date language is neither. "
+    "'from' by itself is not an open start."
+)
+_BOUNDS_CRITERIA = {
+    "both": "The question states a start and an end.",
+    "start_only": "The question states a start and no end.",
+    "end_only": "The question states an end and no start.",
+    "neither": "The question states no date bound.",
+}
 
 _ISO = re.compile(r"\d{4}-\d{2}-\d{2}")
 _MONTH = re.compile(
@@ -75,12 +94,14 @@ def _stated_sides(
 ) -> str:
     found = _regex_sides(query)
     if found is None:
+        found = _jev_sides(query)
+    if found is None:
         found = _sides_from_dates(stated_start, stated_end)
     return found
 
 
 def _regex_sides(query: str) -> str | None:
-    """Classify an obvious date phrase. None falls back to the parsed dates.
+    """Classify an obvious date phrase. None means the phrase needs Jev.
 
     "since" and "after" are a start only, and "until" and "before" are an
     end only, including when the day is relative ("since yesterday"). A
@@ -123,3 +144,21 @@ def _sides_from_dates(stated_start: date | None, stated_end: date | None) -> str
     if stated_end is not None:
         return "end_only"
     return "neither"
+
+
+def last_jev_status() -> str:
+    """A short status from the last Jev call, with no response body."""
+
+    return last_status()
+
+
+def _jev_sides(query: str) -> str | None:
+    """Ask Jev which bounds the question states. None when the call cannot answer."""
+
+    return ask_choice(
+        query,
+        question_id="bounds",
+        instructions=_BOUNDS_INSTRUCTIONS,
+        criteria=_BOUNDS_CRITERIA,
+        allowed=_SIDES,
+    )

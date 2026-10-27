@@ -32,8 +32,10 @@ class SecretRef(NamedTuple):
 
 # Public name -> secret id and JSON key. ``key is None`` means the secret
 # string itself is the value (not a JSON object).
+# JEV_API_KEY reads the TYPESAFE_API_KEY field of jev-typesafe-api-key.
 ENV_VAR_SOURCES: Final[dict[str, SecretRef]] = {
     "OPENAI_API_KEY": SecretRef("openai-api-key", "OPENAI_API_KEY"),
+    "JEV_API_KEY": SecretRef("jev-typesafe-api-key", "TYPESAFE_API_KEY"),
 }
 
 

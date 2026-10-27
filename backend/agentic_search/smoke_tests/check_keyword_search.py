@@ -9,10 +9,43 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from backend.agentic_search.query_validation.query_intent.dates import (
+    _jev_sides,
     _regex_sides,
+    last_jev_status,
     resolve_dates,
 )
+from lib.load_env_vars import EnvVarsContainer
 from lib.timestamp_utils import get_current_date
+
+
+def _safe_error(exc: Exception) -> str:
+    text = str(exc)
+    lowered = text.lower()
+    markers = ("akia", "secret", "aws_access_key", "token", "password", "sk-", "bearer")
+    if any(token in lowered for token in markers):
+        return f"{type(exc).__name__} (details redacted)"
+    return f"{type(exc).__name__}: {text}"
+
+
+def check_jev() -> list[str]:
+    """One ambiguous question, so the regex step defers to Jev. Prints the label only."""
+
+    question = "Show the text of posts from the week of the debate that say climate."
+    print("\n--- jev bounds ---")
+    print(f"  question: {question}")
+    try:
+        EnvVarsContainer.get_env_var("JEV_API_KEY", required=True)
+    except ValueError as exc:
+        print(f"  FAIL key: {_safe_error(exc)}")
+        return ["jev"]
+    choice = _jev_sides(question)
+    print(f"  choice: {choice}")
+    print(f"  status: {last_jev_status()}")
+    if choice in ("both", "start_only", "end_only", "neither"):
+        print("  PASS")
+        return []
+    print("  FAIL: Jev did not return a bounds choice")
+    return ["jev"]
 
 
 def check_date_rules() -> list[str]:
@@ -95,7 +128,7 @@ def check_date_rules() -> list[str]:
 
 
 def main() -> None:
-    failures = check_date_rules()
+    failures = check_date_rules() + check_jev()
     if failures:
         raise SystemExit(f"failed: {', '.join(failures)}")
 
