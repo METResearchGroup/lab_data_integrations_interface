@@ -444,11 +444,14 @@ The API image runs `uv sync --frozen --no-dev --no-default-groups
 --no-install-project` with groups `api`, `ml`, and `ingestion`. Jetstream
 syncs `ingestion`. The backfill image syncs `backfill`. Packages stay on
 `PYTHONPATH`. The API command matches `uvicorn backend.main:app` on Railway.
-Env vars arrive as process environment. `backend/main.py` calls `load_dotenv()`,
-which does not override variables that are already set. `EnvVarsContainer` in
-`lib/load_env_vars.py` reads `OPENAI_API_KEY` from the environment after
-loading the root `.env`, which is absent in the image. No second loader was
-added.
+A variable that is already present stays as it is, including an empty value.
+`backend/main.py` calls `load_dotenv()`, which does not override those
+variables, then `fill_unset_secrets()` in `lib/aws/secrets_env.py`. That
+function reads Secrets Manager in `us-east-2` for any of these names that
+are absent: `OPENAI_API_KEY`, `SUPABASE_URL`, `GMAIL_SENDER_EMAIL`,
+`GMAIL_APP_PASSWORD`, and `OTEL_EXPORTER_OTLP_HEADERS`. Jetstream and the
+backfill worker call it for the OTLP header only. It does not print values.
+`EnvVarsContainer` then reads `OPENAI_API_KEY` from the environment.
 
 ### Pointing traffic at the container
 
@@ -469,17 +472,21 @@ From `cloudflare/backend/`, with `CLOUDFLARE_API_TOKEN` and
 printf '%s' "$AWS_ACCESS_KEY_ID" | npx wrangler secret put AWS_ACCESS_KEY_ID
 ```
 
-Repeat for each secret in the table below. `wrangler secret put` deploys a
-new Worker version immediately. The container only reads the value the next
-time it starts. After changing a secret, let the instance sleep, or redeploy
-the image, before expecting the process to see it.
+Repeat for `AWS_SECRET_ACCESS_KEY` and, when the credentials are temporary,
+`AWS_SESSION_TOKEN`. Do not put `OPENAI_API_KEY`, `SUPABASE_URL`,
+`GMAIL_SENDER_EMAIL`, `GMAIL_APP_PASSWORD`, or `OTEL_EXPORTER_OTLP_HEADERS`
+on the Worker. The process reads those from Secrets Manager when the name
+is absent. `wrangler secret put` deploys a new Worker version immediately.
+The container keeps the environment from the start that is already running.
+After changing an AWS credential, let the instance sleep, or redeploy the
+image, before expecting the process to see it. A rotated Secrets Manager
+value is also picked up at the next process start.
 
-`SUPABASE_URL` comes from the same Secrets Manager secret as the UI.
-`scripts/set_api_supabase_url.py` reads `NEXT_PUBLIC_SUPABASE_URL` from
-`lab-data-integrations-supabase-public` and stores it as the API Worker
-secret. It does not print the value, and it refuses a host that is not a
-`supabase.co` project host. Run it from the repo root before `wrangler
-deploy` in `cloudflare/backend/`. `backend/auth.py` verifies ES256 tokens
+`SUPABASE_URL` is the JSON field `NEXT_PUBLIC_SUPABASE_URL` in Secrets
+Manager `lab-data-integrations-supabase-public`.
+`scripts/set_api_supabase_url.py` checks that field, does not print it, and
+does not store it on the Worker. It refuses a host that is not a
+`supabase.co` project host. `backend/auth.py` verifies ES256 tokens
 with PyJWT, which needs the `cryptography` package. `pyjwt[crypto]` in
 `pyproject.toml` installs that package. Without it, a real Supabase token
 is rejected with `Invalid access token` and the container log says
@@ -487,10 +494,11 @@ is rejected with `Invalid access token` and the container log says
 
 `scripts/set_grafana_otlp_header.py` reads `OTEL_EXPORTER_OTLP_HEADERS` from
 Secrets Manager `lab-data-integrations-interface-grafana-cloud-oltp-header`
-in `us-east-2` and stores it on `ldi-api-preview`, `ldi-jetstream-preview`,
-and `ldi-backfill-preview`. It does not print the value. The value has to
-start with `Authorization=Basic%20`. A raw space is refused, because the
-Python exporter needs the space written as `%20`. Run it from the repo root
+in `us-east-2`. It does not print the value and it does not store the header
+on a Worker. The process reads that field when the variable is absent. The
+value has to start with `Authorization=Basic%20`. A raw space is refused,
+because the Python exporter needs the space written as `%20`. The script
+uses the header only for the destinations below. Run it from the repo root
 with `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and AWS credentials
 for `us-east-2`.
 
@@ -512,9 +520,9 @@ change still labels its signals. Those vars are not secrets. They are
 applied by `wrangler deploy`, not by `wrangler secret put`.
 
 `wrangler secret put` does not upload the Worker script and does not rebuild
-the image. After the script, deploy each container Worker with
-`--containers-rollout none` so the new vars are forwarded and the image that
-is already running stays in place:
+the image. After changing a forwarded AWS credential or a Wrangler var,
+deploy each container Worker with `--containers-rollout none` so the new
+values are forwarded and the image that is already running stays in place:
 
 ```bash
 cd cloudflare/backend
@@ -567,7 +575,10 @@ The API uses Wrangler because it is a Container project; do not run `cf deploy`
 in `cloudflare/backend/`.
 
 The browser bundle inlines `NEXT_PUBLIC_*` at build time (`ui/src/lib/api.ts`,
-`ui/src/lib/supabase/env.ts`). `proxy.ts` reads the same names from
+`ui/src/lib/supabase/env.ts`). The prefix is the Next.js rule for a value
+that ships in the browser bundle. vinext serves that bundle, and `npm run
+build` is still `next build`. Dropping the prefix would leave the values
+out of the bundle. `proxy.ts` reads the same names from
 `process.env` on each request. With `nodejs_compat` and a compatibility date
 after 2025-04-01, the Worker copies text bindings into `process.env`.
 `cloudflare.config.ts` publishes the two Supabase names as text bindings.
@@ -605,16 +616,16 @@ not send `X-Origin-Secret`. See the origin-secret row below.
 |---|---|---|---|
 | `CORS_ORIGINS` | `backend/main.py` | API var | Browser calls from the UI. Preview value includes the UI `workers.dev` origin and localhost. |
 | `PORT` | uvicorn | Set by the API container router to `8000` | Listen port. Not a secret. |
-| `AWS_ACCESS_KEY_ID` | boto3, via `lib/aws/clients.py` | Secret on the API, Jetstream, and backfill Workers | Athena, S3, DynamoDB, SQS. From this environment's AWS credentials. |
+| `AWS_ACCESS_KEY_ID` | boto3, via `lib/aws/clients.py`, and `fill_unset_secrets` | Secret on the API, Jetstream, and backfill Workers | Athena, S3, DynamoDB, SQS, and the Secrets Manager reads above. From this environment's AWS credentials. |
 | `AWS_SECRET_ACCESS_KEY` | boto3 | Secret on the API, Jetstream, and backfill Workers | Same. |
 | `AWS_SESSION_TOKEN` | boto3 | Secret, optional, on each of those Workers | Only for temporary credentials. Unset for the long-lived key. |
-| `OPENAI_API_KEY` | `EnvVarsContainer` in `lib/load_env_vars.py` | API secret | SQL generation on `/query`. Secrets Manager `openai-api-key`, key `OPENAI_API_KEY`. |
-| `SUPABASE_URL` | `backend/auth.py` | API secret. `scripts/set_api_supabase_url.py` copies `NEXT_PUBLIC_SUPABASE_URL` from Secrets Manager `lab-data-integrations-supabase-public`. | Verifying the bearer token on `/query`. Same host as the UI. |
-| `GMAIL_SENDER_EMAIL` | `backend/agentic_search/mail.py` | API secret | Mailing `/query` results. Secrets Manager `lab-data-integrations-gmail` in us-east-2, JSON field `GMAIL_SENDER_EMAIL`. |
-| `GMAIL_APP_PASSWORD` | `backend/agentic_search/mail.py` | API secret | Same secret, JSON field `GMAIL_APP_PASSWORD`. `mail.py` removes spaces before SMTP login. |
+| `OPENAI_API_KEY` | `EnvVarsContainer` in `lib/load_env_vars.py` | Not forwarded. Read from Secrets Manager `openai-api-key`, key `OPENAI_API_KEY`, when the name is absent. | SQL generation on `/query`. |
+| `SUPABASE_URL` | `backend/auth.py` | Not forwarded. Read from Secrets Manager `lab-data-integrations-supabase-public`, field `NEXT_PUBLIC_SUPABASE_URL`, when the name is absent. `scripts/set_api_supabase_url.py` checks the field and does not store it on the Worker. | Verifying the bearer token on `/query`. Same host as the UI. |
+| `GMAIL_SENDER_EMAIL` | `backend/agentic_search/mail.py` | Not forwarded. Read from Secrets Manager `lab-data-integrations-gmail` in us-east-2, JSON field `GMAIL_SENDER_EMAIL`, when the name is absent. | Mailing `/query` results. |
+| `GMAIL_APP_PASSWORD` | `backend/agentic_search/mail.py` | Not forwarded. Same secret, JSON field `GMAIL_APP_PASSWORD`, when the name is absent. | `mail.py` removes spaces before SMTP login. |
 | `ORIGIN_SECRET` | `backend/origin.py` | API secret, optional | Leave unset on Cloudflare. Supabase auth on `/query` is the gate. When this is set, requests other than `/health` need header `X-Origin-Secret`. |
-| `OTEL_EXPORTER_OTLP_HEADERS` | telemetry setup in the API, Jetstream, and the backfill app | Secret, optional, on each Worker. `scripts/set_grafana_otlp_header.py` copies it from Secrets Manager `lab-data-integrations-interface-grafana-cloud-oltp-header`. | Grafana. Unset means telemetry is off. |
-| `MAIL_TEST_RECIPIENT` | mail smoke tests | API secret, optional | Not used by the server. |
+| `OTEL_EXPORTER_OTLP_HEADERS` | telemetry setup in the API, Jetstream, and the backfill app | Not forwarded. Read from Secrets Manager `lab-data-integrations-interface-grafana-cloud-oltp-header` when the name is absent. `scripts/set_grafana_otlp_header.py` uses that field for Grafana destinations and does not store it on the Worker. | Grafana. Absent means telemetry is off. |
+| `MAIL_TEST_RECIPIENT` | mail smoke tests | Not forwarded. Not read by the server. | Not used by the server. |
 | `DEPLOYMENT_ENVIRONMENT` | `build_resource` in the API, Jetstream, and the backfill app | Var on each of those Workers, value `cloudflare-preview` | Adds resource attribute `deployment.environment`. Railway does not set it. |
 | `OTEL_RESOURCE_ATTRIBUTES` | OpenTelemetry `Resource.create` | Var on each of those Workers, value `deployment.environment=cloudflare-preview` | Same attribute, picked up by an image built before `build_resource` learned the variable. |
 | `JETSTREAM_ENABLED` | `cloudflare/jetstream/src/index.ts` | Jetstream var, default `true`. A secret of the same name is rejected with error 10053. | `true` allows the supervisor to start the writer. Any other value makes the supervisor send SIGTERM. Hold the writer with `wrangler deploy --containers-rollout none --var JETSTREAM_ENABLED:false --durable-objects-code-update-mode immediate`. |
@@ -642,12 +653,11 @@ Railway can still set the secret.
 Region, bucket, Glue database, and Athena workgroup are constants in code
 (`us-east-2`). They are not env vars.
 
-`GMAIL_SENDER_EMAIL` and `GMAIL_APP_PASSWORD` are set on the preview API
-Worker from `lab-data-integrations-gmail`. The container process receives
-them only when it starts, from `containerEnv` in
-`cloudflare/backend/src/index.ts`. A process that is already running keeps
-the environment from that start. After you change either secret, restart
-the container.
+`GMAIL_SENDER_EMAIL` and `GMAIL_APP_PASSWORD` come from Secrets Manager
+`lab-data-integrations-gmail` when those names are absent. The process reads
+them at startup (`lib/aws/secrets_env.py`). A process that is already running
+keeps the values from that start. After you rotate the secret, restart the
+container.
 
 A send check uses the sender address as the recipient. Leave
 `MAIL_TEST_RECIPIENT` unset. Send one message, and do not print the address
@@ -664,7 +674,8 @@ python scripts/cloudflare_smoke.py \
   --ui-url https://ldi-ui-preview.mind-technology-lab.workers.dev
 ```
 
-It checks:
+The same list is the module docstring of `scripts/cloudflare_smoke.py`.
+The script does not print secret values or the Access redirect URL. It checks:
 
 1. `GET /health` returns `{"status":"ok"}`.
 2. `POST /query` with no credentials returns 401 `Not authenticated` when
