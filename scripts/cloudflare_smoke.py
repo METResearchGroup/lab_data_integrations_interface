@@ -1,12 +1,35 @@
-"""Smoke checks for the Cloudflare preview of the API and the UI.
+"""Smoke checks for the Cloudflare API and UI hosts.
 
-Does not print secret values. An unauthenticated UI request must stop at
-Cloudflare Access. With the preview service token (env CF_ACCESS_CLIENT_ID
-and CF_ACCESS_CLIENT_SECRET, or Secrets Manager
-lab-data-integrations-access-smoke), / and /login must render the app.
-A full /query that reaches S3 needs a Supabase user. Set
-SUPABASE_TEST_EMAIL and SUPABASE_TEST_PASSWORD for that check. Without
-them, /query stops at the bearer check.
+Does not print secret values. Does not follow the Access redirect, so the
+Location URL is not printed. Does not check Jetstream or the backfill worker.
+
+Each step below fails the run unless the expected result is observed.
+A skipped step is printed and does not fail the run.
+
+1. GET {api}/health. Expect 200 and body {"status":"ok"}.
+2. POST {api}/query with body "smoke" and no Authorization header.
+   Expect 401 and detail "Not authenticated". 403 and detail "Forbidden"
+   means ORIGIN_SECRET is set. That result is reported and does not fail.
+3. POST {api}/query with body "smoke" and Authorization "Bearer not-a-jwt".
+   Expect 401 and detail "Invalid access token". 403 and detail "Forbidden"
+   is reported and does not fail.
+4. OPTIONS {api}/query with Origin set to {ui}. Expect
+   Access-Control-Allow-Origin equal to {ui}.
+5. GET {ui} with no Access token. Do not follow redirects. Expect status
+   301, 302, 303, 307, or 308, and a Location host containing
+   cloudflareaccess.com.
+6. GET {ui}/ and GET {ui}/login with the Access service token. The token
+   is CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET, or Secrets Manager
+   lab-data-integrations-access-smoke in us-east-2. Expect 200, the body
+   contains "Sign in" and type="password", and the body does not contain
+   "Internal Server Error". If the token is missing, this step fails.
+7. Signed-in POST {api}/query. Skipped, and not a failure, when
+   SUPABASE_TEST_EMAIL or SUPABASE_TEST_PASSWORD is unset. When both are
+   set, read NEXT_PUBLIC_SUPABASE_URL and
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY from Secrets Manager
+   lab-data-integrations-supabase-public, sign in with the password grant,
+   and POST {api}/query with that access token, Origin {ui}, and body
+   "smoke". Expect 202.
 
 Run from the repo root:
 
