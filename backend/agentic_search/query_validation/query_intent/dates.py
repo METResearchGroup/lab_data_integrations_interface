@@ -2,28 +2,33 @@
 
 from __future__ import annotations
 
-import json
 import re
-import threading
-import time
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from lib.load_env_vars import EnvVarsContainer
 from lib.timestamp_utils import get_current_date
+from ml_tooling.llm.jev import ask_choice, last_status
 
 # Seven days before the end date. The inclusive window is eight calendar days.
 START_LOOKBACK_DAYS = 7
 
-_JEV_URL = "https://api.typesafe.ai/v1/systemone"
-_JEV_MODEL = "jev-latest"
-_JEV_ATTEMPTS = 3
-_RETRY_STATUS = frozenset({429, 529})
 _SIDES = ("both", "start_only", "end_only", "neither")
-_jev_status = "not_called"
-_jev_lock = threading.Lock()
+_BOUNDS_INSTRUCTIONS = (
+    "Which date bounds does this question state? "
+    "A named month, a single day, 'the last N days', "
+    "'through', 'between', or 'from X to Y' is both. "
+    "'since' or 'after' with no 'until' or 'before' is start_only, "
+    "including 'since yesterday'. "
+    "'until' or 'before' with no 'since' or 'after' is end_only. "
+    "No date language is neither. "
+    "'from' by itself is not an open start."
+)
+_BOUNDS_CRITERIA = {
+    "both": "The question states a start and an end.",
+    "start_only": "The question states a start and no end.",
+    "end_only": "The question states an end and no start.",
+    "neither": "The question states no date bound.",
+}
 
 _ISO = re.compile(r"\d{4}-\d{2}-\d{2}")
 _MONTH = re.compile(
@@ -144,92 +149,16 @@ def _sides_from_dates(stated_start: date | None, stated_end: date | None) -> str
 def last_jev_status() -> str:
     """A short status from the last Jev call, with no response body."""
 
-    with _jev_lock:
-        return _jev_status
-
-
-def _set_jev_status(status: str) -> None:
-    global _jev_status
-    with _jev_lock:
-        _jev_status = status
-
-
-def _jev_post(request: urllib.request.Request) -> dict | None:
-    """POST one Jev request. Retries 429 and 529. Returns None on failure."""
-
-    delay = 1.0
-    for attempt in range(_JEV_ATTEMPTS):
-        try:
-            with urllib.request.urlopen(request, timeout=15) as response:  # noqa: S310
-                body = json.loads(response.read().decode())
-        except urllib.error.HTTPError as exc:
-            exc.close()
-            if exc.code in _RETRY_STATUS and attempt + 1 < _JEV_ATTEMPTS:
-                time.sleep(delay)
-                delay *= 2
-                continue
-            _set_jev_status(f"http_{exc.code}")
-            return None
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, ValueError):
-            _set_jev_status("unreachable")
-            return None
-        if isinstance(body, dict):
-            return body
-        _set_jev_status("unreachable")
-        return None
-    _set_jev_status("unreachable")
-    return None
+    return last_status()
 
 
 def _jev_sides(query: str) -> str | None:
     """Ask Jev which bounds the question states. None when the call cannot answer."""
 
-    key = EnvVarsContainer.get_env_var("JEV_API_KEY", required=False)
-    if not key:
-        _set_jev_status("no_key")
-        return None
-    payload = {
-        "model": _JEV_MODEL,
-        "state": query,
-        "questions": {
-            "bounds": {
-                "type": "choice",
-                "instructions": (
-                    "Which date bounds does this question state? "
-                    "A named month, a single day, 'the last N days', "
-                    "'through', 'between', or 'from X to Y' is both. "
-                    "'since' or 'after' with no 'until' or 'before' is start_only, "
-                    "including 'since yesterday'. "
-                    "'until' or 'before' with no 'since' or 'after' is end_only. "
-                    "No date language is neither. "
-                    "'from' by itself is not an open start."
-                ),
-                "criteria": {
-                    "both": "The question states a start and an end.",
-                    "start_only": "The question states a start and no end.",
-                    "end_only": "The question states an end and no start.",
-                    "neither": "The question states no date bound.",
-                },
-            }
-        },
-    }
-    request = urllib.request.Request(
-        _JEV_URL,
-        data=json.dumps(payload).encode(),
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "lab-data-integrations-interface",
-        },
-        method="POST",
+    return ask_choice(
+        query,
+        question_id="bounds",
+        instructions=_BOUNDS_INSTRUCTIONS,
+        criteria=_BOUNDS_CRITERIA,
+        allowed=_SIDES,
     )
-    body = _jev_post(request)
-    if body is None:
-        return None
-    choice = (body.get("answers") or {}).get("bounds", {}).get("choice")
-    if choice in _SIDES:
-        _set_jev_status("ok")
-        return choice
-    _set_jev_status("no_choice")
-    return None
