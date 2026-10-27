@@ -1,10 +1,9 @@
 """Centralized environment variable loading.
 
 This module exists to avoid import-time side effects spread across the codebase.
-It encapsulates:
-- Loading .env from repo root via python-dotenv
-- OPENAI_API_KEY from AWS Secrets Manager id openai-api-key in us-east-2
-- Type-safe retrieval with optional required-flag
+It loads two sources, in this order:
+- AWS Secrets Manager, for the names in _SECRET_SOURCES
+- .env and the process environment, which override a secret when the name is set
 
 Public API: EnvVarsContainer.get_env_var(name, required=False)
 """
@@ -22,9 +21,13 @@ from dotenv import load_dotenv
 from lib.aws.clients import build_client
 from lib.aws.constants import AWS_REGION
 
-_OPENAI_API_KEY = "OPENAI_API_KEY"
-_OPENAI_SECRET_ID = "openai-api-key"
-_OPENAI_JSON_FIELDS = ("OPENAI_API_KEY", "openai_api_key", "api_key", "key")
+# name -> (Secrets Manager id, JSON fields tried in order when the secret is an object)
+_SECRET_SOURCES: Final[dict[str, tuple[str, tuple[str, ...]]]] = {
+    "OPENAI_API_KEY": (
+        "openai-api-key",
+        ("OPENAI_API_KEY", "openai_api_key", "api_key", "key"),
+    ),
+}
 
 ENV_VAR_TYPES: Final[dict[str, type[str]]] = {
     "OPENAI_API_KEY": str,
@@ -54,7 +57,7 @@ class EnvVarsContainer:
         self._initialized = False
         self._env_vars: dict[str, str | None] = {}
         self._env_var_types: dict[str, type[str]] = ENV_VAR_TYPES
-        self._openai_load_error: str | None = None
+        self._load_errors: dict[str, str] = {}
         self._init_lock = threading.Lock()
 
     @classmethod
@@ -71,12 +74,10 @@ class EnvVarsContainer:
         instance: EnvVarsContainer = cls._get_instance()
         raw: str | None = instance._env_vars.get(name)
 
-        if required and name == _OPENAI_API_KEY and _missing(raw):
-            detail = instance._openai_load_error or (
-                "OPENAI_API_KEY is required but is missing. "
-                "Load it through EnvVarsContainer from id openai-api-key in us-east-2."
-            )
-            raise ValueError(detail)
+        if required and _missing(raw):
+            detail = instance._load_errors.get(name)
+            if detail:
+                raise ValueError(detail)
 
         if required:
             if raw is None:
@@ -113,26 +114,28 @@ class EnvVarsContainer:
             self._initialized = True
 
     def _initialize_env_vars(self) -> None:
+        """Load Secrets Manager first. A set environment value then overrides it."""
+
+        for name, (secret_id, fields) in _SECRET_SOURCES.items():
+            try:
+                self._env_vars[name] = _fetch_named_key(
+                    secret_id=secret_id,
+                    label=name,
+                    fields=fields,
+                )
+            except ValueError as exc:
+                self._env_vars[name] = None
+                self._load_errors[name] = str(exc)
+
         env_path: Path = (Path(__file__).resolve().parent / ".." / ".env").resolve()
         load_dotenv(env_path)
-        # This name is loaded from Secrets Manager below. Drop any copy .env
-        # or the process environment left behind so callers cannot use it.
-        os.environ.pop(_OPENAI_API_KEY, None)
         for key in self._env_var_types:
-            if key == _OPENAI_API_KEY:
-                continue
-            self._env_vars[key] = os.getenv(key)
-        self._load_openai_api_key()
-
-    def _load_openai_api_key(self) -> None:
-        """Read OPENAI_API_KEY from Secrets Manager. Leave it empty when that fails."""
-
-        try:
-            self._env_vars[_OPENAI_API_KEY] = _fetch_openai_api_key()
-            self._openai_load_error = None
-        except ValueError as exc:
-            self._env_vars[_OPENAI_API_KEY] = None
-            self._openai_load_error = str(exc)
+            env_value = os.getenv(key)
+            if env_value is not None and env_value.strip():
+                self._env_vars[key] = env_value.strip()
+                self._load_errors.pop(key, None)
+            elif key not in self._env_vars:
+                self._env_vars[key] = None
 
 
 def _missing(raw: str | None) -> bool:
@@ -199,11 +202,3 @@ def _fetch_named_key(*, secret_id: str, label: str, fields: tuple[str, ...]) -> 
             f"{AWS_REGION}: the stored string is empty."
         )
     return _key_from_text(raw, label=label, secret_id=secret_id, fields=fields)
-
-
-def _fetch_openai_api_key() -> str:
-    return _fetch_named_key(
-        secret_id=_OPENAI_SECRET_ID,
-        label=_OPENAI_API_KEY,
-        fields=_OPENAI_JSON_FIELDS,
-    )
