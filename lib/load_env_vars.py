@@ -16,7 +16,7 @@ import threading
 from pathlib import Path
 from typing import Any, Final, NamedTuple
 
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from dotenv import load_dotenv
 
 from lib.aws.clients import build_client
@@ -115,6 +115,12 @@ class EnvVarsContainer:
             except ValueError:
                 if env_value is None:
                     raise
+            except BotoCoreError as exc:
+                if env_value is None:
+                    raise ValueError(
+                        "Failed to load secret "
+                        f"{source.secret_id} from AWS Secrets Manager ({type(exc).__name__})."
+                    ) from exc
         if env_value is not None:
             self._env_vars[name] = env_value
             return env_value
