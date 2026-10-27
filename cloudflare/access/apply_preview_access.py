@@ -413,8 +413,13 @@ def parse_error(raw: str) -> tuple[str, str]:
     first = errors[0]
     if not isinstance(first, dict):
         return "unknown", "response had no error entry"
-    code = first.get("message") or first.get("code") or "unknown"
-    text = first.get("message") or ""
+    raw_code = first.get("code")
+    raw_message = first.get("message")
+    if raw_code in (None, ""):
+        code = raw_message or "unknown"
+    else:
+        code = raw_code
+    text = raw_message or ""
     return str(code), str(text)
 
 
