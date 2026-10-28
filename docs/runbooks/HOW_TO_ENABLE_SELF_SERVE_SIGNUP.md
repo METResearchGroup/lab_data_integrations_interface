@@ -2,7 +2,7 @@
 
 ## Overview
 
-Anyone with a `@kellogg.northwestern.edu` or `@u.northwestern.edu` email can create an account at
+Anyone with a `@kellogg.northwestern.edu`, `@u.northwestern.edu`, or `@northwestern.edu` email can create an account at
 `/signup`. They verify the address with a 6-digit code emailed to them, then
 land in the app. Invites ([HOW_TO_ADD_A_USER.md](HOW_TO_ADD_A_USER.md)) keep
 working.
@@ -36,11 +36,12 @@ declare
 begin
   if email is null or (email not like '%@kellogg.northwestern.edu'
                        and email not like '%@u.northwestern.edu'
+                       and email not like '%@northwestern.edu'
                        and email <> 'person@gmail.com') then
     return jsonb_build_object(
       'error', jsonb_build_object(
         'http_code', 403,
-        'message', 'Sign up requires a @kellogg.northwestern.edu or @u.northwestern.edu email.'
+        'message', 'Sign up requires a @kellogg.northwestern.edu, @u.northwestern.edu, or @northwestern.edu email.'
       )
     );
   end if;
@@ -163,14 +164,14 @@ If the template editor is locked, finish step 2 first.
 
 `https://supabase.com/dashboard/project/<project-ref>/auth/url-configuration`
 
-- **Site URL**: the deployed UI origin (likely already set).
-- **Redirect URLs**: add `http://localhost:3000/**` for local dev.
+- **Site URL**: `https://ldi-ui-preview.mind-technology-lab.workers.dev`
+- **Redirect URLs**: add `https://ldi-ui-preview.mind-technology-lab.workers.dev/**` and `http://localhost:3000/**` for local dev.
 
 ---
 
 ## Verify
 
-1. `/signup` with a non-Northwestern email → blocked by the form.
+1. `/signup` with a non-allowed email, including a lookalike such as `name@evilnorthwestern.edu` → blocked by the form. The address must match the domain after `@` exactly.
 2. Bypass the form:
    ```bash
    curl -s -X POST "https://<project-ref>.supabase.co/auth/v1/signup" \
@@ -180,7 +181,7 @@ If the template editor is locked, finish step 2 first.
    ```
    → 403 with the hook's message. If it succeeds, step 1 isn't enabled —
    turn signups off until it is, and delete the user it created.
-3. `/signup` with a real Kellogg or u.northwestern.edu address → code arrives → enter it → lands in
+3. `/signup` with a real `@kellogg.northwestern.edu`, `@u.northwestern.edu`, or `@northwestern.edu` address → code arrives → enter it → lands in
    the app.
 
 ## Rollback

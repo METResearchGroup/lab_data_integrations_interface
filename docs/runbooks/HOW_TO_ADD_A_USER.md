@@ -2,7 +2,7 @@
 
 ## Overview
 
-`@kellogg.northwestern.edu` and `@u.northwestern.edu` users can sign up themselves at `/signup` — see
+`@kellogg.northwestern.edu`, `@u.northwestern.edu`, and `@northwestern.edu` users can sign up themselves at `/signup` — see
 [HOW_TO_ENABLE_SELF_SERVE_SIGNUP.md](HOW_TO_ENABLE_SELF_SERVE_SIGNUP.md).
 Invites are for everyone else, or to add someone directly: invite from the
 dashboard, user sets a password, signs in with email + password after that.
@@ -24,7 +24,9 @@ the address bar.
 `https://supabase.com/dashboard/project/<project-ref>/auth/url-configuration`
 (sidebar: Authentication → URL Configuration)
 
-Set **Site URL** to the deployed UI origin (the Cloudflare Worker URL in preview).
+Set **Site URL** to `https://ldi-ui-preview.mind-technology-lab.workers.dev`.
+
+Add `https://ldi-ui-preview.mind-technology-lab.workers.dev/**` to **Redirect URLs**.
 
 ### 2. Invite email template
 
