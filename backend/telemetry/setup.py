@@ -43,8 +43,7 @@ def build_resource() -> Resource:
     """Identity shared by both signals.
 
     DEPLOYMENT_ENVIRONMENT, when set, adds deployment.environment. The
-    Cloudflare preview sets it to cloudflare-preview. Railway leaves it unset,
-    so the two deploys can be filtered apart in Grafana.
+    Cloudflare preview sets it to cloudflare-preview. Leave it unset locally.
     """
 
     attributes: dict[str, str] = {SERVICE_NAME_KEY: SERVICE_NAME}

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-10-26
+
+1. The API, UI, Jetstream, and backfill worker now deploy only through Cloudflare. Railway and Vercel configs and their deploy runbooks are removed. The CloudFront distribution `aws_cloudfront_distribution.backend`, the web ACL `aws_wafv2_web_acl.backend`, and `random_password.origin_secret` were destroyed, and `terraform/backend_edge/` was removed. [PR #250](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/250)
+
 ## 2026-10-23
 
 1. Agentic search can filter posts by the words in `text`. `generate_sql` writes a case-insensitive `regexp_like` predicate that reports the first matching term. A question with no end uses the current UTC date, a question with no start uses 7 days before that end, a list past 8 terms or 80 characters is refused, and the scan estimate counts `text` plus `created_at` (`docs/runbooks/agentic_search_keyword_matching.md`). [PR #246](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/246)

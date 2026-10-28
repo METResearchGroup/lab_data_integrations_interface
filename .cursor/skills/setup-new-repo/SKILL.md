@@ -85,11 +85,9 @@ Always run these from the project root so the skills land in the project
 directory (not only globally). Run each command:
 
 ```bash
-npx skills add railwayapp/railway-skills@use-railway
 npx skills add shadcn/ui@shadcn
 npx skills add fastapi/fastapi@fastapi
 npx skills add langchain-ai/langchain-skills --skill langgraph-persistence --skill langgraph-fundamentals --skill langgraph-human-in-the-loop --skill ecosystem-primer
-npx skills add vercel-labs/agent-skills
 ```
 
 - If a command prompts for confirmation or target path, choose the **project**

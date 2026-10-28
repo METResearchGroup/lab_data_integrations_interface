@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.origin import require_origin_secret
 from backend.routes.query import router as query_router
 from backend.telemetry import force_telemetry_flush, setup_telemetry
 from lib.aws.secrets_env import fill_unset_secrets
@@ -35,9 +34,6 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
-
-# Unset locally; set on Railway once traffic goes through CloudFront.
-app.middleware("http")(require_origin_secret)
 
 
 @app.get("/health")
