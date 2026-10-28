@@ -45,8 +45,9 @@ export default function QueryForm({ onSubmit, disabled }: QueryFormProps) {
 			<RunButton
 				onClick={handleSubmit}
 				disabled={disabled}
+				pending={disabled}
 				label="Send query"
-				pendingLabel="Sending..."
+				pendingLabel="Sending…"
 			/>
 		</div>
 	);
