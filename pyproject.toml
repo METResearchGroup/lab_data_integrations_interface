@@ -44,6 +44,7 @@ dependencies = [
     "tabulate>=0.10.0",
     "sqlglot>=30.18.0",
     "openinference-instrumentation-openai>=0.1.60",
+    "mcp[cli]>=1.0.0,<2",
 ]
 
 [project.optional-dependencies]
