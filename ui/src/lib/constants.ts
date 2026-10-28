@@ -4,4 +4,5 @@ export const MIN_QUERY_LENGTH = 10;
 export const ALLOWED_EMAIL_DOMAINS = [
 	"kellogg.northwestern.edu",
 	"u.northwestern.edu",
+	"northwestern.edu",
 ];
