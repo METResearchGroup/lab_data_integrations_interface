@@ -726,17 +726,20 @@ The file is a changelog format example for another project, so the skill
 stays. The Vercel-only plan example under
 `create-implementation-plan/examples/` was removed.
 
-`terraform/backend_edge/` is still in the repo. Deleting the directory
-does not destroy the CloudFront distribution, the WAF web ACL, or the
-state in S3. The module stays until you finish the destroy below, because
-`terraform destroy` needs `terraform/backend_edge/`. Do not merge PR #250
-until the destroy is done and checked. After you confirm the AWS resources
-are gone, delete `terraform/backend_edge/` before the merge. A later
-`terraform apply` would create the distribution again.
+`terraform/backend_edge/` has been removed. The destroy below was applied
+in account `517478598677`. It removed `aws_cloudfront_distribution.backend`,
+`aws_wafv2_web_acl.backend` (name `backend-edge`), and
+`random_password.origin_secret`. The directory is gone so a later
+`terraform apply` cannot create the distribution again. State remains in
+the remote backend until that state is removed separately. The API Worker
+secret check still needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+This environment did not have those names, so `ORIGIN_SECRET` was not listed
+or deleted.
 
 ## Destroy the CloudFront distribution
 
-Run the steps below yourself before PR #250 merges. The lab account is
+These steps were applied before `terraform/backend_edge/` was deleted. The
+lab account is
 `517478598677`. The state bucket is in `us-east-2`. The WAF web ACL for
 CloudFront is in `us-east-1`, because AWS requires that scope there. The
 distribution itself is global. The module creates no DNS records.
