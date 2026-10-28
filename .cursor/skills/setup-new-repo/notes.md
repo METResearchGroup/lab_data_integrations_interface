@@ -6,6 +6,8 @@
 
 npx add skills:
 
+- npx skills add railwayapp/railway-skills@use-railway
 - npx skills add shadcn/ui@shadcn
 - npx skills add fastapi/fastapi@fastapi
 - npx skills add langchain-ai/langchain-skills --skill langgraph-persistence --skill langgraph-fundamentals --skill langgraph-human-in-the-loop --skill ecosystem-primer
+- npx skills add vercel-labs/agent-skills
