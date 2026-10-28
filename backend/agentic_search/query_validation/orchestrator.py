@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import date
-
 from backend.agentic_search.query_validation.check_data_availability import (
     check_data_availability,
 )
 from backend.agentic_search.query_validation.check_data_types import check_data_types
+from backend.agentic_search.query_validation.check_keywords import check_keywords
 from backend.agentic_search.query_validation.check_nonsense import check_nonsense
 from backend.agentic_search.query_validation.models import TableMetadata, ValidationResult
 from backend.agentic_search.query_validation.query_intent.extract import extract_intent
 from backend.agentic_search.query_validation.query_intent.models import QueryIntent
 from bluesky_ingestion_jetstream.constants import DATA_START_DATE, RecordType
 from bluesky_ingestion_jetstream.schemas.arrow_schemas import RECORD_TYPE_TO_SCHEMA
+from lib.timestamp_utils import get_current_date
 
 
 def build_snapshot() -> dict[RecordType, TableMetadata]:
@@ -21,7 +21,7 @@ def build_snapshot() -> dict[RecordType, TableMetadata]:
     Returns columns and date range for each table in Iceberg
     """
 
-    today = date.today()
+    today = get_current_date()
     return {
         record_type: TableMetadata(
             columns=tuple(schema.names),
@@ -40,6 +40,7 @@ def validate_intent(
     if not issues:
         issues += check_data_types(intent, snapshot)
         issues += check_data_availability(intent, snapshot)
+        issues += check_keywords(intent)
 
     return ValidationResult(valid=not issues, issues=issues, intent=intent)
 

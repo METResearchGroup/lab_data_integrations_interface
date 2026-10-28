@@ -67,4 +67,4 @@ for the Grafana dashboard over these metrics and logs.
 
 ## Deploying
 
-See [HOW_TO_DEPLOY_JETSTREAM_TO_RAILWAY.md](HOW_TO_DEPLOY_JETSTREAM_TO_RAILWAY.md).
+See [HOW_TO_DEPLOY_TO_CLOUDFLARE.md](HOW_TO_DEPLOY_TO_CLOUDFLARE.md).

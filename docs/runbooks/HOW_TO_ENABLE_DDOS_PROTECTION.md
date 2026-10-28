@@ -2,83 +2,12 @@
 
 ## Overview
 
-Puts CloudFront and AWS WAF in front of the Railway backend:
+The API, UI, Jetstream, and backfill worker are Cloudflare Workers and Containers. Cloudflare filters traffic to those hosts. The API does not check a shared-secret header.
 
-```
-client → CloudFront (+ WAF) → Railway
-```
+Application checks stay in the app:
 
-| | |
-|---|---|
-| Terraform | `terraform/backend_edge/main.tf` |
-| Origin guard | `backend/origin.py` |
-| WAF rules | `AWSManagedRulesAntiDDoSRuleSet` (block only), per-IP rate limit on `/query` |
+- `/query` requires a Supabase bearer token (`backend/auth.py`).
+- The preview UI and API hosts should sit behind Cloudflare Access. See [HOW_TO_DEPLOY_TO_CLOUDFLARE.md](HOW_TO_DEPLOY_TO_CLOUDFLARE.md).
+- Backfill `POST /start` and `POST /stop` require `BACKFILL_TRIGGER_TOKEN`.
 
-CloudFront adds an `X-Origin-Secret` header to every request it forwards.
-When `ORIGIN_SECRET` is set, the backend returns 403 to requests without it,
-so calling the Railway domain directly doesn't get past CloudFront. `/health`
-is exempt for Railway's healthcheck.
-
-**Do the steps in order.** Setting `ORIGIN_SECRET` before CloudFront exists
-gets every request a 403.
-
----
-
-## 1. Apply the Terraform
-
-`<railway-domain>` is the backend's domain under **Service Settings →
-Networking → Public Networking**, without `https://`.
-
-```sh
-cd terraform/backend_edge
-terraform init
-terraform apply -var origin_domain=<railway-domain>
-```
-
-The distribution takes a few minutes to deploy.
-
-## 2. Check CloudFront reaches the backend
-
-```sh
-curl "$(terraform output -raw api_url)/health"   # {"status":"ok"}
-```
-
-## 3. Turn on the origin guard
-
-Railway → backend service → **Variables** → `ORIGIN_SECRET` = output of:
-
-```sh
-terraform output -raw origin_secret
-```
-
-Railway redeploys. Then:
-
-```sh
-curl -X POST "$(terraform output -raw api_url)/query"   # 401: passed the guard, no token
-curl -X POST https://<railway-domain>/query             # 403: skipped CloudFront
-```
-
-## 4. Point the UI at CloudFront
-
-Vercel → UI project → **Settings → Environment Variables** →
-`NEXT_PUBLIC_API_URL` = `terraform output -raw api_url`, then redeploy.
-`NEXT_PUBLIC_*` values are inlined at build time, so a redeploy is required.
-
-Log in and run a query to confirm.
-
----
-
-## Rotating the secret
-
-```sh
-terraform apply -replace=random_password.origin_secret -var origin_domain=<railway-domain>
-```
-
-Then update `ORIGIN_SECRET` on Railway. Requests get 403 between the two
-steps, so do them back to back.
-
-## Tuning
-
-- `query_rate_limit` (default 100 per IP per minute): campus users can share
-  an IP, so keep it well above one user's rate.
-- WAF metrics: CloudWatch (us-east-1) → Metrics → WAFV2 → `backend-edge`.
+The API middleware that checked `X-Origin-Secret` is removed. A CloudFront distribution may still exist in AWS until you run [Destroy the CloudFront distribution](HOW_TO_DEPLOY_TO_CLOUDFLARE.md#destroy-the-cloudfront-distribution).

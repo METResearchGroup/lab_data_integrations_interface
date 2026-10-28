@@ -34,8 +34,12 @@ from bluesky_backfill_app.telemetry.constants import (
 from bluesky_backfill_app.telemetry.gauges import register_buffer, register_queues
 from bluesky_backfill_app.telemetry.instruments import record_flush
 from bluesky_backfill_app.telemetry.setup import force_telemetry_flush, setup_telemetry
+from lib.aws.secrets_env import fill_unset_secrets
 
 logger = logging.getLogger(__name__)
+
+# The backfill worker only needs the telemetry header. The API loads the rest.
+_TELEMETRY_FROM_SECRETS = frozenset({"OTEL_EXPORTER_OTLP_HEADERS"})
 
 
 def new_run_id() -> str:
@@ -105,6 +109,7 @@ def sigterm_handler(_signum: int, _frame: object) -> None:
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     load_dotenv()
+    fill_unset_secrets(_TELEMETRY_FROM_SECRETS)
     setup_telemetry()
     signal.signal(signal.SIGTERM, sigterm_handler)
 

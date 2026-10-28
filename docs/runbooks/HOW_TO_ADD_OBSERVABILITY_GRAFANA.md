@@ -53,11 +53,12 @@ credential is environmental:
 |---|---|---|
 | `OTEL_EXPORTER_OTLP_HEADERS` | `Authorization=Basic%20<base64(instanceID:token)>` | Note the `%20` — the Python OTLP exporter needs the header value URL-encoded, a literal space breaks it. |
 
-It lives in the root `.env` for local dev; mirror it into Railway's
-**Variables** tab per service — each is its own project with its own
-variables, so it must be set twice. See
-[HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md](HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md) and
-[HOW_TO_DEPLOY_JETSTREAM_TO_RAILWAY.md](HOW_TO_DEPLOY_JETSTREAM_TO_RAILWAY.md).
+`OTEL_EXPORTER_OTLP_HEADERS` lives in the root `.env` for local dev. On
+Cloudflare, the API, Jetstream, and backfill processes read it from Secrets
+Manager when the name is absent. `scripts/set_grafana_otlp_header.py` uses
+the same field for the Grafana destinations and does not store it on a
+Worker. See
+[HOW_TO_DEPLOY_TO_CLOUDFLARE.md](HOW_TO_DEPLOY_TO_CLOUDFLARE.md).
 
 Setting it is also the on/off switch: `setup_telemetry()` returns early when
 the token is absent, so an unconfigured process exports nothing rather than
@@ -82,3 +83,19 @@ by an env var the deployment could forget.
    - Tempo (TraceQL): `{ resource.service.name = "backend" }`
    - Loki (LogQL): `{ service_name = "backend" }`
    - Mimir (PromQL): `http_server_duration_milliseconds_bucket{service_name="backend"}`
+
+The Cloudflare preview sets `deployment.environment` to `cloudflare-preview`.
+Filter on that attribute when you want the preview only.
+
+- Tempo: `{ resource.service.name = "backend" && resource.deployment.environment = "cloudflare-preview" }`
+- Loki: `{ service_name = "backend", deployment_environment = "cloudflare-preview" }`
+- Mimir: `http_server_duration_milliseconds_bucket{service_name="backend", deployment_environment="cloudflare-preview"}`
+
+Jetstream's service name is `bluesky-ingestion-jetstream`. It exports metrics
+and logs. The backfill service name is `bluesky-backfill-fetch-repos`. It
+exports metrics and logs. The API service name is `backend`. It exports
+traces and logs. See
+[HOW_TO_DEPLOY_TO_CLOUDFLARE.md](HOW_TO_DEPLOY_TO_CLOUDFLARE.md) for the
+secret `lab-data-integrations-interface-grafana-cloud-oltp-header` and the
+Worker destinations `ldi-preview-grafana-logs` and
+`ldi-preview-grafana-traces`.
