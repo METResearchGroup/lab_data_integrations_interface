@@ -58,6 +58,7 @@ def main() -> None:
     intent = validation.intent
     print(
         f"  intent: record_type={intent.record_type} columns={intent.columns} "
+        f"keywords={intent.keywords} match={intent.match} use_whole_word={intent.use_whole_word} "
         f"dates={intent.start_date}..{intent.end_date}"
     )
     print(f"  valid={validation.valid} issues={[i.value for i in validation.issues]}")

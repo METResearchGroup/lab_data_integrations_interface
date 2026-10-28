@@ -1,0 +1,41 @@
+# Build context is the repository root. cloudflare/backend/wrangler.jsonc sets
+# image_build_context so this file can see pyproject.toml and uv.lock.
+#
+# Storage stays on AWS S3. This image does not use Cloudflare R2.
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Bytecode compilation keeps the first import of the API from paying that cost
+# again on every cold start. The app is not installed as a package: uvicorn
+# imports backend.main from PYTHONPATH. The start command is uvicorn.
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/app/.venv \
+    PYTHONPATH=/app \
+    PORT=8000 \
+    PYTHONUNBUFFERED=1
+
+COPY pyproject.toml uv.lock ./
+# api: FastAPI, uvicorn, SQL checks. ml: the LangGraph query path.
+# ingestion: PyIceberg and the Arrow schemas that /query imports.
+# collection (spaCy, Prefect, scikit-learn) stays out of this image.
+RUN uv sync --frozen --no-dev --no-default-groups --no-install-project \
+    --group api --group ml --group ingestion
+
+# backend/agentic_search imports these packages by absolute name. Copying the
+# trees keeps load_env_vars.py and the AWS clients on their existing paths.
+COPY backend ./backend
+COPY lib ./lib
+COPY bluesky_ingestion_jetstream ./bluesky_ingestion_jetstream
+COPY ml_tooling ./ml_tooling
+
+ENV PATH="/app/.venv/bin:${PATH}"
+
+EXPOSE 8000
+
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

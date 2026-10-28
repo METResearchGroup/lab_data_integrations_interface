@@ -33,11 +33,19 @@ def is_configured() -> bool:
 
 
 def build_resource() -> Resource:
-    """
-    The SDK adds a random `service.instance.id`, so workers get separate series.
+    """Identity shared by both signals.
+
+    The SDK adds a random `service.instance.id`, so workers get separate
+    series. DEPLOYMENT_ENVIRONMENT, when set, adds deployment.environment.
+    The Cloudflare preview sets it to cloudflare-preview. Leave it unset
+    locally.
     """
 
-    return Resource.create({SERVICE_NAME_KEY: SERVICE_NAME})
+    attributes: dict[str, str] = {SERVICE_NAME_KEY: SERVICE_NAME}
+    environment = os.getenv("DEPLOYMENT_ENVIRONMENT")
+    if environment:
+        attributes["deployment.environment"] = environment
+    return Resource.create(attributes)
 
 
 def setup_telemetry() -> bool:
