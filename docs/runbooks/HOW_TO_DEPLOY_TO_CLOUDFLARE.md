@@ -348,14 +348,21 @@ start the process. The token is not copied into the container. `GET /status`
 is public and returns `{"running": true}` or `{"running": false}` only.
 `/status` does not start a run.
 
-Set the token from `cloudflare/backfill/`, with the Cloudflare credentials
-exported. Pick the token yourself and store it where you can read it again.
-Wrangler will not show it back to you.
+Store the token in AWS Secrets Manager `ldi-backfill-trigger-token` in
+`us-east-2`, either as a JSON object with key `BACKFILL_TRIGGER_TOKEN` or as
+the text `BACKFILL_TRIGGER_TOKEN=<value>`. The value must have no whitespace.
+From the repo root, with AWS credentials and `CLOUDFLARE_API_TOKEN` and
+`CLOUDFLARE_ACCOUNT_ID` available, install the backfill Worker dependencies and
+copy the current value to the Worker:
 
 ```bash
-cd cloudflare/backfill
-printf '%s' "$BACKFILL_TRIGGER_TOKEN" | npx wrangler secret put BACKFILL_TRIGGER_TOKEN
+npm ci --prefix cloudflare/backfill
+python scripts/set_backfill_trigger_token.py
 ```
+
+This changes the live Worker secret and does not start a run. Wrangler will
+not show the value later. Repeat the script after rotating the AWS secret;
+the Worker does not read it automatically.
 
 Start a run:
 
