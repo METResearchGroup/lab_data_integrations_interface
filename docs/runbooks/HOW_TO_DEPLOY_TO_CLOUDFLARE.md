@@ -348,13 +348,27 @@ start the process. The token is not copied into the container. `GET /status`
 is public and returns `{"running": true}` or `{"running": false}` only.
 `/status` does not start a run.
 
-Set the token from `cloudflare/backfill/`, with the Cloudflare credentials
-exported. Pick the token yourself and store it where you can read it again.
-Wrangler will not show it back to you.
+The Worker secret `BACKFILL_TRIGGER_TOKEN` must match the value in AWS Secrets
+Manager secret `ldi-backfill-trigger-token` in `us-east-2`. Set the Worker
+secret separately through the Cloudflare dashboard or Wrangler. The Worker
+does not read this AWS secret automatically. After a rotation, update both.
+Wrangler will not show the value back to you.
+
+Before starting or stopping a run, read the token into the current shell.
+This requires AWS credentials with `secretsmanager:GetSecretValue` on
+`ldi-backfill-trigger-token`, the AWS CLI, and `jq`. The secret is a JSON
+object with a `BACKFILL_TRIGGER_TOKEN` field. Do not print the value or run
+these commands with shell tracing enabled.
 
 ```bash
-cd cloudflare/backfill
-printf '%s' "$BACKFILL_TRIGGER_TOKEN" | npx wrangler secret put BACKFILL_TRIGGER_TOKEN
+set +x
+BACKFILL_TRIGGER_TOKEN="$(aws secretsmanager get-secret-value \
+  --region us-east-2 --secret-id ldi-backfill-trigger-token \
+  --query SecretString --output text --no-cli-pager | \
+  jq -er '.BACKFILL_TRIGGER_TOKEN | select(type == "string" and length > 0)')" || {
+  unset BACKFILL_TRIGGER_TOKEN
+  echo "Could not load the backfill token; do not start the run." >&2
+}
 ```
 
 Start a run:
@@ -374,6 +388,10 @@ curl -fsS -X POST \
   -H "User-Agent: ldi-backfill-trigger/1.0" \
   https://ldi-backfill-preview.mind-technology-lab.workers.dev/stop
 ```
+
+After the operation, clear the shell variable with `unset BACKFILL_TRIGGER_TOKEN`.
+The curl authorization header can be visible to other processes on the same
+machine while curl runs; use a trusted workstation.
 
 Check whether a run is up, without starting one:
 
