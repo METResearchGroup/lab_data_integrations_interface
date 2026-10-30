@@ -30,6 +30,10 @@
 		"DEPLOYMENT_ENVIRONMENT": "cloudflare-preview",
 		"OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=cloudflare-preview"
 	},
+	// Keeps a started run alive. It does not start one. See src/index.ts.
+	"triggers": {
+		"crons": ["* * * * *"]
+	},
 	"containers": [
 		{
 			"class_name": "BackfillContainer",

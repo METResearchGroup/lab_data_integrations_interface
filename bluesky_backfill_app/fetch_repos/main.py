@@ -16,7 +16,11 @@ from dotenv import load_dotenv
 from bluesky_backfill_app.aws.constants import DLQ_NAME, STATUS_DONE
 from bluesky_backfill_app.aws.did_store import DynamoDidStore
 from bluesky_backfill_app.aws.queue import Message, SqsQueue
-from bluesky_backfill_app.fetch_repos.constants import FLUSH_REASON_STOP
+from bluesky_backfill_app.fetch_repos.constants import (
+    FLUSH_REASON_STOP,
+    IDLE_EXIT_SECONDS,
+    SIGTERM_EXIT_CODE,
+)
 from bluesky_backfill_app.fetch_repos.failures import (
     RepoFailure,
     record_failure,
@@ -89,14 +93,31 @@ def flush(
     logger.info("flushed %d dids (%s) to %d files", len(messages), reason, len(paths))
 
 
+def queue_is_drained(queue: SqsQueue) -> bool:
+    """False while a message waits or a failed repo is hidden until its retry."""
+
+    return queue.waiting_messages() == 0 and queue.in_flight_messages() == 0
+
+
 def run(did_store: DynamoDidStore, queue: SqsQueue, buffer: RepoBuffer, run_id: str) -> None:
+    """Returns once the queue has stayed empty for IDLE_EXIT_SECONDS and is drained."""
+
+    idle_since = time.monotonic()
     try:
         while True:
             message = queue.receive()
             if message is not None:
                 process_message(message, did_store, queue, buffer, run_id, time.monotonic())
+                idle_since = time.monotonic()
             if buffer.should_flush():
                 flush(buffer, did_store, queue, run_id, buffer.flush_reason())
+            if message is None and time.monotonic() - idle_since >= IDLE_EXIT_SECONDS:
+                # Buffered messages count as in flight until they are acked.
+                if buffer.messages:
+                    flush(buffer, did_store, queue, run_id, FLUSH_REASON_STOP)
+                if queue_is_drained(queue):
+                    logger.info("queue drained; exiting")
+                    return
     finally:
         if buffer.messages:
             flush(buffer, did_store, queue, run_id, FLUSH_REASON_STOP)
@@ -123,6 +144,8 @@ def main():
         run(DynamoDidStore(), queue, buffer, run_id)
     except KeyboardInterrupt:
         logger.info("stopped")
+        # Exit 0 means the queue drained, so the Worker does not restart it.
+        raise SystemExit(SIGTERM_EXIT_CODE) from None
     finally:
         force_telemetry_flush()
 
