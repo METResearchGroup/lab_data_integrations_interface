@@ -15,7 +15,7 @@ START_LOOKBACK_DAYS = 7
 _SIDES = ("both", "start_only", "end_only", "neither")
 _BOUNDS_INSTRUCTIONS = (
     "Which date bounds does this question state? "
-    "A named month, a single day, 'the last N days', "
+    "A named month, a calendar year, a single day, 'the last N days', "
     "'through', 'between', or 'from X to Y' is both. "
     "'since' or 'after' with no 'until' or 'before' is start_only, "
     "including 'since yesterday'. "
@@ -31,6 +31,7 @@ _BOUNDS_CRITERIA = {
 }
 
 _ISO = re.compile(r"\d{4}-\d{2}-\d{2}")
+_YEAR = re.compile(r"\b(?:19|20)\d{2}\b")
 _MONTH = re.compile(
     r"\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|"
     r"jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b"
@@ -121,13 +122,13 @@ def _regex_sides(query: str) -> str | None:
         return "start_only"
     if endish:
         return "end_only"
-    if _RELATIVE.search(text) or _ISO.search(text) or _MONTH.search(text):
+    if _RELATIVE.search(text) or _ISO.search(text) or _MONTH.search(text) or _YEAR.search(text):
         return "both"
     return None
 
 
 def _has_time_language(text: str) -> bool:
-    return any(pattern.search(text) for pattern in (_ISO, _MONTH, _RELATIVE, _BOUND_WORD))
+    return any(pattern.search(text) for pattern in (_ISO, _YEAR, _MONTH, _RELATIVE, _BOUND_WORD))
 
 
 def _is_closed_span(text: str) -> bool:

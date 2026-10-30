@@ -5,7 +5,7 @@ Map the user's question onto our Bluesky tables.
 
 Today is {today}.
 
-Tables, their columns, and the dates they cover:
+Tables and their columns:
 {catalog}
 
 Set is_nonsense only when the input is not a coherent question about Bluesky
@@ -36,7 +36,7 @@ A mention is the handle as written in the post, such as "@alice.bsky.social",
 not the author's DID.
 
 Copy a start or an end only when the question states that side. A named
-month, a single day, or "the last N days" fills both dates, including
+month, a calendar year, a single day, or "the last N days" fills both dates, including
 "from May 2026" and "yesterday" with no open word. "since" and "after"
 with no end leave end_date null, including "since yesterday". "until" and
 "before" with no start leave start_date null. "from" by itself is not an
@@ -45,6 +45,8 @@ program fills a missing end with today's UTC date, then a missing start
 with the date 7 days before that end. "since August" in 2026 means start
 2026-08-01. Keywords apply only to posts; do not switch the record type
 to posts to make a filter fit.
+For a calendar year such as "all of 2026", use January 1 through December 31
+of that year, even when part of the year is in the future.
 
 Do not put matched_keywords in columns. The query adds that column itself.
 

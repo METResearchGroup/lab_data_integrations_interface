@@ -19,7 +19,7 @@ from ml_tooling.llm.llm import structured_chat_completion
 
 def _render_catalog(snapshot: dict[RecordType, TableMetadata]) -> str:
     return "\n".join(
-        f"{record_type.value} ({meta.coverage_start} to {meta.coverage_end}): "
+        f"{record_type.value}: "
         f"{', '.join(meta.columns)}"
         for record_type, meta in snapshot.items()
     )
