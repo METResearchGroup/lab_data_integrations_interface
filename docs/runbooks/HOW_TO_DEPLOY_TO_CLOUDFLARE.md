@@ -182,9 +182,8 @@ GiB-hours, near $0.30 of memory past the included 25, plus the plan. Real
 The UI Worker for this lab's traffic fits in the paid request allotment.
 
 The backfill worker bills only while a run you started is up. A few hours is
-well under a dollar at these rates. A run you forget is stopped 6 hours
-after the latest `/start`, so one forgotten run is a few dollars, not a
-month of `standard-1`.
+well under a dollar at these rates. A run stops when the queue drains or you
+post `/stop`, so a run you forget with work left costs the same as Jetstream.
 
 ### Jetstream
 
@@ -404,28 +403,26 @@ curl -fsS \
 The first `/start` can take several minutes while Cloudflare pulls the image.
 If the client gives up, check `/status` before you post `/start` again.
 
-A run stops 6 hours after the latest `POST /start`. Three clocks enforce that.
+A run has no time limit. It ends in one of two ways: `POST /stop`, or the queue
+draining. The worker treats the queue as drained after 10 minutes of empty polls
+(`IDLE_EXIT_SECONDS`), once SQS also reports nothing waiting or in flight. It
+then flushes and exits 0. A failed repo stays hidden in flight for up to an hour
+before its retry, so the run waits for it.
 
-`/start` calls `setInactivityTimeout` for 6 hours. Without that call,
-Cloudflare stops the container shortly after the Durable Object goes idle.
-The process then ends when the `/start` request finishes. The constructor
-sets the remaining time again if the object restarts while the process is
-still up.
+A minute cron keeps a started run up. It calls `setInactivityTimeout`, because
+Cloudflare otherwise stops the container shortly after the Durable Object goes
+idle, and the cap on that timeout is 6 hours. It also restarts a process that
+exited with any code but 0, such as a crash, an out-of-memory kill, or a host
+restart. It never starts a run that `/start` did not ask for. Credentials that
+fail at startup therefore restart every minute until you post `/stop`.
 
-`sleepAfter` is `6h`, so the default activity hook sends SIGTERM at 6 hours
-on a Durable Object that stays in memory. `/start` also stores a schedule
-that calls `stop()` 6 hours later. That schedule still fires if the Durable
-Object restarts and refreshes its in-memory timer. The SQS loop does not
-extend the platform timeout, the library timer, or the stored deadline.
-Another `POST /start` while the process is already up moves the deadline out
-by 6 hours from that request. There is no cron, so a process that exits
-stays down until you post `/start` again.
+A forgotten run with work left keeps billing as an always-on `standard-1`.
+Repos queued after a run drains wait for the next `/start`.
 
-SIGTERM is what `/stop` sends, and it is what the 6 hour deadline sends.
-`bluesky_backfill_app/fetch_repos/main.py` turns SIGTERM into
-`KeyboardInterrupt`. The `run()` finally block flushes a remaining buffer
-with reason `stop`, and then telemetry is flushed. Cloudflare waits about 15
-minutes after SIGTERM before SIGKILL, which covers that drain.
+SIGTERM is what `/stop` sends. `bluesky_backfill_app/fetch_repos/main.py` turns
+it into `KeyboardInterrupt`. The `run()` finally block flushes a remaining buffer
+with reason `stop`, telemetry is flushed, and the process exits 143. Cloudflare
+waits about 15 minutes after SIGTERM before SIGKILL, which covers that drain.
 
 Deploy the Worker from `cloudflare/backfill/` the same way as Jetstream,
 with an AWS secrets file, and without calling `/start`. Put
@@ -438,7 +435,7 @@ with an AWS secrets file, and without calling `/start`. Put
 | FastAPI backend | Container `ldi-api-preview`. Scales to zero after 30 minutes. |
 | Next.js UI | Worker `ldi-ui-preview` |
 | Jetstream ingester | Always-on Container `ldi-jetstream-preview`. Writes the production bucket and the cursor table. |
-| Backfill fetch workers | On-demand Container `ldi-backfill-preview`. A run starts only from `POST /start`. |
+| Backfill fetch workers | On-demand Container `ldi-backfill-preview`. A run starts only from `POST /start`, and ends on `POST /stop` or when the queue drains. |
 | `gather_users` | Not part of this deploy. It stays a CLI. |
 | `telemetry/app` | Not part of this deploy. It stays a sample app. |
 

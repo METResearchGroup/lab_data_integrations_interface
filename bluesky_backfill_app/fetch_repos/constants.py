@@ -5,6 +5,11 @@ from bluesky_ingestion_jetstream.aws.constants import S3_BUCKET
 MAX_BUFFER_SIZE_BYTES = 1024 * 1024 * 1024
 MAX_BUFFER_AGE_SECONDS = 30.0 * 60.0
 
+# Empty polls for this long, with nothing in flight, end the run.
+IDLE_EXIT_SECONDS = 10.0 * 60.0
+# 128 + SIGTERM. A stopped run must not look like a drained queue, which exits 0.
+SIGTERM_EXIT_CODE = 143
+
 FLUSH_REASON_SIZE = "size"
 FLUSH_REASON_AGE = "age"
 FLUSH_REASON_STOP = "stop"

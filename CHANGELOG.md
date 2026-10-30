@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-10-30
+
+1. Bluesky backfill runs no longer stop after 6 hours. A run ends on `POST /stop` or once the queue has drained, and restarts itself after a crash. [PR #282](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/282)
+
 ## 2026-10-26
 
 1. The API, UI, Jetstream, and backfill worker now deploy only through Cloudflare. Railway and Vercel configs and their deploy runbooks are removed. The CloudFront distribution `aws_cloudfront_distribution.backend`, the web ACL `aws_wafv2_web_acl.backend`, and `random_password.origin_secret` were destroyed, and `terraform/backend_edge/` was removed. [PR #250](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/250)

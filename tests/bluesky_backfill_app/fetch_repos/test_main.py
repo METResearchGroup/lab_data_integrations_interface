@@ -11,9 +11,10 @@ from bluesky_backfill_app.aws.constants import (
     STATUS_FAILED,
 )
 from bluesky_backfill_app.aws.queue import Message
+from bluesky_backfill_app.fetch_repos.constants import SIGTERM_EXIT_CODE
 from bluesky_backfill_app.fetch_repos.failures import RepoFailure
 from bluesky_backfill_app.fetch_repos.landing.writer import build_table
-from bluesky_backfill_app.fetch_repos.main import flush, process_message, run
+from bluesky_backfill_app.fetch_repos.main import flush, main, process_message, run
 from bluesky_backfill_app.fetch_repos.storage.buffer import RepoBuffer
 from bluesky_ingestion_jetstream.constants import LIKES
 
@@ -37,14 +38,22 @@ class FakeDidStore:
 class FakeQueue:
     """Serves `messages`, then raises KeyboardInterrupt as SIGTERM would."""
 
-    def __init__(self, events, messages=()):
+    def __init__(self, events, messages=(), waiting=(0,), in_flight=(0,)):
         self.events = events
         self.messages = list(messages)
+        self.waiting = list(waiting)
+        self.in_flight = list(in_flight)
 
     def receive(self):
         if not self.messages:
             raise KeyboardInterrupt
         return self.messages.pop(0)
+
+    def waiting_messages(self):
+        return self.waiting.pop(0)
+
+    def in_flight_messages(self):
+        return self.in_flight.pop(0)
 
     def delete(self, handle):
         self.events.append(("delete", handle))
@@ -226,3 +235,68 @@ def test_run_abandons_the_in_flight_repo_when_stopped(events, monkeypatch):
         run(FakeDidStore(events), queue, big_buffer(), "run-1")
 
     assert events[-1] == ("delete_many", ["handle-did:plc:a"])
+
+
+def test_run_keeps_polling_before_the_idle_limit(events):
+    queue = FakeQueue(events, [None])
+
+    with pytest.raises(KeyboardInterrupt):
+        run(FakeDidStore(events), queue, big_buffer(), "run-1")
+
+
+def test_run_flushes_and_returns_once_idle_and_drained(events, monkeypatch):
+    monkeypatch.setattr(f"{MAIN}.IDLE_EXIT_SECONDS", 0)
+    queue = FakeQueue(events, [message("did:plc:a"), None])
+
+    run(FakeDidStore(events), queue, big_buffer(), "run-1")
+
+    assert events[-1] == ("delete_many", ["handle-did:plc:a"])
+
+
+@pytest.mark.parametrize(
+    ("waiting", "in_flight"),
+    [((1, 0), (0,)), ((0, 0), (1, 0))],
+)
+def test_run_waits_for_messages_the_queue_still_holds(events, monkeypatch, waiting, in_flight):
+    monkeypatch.setattr(f"{MAIN}.IDLE_EXIT_SECONDS", 0)
+    queue = FakeQueue(events, [None, None], waiting=waiting, in_flight=in_flight)
+
+    run(FakeDidStore(events), queue, big_buffer(), "run-1")
+
+    assert queue.messages == []
+
+
+@pytest.fixture
+def main_dependencies(monkeypatch):
+    for name in (
+        "load_dotenv",
+        "fill_unset_secrets",
+        "setup_telemetry",
+        "signal.signal",
+        "SqsQueue",
+        "DynamoDidStore",
+        "register_buffer",
+        "register_queues",
+        "force_telemetry_flush",
+    ):
+        monkeypatch.setattr(f"{MAIN}.{name}", lambda *args, **kwargs: None)
+
+
+@pytest.mark.usefixtures("main_dependencies")
+def test_main_exits_nonzero_when_stopped(monkeypatch):
+    def stopped(*args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(f"{MAIN}.run", stopped)
+
+    with pytest.raises(SystemExit) as exit_info:
+        main()
+
+    assert exit_info.value.code == SIGTERM_EXIT_CODE
+
+
+@pytest.mark.usefixtures("main_dependencies")
+def test_main_returns_when_the_queue_drains(monkeypatch):
+    monkeypatch.setattr(f"{MAIN}.run", lambda *args: None)
+
+    main()

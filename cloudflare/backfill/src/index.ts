@@ -21,10 +21,11 @@ const FORWARDED = [
 	"DEPLOYMENT_ENVIRONMENT",
 ] as const;
 
-// Latest POST /start arms this long a run. The SQS loop does not extend it.
-const RUN_WINDOW_SECONDS = 6 * 60 * 60;
-const RUN_WINDOW_MS = RUN_WINDOW_SECONDS * 1000;
-const DEADLINE_KEY = "backfillDeadlineMs";
+// Platform cap. Without this, Cloudflare stops the container shortly after the
+// Durable Object goes idle. The minute cron sets it again.
+const KEEPALIVE_MS = 6 * 60 * 60 * 1000;
+// Set by POST /start. Cleared by POST /stop and by a drained queue.
+const WANTED_KEY = "backfillWanted";
 
 const CONTROL_HEADER = "x-ldi-backfill-control";
 
@@ -83,20 +84,17 @@ export async function bearerMatches(
 /**
  * On-demand backfill. Nothing starts the process until POST /start.
  *
- * sleepAfter is 6h, so a stable Durable Object stops the process then.
- * A schedule stored at start time also calls stop(), which still fires if
- * the object restarts and refreshes its in-memory timer. POST /start while
- * the process is up moves that deadline out by another 6 hours. The SQS
- * loop does not. setInactivityTimeout is the same 6 hours, because
- * Cloudflare stops a container shortly after its Durable Object goes idle
- * when that timeout is unset. The constructor sets the remaining time again
- * if the object restarts while the process is up. SIGTERM hits the handler
- * in fetch_repos/main.py, which flushes a partial buffer before it exits.
+ * A run has no time limit. It ends on POST /stop, or when the process exits 0
+ * because the queue drained. While a run is wanted, the minute cron renews the
+ * keep-alive and restarts a process that exited any other way. SIGTERM hits the
+ * handler in fetch_repos/main.py, which flushes a partial buffer and exits 143.
  */
 export class BackfillContainer extends Container<Env> {
-	sleepAfter = "6h";
+	sleepAfter = "30m";
 	enableInternet = true;
 	entrypoint = ENTRYPOINT;
+
+	private exitWatch: Promise<void> | undefined;
 
 	constructor(ctx: DurableObjectState<{}>, env: Env) {
 		super(ctx, env);
@@ -108,13 +106,15 @@ export class BackfillContainer extends Container<Env> {
 		if (!container?.running) {
 			return;
 		}
-		const deadline = await this.ctx.storage.get<number>(DEADLINE_KEY);
-		const remaining = typeof deadline === "number" ? deadline - Date.now() : 0;
-		if (remaining <= 0) {
-			await this.stop();
-			return;
+		if (await this.ctx.storage.get<boolean>(WANTED_KEY)) {
+			await container.setInactivityTimeout(KEEPALIVE_MS);
+			this.watchExit();
 		}
-		await container.setInactivityTimeout(Math.min(remaining, RUN_WINDOW_MS));
+	}
+
+	override async onActivityExpired(): Promise<void> {
+		// Leave the process running. The base method calls stop().
+		console.log("backfill activity timer elapsed; leaving the process running");
 	}
 
 	override async fetch(request: Request): Promise<Response> {
@@ -131,17 +131,11 @@ export class BackfillContainer extends Container<Env> {
 		if (request.method === "POST" && url.pathname === "/stop") {
 			return this.end();
 		}
-		return new Response("Not found", { status: 404 });
-	}
-
-	// Fired by this.schedule() 6 hours after the latest /start.
-	async stopIfDue(): Promise<void> {
-		const deadline = await this.ctx.storage.get<number>(DEADLINE_KEY);
-		if (typeof deadline !== "number" || Date.now() + 15_000 < deadline) {
-			return;
+		if (request.method === "POST" && url.pathname === "/supervise") {
+			await this.supervise();
+			return new Response("ok");
 		}
-		await this.stop();
-		await this.ctx.storage.delete(DEADLINE_KEY);
+		return new Response("Not found", { status: 404 });
 	}
 
 	private platformRunning(): boolean {
@@ -169,15 +163,53 @@ export class BackfillContainer extends Container<Env> {
 		});
 	}
 
-	private async armWindow(): Promise<void> {
-		const deadline = Date.now() + RUN_WINDOW_MS;
-		await this.ctx.storage.put(DEADLINE_KEY, deadline);
-		this.renewActivityTimeout();
+	private async keepAlive(): Promise<void> {
 		const container = this.ctx.container;
-		if (container?.running) {
-			await container.setInactivityTimeout(RUN_WINDOW_MS);
+		if (!container?.running) {
+			return;
 		}
-		await this.schedule(RUN_WINDOW_SECONDS, "stopIfDue");
+		await container.setInactivityTimeout(KEEPALIVE_MS);
+		this.renewActivityTimeout();
+	}
+
+	// monitor() resolves on exit 0 and rejects on any other exit.
+	private watchExit(): void {
+		const container = this.ctx.container;
+		if (this.exitWatch || !container?.running) {
+			return;
+		}
+		const pending = container
+			.monitor()
+			.then(async () => {
+				this.exitWatch = undefined;
+				await this.ctx.storage.delete(WANTED_KEY);
+				console.log("backfill queue drained; run finished");
+			})
+			.catch((error: unknown) => {
+				this.exitWatch = undefined;
+				const message = errorText(error);
+				console.log("backfill container stopped", message);
+				if (message.includes("Network connection lost") && this.ctx.container?.running) {
+					console.log("backfill clearing a lost container connection");
+					void this.ctx.container.destroy();
+				}
+			});
+		this.exitWatch = pending;
+		this.ctx.waitUntil(pending);
+	}
+
+	private async supervise(): Promise<void> {
+		if (!(await this.ctx.storage.get<boolean>(WANTED_KEY))) {
+			return;
+		}
+		try {
+			this.launch();
+		} catch (error) {
+			console.error("backfill restart failed", errorText(error));
+			return;
+		}
+		this.watchExit();
+		await this.keepAlive();
 	}
 
 	private async begin(): Promise<Response> {
@@ -193,13 +225,16 @@ export class BackfillContainer extends Container<Env> {
 			console.error("backfill start returned before the container was running");
 			return Response.json({ detail: "container start failed" }, { status: 500 });
 		}
-		await this.armWindow();
+		await this.ctx.storage.put(WANTED_KEY, true);
+		this.watchExit();
+		await this.keepAlive();
 		return Response.json({ running: true });
 	}
 
 	private async end(): Promise<Response> {
+		// Clear first, so the cron cannot restart a process that is draining.
+		await this.ctx.storage.delete(WANTED_KEY);
 		await this.stop();
-		await this.ctx.storage.delete(DEADLINE_KEY);
 		return Response.json({ running: false });
 	}
 }
@@ -226,5 +261,15 @@ export default {
 			);
 		}
 		return new Response("Not found", { status: 404 });
+	},
+
+	async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+		const container = env.BACKFILL_CONTAINER.getByName("backfill");
+		await container.fetch(
+			new Request("https://backfill.internal/supervise", {
+				method: "POST",
+				headers: { [CONTROL_HEADER]: "1" },
+			}),
+		);
 	},
 } satisfies ExportedHandler<Env>;
