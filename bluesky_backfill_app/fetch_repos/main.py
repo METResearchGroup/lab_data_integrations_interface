@@ -93,9 +93,14 @@ def flush(
     logger.info("flushed %d dids (%s) to %d files", len(messages), reason, len(paths))
 
 
-def queue_is_drained(queue: SqsQueue) -> bool:
+def flush_and_check_drained(
+    buffer: RepoBuffer, did_store: DynamoDidStore, queue: SqsQueue, run_id: str
+) -> bool:
     """False while a message waits or a failed repo is hidden until its retry."""
 
+    # Buffered messages count as in flight until they are acked.
+    if buffer.messages:
+        flush(buffer, did_store, queue, run_id, FLUSH_REASON_STOP)
     return queue.waiting_messages() == 0 and queue.in_flight_messages() == 0
 
 
@@ -111,13 +116,10 @@ def run(did_store: DynamoDidStore, queue: SqsQueue, buffer: RepoBuffer, run_id: 
                 idle_since = time.monotonic()
             if buffer.should_flush():
                 flush(buffer, did_store, queue, run_id, buffer.flush_reason())
-            if message is None and time.monotonic() - idle_since >= IDLE_EXIT_SECONDS:
-                # Buffered messages count as in flight until they are acked.
-                if buffer.messages:
-                    flush(buffer, did_store, queue, run_id, FLUSH_REASON_STOP)
-                if queue_is_drained(queue):
-                    logger.info("queue drained; exiting")
-                    return
+            idle = message is None and time.monotonic() - idle_since >= IDLE_EXIT_SECONDS
+            if idle and flush_and_check_drained(buffer, did_store, queue, run_id):
+                logger.info("queue drained; exiting")
+                return
     finally:
         if buffer.messages:
             flush(buffer, did_store, queue, run_id, FLUSH_REASON_STOP)

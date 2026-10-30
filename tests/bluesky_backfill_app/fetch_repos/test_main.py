@@ -282,7 +282,8 @@ def main_dependencies(monkeypatch):
         monkeypatch.setattr(f"{MAIN}.{name}", lambda *args, **kwargs: None)
 
 
-def test_main_exits_nonzero_when_stopped(main_dependencies, monkeypatch):
+@pytest.mark.usefixtures("main_dependencies")
+def test_main_exits_nonzero_when_stopped(monkeypatch):
     def stopped(*args):
         raise KeyboardInterrupt
 
@@ -294,7 +295,8 @@ def test_main_exits_nonzero_when_stopped(main_dependencies, monkeypatch):
     assert exit_info.value.code == SIGTERM_EXIT_CODE
 
 
-def test_main_returns_when_the_queue_drains(main_dependencies, monkeypatch):
+@pytest.mark.usefixtures("main_dependencies")
+def test_main_returns_when_the_queue_drains(monkeypatch):
     monkeypatch.setattr(f"{MAIN}.run", lambda *args: None)
 
     main()
