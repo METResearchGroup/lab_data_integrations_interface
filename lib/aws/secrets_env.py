@@ -52,7 +52,7 @@ def fill_unset_secrets(only: frozenset[str] | None = None) -> None:
     if not pending:
         return
     if not _aws_credentials_present():
-        logger.info(
+        logger.warning(
             "Left unset because AWS credentials are not in the environment: %s",
             ", ".join(binding[0] for binding in pending),
         )
@@ -101,7 +101,7 @@ def _read_object(client: Any, secret_id: str) -> dict[str, object] | None:
     try:
         response = client.get_secret_value(SecretId=secret_id)
     except ClientError as error:
-        logger.info(
+        logger.warning(
             "Could not read Secrets Manager secret %s (%s).",
             secret_id,
             error_code(error) or "unknown",

@@ -41,6 +41,10 @@ logger = logging.getLogger(__name__)
 # The backfill worker only needs the telemetry header. The API loads the rest.
 _TELEMETRY_FROM_SECRETS = frozenset({"OTEL_EXPORTER_OTLP_HEADERS"})
 
+# Wait after a failed receive. A bad credential or an SQS outage should not end
+# the run, because nothing restarts it until the next POST /start.
+RECEIVE_RETRY_SECONDS = 30
+
 
 def new_run_id() -> str:
     return str(uuid4())
@@ -89,10 +93,19 @@ def flush(
     logger.info("flushed %d dids (%s) to %d files", len(messages), reason, len(paths))
 
 
+def receive_or_none(queue: SqsQueue) -> Message | None:
+    try:
+        return queue.receive()
+    except Exception:
+        logger.exception("receive failed; retrying in %ds", RECEIVE_RETRY_SECONDS)
+        time.sleep(RECEIVE_RETRY_SECONDS)
+        return None
+
+
 def run(did_store: DynamoDidStore, queue: SqsQueue, buffer: RepoBuffer, run_id: str) -> None:
     try:
         while True:
-            message = queue.receive()
+            message = receive_or_none(queue)
             if message is not None:
                 process_message(message, did_store, queue, buffer, run_id, time.monotonic())
             if buffer.should_flush():
