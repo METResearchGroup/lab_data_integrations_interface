@@ -41,9 +41,9 @@ CASES: list[tuple[str, str, list[ValidationIssue]]] = [
         [ValidationIssue.UNKNOWN_COLUMN],
     ),
     (
-        "missing row",
+        "outside prior coverage",
         "give me all the posts (text only) from March 2026",
-        [ValidationIssue.RANGE_OUTSIDE_COVERAGE],
+        [],
     ),
 ]
 
