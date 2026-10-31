@@ -138,6 +138,10 @@ export class BackfillContainer extends Container<Env> {
 		return new Response("Not found", { status: 404 });
 	}
 
+	// A /start from before the cron stored this schedule. The library retries a
+	// missing callback forever, so it has to exist for the row to be deleted.
+	async stopIfDue(): Promise<void> {}
+
 	private platformRunning(): boolean {
 		const runtime = this as unknown as { container?: { running?: boolean } };
 		return runtime.container?.running === true;
