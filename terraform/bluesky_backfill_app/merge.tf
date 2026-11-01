@@ -29,9 +29,10 @@ locals {
         "SELECT *, row_number() OVER (PARTITION BY uri ORDER BY rev DESC, ingested_at DESC) AS rn",
         "FROM ${var.landing_glue_database}.${record_type}",
         "WHERE dt > '{merged_through}' AND dt <= '{through}'",
-        ") WHERE rn = 1",
+        # Inside the window: Athena does not push this past `row_number()`.
         "AND created_at >= timestamp '${chunk.start} 00:00:00'",
         "AND created_at < timestamp '${chunk.end} 00:00:00'",
+        ") WHERE rn = 1",
       ])
     ]
   ])
