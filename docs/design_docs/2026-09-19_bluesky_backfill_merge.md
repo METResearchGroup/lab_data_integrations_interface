@@ -47,8 +47,8 @@ read the whole table on every run.
 | --- | --- | --- |
 | Cadence | Weekly, outside the 03:00-06:00 UTC maintenance window | Each run writes a file into every `created_at` day it touches (~1,360), so a rarer merge means fewer, larger files. Appends never read the partitions they write, so merge size does not change scanned bytes. |
 | Input | `dt > merged_through AND dt < current_date` | `run_id` is in the filename, not the path, so a run is not addressable -- the prefix is. Today's landing day is still being written. |
-| Chunking | One `INSERT` per quarter of `created_at` | Athena writes at most 100 partitions per statement, and the tables are partitioned by day. Measured 2026-09-19 on a throwaway Iceberg table: 100 succeeds, 101 fails with `ICEBERG_TOO_MANY_OPEN_PARTITIONS`. A quarter is at most 92 days: 16 statements instead of 46 monthly ones. |
-| Dedup | `row_number()` over `uri` inside each `INSERT` | Free: the statement reads those rows anyway, and Athena bills scanned bytes. |
+| Chunking | One `INSERT` per month of `created_at` | Athena writes at most 100 partitions per statement, and the tables are partitioned by day. Measured 2026-09-19 on a throwaway Iceberg table: 100 succeeds, 101 fails with `ICEBERG_TOO_MANY_OPEN_PARTITIONS`. Memory is the tighter limit. Measured 2026-11-01 on `likes`: 513M rows in one window succeeds, about 680M fails with `Query exhausted resources`. The largest month was 177M rows, the largest quarter 513M. |
+| Dedup | `row_number()` over `uri` inside each `INSERT`, after the `created_at` filter | Athena cannot push the filter past the window, so outside it every statement sorts the whole landing window. Each statement still scans the whole window, because landing files are not sorted by `created_at`: a run costs 46 x window bytes. Copies of a `uri` share a `created_at` (0 of 227k duplicated URIs differed, 2026-11-01), so they land in the same chunk. |
 | Provenance | None per DID | A `done` DID is in Iceberg once `date(updated_at) <= merged_through`. Marking each one would add a DID-extraction query and a bulk writer to what is otherwise files in, rows out, one cursor. |
 
 # Components
@@ -85,7 +85,7 @@ DynamoDB):
 GetItem cursor
   -> Choice: exit if already current
   -> Map over 4 record types
-       -> Map over quarters, concurrency 1
+       -> Map over months, concurrency 1
             -> Athena StartQueryExecution.sync
   -> PutItem merged_through = current_date - 1
 ```
@@ -97,8 +97,8 @@ FROM (
   SELECT *, row_number() OVER (PARTITION BY uri ORDER BY rev DESC, ingested_at DESC) AS rn
   FROM landing.<type>
   WHERE dt > :merged_through AND dt < current_date
-) WHERE rn = 1
-  AND created_at >= :quarter_start AND created_at < :quarter_end;
+    AND created_at >= :month_start AND created_at < :month_end
+) WHERE rn = 1;
 ```
 
 ```mermaid

@@ -156,8 +156,8 @@ variable "backfill_end_date" {
 }
 
 variable "backfill_chunk_months" {
-  description = "Months per statement. Tables are partitioned by day and Athena writes at most 100 partitions per statement."
-  default     = 3
+  description = "Months per statement. Tables are partitioned by day and Athena writes at most 100 partitions per statement. Quarters leave `likes` at the edge of Athena's memory limit; each merge statement scans the whole landing window, so fewer months cost more."
+  default     = 1
 
   validation {
     condition     = var.backfill_chunk_months >= 1 && var.backfill_chunk_months <= 3
