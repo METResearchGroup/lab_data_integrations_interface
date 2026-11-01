@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-11-01
+
+1. The weekly Bluesky backfill merge no longer runs out of Athena memory on `likes`, which had failed every run since 2026-10-18 and left the cursor stuck at 2026-10-10. Each `INSERT` now filters to its `created_at` chunk before deduplicating, rather than sorting the whole landing window, and the merge and backfill maintenance jobs now work one month at a time instead of three. Each merge statement still scans the whole landing window, so a run now costs about 2.9 times as much for the same data. [PR #284](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/284)
+
 ## 2026-09-23
 
 1. Bluesky backfill data now reaches the `bluesky_raw` Iceberg tables. A weekly Step Functions merge (Sundays 09:00 UTC) appends every landing day since a cursor in DynamoDB, reading landing through new Glue tables with partition projection, one `INSERT` per record type per three-month chunk to stay under Athena's 100-partition limit; duplicate URIs within a run are dropped, keeping the newest `rev`. The cursor only advances when every statement succeeds, and a failed, timed-out, or week-stale merge emails the maintenance alarm topic. Landing files now expire after 30 days. A separate backfill maintenance state machine compacts the backfill range monthly (`optimize_backfill`) and masks duplicates across merge runs on demand (`dedup_backfill`), covering partitions the Jetstream maintenance jobs never reach. [PR #220](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/220)
