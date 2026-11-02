@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-11-02
+
+1. The backfill and Jetstream dedup jobs no longer delete every copy of a URI that has two copies in one file. They delete by URI and file path, so ranking rows individually also matched the copy meant to be kept. They now rank by file and delete only from later files, which leaves duplicates inside the kept file rather than risking data loss. [PR #287](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/287)
+
 ## 2026-11-01
 
 1. The weekly Bluesky backfill merge no longer runs out of Athena memory on `likes`, which had failed every run since 2026-10-18 and left the cursor stuck at 2026-10-10. Each `INSERT` now filters to its `created_at` chunk before deduplicating, rather than sorting the whole landing window, and the merge and backfill maintenance jobs now work one month at a time instead of three. Each merge statement still scans the whole landing window, so a run now costs about 2.9 times as much for the same data. [PR #284](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/284)

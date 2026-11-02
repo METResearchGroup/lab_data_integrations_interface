@@ -26,6 +26,8 @@ locals {
     ]
   ])
 
+  # `dense_rank`: the DELETE matches on (uri, path), so `row_number` would delete
+  # every copy of a uri with two copies in one file.
   # Cross-file duplicates only; mirrors `dedup_sql` in
   # `terraform/bluesky_ingestion_jetstream/maintenance.tf`.
   dedup_backfill_statements = flatten([
@@ -36,7 +38,7 @@ locals {
         "AND (uri, \"$path\") IN (",
         "SELECT uri, p FROM (",
         "SELECT uri, \"$path\" AS p,",
-        "row_number() OVER (PARTITION BY uri ORDER BY \"$path\") AS rn",
+        "dense_rank() OVER (PARTITION BY uri ORDER BY \"$path\") AS rn",
         "FROM ${var.raw_glue_database}.${record_type}",
         "WHERE ${predicate}",
         ") WHERE rn > 1)",
