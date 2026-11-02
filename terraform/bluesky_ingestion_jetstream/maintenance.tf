@@ -71,14 +71,15 @@ locals {
   # On both predicates, or every run rescans all 213M rows.
   dedup_predicate = "created_at >= current_date - interval '${var.dedup_lookback_days}' day"
 
-  # Cross-file duplicates only
+  # Cross-file duplicates only. `dense_rank`: the DELETE matches on (uri, path), so
+  # `row_number` would delete every copy of a uri with two copies in one file.
   dedup_sql = join(" ", [
     "DELETE FROM ${var.glue_database}.{}",
     "WHERE ${local.dedup_predicate}",
     "AND (uri, \"$path\") IN (",
     "SELECT uri, p FROM (",
     "SELECT uri, \"$path\" AS p,",
-    "row_number() OVER (PARTITION BY uri ORDER BY \"$path\") AS rn",
+    "dense_rank() OVER (PARTITION BY uri ORDER BY \"$path\") AS rn",
     "FROM ${var.glue_database}.{}",
     "WHERE ${local.dedup_predicate}",
     ") WHERE rn > 1)",
@@ -142,6 +143,45 @@ resource "aws_s3_bucket_lifecycle_configuration" "warehouse" {
 
     expiration {
       days = var.athena_results_retention_days
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+
+  # Owned by `terraform/bluesky_backfill_app`, here because a bucket has one
+  # lifecycle configuration. Prefixes mirror that root's variables.
+
+  # Three weekly merge cycles of margin; `bluesky_backfill_merge_stale` alarms
+  # long before a stalled merge loses anything.
+  rule {
+    id     = "expire-backfill-landing"
+    status = "Enabled"
+
+    filter {
+      prefix = "landing/bluesky/backfill/"
+    }
+
+    expiration {
+      days = 30
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+
+  rule {
+    id     = "expire-athena-backfill-results"
+    status = "Enabled"
+
+    filter {
+      prefix = "athena-results/backfill/"
+    }
+
+    expiration {
+      days = 7
     }
 
     abort_incomplete_multipart_upload {
