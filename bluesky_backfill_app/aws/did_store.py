@@ -4,6 +4,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from zlib import crc32
 
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from bluesky_backfill_app.aws.constants import (
@@ -54,7 +55,9 @@ class DynamoDidStore(DynamoDB):
         table: str = DID_TABLE,
         concurrency: int = WRITE_CONCURRENCY,
     ) -> None:
-        super().__init__(table=table, client=client, region=AWS_REGION, config=None)
+        # One pooled connection per writer thread; the default pool is 10.
+        config = Config(max_pool_connections=concurrency)
+        super().__init__(table=table, client=client, region=AWS_REGION, config=config)
         self.concurrency = concurrency
 
     def put_new(self, did: str, run_id: str) -> bool:

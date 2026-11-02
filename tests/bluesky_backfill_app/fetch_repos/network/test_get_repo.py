@@ -7,7 +7,8 @@ from bluesky_backfill_app.fetch_repos.constants import (
     GET_REPO_DEADLINE_SECONDS,
     GET_REPO_MAX_ATTEMPTS,
 )
-from bluesky_backfill_app.fetch_repos.network.errors import XrpcError
+from bluesky_backfill_app.fetch_repos.network import get_repo
+from bluesky_backfill_app.fetch_repos.network.errors import RepoTooLargeError, XrpcError
 from bluesky_backfill_app.fetch_repos.network.get_repo import build_url, fetch_repo
 
 DID = "did:plc:example"
@@ -62,6 +63,26 @@ def test_fetch_repo_joins_the_chunks():
     urlopen = scripted(FakeResponse(b"ab", b"cd"))
 
     assert fetch_repo(DID, urlopen=urlopen, sleep=lambda _: None) == b"abcd"
+    assert len(urlopen.calls) == 1
+
+
+def test_fetch_repo_allows_a_repo_exactly_at_the_cap(monkeypatch):
+    monkeypatch.setattr(get_repo, "MAX_REPO_SIZE_BYTES", 4)
+    urlopen = scripted(FakeResponse(b"ab", b"cd"))
+
+    assert fetch_repo(DID, urlopen=urlopen, sleep=lambda _: None) == b"abcd"
+
+
+def test_fetch_repo_stops_a_repo_past_the_cap_without_retrying(monkeypatch):
+    monkeypatch.setattr(get_repo, "MAX_REPO_SIZE_BYTES", 3)
+    response = FakeResponse(b"ab", b"cd", b"ef")
+    urlopen = scripted(response)
+
+    with pytest.raises(RepoTooLargeError) as caught:
+        fetch_repo(DID, urlopen=urlopen, sleep=pytest.fail)
+
+    assert caught.value.bytes_read == 4
+    assert response.chunks == [b"ef"]
     assert len(urlopen.calls) == 1
 
 

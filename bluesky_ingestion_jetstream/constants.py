@@ -57,7 +57,13 @@ REQUIRED_KEYS = {
 
 # Flush when the buffers hold this many serialized bytes in total, or when the
 # oldest rows have been waiting this long.
-MAX_BUFFER_SIZE_BYTES = 2 * 1024 * 1024 * 1024
+#
+# The count is serialized JSON, not process memory. Python row dicts are
+# several times larger. A 2 GiB JSON cap filled RAM on the 4 GiB preview
+# instance during a multi-hour replay and the kernel killed the process
+# (exit 137) before a flush. 128 MiB leaves room for that overhead. Quiet
+# stretches still flush on the age threshold below.
+MAX_BUFFER_SIZE_BYTES = 128 * 1024 * 1024
 MAX_BUFFER_AGE_SECONDS = 30.0 * 60.0
 
 # How often the flush task re-checks the thresholds.

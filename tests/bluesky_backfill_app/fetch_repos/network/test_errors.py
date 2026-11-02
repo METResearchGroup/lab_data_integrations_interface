@@ -13,10 +13,15 @@ from bluesky_backfill_app.aws.constants import (
     REASON_HTTP_5XX,
     REASON_HTTP_429,
     REASON_REPO_NOT_FOUND,
+    REASON_REPO_TOO_LARGE,
     REASON_TIMEOUT,
     REASON_UNKNOWN,
 )
-from bluesky_backfill_app.fetch_repos.network.errors import XrpcError, classify
+from bluesky_backfill_app.fetch_repos.network.errors import (
+    RepoTooLargeError,
+    XrpcError,
+    classify,
+)
 
 FIXTURES = json.loads((Path(__file__).parent / "fixtures" / "get_repo_errors.json").read_text())
 
@@ -81,6 +86,7 @@ def test_classify_fixtures(fixture, expected):
         (urllib.error.URLError("reset"), REASON_CONNECTION_ERROR),
         (ConnectionResetError(), REASON_CONNECTION_ERROR),
         (http.client.IncompleteRead(b""), REASON_CONNECTION_ERROR),
+        (RepoTooLargeError(5), REASON_REPO_TOO_LARGE),
         (ValueError(), REASON_UNKNOWN),
     ],
 )

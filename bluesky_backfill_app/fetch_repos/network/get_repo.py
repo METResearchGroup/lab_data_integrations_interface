@@ -14,8 +14,13 @@ from bluesky_backfill_app.fetch_repos.constants import (
     GET_REPO_READ_CHUNK_BYTES,
     GET_REPO_TIMEOUT_SECONDS,
     GET_REPO_URL,
+    MAX_REPO_SIZE_BYTES,
 )
-from bluesky_backfill_app.fetch_repos.network.errors import TRANSPORT_ERRORS, XrpcError
+from bluesky_backfill_app.fetch_repos.network.errors import (
+    TRANSPORT_ERRORS,
+    RepoTooLargeError,
+    XrpcError,
+)
 from bluesky_backfill_app.gather_users.constants import RETRYABLE_STATUS_CODES
 from bluesky_backfill_app.gather_users.network.list_repos import backoff_seconds, retry_delay
 
@@ -30,7 +35,11 @@ def build_url(did: str) -> str:
 
 def read_body(response: Any, deadline: float, clock: Callable[[], float]) -> bytes:
     chunks = []
+    bytes_read = 0
     while chunk := response.read(GET_REPO_READ_CHUNK_BYTES):
+        bytes_read += len(chunk)
+        if bytes_read > MAX_REPO_SIZE_BYTES:
+            raise RepoTooLargeError(bytes_read)
         chunks.append(chunk)
         if clock() > deadline:
             raise TimeoutError("getRepo download passed its deadline")
@@ -45,7 +54,8 @@ def fetch_repo(
 ) -> bytes:
     """Full repo for `did` from the relay as raw CAR bytes, buffered in memory.
 
-    Retries 429/5xx and transport errors with backoff.
+    Retries 429/5xx and transport errors with backoff. Raises `RepoTooLargeError`
+    past `MAX_REPO_SIZE_BYTES`.
     Other statuses (e.g. RepoNotFound, RepoTakendown, RepoDeactivated) raise
     `XrpcError` immediately; `errors.classify` maps them to failure reasons.
     """

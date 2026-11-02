@@ -1,14 +1,14 @@
 ---
 name: deploy-hotfix
 description: >-
-  Deploy an urgent production fix. Use when shipping a hotfix PR, verifying it
-  on preview (Vercel or Railway), promoting to production, and confirming
-  services and telemetry are healthy after deploy.
+  Deploy an urgent fix. Use when shipping a hotfix PR, verifying it on the
+  Cloudflare preview, and confirming services and telemetry are healthy
+  after deploy.
 ---
 
 # How to Deploy a Hotfix
 
-Ship a small, urgent fix to production with preview verification and post-deploy checks.
+Ship a small, urgent fix with preview verification and post-deploy checks.
 
 ## Steps
 
@@ -16,13 +16,9 @@ Ship a small, urgent fix to production with preview verification and post-deploy
 2. **Tag the PR** with the `hotfix` label.
 3. **Verify on preview** that the patch actually fixes the issue:
    - Local dev, and/or
-   - Vercel preview (UI), and/or
-   - Railway preview (backend)
-4. **Deploy to production** (merge and promote as usual for the affected service).
-5. **Confirm services are up**:
-   - UI (Vercel)
-   - Backend (Railway)
-   - Any other services touched by the change
+   - the Cloudflare preview Workers. See [HOW_TO_DEPLOY_TO_CLOUDFLARE.md](HOW_TO_DEPLOY_TO_CLOUDFLARE.md).
+4. **Ship the fix** by merging. The live path in this repo is the Cloudflare preview in [HOW_TO_DEPLOY_TO_CLOUDFLARE.md](HOW_TO_DEPLOY_TO_CLOUDFLARE.md).
+5. **Confirm the UI Worker and the API Container answer.** Also confirm Jetstream or the backfill worker when the change touches them.
 6. **Check telemetry** for stability and regressions:
    - Errors / logs for the affected paths
    - Core metrics you care about for this change
@@ -30,6 +26,6 @@ Ship a small, urgent fix to production with preview verification and post-deploy
 ## Done when
 
 - Preview showed the fix working
-- Production deploy completed
+- The fix is merged
 - Services are healthy
 - Telemetry looks stable (no new error spike, no drop in core metrics)

@@ -13,10 +13,14 @@ from uuid import uuid4
 import typer
 from dotenv import load_dotenv
 
-from bluesky_backfill_app.aws.constants import STATUS_DONE
+from bluesky_backfill_app.aws.constants import DLQ_NAME, STATUS_DONE
 from bluesky_backfill_app.aws.did_store import DynamoDidStore
 from bluesky_backfill_app.aws.queue import Message, SqsQueue
-from bluesky_backfill_app.fetch_repos.constants import FLUSH_REASON_STOP
+from bluesky_backfill_app.fetch_repos.constants import (
+    FLUSH_REASON_STOP,
+    IDLE_EXIT_SECONDS,
+    SIGTERM_EXIT_CODE,
+)
 from bluesky_backfill_app.fetch_repos.failures import (
     RepoFailure,
     record_failure,
@@ -24,9 +28,22 @@ from bluesky_backfill_app.fetch_repos.failures import (
 )
 from bluesky_backfill_app.fetch_repos.landing.writer import write_buffer
 from bluesky_backfill_app.fetch_repos.repo import load_repo
-from bluesky_backfill_app.fetch_repos.storage.buffer import RepoBuffer
+from bluesky_backfill_app.fetch_repos.storage.buffer import RepoBuffer, get_flush_summary
+from bluesky_backfill_app.telemetry.constants import (
+    FLUSH_STATUS_FAILED,
+    FLUSH_STATUS_OK,
+    QUEUE_DLQ,
+    QUEUE_MAIN,
+)
+from bluesky_backfill_app.telemetry.gauges import register_buffer, register_queues
+from bluesky_backfill_app.telemetry.instruments import record_flush
+from bluesky_backfill_app.telemetry.setup import force_telemetry_flush, setup_telemetry
+from lib.aws.secrets_env import fill_unset_secrets
 
 logger = logging.getLogger(__name__)
+
+# The backfill worker only needs the telemetry header. The API loads the rest.
+_TELEMETRY_FROM_SECRETS = frozenset({"OTEL_EXPORTER_OTLP_HEADERS"})
 
 
 def new_run_id() -> str:
@@ -38,14 +55,15 @@ def process_message(
     did_store: DynamoDidStore,
     queue: SqsQueue,
     buffer: RepoBuffer,
+    run_id: str,
     received_at: float,
 ) -> None:
     try:
-        rows = load_repo(message.did)
+        tables = load_repo(message.did, run_id)
     except RepoFailure as failure:
         record_failure(did_store, queue, message, failure)
         return
-    buffer.add(message, rows, received_at)
+    buffer.add(message, tables, received_at)
 
 
 def flush(
@@ -58,28 +76,50 @@ def flush(
     """S3, then DynamoDB, then ack. The buffer is cleared either way."""
 
     messages = buffer.messages
+    summary = get_flush_summary(buffer, reason)
     try:
         paths = write_buffer(buffer, run_id)
         did_store.set_status_many([message.did for message in messages], STATUS_DONE)
     except Exception as error:
         logger.exception("flush of %d dids failed", len(messages))
         record_flush_failure(did_store, messages, error)
+        record_flush(summary, FLUSH_STATUS_FAILED)
         return
     finally:
         buffer.clear()
 
+    record_flush(summary, FLUSH_STATUS_OK)
     queue.delete_many([message.handle for message in messages])
     logger.info("flushed %d dids (%s) to %d files", len(messages), reason, len(paths))
 
 
+def flush_and_check_drained(
+    buffer: RepoBuffer, did_store: DynamoDidStore, queue: SqsQueue, run_id: str
+) -> bool:
+    """False while a message waits or a failed repo is hidden until its retry."""
+
+    # Buffered messages count as in flight until they are acked.
+    if buffer.messages:
+        flush(buffer, did_store, queue, run_id, FLUSH_REASON_STOP)
+    return queue.waiting_messages() == 0 and queue.in_flight_messages() == 0
+
+
 def run(did_store: DynamoDidStore, queue: SqsQueue, buffer: RepoBuffer, run_id: str) -> None:
+    """Returns once the queue has stayed empty for IDLE_EXIT_SECONDS and is drained."""
+
+    idle_since = time.monotonic()
     try:
         while True:
             message = queue.receive()
             if message is not None:
-                process_message(message, did_store, queue, buffer, time.monotonic())
+                process_message(message, did_store, queue, buffer, run_id, time.monotonic())
+                idle_since = time.monotonic()
             if buffer.should_flush():
                 flush(buffer, did_store, queue, run_id, buffer.flush_reason())
+            idle = message is None and time.monotonic() - idle_since >= IDLE_EXIT_SECONDS
+            if idle and flush_and_check_drained(buffer, did_store, queue, run_id):
+                logger.info("queue drained; exiting")
+                return
     finally:
         if buffer.messages:
             flush(buffer, did_store, queue, run_id, FLUSH_REASON_STOP)
@@ -92,14 +132,24 @@ def sigterm_handler(_signum: int, _frame: object) -> None:
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     load_dotenv()
+    fill_unset_secrets(_TELEMETRY_FROM_SECRETS)
+    setup_telemetry()
     signal.signal(signal.SIGTERM, sigterm_handler)
 
     run_id = new_run_id()
     logger.info("starting fetch run %s", run_id)
+    queue = SqsQueue()
+    buffer = RepoBuffer()
+    register_buffer(buffer)
+    register_queues({QUEUE_MAIN: queue, QUEUE_DLQ: SqsQueue(queue_name=DLQ_NAME)})
     try:
-        run(DynamoDidStore(), SqsQueue(), RepoBuffer(), run_id)
+        run(DynamoDidStore(), queue, buffer, run_id)
     except KeyboardInterrupt:
         logger.info("stopped")
+        # Exit 0 means the queue drained, so the Worker does not restart it.
+        raise SystemExit(SIGTERM_EXIT_CODE) from None
+    finally:
+        force_telemetry_flush()
 
 
 if __name__ == "__main__":

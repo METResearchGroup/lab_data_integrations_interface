@@ -2,7 +2,12 @@ import json
 
 import pytest
 
-from bluesky_backfill_app.aws.constants import MAX_RECEIVE_COUNT, RECEIVE_COUNT_ATTRIBUTE
+from bluesky_backfill_app.aws.constants import (
+    IN_FLIGHT_MESSAGES_ATTRIBUTE,
+    MAX_RECEIVE_COUNT,
+    RECEIVE_COUNT_ATTRIBUTE,
+    WAITING_MESSAGES_ATTRIBUTE,
+)
 from bluesky_backfill_app.aws.queue import (
     SQS_BATCH_SIZE,
     Message,
@@ -24,7 +29,10 @@ def raw_message(did="did:plc:a", receive_count=1, handle="handle-1"):
 class FakeSqsClient:
     """Fails any DID listed in `fail_dids`, mirroring SendMessageBatch's shape."""
 
-    def __init__(self, fail_dids=(), messages=(), fail_handles=()):
+    def __init__(self, fail_dids=(), messages=(), fail_handles=(), waiting=0, in_flight=0):
+        self.waiting = waiting
+        self.in_flight = in_flight
+        self.attribute_requests = []
         self.fail_dids = set(fail_dids)
         self.inbox = list(messages)
         self.fail_handles = set(fail_handles)
@@ -48,6 +56,15 @@ class FakeSqsClient:
     def receive_message(self, **kwargs):
         self.receives.append(kwargs)
         return {"Messages": [self.inbox.pop(0)]} if self.inbox else {}
+
+    def get_queue_attributes(self, **kwargs):
+        self.attribute_requests.append(kwargs)
+        return {
+            "Attributes": {
+                WAITING_MESSAGES_ATTRIBUTE: str(self.waiting),
+                IN_FLIGHT_MESSAGES_ATTRIBUTE: str(self.in_flight),
+            }
+        }
 
     def delete_message(self, ReceiptHandle, **_):  # noqa: N803 - boto3's parameter name
         self.deleted.append(ReceiptHandle)
@@ -236,3 +253,21 @@ def test_delete_many_of_empty_deletes_nothing():
 
     assert queue.delete_many([]) == []
     assert queue.client.delete_batches == []
+
+
+def test_waiting_messages_reads_the_approximate_count():
+    queue = build_queue(waiting=1234)
+
+    assert queue.waiting_messages() == 1234
+    assert queue.client.attribute_requests == [
+        {"QueueUrl": "https://sqs.test/q", "AttributeNames": [WAITING_MESSAGES_ATTRIBUTE]}
+    ]
+
+
+def test_in_flight_messages_reads_the_not_visible_count():
+    queue = build_queue(in_flight=20)
+
+    assert queue.in_flight_messages() == 20
+    assert queue.client.attribute_requests == [
+        {"QueueUrl": "https://sqs.test/q", "AttributeNames": [IN_FLIGHT_MESSAGES_ATTRIBUTE]}
+    ]

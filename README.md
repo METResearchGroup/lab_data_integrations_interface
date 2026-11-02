@@ -37,6 +37,8 @@ flowchart LR
 
 **Validation before SQL:** one LLM call turns the question into a `QueryIntent` (record type, columns, date range). That intent is then checked in plain code — nonsense input, columns the table does not have, dates outside coverage. An invalid query stops there and never reaches Athena.
 
+Keyword filters on post text are described in [docs/runbooks/agentic_search_keyword_matching.md](docs/runbooks/agentic_search_keyword_matching.md).
+
 **Async by design:** the endpoint acknowledges with `202` and hands the work to a background task, so a long Athena scan never blocks the request. Every outcome — results, validation issues, or an error — is mailed.
 
 ## Repository map

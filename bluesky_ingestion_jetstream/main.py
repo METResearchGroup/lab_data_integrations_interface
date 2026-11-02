@@ -23,8 +23,13 @@ from bluesky_ingestion_jetstream.telemetry import (
     register_cursor_tracker,
     setup_telemetry,
 )
+from bluesky_ingestion_jetstream.telemetry.constants import SERVICE_NAME
+from lib.aws.secrets_env import fill_unset_secrets
 
 logger = logging.getLogger(__name__)
+
+# Jetstream only needs the telemetry header. The API loads the rest.
+_TELEMETRY_FROM_SECRETS = frozenset({"OTEL_EXPORTER_OTLP_HEADERS"})
 
 
 def new_run_id() -> str:
@@ -132,7 +137,8 @@ def main() -> None:
 
     load_dotenv()
     logging.basicConfig(level=logging.INFO)
-    setup_telemetry()
+    fill_unset_secrets(_TELEMETRY_FROM_SECRETS)
+    setup_telemetry(SERVICE_NAME)
     run_until_stopped()
 
 

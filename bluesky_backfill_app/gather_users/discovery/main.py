@@ -2,7 +2,7 @@
 
 Run from repo root::
 
-    PYTHONPATH=. uv run python -m bluesky_backfill_app.gather_users.discovery.main --target 1000000
+    PYTHONPATH=. uv run python -m bluesky_backfill_app.gather_users.discovery.main --count 1000
 """
 
 import logging
@@ -35,35 +35,31 @@ def flush(
     tracker: CursorTracker,
     run_id: str,
     reason: str,
-) -> None:
-    """Write the buffer, then advance the cursor. Never the reverse."""
+) -> int:
+    """Write the buffer, then advance the cursor. Never the reverse. Returns DIDs created."""
 
     if not buffer.dids:
-        return
+        return 0
 
     buffered = len(buffer)
     created = did_store.write(buffer.dids, run_id)
     buffer.clear()
-    tracker.mark_flushed(created)
+    tracker.mark_flushed()
 
-    logger.info(
-        "flushed %d dids (%s), %d created, %d total",
-        buffered,
-        reason,
-        created,
-        tracker.discovered_count,
-    )
+    logger.info("flushed %d dids (%s), %d created", buffered, reason, created)
+    return created
 
 
-def discover(did_store: DynamoDidStore, tracker: CursorTracker, run_id: str, target: int) -> None:
-    """Page from the stored cursor until `target` DIDs exist, flushing on thresholds.
+def discover(did_store: DynamoDidStore, tracker: CursorTracker, run_id: str, count: int) -> int:
+    """Page from the stored cursor until `count` new DIDs exist, flushing on thresholds.
 
-    The target check runs against the persisted count, so DIDs already in the
-    table do not count towards it and paging continues until the count is real.
+    DIDs already in the table do not count, so paging continues until `count`
+    are actually new. Returns the number created.
     """
 
-    if tracker.target_reached(target):
-        return
+    created = 0
+    if count <= 0:
+        return created
 
     buffer = DidBuffer()
 
@@ -73,25 +69,26 @@ def discover(did_store: DynamoDidStore, tracker: CursorTracker, run_id: str, tar
         tracker.observe(page.cursor)
 
         if buffer.should_flush():
-            flush(buffer, did_store, tracker, run_id, buffer.flush_reason())
-        elif tracker.target_reached(target, len(buffer)):
-            flush(buffer, did_store, tracker, run_id, FLUSH_REASON_TARGET)
+            created += flush(buffer, did_store, tracker, run_id, buffer.flush_reason())
+        elif created + len(buffer) >= count:
+            created += flush(buffer, did_store, tracker, run_id, FLUSH_REASON_TARGET)
 
-        if tracker.target_reached(target):
-            return
+        if created >= count:
+            return created
 
-    flush(buffer, did_store, tracker, run_id, FLUSH_REASON_FINAL)
+    return created + flush(buffer, did_store, tracker, run_id, FLUSH_REASON_FINAL)
 
 
 def main(
-    target: int = typer.Option(..., help="Number of DIDs to collect before exiting"),
+    count: int = typer.Option(..., min=1, help="Number of new DIDs to add before exiting"),
 ):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     load_dotenv()
 
     tracker = build_cursor_tracker()
-    logger.info("resuming from %s with %d dids", tracker.resume_from(), tracker.discovered_count)
-    discover(DynamoDidStore(), tracker, new_run_id(), target)
+    logger.info("resuming from %s", tracker.resume_from())
+    created = discover(DynamoDidStore(), tracker, new_run_id(), count)
+    logger.info("added %d dids", created)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ from bluesky_backfill_app.aws.constants import (
     REASON_HTTP_5XX,
     REASON_HTTP_429,
     REASON_REPO_NOT_FOUND,
+    REASON_REPO_TOO_LARGE,
     REASON_TIMEOUT,
     REASON_UNKNOWN,
 )
@@ -21,6 +22,14 @@ XRPC_ERROR_TO_REASON = {
     "RepoTakendown": REASON_ACCOUNT_TAKENDOWN,
     "RepoNotFound": REASON_REPO_NOT_FOUND,
 }
+
+
+class RepoTooLargeError(Exception):
+    """Not a transport error, so `fetch_repo` never retries it."""
+
+    def __init__(self, bytes_read: int):
+        super().__init__(bytes_read)
+        self.bytes_read = bytes_read
 
 
 class XrpcError(Exception):
@@ -53,6 +62,8 @@ class XrpcError(Exception):
 
 
 def classify(error: BaseException) -> str:
+    if isinstance(error, RepoTooLargeError):
+        return REASON_REPO_TOO_LARGE
     if isinstance(error, XrpcError):
         if error.status == 429:
             return REASON_HTTP_429

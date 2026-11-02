@@ -2,7 +2,7 @@ import { supabaseEnv } from "@/lib/supabase/env";
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/auth/confirm"];
+const PUBLIC_PATHS = ["/login", "/signup", "/auth/confirm"];
 
 /**
  * Refreshes the Supabase session and redirects signed-out visitors to /login.

@@ -44,25 +44,31 @@ def build_table(record_type: RecordType, rows: list[dict]) -> pa.Table:
     return pa.Table.from_pylist(rows, schema=RECORD_TYPE_TO_SCHEMA[record_type])
 
 
-def validate_rows(rows: dict[RecordType, list[dict]]) -> None:
+def build_tables(rows: dict[RecordType, list[dict]], run_id: str) -> dict[RecordType, pa.Table]:
+    """One table per record type, stamped with `run_id`. Raises on a schema mismatch."""
+
+    tables = {}
     for record_type, type_rows in rows.items():
-        build_table(record_type, type_rows)
+        for row in type_rows:
+            row["run_id"] = run_id
+        tables[record_type] = build_table(record_type, type_rows)
+    return tables
 
 
-def write_rows(
+def write_tables(
     record_type: RecordType,
-    rows: list[dict],
+    tables: list[pa.Table],
     run_id: str,
     filesystem: FileSystem | None = None,
     root: str = LANDING_ROOT,
 ) -> str:
-    """Write one record type's rows to a new file. Returns its path."""
+    """Write one record type's tables to a new file. Returns its path.
 
-    for row in rows:
-        row["run_id"] = run_id
+    `concat_tables` doesn't copy; the writer cuts row groups by row count, not per table.
+    """
 
     path = build_path(record_type, run_id, root=root)
-    table = build_table(record_type, rows)
+    table = pa.concat_tables(tables)
     pq.write_table(table, path, filesystem=filesystem or build_filesystem(), compression="zstd")
     return path
 
@@ -77,7 +83,7 @@ def write_buffer(
 
     filesystem = filesystem or build_filesystem()
     return [
-        write_rows(record_type, type_buffer.rows, run_id, filesystem, root)
-        for record_type, type_buffer in buffer.buffers.items()
-        if type_buffer.rows
+        write_tables(record_type, tables, run_id, filesystem, root)
+        for record_type, tables in buffer.tables.items()
+        if tables
     ]

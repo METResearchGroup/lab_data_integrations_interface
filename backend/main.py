@@ -9,10 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routes.query import router as query_router
 from backend.telemetry import force_telemetry_flush, setup_telemetry
+from lib.aws.secrets_env import fill_unset_secrets
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+# After load_dotenv, so a local .env wins. Before telemetry and route handlers.
+fill_unset_secrets()
 
 
 @asynccontextmanager

@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
+from opentelemetry import trace
 
 from backend.agentic_search.graph.graph import build_graph
 from backend.agentic_search.graph.state import SearchState
@@ -79,6 +80,22 @@ def test_valid_query_runs_all_four_stages(catalog) -> None:
     assert state["rejection"] is None
     assert state["executed"].execution_id == EXECUTION_ID
     assert state["executed"].result_url == RESULT_URL
+
+
+@pytest.mark.usefixtures("valid_intent")
+def test_each_stage_is_a_child_span_carrying_its_output(catalog, spans) -> None:
+    """Nodes that lost the caller's context would land in traces of their own."""
+
+    with trace.get_tracer(__name__).start_as_current_span("root") as root:
+        build_graph(FakeAthena(), FakeS3(), catalog).invoke(SearchState(query="posts in July"))
+
+    by_name = {span.name: span for span in spans.get_finished_spans()}
+    for name in ("validate", "generate", "postprocess", "execute"):
+        assert by_name[name].parent.span_id == root.get_span_context().span_id
+
+    assert '"record_type":"posts"' in by_name["generate"].attributes["output"]
+    assert EXECUTION_ID in by_name["execute"].attributes["output"]
+    assert RESULT_URL not in by_name["execute"].attributes["output"]
 
 
 @pytest.mark.usefixtures("valid_intent")

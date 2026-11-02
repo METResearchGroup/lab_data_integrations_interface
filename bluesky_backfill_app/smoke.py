@@ -2,7 +2,7 @@
 
 Run from repo root::
 
-    PYTHONPATH=. uv run python -m bluesky_backfill_app.smoke --target 1000 --reset
+    PYTHONPATH=. uv run python -m bluesky_backfill_app.smoke --count 1000 --reset
 """
 
 import logging
@@ -77,7 +77,7 @@ def clear_tables(client) -> None:
 
 
 def main(
-    target: int = typer.Option(1000, help="DIDs to discover"),
+    count: int = typer.Option(1000, help="New DIDs to discover"),
     reset: bool = typer.Option(False, help="Delete every DID and the cursor before starting"),
 ):
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
@@ -90,11 +90,9 @@ def main(
     did_store = DynamoDidStore()
 
     print("\n== discover ==")
-    discover(did_store, CursorTracker(DynamoCursorStore()), new_run_id(), target)
+    discover(did_store, CursorTracker(DynamoCursorStore()), new_run_id(), count)
 
-    cursor, count = DynamoCursorStore().read()
-    print(f"cursor:           {cursor}")
-    print(f"discovered_count: {count}")
+    print(f"cursor:           {DynamoCursorStore().read()}")
     print(f"statuses:         {count_by_status(client)}")
 
     print("\n== enqueue ==")

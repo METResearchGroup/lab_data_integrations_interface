@@ -35,7 +35,7 @@ Then once those were done:
 
 - [Add backend query support, connecting backend to Athena to make queries runnable on real data](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/95)
 - [Wire example queries, introduced in the backend, to the frontend](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/96)
-- [Deploy backend to Railway](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/101) and [frontend to Vercel](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/100).
+- [Deploy the backend](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/101) and [the UI](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/100). The current deploy is [How to Deploy to Cloudflare](../docs/runbooks/HOW_TO_DEPLOY_TO_CLOUDFLARE.md).
 
 ### Observability
 

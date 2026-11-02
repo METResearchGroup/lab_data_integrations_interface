@@ -56,8 +56,9 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<your-publishable-key>
 
 `NEXT_PUBLIC_` is required for Next.js to expose these client-side.
 
-Backend — root `.env` (mirror in Railway's **Variables** tab, see
-[HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md](HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md)):
+Backend — root `.env` for local dev. On the API Worker, `SUPABASE_URL` is a
+secret. `scripts/set_api_supabase_url.py` copies it. See
+[HOW_TO_DEPLOY_TO_CLOUDFLARE.md](HOW_TO_DEPLOY_TO_CLOUDFLARE.md):
 
 ```
 SUPABASE_URL=https://<your-project-ref>.supabase.co

@@ -8,9 +8,41 @@
 
 1. The weekly Bluesky backfill merge no longer runs out of Athena memory on `likes`, which had failed every run since 2026-10-18 and left the cursor stuck at 2026-10-10. Each `INSERT` now filters to its `created_at` chunk before deduplicating, rather than sorting the whole landing window, and the merge and backfill maintenance jobs now work one month at a time instead of three. Each merge statement still scans the whole landing window, so a run now costs about 2.9 times as much for the same data. [PR #284](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/284)
 
+## 2026-10-30
+
+1. Bluesky backfill runs no longer stop after 6 hours. A run ends on `POST /stop` or once the queue has drained, and restarts itself after a crash. [PR #282](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/282)
+
+## 2026-10-26
+
+1. The API, UI, Jetstream, and backfill worker now deploy only through Cloudflare. Railway and Vercel configs and their deploy runbooks are removed. The CloudFront distribution `aws_cloudfront_distribution.backend`, the web ACL `aws_wafv2_web_acl.backend`, and `random_password.origin_secret` were destroyed, and `terraform/backend_edge/` was removed. [PR #250](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/250)
+
+## 2026-10-23
+
+1. Agentic search can filter posts by the words in `text`. `generate_sql` writes a case-insensitive `regexp_like` predicate that reports the first matching term. A question with no end uses the current UTC date, a question with no start uses 7 days before that end, a list past 8 terms or 80 characters is refused, and the scan estimate counts `text` plus `created_at` (`docs/runbooks/agentic_search_keyword_matching.md`). [PR #246](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/246)
+
+2. Agentic search and the collector upsampler read the OpenAI key from AWS Secrets Manager id `openai-api-key` in us-east-2. `EnvVarsContainer` loads Secrets Manager first, and a value in `.env` or the process environment overrides that secret. It also reads `JEV_API_KEY` from id `jev-typesafe-api-key` for date classification. [PR #246](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/246)
+
+## 2026-09-28
+
+1. Bluesky backfill fetch workers now stop downloading any repo past 1 GiB and mark its DID `too_large` for later handling, instead of timing out and retrying it five times. Each worker also holds less in memory: the raw CAR is freed once parsed, and the buffer holds Arrow tables whose exact size drives the 1 GiB flush, replacing Python dicts measured as JSON; a new peak-memory gauge and dashboard panel track the result. The service runs as one Railway replica. [PR #226](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/226)
+
+## 2026-09-24
+
+1. Bluesky backfill fetch workers now run on Railway as project `bluesky-backfill`, service `fetch-repos`: four replicas long-polling the backfill SQS queue, restarted on exit, with five minutes between SIGTERM and SIGKILL so a buffer of up to 1 GB can flush to S3 before shutdown. The service is defined with Railway's Infrastructure as Code (`railway/bluesky_backfill_app/.railway/railway.ts`) rather than the deprecated `railway.json`, which Railway stops reading on 2026-12-01; unlike `railway.json` it is not read on deploy, so changes go out with `railway config apply`. AWS and Grafana credentials are declared there but set on Railway, never committed. [PR #221](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/221)
+
+2. Bluesky backfill discovery now takes `--count N`, the number of new DIDs to add in this run, instead of `--target N`, the total ever discovered. A `--target` at or below the stored total added nothing, so adding users meant looking up that total first. The stored `discovered_count` is gone and the cursor table holds only the `listRepos` cursor; rerunning after a partial failure adds `N` again rather than topping up. [PR #222](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/222)
+
+3. Bluesky backfill fetch workers now run as two Railway replicas instead of four, after a replica ran out of memory. As with any change to `railway.ts`, it takes effect on `railway config apply`, not on deploy. [PR #223](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/223)
+
 ## 2026-09-23
 
-1. Bluesky backfill data now reaches the `bluesky_raw` Iceberg tables. A weekly Step Functions merge (Sundays 09:00 UTC) appends every landing day since a cursor in DynamoDB, reading landing through new Glue tables with partition projection, one `INSERT` per record type per three-month chunk to stay under Athena's 100-partition limit; duplicate URIs within a run are dropped, keeping the newest `rev`. The cursor only advances when every statement succeeds, and a failed, timed-out, or week-stale merge emails the maintenance alarm topic. Landing files now expire after 30 days. A separate backfill maintenance state machine compacts the backfill range monthly (`optimize_backfill`) and masks duplicates across merge runs on demand (`dedup_backfill`), covering partitions the Jetstream maintenance jobs never reach. [PR #220](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/220)
+1. Agentic search now sends one trace per query to Grafana Cloud: a span for each step carrying what it returned — the extracted intent, the generated SQL, the rejection, the Athena execution ID — plus the email sent, with the LLM's prompt, reply, and token counts and the Athena calls nested beneath their steps. Each run records its outcome, including a new `mail_failed` for a run whose email did not send, which had only been logged. Ships with a checked-in dashboard (`backend/telemetry/dashboards/agentic_search.json`) showing outcomes, end-to-end p50/p99, and a table of runs per outcome. Backend tests no longer export spans when a local `.env` holds the Grafana token. [PR #216](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/216)
+
+2. Bluesky backfill fetch workers now report to Grafana Cloud: counters for rows, serialized bytes, and repos landed, flush failures, and repo failures by reason and resulting DID status, plus gauges for buffered bytes and main- and dead-letter-queue depth. Each flush also logs one JSON line with its reason, status, repo count, and per-record-type rows and size, including flushes that fail. [PR #218](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/218)
+
+3. A Grafana dashboard, Bluesky Backfill - Lab Data Integrations, now shows the backfill at a glance: workers reporting, repos in flight, flush failures and dead-letter depth, repos landed and remaining, data ingested by record type, failures by reason and DID status, and a per-flush table. [PR #219](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/219)
+
+4. Bluesky backfill data now reaches the `bluesky_raw` Iceberg tables. A weekly Step Functions merge (Sundays 09:00 UTC) appends every landing day since a cursor in DynamoDB, reading landing through new Glue tables with partition projection, one `INSERT` per record type per three-month chunk to stay under Athena's 100-partition limit; duplicate URIs within a run are dropped, keeping the newest `rev`. The cursor only advances when every statement succeeds, and a failed, timed-out, or week-stale merge emails the maintenance alarm topic. Landing files now expire after 30 days. A separate backfill maintenance state machine compacts the backfill range monthly (`optimize_backfill`) and masks duplicates across merge runs on demand (`dedup_backfill`), covering partitions the Jetstream maintenance jobs never reach. [PR #220](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/220)
 
 ## 2026-09-22
 

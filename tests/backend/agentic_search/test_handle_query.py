@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from opentelemetry.trace import StatusCode
 
 from backend.agentic_search import handle_query as module
 from backend.agentic_search import mail
@@ -120,3 +121,41 @@ def test_unmailable_result_does_not_raise(monkeypatch) -> None:
     monkeypatch.setattr(mail, "_gmail", no_sender)
 
     module.handle_query(QUERY, EMAIL)
+
+
+def test_graph_error_is_recorded_on_the_run_span(monkeypatch, sent, spans) -> None:
+    def explode(_query):
+        raise RuntimeError("Athena query FAILED")
+
+    monkeypatch.setattr(module, "run_langgraph", explode)
+    module.handle_query(QUERY, EMAIL)
+
+    by_name = {span.name: span for span in spans.get_finished_spans()}
+    run = by_name["agentic_search.query"]
+    assert run.attributes["outcome"] == "failed"
+    assert run.status.status_code is StatusCode.ERROR
+    assert by_name["mail"].parent.span_id == run.context.span_id
+
+
+def test_unmailable_result_marks_the_mail_span_failed(monkeypatch, spans) -> None:
+    """The one failure the user never hears about, so the trace must show it."""
+
+    monkeypatch.setattr(
+        module,
+        "run_langgraph",
+        lambda _query: (
+            ValidationResult(valid=True, issues=[], intent=_intent()),
+            None,
+            ExecutedQuery(execution_id="abc", result_url=RESULT_URL),
+        ),
+    )
+
+    def no_sender():
+        raise RuntimeError("GMAIL_SENDER_EMAIL is unset")
+
+    monkeypatch.setattr(mail, "_gmail", no_sender)
+    module.handle_query(QUERY, EMAIL)
+
+    by_name = {span.name: span for span in spans.get_finished_spans()}
+    assert by_name["agentic_search.query"].attributes["outcome"] == "mail_failed"
+    assert by_name["mail"].status.status_code is StatusCode.ERROR

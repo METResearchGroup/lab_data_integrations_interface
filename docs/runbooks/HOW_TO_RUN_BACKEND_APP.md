@@ -57,7 +57,7 @@ the `opentelemetry-instrument` wrapper. That wrapper is no longer used.
 
 ## Deploying
 
-See [HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md](HOW_TO_DEPLOY_BACKEND_TO_RAILWAY.md).
-`railway/backend.json` runs the same uvicorn command, and Railway injects the
-**Variables** tab contents directly into the container's environment, so the
-token arrives the same way `.env` supplies it locally.
+See [HOW_TO_DEPLOY_TO_CLOUDFLARE.md](HOW_TO_DEPLOY_TO_CLOUDFLARE.md).
+The API container runs the same uvicorn command. Worker secrets are copied
+into the process environment when the container starts, so the token arrives
+the same way `.env` supplies it locally.

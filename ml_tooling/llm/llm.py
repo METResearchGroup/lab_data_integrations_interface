@@ -3,8 +3,6 @@
 Run from the repo root:
 
     PYTHONPATH=. uv run python ml_tooling/llm/llm.py
-
-Requires ``OPENAI_API_KEY`` in ``.env`` or the environment.
 """
 
 from __future__ import annotations
@@ -14,7 +12,7 @@ from typing import TypeVar
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
 from lib.load_env_vars import EnvVarsContainer
 
@@ -32,14 +30,14 @@ def build_structured_chat_chain(
     temperature: float = DEFAULT_TEMPERATURE,
 ) -> Runnable:
     """Build a LangChain runnable that returns Pydantic structured output."""
-    EnvVarsContainer.get_env_var("OPENAI_API_KEY", required=True)
+    api_key = EnvVarsContainer.get_env_var("OPENAI_API_KEY", required=True)
     template = ChatPromptTemplate.from_messages(
         [
             ("system", system_prompt),
             ("human", "{user_prompt}"),
         ]
     )
-    llm = ChatOpenAI(model=model, temperature=temperature)
+    llm = ChatOpenAI(model=model, temperature=temperature, api_key=SecretStr(api_key))
     return template | llm.with_structured_output(output_schema)
 
 

@@ -41,9 +41,9 @@ CASES: list[tuple[str, str, list[ValidationIssue]]] = [
         [ValidationIssue.UNKNOWN_COLUMN],
     ),
     (
-        "missing row",
+        "outside prior coverage",
         "give me all the posts (text only) from March 2026",
-        [ValidationIssue.RANGE_OUTSIDE_COVERAGE],
+        [],
     ),
 ]
 
@@ -63,7 +63,8 @@ def main() -> None:
         intent = extract_intent(query, snapshot)
         print(
             f"  intent: is_nonsense={intent.is_nonsense} record_type={intent.record_type} "
-            f"columns={intent.columns} dates={intent.start_date}..{intent.end_date}"
+            f"columns={intent.columns} keywords={intent.keywords} match={intent.match} "
+            f"use_whole_word={intent.use_whole_word} dates={intent.start_date}..{intent.end_date}"
         )
 
         result = validate_intent(intent, snapshot)

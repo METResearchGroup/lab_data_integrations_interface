@@ -61,7 +61,7 @@ def test_nonsense_short_circuits_the_other_checks(stub) -> None:
     assert result.issues == [ValidationIssue.NONSENSE]
 
 
-def test_issues_from_both_checks_are_collected(stub) -> None:
+def test_unknown_column_is_reported_outside_previous_coverage(stub) -> None:
     stub(
         QueryIntent(
             is_nonsense=False,
@@ -73,7 +73,4 @@ def test_issues_from_both_checks_are_collected(stub) -> None:
     )
     result = validate_query("who followed whom in January, by like count")
     assert not result.valid
-    assert result.issues == [
-        ValidationIssue.UNKNOWN_COLUMN,
-        ValidationIssue.RANGE_OUTSIDE_COVERAGE,
-    ]
+    assert result.issues == [ValidationIssue.UNKNOWN_COLUMN]

@@ -1,4 +1,4 @@
-"""Decode a getRepo CAR into post/like/repost/follow rows."""
+"""Turn a decoded getRepo CAR into post/like/repost/follow rows."""
 
 from collections.abc import Iterator, Mapping
 from datetime import datetime
@@ -96,8 +96,14 @@ def build_row(
     return row if validate_non_null_fields(row, REQUIRED_KEYS[record_type]) else None
 
 
-def decode(did: str, car_bytes: bytes, ingested_at: datetime) -> dict[RecordType, list[dict]]:
-    header, blocks = libipld.decode_car(car_bytes)
+def decode(
+    did: str,
+    header: Mapping[str, Any],
+    blocks: Blocks,
+    ingested_at: datetime,
+) -> dict[RecordType, list[dict]]:
+    """`header, blocks` from `libipld.decode_car`."""
+
     commit = as_dict(get_block(blocks, header["roots"][0]))
     if commit.get("did") != did:
         raise ValueError(f"CAR is for {commit.get('did')!r}, not {did!r}")

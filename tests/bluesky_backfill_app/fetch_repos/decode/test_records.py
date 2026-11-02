@@ -15,6 +15,10 @@ CREATED_AT = "2026-08-01T12:00:00.000Z"
 SUBJECT = {"uri": "at://did:plc:other/app.bsky.feed.post/abc", "cid": "bafysubject"}
 
 
+def decode_bytes(car, ingested_at):
+    return decode(DID, *libipld.decode_car(car), ingested_at)
+
+
 def varint(value):
     out = bytearray()
     while True:
@@ -86,7 +90,7 @@ def test_decode_builds_a_row_per_record_type():
         }
     )
 
-    rows = decode(DID, car, INGESTED_AT)
+    rows = decode_bytes(car, INGESTED_AT)
 
     assert {record_type: len(rows[record_type]) for record_type in RECORD_TYPES} == {
         POSTS: 1,
@@ -112,7 +116,7 @@ def test_decode_stamps_the_record_cid():
     data = libipld.encode_dag_cbor(record)
     expected = libipld.encode_cid(b"\x01q\x12 " + hashlib.sha256(data).digest())
 
-    assert decode(DID, car, INGESTED_AT)[LIKES][0]["cid"] == expected
+    assert decode_bytes(car, INGESTED_AT)[LIKES][0]["cid"] == expected
 
 
 def test_decode_skips_collections_it_does_not_store():
@@ -124,7 +128,7 @@ def test_decode_skips_collections_it_does_not_store():
         }
     )
 
-    rows = decode(DID, car, INGESTED_AT)
+    rows = decode_bytes(car, INGESTED_AT)
 
     assert sum(len(type_rows) for type_rows in rows.values()) == 1
 
@@ -133,7 +137,7 @@ def test_decode_returns_every_record_type_for_an_empty_repo():
     builder = CarBuilder()
     car = builder.build(builder.node([]))
 
-    assert decode(DID, car, INGESTED_AT) == {record_type: [] for record_type in RECORD_TYPES}
+    assert decode_bytes(car, INGESTED_AT) == {record_type: [] for record_type in RECORD_TYPES}
 
 
 @pytest.mark.parametrize(
@@ -151,7 +155,7 @@ def test_decode_returns_every_record_type_for_an_empty_repo():
 def test_decode_keeps_only_the_backfill_window(created_at, kept):
     car = flat_car({"app.bsky.feed.like/l1": like(created_at)})
 
-    assert len(decode(DID, car, INGESTED_AT)[LIKES]) == int(kept)
+    assert len(decode_bytes(car, INGESTED_AT)[LIKES]) == int(kept)
 
 
 @pytest.mark.parametrize(
@@ -166,7 +170,7 @@ def test_decode_keeps_only_the_backfill_window(created_at, kept):
 def test_decode_drops_a_record_missing_required_fields(record):
     car = flat_car({"app.bsky.feed.like/l1": record})
 
-    assert decode(DID, car, INGESTED_AT)[LIKES] == []
+    assert decode_bytes(car, INGESTED_AT)[LIKES] == []
 
 
 def test_decode_walks_every_subtree_and_rebuilds_compressed_keys():
@@ -180,7 +184,7 @@ def test_decode_walks_every_subtree_and_rebuilds_compressed_keys():
         left=left,
     )
 
-    rows = decode(DID, builder.build(root), INGESTED_AT)
+    rows = decode_bytes(builder.build(root), INGESTED_AT)
 
     assert [row["uri"] for row in rows[LIKES]] == [f"at://{DID}/{key}" for key in keys]
 
@@ -189,7 +193,7 @@ def test_decode_rejects_a_car_for_another_did():
     car = flat_car({"app.bsky.feed.like/l1": like()}, did="did:plc:someone-else")
 
     with pytest.raises(ValueError, match="someone-else"):
-        decode(DID, car, INGESTED_AT)
+        decode_bytes(car, INGESTED_AT)
 
 
 def test_decode_raises_on_a_missing_record_block():
@@ -198,9 +202,4 @@ def test_decode_raises_on_a_missing_record_block():
     car = builder.build(builder.node([("app.bsky.feed.like/l1", missing, None)]))
 
     with pytest.raises(ValueError, match="missing block"):
-        decode(DID, car, INGESTED_AT)
-
-
-def test_decode_raises_on_garbage():
-    with pytest.raises(Exception):
-        decode(DID, b"not a car", INGESTED_AT)
+        decode_bytes(car, INGESTED_AT)
