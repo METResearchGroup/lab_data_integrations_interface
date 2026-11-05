@@ -47,5 +47,7 @@ def extract_intent(query: str, snapshot: dict[RecordType, TableMetadata]) -> Que
             "end_date": resolved.end_date,
             "start_date_inferred": resolved.start_date_inferred,
             "end_date_inferred": resolved.end_date_inferred,
+            "start_date_clamped": resolved.start_date_clamped,
+            "end_date_clamped": resolved.end_date_clamped,
         }
     )

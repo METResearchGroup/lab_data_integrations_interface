@@ -28,6 +28,7 @@ from backend.agentic_search.query_postprocessing.check_scan_cost import (
 from backend.agentic_search.query_validation.models import TableMetadata
 from backend.agentic_search.query_validation.orchestrator import build_snapshot
 from backend.agentic_search.query_validation.query_intent.dates import (
+    QUERY_START_FLOOR,
     _jev_sides,
     _regex_sides,
     last_jev_status,
@@ -163,8 +164,8 @@ def _exclusive(day: date) -> str:
 
 
 def _open_end_problem(intent: QueryIntent, sql: str, today: date) -> str | None:
-    if intent.start_date != date(2026, 8, 1) or intent.end_date != today:
-        return f"expected 2026-08-01 through {today.isoformat()}"
+    if intent.start_date != QUERY_START_FLOOR or intent.end_date != today:
+        return f"expected {QUERY_START_FLOOR.isoformat()} through {today.isoformat()}"
     if intent.start_date_inferred or not intent.end_date_inferred:
         return "expected only the end date to be inferred"
     if _exclusive(today) not in sql:
@@ -299,18 +300,18 @@ def check_date_rules() -> list[str]:
             "posts in August 2026 that say climate",
             august,
             invented,
-            august,
+            QUERY_START_FLOOR,
             invented,
             False,
             False,
         ),
         (
             "from a month",
-            "posts from May 2026 that say climate",
-            date(2026, 5, 1),
-            date(2026, 5, 31),
-            date(2026, 5, 1),
-            date(2026, 5, 31),
+            "posts from September 2026 that say climate",
+            date(2026, 9, 1),
+            date(2026, 9, 30),
+            date(2026, 9, 1),
+            date(2026, 9, 30),
             False,
             False,
         ),

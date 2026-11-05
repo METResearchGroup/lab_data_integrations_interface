@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 from opentelemetry.trace import StatusCode
 
@@ -159,3 +161,39 @@ def test_unmailable_result_marks_the_mail_span_failed(monkeypatch, spans) -> Non
     by_name = {span.name: span for span in spans.get_finished_spans()}
     assert by_name["agentic_search.query"].attributes["outcome"] == "mail_failed"
     assert by_name["mail"].status.status_code is StatusCode.ERROR
+
+
+def _dated_intent(**flags: bool) -> QueryIntent:
+    return QueryIntent(
+        is_nonsense=False,
+        record_type=None,
+        columns=[],
+        start_date=date(2026, 8, 8),
+        end_date=date(2026, 11, 4),
+        **flags,
+    )
+
+
+def test_clamped_dates_are_noted() -> None:
+    validation = ValidationResult(
+        valid=True,
+        issues=[],
+        intent=_dated_intent(start_date_clamped=True, end_date_clamped=True),
+    )
+
+    assert module._date_note(validation) == (
+        "Start date moved to 2026-08-08, the earliest date available. "
+        "End date moved to 2026-11-04, the current UTC date.\n\n"
+    )
+
+
+def test_clamp_note_replaces_the_inferred_note() -> None:
+    validation = ValidationResult(
+        valid=True,
+        issues=[],
+        intent=_dated_intent(start_date_inferred=True, start_date_clamped=True),
+    )
+
+    note = module._date_note(validation)
+    assert "moved to 2026-08-08" in note
+    assert "days before the end" not in note

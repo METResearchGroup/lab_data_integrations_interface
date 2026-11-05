@@ -7,13 +7,11 @@ from datetime import date, timedelta
 
 import pytest
 
-from backend.agentic_search.query_validation.check_data_availability import (
-    check_data_availability,
-)
-from backend.agentic_search.query_validation.models import TableMetadata, ValidationIssue
+from backend.agentic_search.query_validation.check_data_availability import check_date_range
+from backend.agentic_search.query_validation.models import ValidationIssue
 from backend.agentic_search.query_validation.query_intent import dates
 from backend.agentic_search.query_validation.query_intent.models import QueryIntent
-from bluesky_ingestion_jetstream.constants import DATA_START_DATE, RecordType
+from bluesky_ingestion_jetstream.constants import RecordType
 
 # A fixed UTC day. resolve_dates reads it through get_current_date.
 TODAY = date(2026, 10, 27)
@@ -58,48 +56,87 @@ def test_open_window_covers_eight_inclusive_days(today: date) -> None:
     assert inclusive_days == 8
 
 
-def test_start_before_data_start_is_refused(today: date) -> None:
-    """An inferred start before 1 Aug 2026 is out of coverage. It is not clamped."""
-
-    assert DATA_START_DATE == date(2026, 8, 1)
+def test_inferred_start_before_the_floor_is_raised(today: date) -> None:
     resolved = dates.resolve_dates(
-        "posts until 2026-08-03",
+        "posts until 2026-08-10",
         date(2026, 8, 1),
-        date(2026, 8, 3),
+        date(2026, 8, 10),
     )
-    assert resolved.start_date == date(2026, 7, 27)
-    assert resolved.end_date == date(2026, 8, 3)
+    assert resolved.start_date == dates.QUERY_START_FLOOR
+    assert resolved.end_date == date(2026, 8, 10)
     assert resolved.start_date_inferred is True
-    assert resolved.end_date_inferred is False
-    assert resolved.start_date < DATA_START_DATE
+    assert resolved.start_date_clamped is True
+    assert resolved.end_date_clamped is False
 
-    intent = QueryIntent(
+
+def test_whole_year_is_clamped_to_floor_and_today(today: date) -> None:
+    resolved = dates.resolve_dates(
+        "get me all posts in 2026 that contain keywords palestin* AND israel*",
+        date(2026, 1, 1),
+        date(2026, 12, 31),
+    )
+    assert resolved.start_date == dates.QUERY_START_FLOOR
+    assert resolved.end_date == today
+    assert resolved.start_date_clamped is True
+    assert resolved.end_date_clamped is True
+    assert resolved.start_date_inferred is False
+    assert resolved.end_date_inferred is False
+
+
+def test_range_inside_the_window_is_untouched(today: date) -> None:
+    resolved = dates.resolve_dates(
+        "posts from 2026-09-01 through 2026-09-30",
+        date(2026, 9, 1),
+        date(2026, 9, 30),
+    )
+    assert (resolved.start_date, resolved.end_date) == (date(2026, 9, 1), date(2026, 9, 30))
+    assert resolved.start_date_clamped is False
+    assert resolved.end_date_clamped is False
+
+
+def _clamped_intent(resolved: dates.ResolvedDates) -> QueryIntent:
+    return QueryIntent(
         is_nonsense=False,
         record_type=RecordType.POSTS,
-        columns=["text", "created_at"],
+        columns=["text"],
         start_date=resolved.start_date,
         end_date=resolved.end_date,
-        start_date_inferred=resolved.start_date_inferred,
-        end_date_inferred=resolved.end_date_inferred,
     )
-    snapshot = {
-        RecordType.POSTS: TableMetadata(
-            columns=("text", "created_at"),
-            coverage_start=DATA_START_DATE,
-            coverage_end=today,
-        )
-    }
-    assert check_data_availability(intent, snapshot) == [ValidationIssue.RANGE_OUTSIDE_COVERAGE]
 
 
-def test_from_may_keeps_the_whole_month(today: date) -> None:
-    """'from' alone is not an open start, so May stays 1 May through 31 May."""
+def test_range_before_the_floor_is_refused(today: date) -> None:
+    resolved = dates.resolve_dates("posts from March 2026", date(2026, 3, 1), date(2026, 3, 31))
 
-    query = "posts from May 2026"
+    assert resolved.start_date == dates.QUERY_START_FLOOR
+    assert resolved.end_date == date(2026, 3, 31)
+    assert check_date_range(_clamped_intent(resolved)) == [ValidationIssue.RANGE_OUTSIDE_COVERAGE]
+
+
+def test_range_in_the_future_is_refused(today: date) -> None:
+    resolved = dates.resolve_dates(
+        "posts from December 2026", date(2026, 12, 1), date(2026, 12, 31)
+    )
+
+    assert resolved.start_date == date(2026, 12, 1)
+    assert resolved.end_date == today
+    assert check_date_range(_clamped_intent(resolved)) == [ValidationIssue.RANGE_OUTSIDE_COVERAGE]
+
+
+def test_unparsed_side_takes_the_window_bound(today: date) -> None:
+    resolved = dates.resolve_dates("posts from 2026-09-01 through then", None, None)
+
+    assert resolved.start_date == dates.QUERY_START_FLOOR
+    assert resolved.end_date == today
+
+
+def test_from_september_keeps_the_whole_month(today: date) -> None:
+    """'from' alone is not an open start, so September stays 1 Sep through 30 Sep."""
+
+    query = "posts from September 2026"
     assert dates._regex_sides(query) == "both"
-    resolved = dates.resolve_dates(query, date(2026, 5, 1), date(2026, 5, 31))
-    assert resolved.start_date == date(2026, 5, 1)
-    assert resolved.end_date == date(2026, 5, 31)
+    resolved = dates.resolve_dates(query, date(2026, 9, 1), date(2026, 9, 30))
+    assert resolved.start_date == date(2026, 9, 1)
+    assert resolved.end_date == date(2026, 9, 30)
     assert resolved.start_date_inferred is False
     assert resolved.end_date_inferred is False
     assert resolved.end_date != today

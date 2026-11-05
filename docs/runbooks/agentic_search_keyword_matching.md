@@ -38,6 +38,14 @@ regexp_like("text", '(?i)#climate')
 
 `#climate` matches `#Climate` and also `#climatechange`. A trailing boundary is not in the pattern, so the longer tag matches too.
 
+A `*` at the start or end of a term is removed, and that term becomes a substring whatever `use_whole_word` says. `palestin*` matches `Palestine` and `#FreePalestine`:
+
+```sql
+regexp_like("text", '(?i)palestin')
+```
+
+A `*` inside a term stays a literal asterisk. A term of only `*` is refused as empty.
+
 ## What whole word means
 
 Athena runs RE2. In that engine a word character is an ASCII letter, a digit, or `_`. `\b` is the position between a word character and a non-word character, and it is also the position at the start or end of the text when that end touches a word character.
@@ -54,7 +62,7 @@ The `text` column is not lowercased. `(?i)` at the start of the pattern makes le
 
 ## Dates
 
-`resolve_dates` decides which sides the question states, then fills the open ones. "since" and "after" are a start only, including "since yesterday". "until" and "before" are an end only. A named month, a single day, or "the last N days" is both sides, and "from May" is the month, because "from" by itself is not an open start. A missing end becomes the current UTC date from `get_current_date()`. A missing start becomes that end minus 7 days. `created_at` is stored in UTC. The `WHERE` clause uses `created_at >= TIMESTAMP '<start> 00:00:00'` and `created_at < TIMESTAMP '<day after the end> 00:00:00'`, so both calendar days are included. The results email and the refusal email name each side the program filled in. A stated side that did not parse stays empty, and a keyword query then gets `keywords_require_bounded_range`. The same rules apply to every question. The pull request description has the full date interface.
+`resolve_dates` decides which sides the question states, then fills the open ones. "since" and "after" are a start only, including "since yesterday". "until" and "before" are an end only. A named month, a single day, or "the last N days" is both sides, and "from May" is the month, because "from" by itself is not an open start. A missing end becomes the current UTC date from `get_current_date()`. A missing start becomes that end minus 7 days. `created_at` is stored in UTC. The `WHERE` clause uses `created_at >= TIMESTAMP '<start> 00:00:00'` and `created_at < TIMESTAMP '<day after the end> 00:00:00'`, so both calendar days are included. The range is then clamped to `QUERY_START_FLOOR` (2026-08-08, temporary) through today UTC, and a stated side that did not parse takes that bound. A range wholly outside that window is refused with `range_outside_coverage`. The results email and the refusal email name each side the program filled in or moved. The same rules apply to every question. The pull request description has the full date interface.
 
 ## How several terms combine
 
