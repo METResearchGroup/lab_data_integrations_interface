@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-11-04
+
+1. Agentic search keywords with a `*` at either end, such as `palestin*`, now match as case-insensitive substrings instead of a literal asterisk, which matched no posts. Every query range is limited to 2026-08-08 through today UTC, a range that ends up empty is refused with `range_outside_coverage`, and the email names each date that moved. [PR #291](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/291)
+
 ## 2026-11-02
 
 1. The backfill and Jetstream dedup jobs no longer delete every copy of a URI that has two copies in one file. They delete by URI and file path, so ranking rows individually also matched the copy meant to be kept. They now rank by file and delete only from later files, which leaves duplicates inside the kept file rather than risking data loss. [PR #287](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/287)
