@@ -53,6 +53,14 @@ class QueryIntent(BaseModel):
         default=False,
         description="True when a missing end was set to the current UTC date.",
     )
+    start_date_clamped: SkipJsonSchema[bool] = Field(
+        default=False,
+        description="True when the start was raised to QUERY_START_FLOOR.",
+    )
+    end_date_clamped: SkipJsonSchema[bool] = Field(
+        default=False,
+        description="True when the end was lowered to the current UTC date.",
+    )
 
     @field_validator("keywords")
     @classmethod

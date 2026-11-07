@@ -16,9 +16,7 @@ def check_keywords(intent: QueryIntent) -> list[ValidationIssue]:
 
     KEYWORDS_REQUIRE_POSTS when the filter targets anything but posts.
     KEYWORDS_REQUIRE_BOUNDED_RANGE when either date is still missing.
-    resolve_dates fills an unstated end with the current UTC date and an
-    unstated start with 7 days before that end, so a missing date here means
-    a stated side did not parse.
+    resolve_dates always sets both, so this guards callers that skip it.
     EMPTY_KEYWORD when a term is blank.
     TOO_MANY_KEYWORDS and KEYWORD_TOO_LONG past the shared caps.
     An empty keyword list is no filter, and passes.
@@ -33,7 +31,7 @@ def check_keywords(intent: QueryIntent) -> list[ValidationIssue]:
         issues.append(ValidationIssue.KEYWORDS_REQUIRE_POSTS)
     if intent.start_date is None or intent.end_date is None:
         issues.append(ValidationIssue.KEYWORDS_REQUIRE_BOUNDED_RANGE)
-    if any(not term for term in terms):
+    if any(not term.strip("*") for term in terms):
         issues.append(ValidationIssue.EMPTY_KEYWORD)
     if len(terms) > MAX_KEYWORDS:
         issues.append(ValidationIssue.TOO_MANY_KEYWORDS)

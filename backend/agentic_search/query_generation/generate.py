@@ -63,10 +63,12 @@ def _term_body(term: str, *, use_whole_word: bool) -> str:
     --------
     ``climate`` with ``use_whole_word`` true becomes ``\\bclimate\\b``.
     ``#climate`` with ``use_whole_word`` false becomes ``#climate``.
+    ``palestin*`` becomes ``palestin``, a substring either way.
     """
 
-    escaped = _escape_regex(term)
-    if use_whole_word:
+    stripped = term.strip("*")
+    escaped = _escape_regex(stripped)
+    if use_whole_word and stripped == term:
         return rf"\b{escaped}\b"
     return escaped
 
@@ -119,7 +121,7 @@ def _keywords_for_query(keywords: list[str]) -> list[str]:
     if len(terms) > MAX_KEYWORDS:
         raise ValueError(f"at most {MAX_KEYWORDS} keywords")
     for term in terms:
-        if not term:
+        if not term.strip("*"):
             raise ValueError("keyword is empty")
         if len(term) > MAX_KEYWORD_LENGTH:
             raise ValueError(f"keyword longer than {MAX_KEYWORD_LENGTH} characters")

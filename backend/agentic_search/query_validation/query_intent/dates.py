@@ -12,6 +12,9 @@ from ml_tooling.llm.jev import ask_choice, last_status
 # Seven days before the end date. The inclusive window is eight calendar days.
 START_LOOKBACK_DAYS = 7
 
+# Temporary: queries do not reach before this day.
+QUERY_START_FLOOR = date(2026, 8, 8)
+
 _SIDES = ("both", "start_only", "end_only", "neither")
 _BOUNDS_INSTRUCTIONS = (
     "Which date bounds does this question state? "
@@ -55,6 +58,8 @@ class ResolvedDates:
     end_date: date | None
     start_date_inferred: bool
     end_date_inferred: bool
+    start_date_clamped: bool = False
+    end_date_clamped: bool = False
 
 
 def resolve_dates(
@@ -66,26 +71,39 @@ def resolve_dates(
 
     A side the question states is kept from the parsed dates. A missing end
     becomes the current UTC date. A missing start becomes that end minus
-    ``START_LOOKBACK_DAYS``. A stated side that did not parse stays empty.
+    ``START_LOOKBACK_DAYS``. The range is then clamped to
+    ``[QUERY_START_FLOOR, today]``; a side that did not parse takes that bound.
+    A range wholly outside the window comes back with start after end.
 
     Examples
     --------
     Neither side stated, with today 2026-10-24, returns start 2026-10-17
     and end 2026-10-24, and both inferred flags are true.
+
+    All of 2026, with today 2026-11-04, returns start 2026-08-08 and end
+    2026-11-04, and both clamped flags are true.
     """
 
     sides = _stated_sides(query, stated_start, stated_end)
     start = stated_start if sides in ("both", "start_only") else None
     end = stated_end if sides in ("both", "end_only") else None
+    today = get_current_date()
     end_inferred = False
     start_inferred = False
     if sides in ("start_only", "neither") and end is None:
-        end = get_current_date()
+        end = today
         end_inferred = True
     if sides in ("end_only", "neither") and start is None and end is not None:
         start = end - timedelta(days=START_LOOKBACK_DAYS)
         start_inferred = True
-    return ResolvedDates(start, end, start_inferred, end_inferred)
+
+    start_clamped = start is None or start < QUERY_START_FLOOR
+    end_clamped = end is None or end > today
+    if start_clamped:
+        start = QUERY_START_FLOOR
+    if end_clamped:
+        end = today
+    return ResolvedDates(start, end, start_inferred, end_inferred, start_clamped, end_clamped)
 
 
 def _stated_sides(

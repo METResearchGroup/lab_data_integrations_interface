@@ -38,19 +38,29 @@ def _date_note(validation: ValidationResult | None) -> str:
     An end of 2026-10-27 with ``end_date_inferred`` true returns
     "End date 2026-10-27 is the current UTC date, because the question stated no end.\\n\\n".
 
-    Both flags false, or a missing validation result, returns "".
+    A start of 2026-08-08 with ``start_date_clamped`` true returns
+    "Start date moved to 2026-08-08, the earliest date available.\\n\\n".
+    A clamp line replaces the inferred line for that side.
+
+    All flags false, or a missing validation result, returns "".
     """
 
     intent = None if validation is None else validation.intent
     if intent is None:
         return ""
     lines = []
-    if intent.start_date_inferred and intent.start_date is not None:
+    if intent.start_date_clamped and intent.start_date is not None:
+        lines.append(
+            f"Start date moved to {intent.start_date.isoformat()}, the earliest date available."
+        )
+    elif intent.start_date_inferred and intent.start_date is not None:
         lines.append(
             f"Start date {intent.start_date.isoformat()} is {START_LOOKBACK_DAYS} days "
             "before the end, because the question stated no start."
         )
-    if intent.end_date_inferred and intent.end_date is not None:
+    if intent.end_date_clamped and intent.end_date is not None:
+        lines.append(f"End date moved to {intent.end_date.isoformat()}, the current UTC date.")
+    elif intent.end_date_inferred and intent.end_date is not None:
         lines.append(
             f"End date {intent.end_date.isoformat()} is the current UTC date, "
             "because the question stated no end."

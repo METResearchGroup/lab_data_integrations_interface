@@ -46,3 +46,11 @@ def check_data_availability(
     if starts_early or ends_late:
         return [ValidationIssue.RANGE_OUTSIDE_COVERAGE]
     return []
+
+
+def check_date_range(intent: QueryIntent) -> list[ValidationIssue]:
+    """RANGE_OUTSIDE_COVERAGE when clamping left the start after the end."""
+
+    if intent.start_date and intent.end_date and intent.start_date > intent.end_date:
+        return [ValidationIssue.RANGE_OUTSIDE_COVERAGE]
+    return []

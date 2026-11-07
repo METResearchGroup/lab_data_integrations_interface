@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from backend.agentic_search.query_validation.check_data_availability import check_date_range
 from backend.agentic_search.query_validation.check_data_types import check_data_types
 from backend.agentic_search.query_validation.check_keywords import check_keywords
 from backend.agentic_search.query_validation.check_nonsense import check_nonsense
@@ -36,6 +37,7 @@ def validate_intent(
     issues = check_nonsense(intent)
     if not issues:
         issues += check_data_types(intent, snapshot)
+        issues += check_date_range(intent)
         issues += check_keywords(intent)
 
     return ValidationResult(valid=not issues, issues=issues, intent=intent)

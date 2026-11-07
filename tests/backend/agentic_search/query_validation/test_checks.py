@@ -8,6 +8,7 @@ from backend.agentic_search.query_validation.check_data_availability import (
     check_data_availability,
 )
 from backend.agentic_search.query_validation.check_data_types import check_data_types
+from backend.agentic_search.query_validation.check_keywords import check_keywords
 from backend.agentic_search.query_validation.check_nonsense import check_nonsense
 from backend.agentic_search.query_validation.models import TableMetadata, ValidationIssue
 from backend.agentic_search.query_validation.query_intent.models import QueryIntent
@@ -148,3 +149,9 @@ def test_unresolved_record_type_uses_widest_bounds(
 
 def test_empty_snapshot_reports_no_coverage_issue() -> None:
     assert check_data_availability(CLEAN, {}) == []
+
+
+def test_only_stars_is_an_empty_keyword() -> None:
+    intent = CLEAN.model_copy(update={"keywords": ["**"]})
+
+    assert check_keywords(intent) == [ValidationIssue.EMPTY_KEYWORD]
