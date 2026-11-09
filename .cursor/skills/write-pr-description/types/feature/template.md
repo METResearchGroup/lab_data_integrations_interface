@@ -6,6 +6,14 @@ Adds <capability> for <problem or constraint>.
 
 <How it behaves from the caller's perspective>. <Most important runtime behavior>.
 
+```diff
+ <existing shape>
+-  <removed>
++  <added>
+```
+
+Use a `diff` fence when the view is a change, so GitHub colors `+` and `-`. Use `text` for a new tree or pseudocode. See ../../shared/summary-view.md.
+
 ## Purpose
 
 Currently, <user or system problem>.
@@ -90,3 +98,13 @@ Response:
 ```
 
 Expected: <observable success condition>.
+
+## Merge Danger
+
+**Door:** one-way | two-way
+
+<optional: why revert is expensive or incomplete, or why it is cheap>
+
+**Blast radius:** <short phrase>
+
+<optional: who or what breaks if this is wrong>
