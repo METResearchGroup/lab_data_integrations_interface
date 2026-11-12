@@ -11,9 +11,10 @@
 # `bluesky_raw` is partitioned by day, so one INSERT of the whole range
 # (~1,360 days) fails with ICEBERG_TOO_MANY_OPEN_PARTITIONS. A quarter of
 # likes is also near Athena's memory limit. The stage copy does not sort.
-# The Iceberg INSERT dedupes one month of the stage, the same row set as the
-# old per-month statement. A landing day writes at most one Hive partition
-# per month, which is under the 100-partition cap.
+# The Iceberg INSERT dedupes one chunk of the stage. The stage name includes
+# the execution name, so one run cannot drop another's files. Two overlapping
+# runs can still both insert; the single cursor already allowed that.
+# A landing day writes at most one Hive partition per month, under the cap.
 #
 # The scheduled runs on 2026-10-18, 2026-10-25, and 2026-11-01 failed after
 # about 22 minutes with "Query exhausted resources at this scale factor".
@@ -64,17 +65,18 @@ locals {
   # filter is not what limits the scan; dt is.
   merge_plans = [
     for record_type, columns in local.landing_columns : {
-      record_type  = record_type
-      stage_prefix = "${local.merge_stage_root}/${record_type}/"
-      drop_sql     = "DROP TABLE IF EXISTS ${var.landing_glue_database}.merge_stage_${record_type}"
+      record_type = record_type
+      # `{exec}` is this execution's name, sanitized. Two runs do not share a stage.
+      stage_prefix = "${local.merge_stage_root}/{exec}/${record_type}/"
+      drop_sql     = "DROP TABLE IF EXISTS ${var.landing_glue_database}.merge_stage_${record_type}_{exec}"
       create_sql = join(" ", [
-        "CREATE EXTERNAL TABLE ${var.landing_glue_database}.merge_stage_${record_type} (",
+        "CREATE EXTERNAL TABLE ${var.landing_glue_database}.merge_stage_${record_type}_{exec} (",
         join(", ", [for column in columns : "${column.name} ${column.type}"]),
         ") PARTITIONED BY (created_month string) STORED AS PARQUET",
-        "LOCATION 's3://${var.s3_bucket}/${local.merge_stage_root}/${record_type}/'",
+        "LOCATION 's3://${var.s3_bucket}/${local.merge_stage_root}/{exec}/${record_type}/'",
       ])
       day_sql = join(" ", [
-        "INSERT INTO ${var.landing_glue_database}.merge_stage_${record_type}",
+        "INSERT INTO ${var.landing_glue_database}.merge_stage_${record_type}_{exec}",
         "SELECT ${join(", ", columns[*].name)}, date_format(created_at, '%Y-%m')",
         "FROM ${var.landing_glue_database}.${record_type}",
         "WHERE dt = '{day}'",
@@ -88,8 +90,11 @@ locals {
             "INSERT INTO ${var.raw_glue_database}.${record_type} (${join(", ", columns[*].name)})",
             "SELECT ${join(", ", columns[*].name)} FROM (",
             "SELECT *, row_number() OVER (PARTITION BY uri ORDER BY rev DESC, ingested_at DESC) AS rn",
-            "FROM ${var.landing_glue_database}.merge_stage_${record_type}",
-            "WHERE created_month = '${substr(chunk.start, 0, 7)}'",
+            "FROM ${var.landing_glue_database}.merge_stage_${record_type}_{exec}",
+            # Inclusive month of the last day in the chunk. A 2- or 3-month
+            # chunk must read every stage partition it covers.
+            "WHERE created_month >= '${substr(chunk.start, 0, 7)}'",
+            "AND created_month <= '${substr(formatdate("YYYY-MM-DD", timeadd("${chunk.end}T00:00:00Z", "-24h")), 0, 7)}'",
             "AND created_at >= timestamp '${chunk.start} 00:00:00'",
             "AND created_at < timestamp '${chunk.end} 00:00:00'",
             ") WHERE rn = 1",
@@ -164,6 +169,7 @@ resource "aws_sfn_state_machine" "merge" {
           merged_through  = "{% $exists($states.result.Item.merged_through) ? $states.result.Item.merged_through.S : '' %}"
           pending_through = "{% $exists($states.result.Item.pending_through) ? $states.result.Item.pending_through.S : '' %}"
           completed       = "{% $exists($states.result.Item.completed) ? $states.result.Item.completed.SS : [] %}"
+          exec_id         = "{% $lowercase($replace($states.context.Execution.Name, /[^A-Za-z0-9]/, '_')) %}"
         }
         Next = "CheckCursor"
       }
@@ -225,11 +231,11 @@ resource "aws_sfn_state_machine" "merge" {
               Type = "Pass"
               Assign = {
                 record_type  = "{% $states.input.record_type %}"
-                stage_prefix = "{% $states.input.stage_prefix %}"
-                drop_sql     = "{% $states.input.drop_sql %}"
-                create_sql   = "{% $states.input.create_sql %}"
-                day_sql      = "{% $states.input.day_sql %}"
-                chunks       = "{% $states.input.chunks %}"
+                stage_prefix = "{% $replace($states.input.stage_prefix, '{exec}', $exec_id) %}"
+                drop_sql     = "{% $replace($states.input.drop_sql, '{exec}', $exec_id) %}"
+                create_sql   = "{% $replace($states.input.create_sql, '{exec}', $exec_id) %}"
+                day_sql      = "{% $replace($states.input.day_sql, '{exec}', $exec_id) %}"
+                chunks       = "{% [$states.input.chunks.{\"key\": key, \"sql\": $replace(sql, '{exec}', $exec_id)}] %}"
                 chunk_index  = 0
                 day          = "{% $fromMillis($toMillis($merged_through & 'T00:00:00.000Z') + 86400000, '[Y0001]-[M01]-[D01]') %}"
               }
@@ -254,7 +260,7 @@ resource "aws_sfn_state_machine" "merge" {
               Arguments = {
                 Bucket  = var.s3_bucket
                 Prefix  = "{% $stage_prefix %}"
-                MaxKeys = 1000
+                MaxKeys = 100
               }
               Next = "DeleteChoiceBefore"
             }
@@ -276,7 +282,7 @@ resource "aws_sfn_state_machine" "merge" {
               Arguments = {
                 Bucket = var.s3_bucket
                 Delete = {
-                  Objects = "{% $states.input.Contents.{\"Key\": Key} %}"
+                  Objects = "{% [$states.input.Contents.{\"Key\": Key}] %}"
                 }
               }
               Next = "ListBefore"
@@ -403,7 +409,7 @@ resource "aws_sfn_state_machine" "merge" {
               Arguments = {
                 Bucket  = var.s3_bucket
                 Prefix  = "{% $stage_prefix %}"
-                MaxKeys = 1000
+                MaxKeys = 100
               }
               Next = "DeleteChoiceAfter"
             }
@@ -425,7 +431,7 @@ resource "aws_sfn_state_machine" "merge" {
               Arguments = {
                 Bucket = var.s3_bucket
                 Delete = {
-                  Objects = "{% $states.input.Contents.{\"Key\": Key} %}"
+                  Objects = "{% [$states.input.Contents.{\"Key\": Key}] %}"
                 }
               }
               Next = "ListAfter"

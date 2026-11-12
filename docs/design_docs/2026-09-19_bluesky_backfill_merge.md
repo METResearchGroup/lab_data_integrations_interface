@@ -103,7 +103,7 @@ WHERE dt = :day
   AND created_at >= :backfill_start AND created_at < :backfill_end;
 ```
 
-2. Write one month from the stage. `created_month` prunes. The sort is that month.
+2. Write one chunk from the stage. `created_month` spans every month in the chunk, which is one month unless `backfill_chunk_months` is raised. The sort is that chunk.
 
 ```sql
 INSERT INTO raw.<type> (uri, did, created_at, ...)
@@ -111,7 +111,7 @@ SELECT uri, did, created_at, ...
 FROM (
   SELECT *, row_number() OVER (PARTITION BY uri ORDER BY rev DESC, ingested_at DESC) AS rn
   FROM landing.merge_stage_<type>
-  WHERE created_month = :month
+  WHERE created_month >= :chunk_start_month AND created_month <= :chunk_last_month
     AND created_at >= :month_start AND created_at < :month_end
 ) WHERE rn = 1;
 ```
