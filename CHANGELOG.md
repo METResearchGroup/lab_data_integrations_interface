@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-11-12
+
+1. The weekly Bluesky backfill merge reads each new landing window once per table instead of once per `created_at` month. A week like 8 November should scan about 0.24 TiB instead of 5.47 TiB, and the `bluesky_backfill` workgroup stops a query above 300 GiB. [PR #293](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/293)
+
 ## 2026-11-04
 
 1. Agentic search keywords with a `*` at either end, such as `palestin*`, now match as case-insensitive substrings instead of a literal asterisk, which matched no posts. Every query range is limited to 2026-08-08 through today UTC, a range that ends up empty is refused with `range_outside_coverage`, and the email names each date that moved. [PR #291](https://github.com/METResearchGroup/lab_data_integrations_interface/pull/291)
