@@ -156,7 +156,7 @@ variable "backfill_end_date" {
 }
 
 variable "backfill_chunk_months" {
-  description = "Months per statement. Tables are partitioned by day and Athena writes at most 100 partitions per statement. Quarters leave `likes` at the edge of Athena's memory limit; each merge statement scans the whole landing window, so fewer months cost more."
+  description = "Months of created_at per Iceberg write. Tables are partitioned by day and Athena writes at most 100 partitions per statement, so 4 months can exceed that. The merge copies each landing day once, then writes one chunk at a time from that copy. A quarter of likes is also near Athena's memory limit."
   default     = 1
 
   validation {
@@ -203,6 +203,15 @@ resource "aws_athena_workgroup" "backfill" {
   configuration {
     enforce_workgroup_configuration    = true
     publish_cloudwatch_metrics_enabled = true
+    # 300 GiB. The 2026-11-01 likes catch-up scanned 247 GiB per statement
+    # because every month re-read the whole dt window. After this change a
+    # statement reads one landing day or one staged month, both at most that
+    # window. 200 GiB is under that measured window, so a heavy day or a
+    # skewed month would fail the weekly merge and leave the cursor where it
+    # is. Backfill OPTIMIZE and dedup on this workgroup peaked at 9 GiB
+    # (2026-11-02). A query that drops the dt predicate and reads every
+    # landing day still crosses this cap once likes landing grows past it.
+    bytes_scanned_cutoff_per_query = 300 * 1024 * 1024 * 1024
 
     result_configuration {
       output_location = "s3://${var.s3_bucket}/${var.athena_results_prefix}/"
@@ -267,7 +276,7 @@ resource "aws_iam_role_policy" "backfill_states" {
         ]
       },
       {
-        # Iceberg commits swap the table's metadata pointer. Landing is read-only.
+        # Iceberg commits swap the raw table's metadata pointer.
         Effect = "Allow"
         Action = ["glue:UpdateTable"]
         Resource = [
@@ -295,8 +304,28 @@ resource "aws_iam_role_policy" "backfill_states" {
         ]
       },
       {
+        # The merge creates and drops per-run stage tables in the landing
+        # database. Raw stays update-only so this role cannot replace those tables.
+        Effect = "Allow"
+        Action = [
+          "glue:CreateTable",
+          "glue:DeleteTable",
+          "glue:UpdateTable",
+          "glue:CreatePartition",
+          "glue:BatchCreatePartition",
+          "glue:DeletePartition",
+          "glue:BatchDeletePartition",
+          "glue:UpdatePartition",
+        ]
+        Resource = [
+          "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:catalog",
+          "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:database/${var.landing_glue_database}",
+          "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.landing_glue_database}/*",
+        ]
+      },
+      {
         Effect   = "Allow"
-        Action   = ["dynamodb:GetItem", "dynamodb:PutItem"]
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"]
         Resource = aws_dynamodb_table.merge_cursor.arn
       },
     ]
