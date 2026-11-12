@@ -11,9 +11,10 @@
 # `bluesky_raw` is partitioned by day, so one INSERT of the whole range
 # (~1,360 days) fails with ICEBERG_TOO_MANY_OPEN_PARTITIONS. A quarter of
 # likes is also near Athena's memory limit. The stage copy does not sort.
-# The Iceberg INSERT dedupes one chunk of the stage. The stage name includes
-# the execution name, so one run cannot drop another's files. Two overlapping
-# runs can still both insert; the single cursor already allowed that.
+# The Iceberg INSERT dedupes one chunk of the stage. The stage name is a
+# UUID for this execution. A sanitized execution name is not unique:
+# `merge-a` and `merge_a` would share a prefix. Two overlapping runs can
+# still both insert; the single cursor already allowed that.
 # A landing day writes at most one Hive partition per month, under the cap.
 #
 # The scheduled runs on 2026-10-18, 2026-10-25, and 2026-11-01 failed after
@@ -66,7 +67,7 @@ locals {
   merge_plans = [
     for record_type, columns in local.landing_columns : {
       record_type = record_type
-      # `{exec}` is this execution's name, sanitized. Two runs do not share a stage.
+      # `{exec}` is a UUID for this execution, hex only. Two runs do not share a stage.
       stage_prefix = "${local.merge_stage_root}/{exec}/${record_type}/"
       drop_sql     = "DROP TABLE IF EXISTS ${var.landing_glue_database}.merge_stage_${record_type}_{exec}"
       create_sql = join(" ", [
@@ -169,7 +170,7 @@ resource "aws_sfn_state_machine" "merge" {
           merged_through  = "{% $exists($states.result.Item.merged_through) ? $states.result.Item.merged_through.S : '' %}"
           pending_through = "{% $exists($states.result.Item.pending_through) ? $states.result.Item.pending_through.S : '' %}"
           completed       = "{% $exists($states.result.Item.completed) ? $states.result.Item.completed.SS : [] %}"
-          exec_id         = "{% $lowercase($replace($states.context.Execution.Name, /[^A-Za-z0-9]/, '_')) %}"
+          exec_id         = "{% $replace($uuid(), '-', '') %}"
         }
         Next = "CheckCursor"
       }

@@ -93,6 +93,8 @@ GetItem cursor
   -> if yesterday is later, repeat for the gap
 ```
 
+The stage table is `merge_stage_<type>_<id>` and the prefix includes that same id. The id is a UUID with the hyphens removed, set once when the cursor is read. A sanitized execution name is not unique: `merge-a` and `merge_a` would share a stage.
+
 1. Copy one landing day. `dt` prunes. The `created_at` bounds only drop rows outside the backfill range.
 
 ```sql
