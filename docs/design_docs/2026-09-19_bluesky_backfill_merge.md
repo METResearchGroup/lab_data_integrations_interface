@@ -47,8 +47,8 @@ read the whole table on every run.
 | --- | --- | --- |
 | Cadence | Weekly, outside the 03:00-06:00 UTC maintenance window | Each run writes a file into every `created_at` day it touches (~1,360), so a rarer merge means fewer, larger files. Appends never read the partitions they write, so merge size does not change scanned bytes. |
 | Input | `dt > merged_through AND dt < current_date` | `run_id` is in the filename, not the path, so a run is not addressable -- the prefix is. Today's landing day is still being written. |
-| Chunking | One `INSERT` per month of `created_at` | Athena writes at most 100 partitions per statement, and the tables are partitioned by day. Measured 2026-09-19 on a throwaway Iceberg table: 100 succeeds, 101 fails with `ICEBERG_TOO_MANY_OPEN_PARTITIONS`. Memory is the tighter limit. Measured 2026-11-01 on `likes`: 513M rows in one window succeeds, about 680M fails with `Query exhausted resources`. The largest month was 177M rows, the largest quarter 513M. |
-| Dedup | `row_number()` over `uri` inside each `INSERT`, after the `created_at` filter | Athena cannot push the filter past the window, so outside it every statement sorts the whole landing window. Each statement still scans the whole window, because landing files are not sorted by `created_at`: a run costs 46 x window bytes. Copies of a `uri` share a `created_at` (0 of 227k duplicated URIs differed, 2026-11-01), so they land in the same chunk. |
+| Chunking | Copy each new landing `dt` once into a Hive table partitioned by month of `created_at`, then one Iceberg `INSERT` per month | Landing is partitioned only by `dt`, so a `created_at` predicate does not reduce bytes scanned. One `INSERT` per month re-read the whole dt window (46 times). One Iceberg `INSERT` of the whole range is invalid: Athena writes at most 100 partitions per statement, and the tables are partitioned by day (~1,360 days). Measured 2026-09-19 on a throwaway Iceberg table: 100 succeeds, 101 fails with `ICEBERG_TOO_MANY_OPEN_PARTITIONS`. Memory is separate. A quarter of `likes` is near the limit: 513M rows in one window succeeds, about 680M fails with `Query exhausted resources` (measured 2026-11-01). The largest month was 177M rows. The stage copy is one `dt` and does not sort. The Iceberg `INSERT` dedupes one month of that stage. A landing day opens at most 46 stage partitions, under the cap. |
+| Dedup | `row_number()` over `uri` inside each month `INSERT` from the stage | The predicate is inside the window, so the statement sorts that month, not the dt window. Copies of a `uri` share a `created_at` (0 of 227k duplicated URIs differed, 2026-11-01), so they land in the same month. |
 | Provenance | None per DID | A `done` DID is in Iceberg once `date(updated_at) <= merged_through`. Marking each one would add a DID-extraction query and a bulk writer to what is otherwise files in, rows out, one cursor. |
 
 # Components
@@ -83,33 +83,51 @@ DynamoDB):
 
 ```
 GetItem cursor
-  -> Choice: exit if already current
-  -> Map over 4 record types
-       -> Map over months, concurrency 1
-            -> Athena StartQueryExecution.sync
-  -> PutItem merged_through = current_date - 1
+  -> Choice: missing cursor, already current, or resume pending_through
+  -> Map over 4 record types, concurrency 1
+       -> DROP stage, delete its prefix
+       -> for each dt in (merged_through, through]: INSERT that day into the stage
+       -> for each month not in completed: INSERT into raw, then ADD the month to completed
+       -> DROP stage, delete its prefix
+  -> PutItem merged_through = through
+  -> if yesterday is later, repeat for the gap
 ```
+
+The stage table is `merge_stage_<type>_<id>` and the prefix includes that same id. The id is a UUID with the hyphens removed, set once when the cursor is read. A sanitized execution name is not unique: `merge-a` and `merge_a` would share a stage.
+
+1. Copy one landing day. `dt` prunes. The `created_at` bounds only drop rows outside the backfill range.
+
+```sql
+INSERT INTO landing.merge_stage_<type>
+SELECT uri, did, created_at, ..., date_format(created_at, '%Y-%m')
+FROM landing.<type>
+WHERE dt = :day
+  AND created_at >= :backfill_start AND created_at < :backfill_end;
+```
+
+2. Write one chunk from the stage. `created_month` spans every month in the chunk, which is one month unless `backfill_chunk_months` is raised. The sort is that chunk.
 
 ```sql
 INSERT INTO raw.<type> (uri, did, created_at, ...)
 SELECT uri, did, created_at, ...
 FROM (
   SELECT *, row_number() OVER (PARTITION BY uri ORDER BY rev DESC, ingested_at DESC) AS rn
-  FROM landing.<type>
-  WHERE dt > :merged_through AND dt < current_date
+  FROM landing.merge_stage_<type>
+  WHERE created_month >= :chunk_start_month AND created_month <= :chunk_last_month
     AND created_at >= :month_start AND created_at < :month_end
 ) WHERE rn = 1;
 ```
 
 ```mermaid
 flowchart LR
-    cron[["EventBridge: Sun 09:00"]] --> read[("DynamoDB: read merged_through")]
+    cron[["EventBridge: Sun 09:00"]] --> read[("DynamoDB: read cursor")]
     read --> choice{new landing days?}
     choice -->|no| stop([done])
-    choice -->|yes| insert["INSERT per record type,<br/>in batches"]
-    s3[(S3 landing)] --> insert
+    choice -->|yes| stage["Copy each new dt once"]
+    s3[(S3 landing)] --> stage
+    stage --> insert["INSERT one created_at month at a time"]
     insert --> raw[(Iceberg raw)]
-    insert --> write[("DynamoDB: merged_through = yesterday")]
+    insert --> write[("DynamoDB: merged_through = window end")]
     write --> stop
 ```
 
@@ -185,7 +203,7 @@ machine's `ExecutionsFailed`.
 ## I. Expected Flow
 
 1. Run backfills whenever we want to place data into landing zone. 
-2. Every week, merge will happen and all new landing zone files will move into iceberg. 
+2. Every week, merge copies each new landing day once, then writes those rows into Iceberg one `created_at` month at a time. 
 3. Every month, compaction will happen. If nothing to compact, the actual data won't be scanned. 
 4. Every month, expired files (files > 30 days) in the landing zone will be auto-deleted. By this point,
 the weekly cron should've already moved the data to the iceberg table. 
@@ -207,10 +225,8 @@ reapplies itself, and Jetstream already retries
 # Accepted tradeoffs
 
 - **Duplicates across runs.** Two copies of a DID landing in different merge runs
-  both reach Iceberg. Cleaned up on demand with `dedup_range`.
-- **Rerun after a partial failure.** Re-inserts the quarters that succeeded, causing duplicates. 
-We're allowing these duplicates because deduping on every run would be very expensive, for when 
-we expect very little duplicates. 
+  both reach Iceberg. Cleaned up on demand with `dedup_backfill`.
+- **Rerun after a partial failure.** The cursor stays put. The run records `pending_through` and each month that committed. The next run finishes that window and skips those months, then merges later days through yesterday. A uri that lands again in a later window can still produce a second Iceberg row. `dedup_backfill` cleans that up. Comparing every row to `bluesky_raw` on each run would scan the raw tables. 
 - **No per-DID merge status.** A DID stops at `done`; nothing marks it merged.
   Writing one would mean a second Athena query per run to pull the merged DIDs
   out, something to turn millions of rows into `UpdateItem` calls, and a
