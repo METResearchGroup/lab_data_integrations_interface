@@ -1,3 +1,4 @@
+import MicrosoftSignInButton from "@/components/MicrosoftSignInButton";
 import SignupForm from "@/components/SignupForm";
 import { createClient } from "@/lib/supabase/server";
 import { formatAllowedDomains } from "@/lib/validation";
@@ -26,6 +27,8 @@ export default async function SignupPage() {
 						Requires a {formatAllowedDomains()} email.
 					</p>
 				</div>
+
+				<MicrosoftSignInButton next="/" />
 
 				<SignupForm />
 
